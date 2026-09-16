@@ -39,7 +39,7 @@ import { auditMiddleware } from './middleware/audit.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.DYPOS_PORT) || 3001;
 const HOST = process.env.DYPOS_HOST || '0.0.0.0';
-const VERSION = '1.3.0';
+const VERSION = '1.3.1';
 
 // ── Optional clustering: DYPOS_CLUSTER=1 uses all CPUs (throughput × cores) ──
 // NOTE: kept outside the request path so `export` stays top-level (ESM requirement).
@@ -146,9 +146,10 @@ app.use(requestLogger);
 app.use(metricsMiddleware);
 app.use(auditMiddleware);
 
-// Global rate limit — per-IP; use Redis store via DYPOS_REDIS_URL in multi-replica deploys
+// Global rate limit — per-IP; use Redis store via DYPOS_REDIS_URL in multi-replica deploys.
+// Tunable for load campaigns: DYPOS_RATE_LIMIT_MAX (default 2000 prod / 1000 dev).
 app.use(rateLimit({
-  windowMs: 15 * 60 * 1000, max: isProduction ? 2000 : 1000,
+  windowMs: 15 * 60 * 1000, max: Number(process.env.DYPOS_RATE_LIMIT_MAX) || (isProduction ? 2000 : 1000),
   standardHeaders: true, legacyHeaders: false,
   skip: (req) => req.path === '/api/health' || req.path === '/api/ready',
   message: { error: 'Too many requests. Please try again later.' },
@@ -199,7 +200,7 @@ app.get('/api/ready', async (_req, res) => {
 
 // Auth routes with stricter rate limit (brute-force protection)
 const authRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000, max: 30,
+  windowMs: 15 * 60 * 1000, max: Number(process.env.DYPOS_AUTH_LIMIT_MAX) || 30,
   standardHeaders: true, legacyHeaders: false,
   message: { error: 'Too many login attempts. Please try again later.' },
   skipSuccessfulRequests: true,

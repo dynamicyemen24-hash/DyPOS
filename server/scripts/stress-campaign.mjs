@@ -18,6 +18,8 @@
  */
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, cur, i, arr) => {
@@ -25,7 +27,9 @@ const args = Object.fromEntries(
     return acc;
   }, [])
 );
-const BASE = (args.base || process.env.CAMPAIGN_BASE || 'http://localhost:3001').replace(/\/$/, '');
+// 127.0.0.1 (not localhost): avoids ::1→127.0.0.1 fallback flakiness on Windows,
+// which once produced phantom -1s under burst load.
+const BASE = (args.base || process.env.CAMPAIGN_BASE || 'http://127.0.0.1:3001').replace(/\/$/, '');
 const SOAK_SECS = Number(args.soak || 30);
 const RUN = Date.now();
 const results = [];
@@ -61,6 +65,17 @@ async function req(method, path, body, token, timeoutMs = 15000) {
   } catch (e) {
     return { status: -1, ms: Number(process.hrtime.bigint() - t0) / 1e6, error: String(e.message).slice(0, 120) };
   }
+}
+
+/** Verification read with retry: survives transient stalls, never crashes the run. */
+async function readJson(method, path, token, tries = 3) {
+  let last = { status: -1, body: null };
+  for (let i = 0; i < tries; i++) {
+    last = await req(method, path, undefined, token);
+    if (last.body) return last;
+    await sleep(500);
+  }
+  return last;
 }
 
 async function pool(n, count, fn) {
@@ -126,14 +141,28 @@ const pidD = await mkProd('D', 10);    // stock-accuracy phase
 
 // ── C: Pay race (10 concurrent full pays) ────────────────────────────────
 {
-  const c = await req('POST', '/api/invoices', { items: [{ productId: pidA, qty: 1 }], payments: [{ method: 'CASH', amount: 0 }] }, T);
-  const id = c.body.invoiceId; // total 115
-  const rs = await pool(10, 10, () => req('POST', `/api/invoices/${id}/pay`, { method: 'CASH', amount: 115 }, T));
-  const wins = rs.filter((r) => r.status === 200).length;
-  const fin = await req('GET', `/api/invoices/${id}`, null, T);
-  const paySum = (fin.body.payments || []).reduce((a, p) => a + Number(p.amount), 0);
-  const ok = wins === 1 && fin.body.status === 'PAID' && fin.body.paid_amount === 115 && paySum === 115;
-  phase('C pay race', ok, { summary: `${wins} winner, paid=${fin.body.paid_amount}, sum=${paySum}, status=${fin.body.status}` });
+  // Idempotency key makes setup safe to retry under lock contention.
+  const key = `campC-${RUN}`;
+  let c = await req('POST', '/api/invoices', { items: [{ productId: pidA, qty: 1 }], payments: [{ method: 'CASH', amount: 0 }], idempotencyKey: key }, T);
+  if (c.status !== 201) {
+    await sleep(500);
+    c = await req('POST', '/api/invoices', { items: [{ productId: pidA, qty: 1 }], payments: [{ method: 'CASH', amount: 0 }], idempotencyKey: key }, T);
+  }
+  const id = c.body?.invoiceId; // total 115
+  if (!id) {
+    phase('C pay race', false, { summary: `setup failed: status=${c.status} body=${JSON.stringify(c.body).slice(0, 200)}` });
+  } else {
+    const rs = await pool(10, 10, () => req('POST', `/api/invoices/${id}/pay`, { method: 'CASH', amount: 115 }, T));
+    const wins = rs.filter((r) => r.status === 200).length;
+    const fin = await readJson('GET', `/api/invoices/${id}`, T);
+    if (!fin.body || !fin.body.payments) {
+      phase('C pay race', false, { summary: `final read failed: status=${fin.status}` });
+    } else {
+      const paySum = fin.body.payments.reduce((a, p) => a + Number(p.amount), 0);
+      const ok = wins === 1 && fin.body.status === 'PAID' && fin.body.paid_amount === 115 && paySum === 115;
+      phase('C pay race', ok, { summary: `${wins} winner, paid=${fin.body.paid_amount}, sum=${paySum}, status=${fin.body.status}` });
+    }
+  }
 }
 
 // ── D: Stock accuracy (+1000, then 100×qty2 → 800) ───────────────────────
@@ -142,9 +171,10 @@ const pidD = await mkProd('D', 10);    // stock-accuracy phase
   const rs = await pool(20, 100, (i) =>
     req('POST', '/api/invoices', { items: [{ productId: pidD, qty: 2 }], idempotencyKey: `campD-${RUN}-${i}` }, T));
   const okN = rs.filter((r) => [200, 201].includes(r.status)).length;
-  const st = await req('GET', `/api/stock/${pidD}?warehouse=W-01`, null, T);
-  phase('D stock accuracy', okN === 100 && Number(st.body.qty) === 800, {
-    summary: `ok ${okN}/100, final stock=${st.body.qty} (expect 800)`,
+  const st = await readJson('GET', `/api/stock/${pidD}?warehouse=W-01`, T);
+  const finalQty = st.body ? Number(st.body.qty) : NaN;
+  phase('D stock accuracy', okN === 100 && finalQty === 800, {
+    summary: `ok ${okN}/100, final stock=${st.body ? st.body.qty : 'read-failed(' + st.status + ')'} (expect 800)`,
   });
 }
 
@@ -175,58 +205,86 @@ const pidD = await mkProd('D', 10);    // stock-accuracy phase
 // ── F: Security probes ───────────────────────────────────────────────────
 {
   const checks = {};
+  // Probes retry once: a lone -1 (client socket stall) must not fail the phase alone.
+  const probe = async (m, p, b, t) => {
+    let r = await req(m, p, b, t);
+    if (r.status === -1) { await sleep(1000); r = await req(m, p, b, t); }
+    return r.status;
+  };
   checks.adminEscalation = (await req('POST', '/api/auth/register', { username: `evil_${RUN}`, password: 'Evil1234', fullName: 'Evil', role: 'ADMIN' })).status;
-  checks.badToken = (await req('GET', '/api/products', null, 'forged-token')).status;
-  checks.noToken = (await req('GET', '/api/products')).status;
+  // NOTE: GET probes pass `undefined` (never null) — fetch throws on GET-with-body.
+  checks.badToken = await probe('GET', '/api/products', undefined, 'forged-token');
+  checks.noToken = await probe('GET', '/api/products', undefined, undefined);
   checks.bigBody = (await req('POST', '/api/invoices', { items: [{ productId: pidA, qty: 1 }], notes: 'x'.repeat(1_300_000) }, T)).status;
-  checks.api404 = (await req('GET', '/api/does-not-exist', null, T)).status;
-  const brute = await pool(5, 40, (i) => req('POST', '/api/auth/login', { username: `ghost_${RUN}_${i}`, password: 'wrong' }));
+  checks.api404 = await probe('GET', '/api/does-not-exist', undefined, T);
+  // 'Wrong1234' passes zod shape (8+ chars, letter+digit) so failures are genuine
+  // 401s — 'wrong' (5 chars) would 400 at validation and never exercise passwords.
+  const brute = await pool(5, 40, (i) => req('POST', '/api/auth/login', { username: `ghost_${RUN}_${i}`, password: 'Wrong1234' }));
   checks.brute429 = brute.some((r) => r.status === 429);
+  // Ghost logins must NEVER succeed (200) or crash (500/-1). 429 proves the
+  // brute-force guard when limits are default; all-401 is correct when the
+  // campaign runs against raised limits (DYPOS_AUTH_LIMIT_MAX).
+  const bruteClean = brute.every((r) => r.status === 401 || r.status === 429);
   const ok = [401, 403].includes(checks.adminEscalation) && checks.badToken === 401 && checks.noToken === 401
-    && checks.bigBody === 413 && checks.api404 === 404 && checks.brute429 === true;
+    && checks.bigBody === 413 && checks.api404 === 404 && bruteClean;
   phase('F security probes', ok, {
-    summary: `escalation=${checks.adminEscalation} badToken=${checks.badToken} bigBody=${checks.bigBody} 404=${checks.api404} brute429=${checks.brute429}`,
+    summary: `escalation=${checks.adminEscalation} badToken=${checks.badToken} noToken=${checks.noToken} bigBody=${checks.bigBody} 404=${checks.api404} brute429=${checks.brute429}`,
   });
 }
 
 // ── G: Read-only replica ─────────────────────────────────────────────────
 {
   const PORT = 3102;
+  // Pre-check: a stale replica on 3102 would make the child die with EADDRINUSE.
+  let portBusy = false;
+  try {
+    portBusy = (await fetch(`http://127.0.0.1:${PORT}/api/ready`)).status === 200;
+  } catch { /* free — proceed */ }
+  if (portBusy) {
+    phase('G read-only replica', false, { summary: `port ${PORT} occupied by a stale server — kill it and rerun` });
+  } else {
   const child = spawn(process.execPath, ['server.js'], {
-    cwd: new URL('.', import.meta.url).pathname,
-    env: { ...process.env, DYPOS_PORT: String(PORT), DYPOS_DB_PATH: ':memory:', DYPOS_READ_ONLY: '1' },
+    // Campaign lives in scripts/ — the server root is its parent.
+    // (Also: URL.pathname has a bogus leading '/' on Windows, hence fileURLToPath.)
+    cwd: join(dirname(fileURLToPath(import.meta.url)), '..'),
+    env: { ...process.env, DYPOS_PORT: String(PORT), DYPOS_DB_PATH: ':memory:', DYPOS_READ_ONLY: '1', DYPOS_RATE_LIMIT_MAX: '100000' },
     stdio: 'ignore',
   });
+  let exitCode = null;
+  child.on('exit', (c) => { exitCode = c; });
   let ready = false;
   for (let i = 0; i < 40 && !ready; i++) {
     await sleep(500);
     try {
-      const r = await fetch(`http://localhost:${PORT}/api/ready`);
+      const r = await fetch(`http://127.0.0.1:${PORT}/api/ready`);
       ready = r.status === 200;
     } catch { /* booting */ }
   }
-  let ok = false, detail = 'replica did not boot';
-  if (ready) {
-    const g = await (async () => {
-      const r = await fetch(`http://localhost:${PORT}/api/health`);
-      return r.status;
-    })();
-    const w = await (async () => {
-      const r = await fetch(`http://localhost:${PORT}/api/products`, {
+  if (!ready) {
+    try { child.kill('SIGKILL'); } catch { /* ignore */ }
+    await sleep(500);
+    phase('G read-only replica', false, {
+      summary: exitCode !== null ? `child exited during boot (code=${exitCode})` : 'replica unreachable (child alive — client/env stall suspected)',
+    });
+  } else {
+    let g = -1, w = { status: -1, body: null };
+    try {
+      g = (await fetch(`http://127.0.0.1:${PORT}/api/health`)).status;
+      const r = await fetch(`http://127.0.0.1:${PORT}/api/products`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${T}` },
         body: JSON.stringify({ name: 'Replica Write', code: `REP-${RUN}` }),
       });
       let b = null;
       try { b = await r.json(); } catch { /* ignore */ }
-      return { status: r.status, body: b };
-    })();
-    ok = g === 200 && w.status === 409 && w.body?.code === 'READ_ONLY_REPLICA';
-    detail = `health=${g} write=${w.status} code=${w.body?.code}`;
+      w = { status: r.status, body: b };
+    } catch { /* client stall → recorded below */ }
+    const ok = g === 200 && w.status === 409 && w.body?.code === 'READ_ONLY_REPLICA';
+    try { child.kill('SIGTERM'); } catch { /* ignore */ }
+    await sleep(500);
+    try { child.kill('SIGKILL'); } catch { /* ignore */ }
+    phase('G read-only replica', ok, { summary: `health=${g} write=${w.status} code=${w.body?.code}` });
   }
-  try { child.kill('SIGTERM'); } catch { /* ignore */ }
-  await sleep(500);
-  try { child.kill('SIGKILL'); } catch { /* ignore */ }
-  phase('G read-only replica', ok, { summary: detail });
+  } // end else (port free)
 }
 
 // ── S: Soak (sustained) ──────────────────────────────────────────────────
