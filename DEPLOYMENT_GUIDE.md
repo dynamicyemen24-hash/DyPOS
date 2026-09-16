@@ -55,7 +55,10 @@ After deployment, verify:
 - Arabic RTL support works
 
 ## Version Info
-- **Build:** `1789343375239`
-- **Date:** September 14, 2026
+- **Version:** `1.17.0`
+- **Build:** `1.17.0`
+- **Date:** September 16, 2026
 - **Framework:** Vue 3 + Chart.js + frappe-ui
 - **PWA:** Yes (Offline support, manifest, service worker)
+- **Package:** `dist-deploy/pos-package-1.17.0.zip` (71 files, Jinja 0, ?v=1.17.0 cache-busted)
+- **Tests:** 343/343 passed (POS) + 9/9 (server) — build + lint clean
