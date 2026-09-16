@@ -53,7 +53,7 @@
 
 ## 6) بصمة الحزمة
 - الملف: `dist-deploy/pos-package-1.18.0.zip`
-- `SHA256: 8E34DC73D61A1855164CA1359A3EC55CD40DA2E0A7BA5897B20692C354037B`
+- `SHA256: 71E7BE3B379742B9F30D9F091F53398C4BC7A743257650934DBB572A21A67F1B`
 - تثبيت PWA: `pos.html` يسجّل الـ SW بنطاق الجذر (`Service-Worker-Allowed: /`
   في `web.config`) فيظهر زر التثبيت على سطح المكتب والموبايل — التفاصيل في
   `README-AR.txt` (قسم التثبيت).

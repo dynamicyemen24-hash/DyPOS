@@ -168,10 +168,11 @@ app.use(auditMiddleware);
 
 // Global rate limit — per-IP; use Redis store via DYPOS_REDIS_URL in multi-replica deploys.
 // Tunable for load campaigns: DYPOS_RATE_LIMIT_MAX (default 2000 prod / 1000 dev).
+// Bulk import batches are exempt (already capped at 2000 rows + ADMIN/MANAGER gate).
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000, max: Number(process.env.DYPOS_RATE_LIMIT_MAX) || (isProduction ? 2000 : 1000),
   standardHeaders: true, legacyHeaders: false,
-  skip: (req) => req.path === '/api/health' || req.path === '/api/ready',
+  skip: (req) => req.path === '/api/health' || req.path === '/api/ready' || req.path.startsWith('/api/import'),
   message: { error: 'Too many requests. Please try again later.' },
 }));
 

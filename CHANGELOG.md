@@ -13,11 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - تصدير `GET /api/export/:entity` (‏CSV متدفق + ‏JSON) لسبعة كيانات مع فلاتر
   وسقف 10k (أدوار قراءة: ADMIN/MANAGER/AUDITOR).
 - استيراد `POST /api/import/:entity` (‏JSON + ‏CSV) مع `dryRun` وفشل مغلق
-  وupsert غير مكرر التأثير للمنتجات/العملاء/المخزون (بدون اعتماديات جديدة).
+  وupsert غير مكرر التأثير للمنتجات/العملاء/المخزون، واستثناء معدّل الطلبات
+  للاستيراد الكبير (بدون اعتماديات جديدة).
 - استعادة حقيقية: تدريج عبر `POST /api/admin/restore` + تبديل ذري عند الإقلاع
   في `entrypoint.js` مع نسخة rollback — مُثبتة بتدريب حي (marker_count=0).
 - Webhooks لأي نظام: اشتراكات + ‏Outbox + مرسل خلفية بتوقيع HMAC وإعادة
   محدودة + `X-DyPOS-*` headers (أحداث: فواتير/مخزون/منتجات/عملاء/ورديات).
+- مصادقة عبر الكوكيز/التوافق القديم: الواجهة المنشورة تُعاد ربطها بدون
+  إعادة بناء (‏Bearer أو ‏`dypos_token`).
 - ترحيل مخطط v4 (‏SQLite + ‏Postgres parity).
 
 ### Fixed (حرج)

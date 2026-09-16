@@ -73,13 +73,27 @@ export function verifyToken(token) {
   return jwt.verify(token, JWT_SECRET);
 }
 
+/** Extract Bearer token from header, cookie, or legacy Frappe session header. */
+function extractToken(req) {
+  const auth = req.headers.authorization;
+  if (auth && auth.startsWith('Bearer ')) return auth.slice(7);
+  // Legacy Frappe cookie — allows the published static pos.html (which
+  // boots from window.boot) to reuse its server-issued sid without CORS.
+  const cookie = String(req.headers.cookie || '');
+  const m = cookie.match(/(?:^|;\s*)dypos_token=([^;]+)/);
+  if (m) { try { return decodeURIComponent(m[1]); } catch { return m[1]; } }
+  // Frappe compatibility header from some ERP bridges
+  const legacy = req.headers['x-frappe-site-name'] ? req.headers['x-auth-token'] : null;
+  if (legacy) return String(legacy);
+  return null;
+}
+
 /** Express middleware — attaches req.user + enforces revocation */
 export function authMiddleware(req, res, next) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) {
+  const token = extractToken(req);
+  if (!token) {
     return res.status(401).json({ error: 'غير مصرح — تسجيل الدخول مطلوب' });
   }
-  const token = auth.slice(7);
   try {
     const decoded = verifyToken(token);
     // Revocation check (single indexed lookup on token_hash)
@@ -106,5 +120,7 @@ export function requireRole(...roles) {
     next();
   };
 }
+
+export { extractToken };
 
 export default { hashPassword, hashPasswordAsync, verifyPassword, verifyPasswordAsync, generateToken, revokeToken, verifyToken, authMiddleware, requireRole };
