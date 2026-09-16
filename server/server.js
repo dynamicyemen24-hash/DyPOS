@@ -33,13 +33,17 @@ import invoiceRoutes from './routes/invoices.js';
 import shiftRoutes from './routes/shifts.js';
 import stockRoutes from './routes/stock.js';
 import syncRoutes from './routes/sync.js';
+import exportRoutes from './routes/export.js';
+import importRoutes from './routes/import.js';
+import webhookRoutes from './routes/webhooks.js';
 import { metricsMiddleware, metricsHandler } from './middleware/metrics.js';
 import { auditMiddleware } from './middleware/audit.js';
+import { startDispatcher } from './lib/webhooks.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.DYPOS_PORT) || 3001;
 const HOST = process.env.DYPOS_HOST || '0.0.0.0';
-const VERSION = '1.3.2';
+const VERSION = '1.4.0';
 
 // ── Optional clustering: DYPOS_CLUSTER=1 uses all CPUs (throughput × cores) ──
 // NOTE: kept outside the request path so `export` stays top-level (ESM requirement).
@@ -174,6 +178,8 @@ app.use(rateLimit({
 // Tight body limits: 1MB blocks DoS via huge payloads (invoices validated by zod, max 500 lines)
 app.use(express.json({ limit: process.env.DYPOS_BODY_LIMIT || '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100kb' }));
+// CSV imports (text/csv) — parsed by routes/import.js, row-capped there
+app.use(express.text({ limit: process.env.DYPOS_CSV_LIMIT || '2mb', type: 'text/csv' }));
 // JSON parse errors → clean 400 (not 500)
 app.use((err, _req, res, next) => {
   if (err?.type === 'entity.too.large') return res.status(413).json({ error: 'الحمولة كبيرة جدًا' });
@@ -181,7 +187,9 @@ app.use((err, _req, res, next) => {
   next(err);
 });
 // Extra: sanitize JSON keys length to prevent DoS via huge keys
+// (bulk import batches are exempt — routes/import.js enforces its own row cap)
 app.use((req, _res, next) => {
+  if (req.path.startsWith('/api/import')) return next();
   if (req.body && typeof req.body === 'object') {
     const keys = Object.keys(req.body);
     if (keys.length > 100) return next(Object.assign(new Error('Too many keys'), { statusCode: 400 }));
@@ -234,6 +242,12 @@ app.use('/api/invoices', authMiddleware, invoiceRoutes);
 app.use('/api/shifts', authMiddleware, shiftRoutes);
 app.use('/api/stock', authMiddleware, stockRoutes);
 app.use('/api/sync', authMiddleware, syncRoutes);
+app.use('/api/export', authMiddleware, exportRoutes);
+app.use('/api/import', authMiddleware, importRoutes);
+app.use('/api/webhooks', authMiddleware, webhookRoutes);
+
+// Webhook dispatcher (outbox → subscriber systems). No-op in tests / when DYPOS_WEBHOOKS=0.
+startDispatcher();
 
 // API 404 (before SPA fallback — avoids returning HTML for unknown API routes)
 app.use('/api', (req, res) => res.status(404).json({ error: 'المسار غير موجود', path: req.path }));
@@ -269,25 +283,31 @@ app.use((err, req, res, next) => {
 
 export { app, requestLogger };
 
-// Start server only when run directly (not when imported for testing).
-// Cluster primary never listens — it only supervises workers.
-const isMainModule = process.argv[1] && import.meta.url.endsWith(basename(process.argv[1]));
-if (isMainModule && !IS_CLUSTER_PRIMARY) {
-  let server;
-  server = app.listen(PORT, HOST, () => {
+let _server = null;
+
+/**
+ * Start listening. Exported so entrypoint.js (migrate → boot) can start the
+ * server explicitly. The old isMainModule heuristic fails when server.js is
+ * imported (argv[1] is entrypoint.js), which left production Docker
+ * containers migrated but deaf — no listener, failing healthchecks.
+ */
+export function start() {
+  if (_server) return _server;
+  if (IS_CLUSTER_PRIMARY) return null; // primary only supervises workers
+  _server = app.listen(PORT, HOST, () => {
     console.log(`[DyPOS] Server v${VERSION} running on http://${HOST}:${PORT} (worker ${process.pid})`);
     console.log(`[DyPOS] Health: http://${HOST}:${PORT}/api/health`);
     console.log(`[DyPOS] Auth: http://${HOST}:${PORT}/api/auth/login`);
   });
   // Production timeouts: kill slow-loris + runaway handlers
-  server.timeout = Number(process.env.DYPOS_SERVER_TIMEOUT) || 30000;
-  server.keepAliveTimeout = 65000;
-  server.headersTimeout = 66000;
+  _server.timeout = Number(process.env.DYPOS_SERVER_TIMEOUT) || 30000;
+  _server.keepAliveTimeout = 65000;
+  _server.headersTimeout = 66000;
 
   // Graceful shutdown
   const gracefulShutdown = (signal) => {
     console.log(`[DyPOS] Received ${signal}. Shutting down gracefully...`);
-    server.close(() => {
+    _server.close(() => {
       console.log('[DyPOS] Server closed. Closing database connection...');
       try { db.close(); console.log('[DyPOS] Database connection closed.'); }
       catch (e) { console.error('[DyPOS] Error closing database:', e.message); }
@@ -303,4 +323,12 @@ if (isMainModule && !IS_CLUSTER_PRIMARY) {
   process.on('unhandledRejection', (reason) => {
     console.error('[DyPOS] Unhandled Rejection:', JSON.stringify({ reason: String(reason), stack: reason?.stack }));
   });
+  return _server;
+}
+
+// Start server only when run directly (not when imported for testing).
+// Cluster primary never listens — it only supervises workers.
+const isMainModule = process.argv[1] && import.meta.url.endsWith(basename(process.argv[1]));
+if (isMainModule) {
+  start();
 }

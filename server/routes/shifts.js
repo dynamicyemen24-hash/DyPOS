@@ -2,6 +2,7 @@ import { Router } from 'express';
 import db from '../db/schema.js';
 import { v4 as uuid } from 'uuid';
 import { validate, shiftOpenSchema } from '../middleware/validate.js';
+import { emit } from '../lib/webhooks.js';
 
 const router = Router();
 
@@ -46,6 +47,7 @@ router.post('/:id/close', (req, res) => {
       return { shiftId: shift.id, expected, counted, variance, ordersCount: stats.orders_count, totalSales: stats.total_sales };
     })();
     req.audit?.('shift.close', { shiftId: id });
+    emit('shift.closed', 'SHIFT', id, { totalSales: result.totalSales, ordersCount: result.ordersCount, variance: result.variance });
     return res.json(result);
   } catch (e) {
     return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 300), needsApproval: e.needsApproval || undefined });

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import db from '../db/schema.js';
+import { emit } from '../lib/webhooks.js';
 
 const router = Router();
 
@@ -48,6 +49,7 @@ router.post('/adjust', (req, res) => {
   })();
 
   req.audit?.('stock.adjust', { productId: pid, warehouseId: wh, adjustment: adj, reason: cleanReason });
+  emit('stock.adjusted', 'STOCK', `${pid}@${wh}`, { productId: pid, warehouseId: wh, adjustment: adj, newQty: updated.qty });
   return res.json({ productId: pid, warehouseId: wh, adjustment: adj, newQty: updated.qty, reason: cleanReason });
 });
 

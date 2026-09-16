@@ -4,6 +4,7 @@ import db from '../db/schema.js';
 import { v4 as uuid } from 'uuid';
 import { validate, invoiceSchema } from '../middleware/validate.js';
 import { invoicesCounter } from '../middleware/metrics.js';
+import { emit } from '../lib/webhooks.js';
 
 const router = Router();
 
@@ -141,6 +142,7 @@ router.post('/', validate(invoiceSchema), (req, res) => {
     if (!result.deduped) {
       try { invoicesCounter.inc(); } catch { /* metrics optional */ }
       req.audit?.('invoice.create', { invoiceId: result.invoiceId, total: result.total });
+      emit('invoice.created', 'INVOICE', result.invoiceId, { number: result.number, total: result.total, status: result.status });
     }
     return res.status(result.deduped ? 200 : 201).json(result);
   } catch (e) {
@@ -224,6 +226,7 @@ router.post('/:id/pay', (req, res) => {
       return { invoiceId: inv.id, paidAmount: newPaid, remainingAmount: newRemaining, status: newStatus };
     })();
     req.audit?.('invoice.pay', { invoiceId: id, amount: amt, method: payMethod });
+    if (result.status === 'PAID') emit('invoice.paid', 'INVOICE', id, { paidAmount: result.paidAmount });
     return res.json(result);
   } catch (e) {
     return res.status(e.statusCode || 400).json({ error: String(e.message || '').slice(0, 300) });

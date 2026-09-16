@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [server v1.4.0] - 2026-09-16 — منصة التكامل (Backup/Restore/Import/Export/Webhooks)
+
+### Added
+- تصدير `GET /api/export/:entity` (‏CSV متدفق + ‏JSON) لسبعة كيانات مع فلاتر
+  وسقف 10k (أدوار قراءة: ADMIN/MANAGER/AUDITOR).
+- استيراد `POST /api/import/:entity` (‏JSON + ‏CSV) مع `dryRun` وفشل مغلق
+  وupsert غير مكرر التأثير للمنتجات/العملاء/المخزون (بدون اعتماديات جديدة).
+- استعادة حقيقية: تدريج عبر `POST /api/admin/restore` + تبديل ذري عند الإقلاع
+  في `entrypoint.js` مع نسخة rollback — مُثبتة بتدريب حي (marker_count=0).
+- Webhooks لأي نظام: اشتراكات + ‏Outbox + مرسل خلفية بتوقيع HMAC وإعادة
+  محدودة + `X-DyPOS-*` headers (أحداث: فواتير/مخزون/منتجات/عملاء/ورديات).
+- ترحيل مخطط v4 (‏SQLite + ‏Postgres parity).
+
+### Fixed (حرج)
+- `entrypoint.js` كان يُهاجر ولا يُشغّل المستمع أبدًا (‏isMainModule خاطئ عند
+  الاستيراد) — حاوية Docker الإنتاجية كانت ستصمّ. الآن `start()` صريحة.
+- إصلاح مسار النسخة المُدرجة (مجلد النسخ لا البيانات) + تحمّل BOM.
+
 ## [server v1.3.2] - 2026-09-16
 
 ### Security / Operations

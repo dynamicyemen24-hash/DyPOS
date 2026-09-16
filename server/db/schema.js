@@ -14,7 +14,7 @@ import { mkdirSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DYPOS_DB_PATH || join(__dirname, '..', 'data', 'dypos.db');
-const MIGRATION_VERSION = 3; // Increment when schema changes
+const MIGRATION_VERSION = 4; // Increment when schema changes
 
 function columnExists(table, column) {
 	try {
@@ -372,6 +372,39 @@ export function migrate() {
     `);
     db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
       .run(3, 'Invoices currency/channel/idem + scale indexes');
+  }
+
+  // ── v4: integration plane — webhooks + delivery outbox ──
+  // Outbox pattern: business writes enqueue events in-transaction; a background
+  // dispatcher delivers to subscriber systems with retries. No event is lost
+  // because a downstream system is down, and sales never block on webhooks.
+  if (currentVersion < 4) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS webhook_subscriptions (
+        id TEXT PRIMARY KEY,
+        url TEXT NOT NULL,
+        events TEXT NOT NULL DEFAULT '["*"]',
+        secret TEXT NOT NULL DEFAULT '',
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS webhook_outbox (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event TEXT NOT NULL,
+        entity_type TEXT NOT NULL DEFAULT '',
+        entity_id TEXT NOT NULL DEFAULT '',
+        payload TEXT NOT NULL DEFAULT '{}',
+        attempts INTEGER NOT NULL DEFAULT 0,
+        next_attempt_at TEXT NOT NULL DEFAULT (datetime('now')),
+        status TEXT NOT NULL DEFAULT 'PENDING',
+        last_error TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_outbox_status ON webhook_outbox(status, next_attempt_at, id);
+      CREATE INDEX IF NOT EXISTS idx_subs_active ON webhook_subscriptions(is_active);
+    `);
+    db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+      .run(4, 'Webhook subscriptions + delivery outbox');
   }
 
   console.log('[DyPOS] Database migrated (v' + MIGRATION_VERSION + ')');

@@ -240,3 +240,28 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user ON user_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON user_sessions(token_hash);
 
 INSERT INTO schema_version (version, description) VALUES (3, 'Postgres Tier-2 baseline (v3 parity)') ON CONFLICT DO NOTHING;
+
+-- ── v4: integration plane (webhooks + outbox) ──
+CREATE TABLE IF NOT EXISTS webhook_subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  url TEXT NOT NULL,
+  events TEXT NOT NULL DEFAULT '["*"]',
+  secret TEXT NOT NULL DEFAULT '',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS webhook_outbox (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  event TEXT NOT NULL,
+  entity_type TEXT NOT NULL DEFAULT '',
+  entity_id TEXT NOT NULL DEFAULT '',
+  payload TEXT NOT NULL DEFAULT '{}',
+  attempts INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at timestamptz NOT NULL DEFAULT now(),
+  status TEXT NOT NULL DEFAULT 'PENDING',
+  last_error TEXT,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_outbox_status ON webhook_outbox(status, next_attempt_at, id);
+CREATE INDEX IF NOT EXISTS idx_subs_active ON webhook_subscriptions(is_active);
+INSERT INTO schema_version (version, description) VALUES (4, 'Webhooks + outbox') ON CONFLICT DO NOTHING;

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import db from '../db/schema.js';
 import { v4 as uuid } from 'uuid';
 import { validate, productSchema } from '../middleware/validate.js';
+import { emit } from '../lib/webhooks.js';
 
 const router = Router();
 
@@ -68,6 +69,7 @@ router.post('/', validate(productSchema), (req, res) => {
     throw e;
   }
   req.audit?.('product.create', { productId: id, code });
+  emit('product.created', 'PRODUCT', id, { code, name: String(b.name).trim().slice(0, 200) });
   return res.status(201).json({ id, code });
 });
 
@@ -80,6 +82,7 @@ router.put('/:id', validate(productSchema), (req, res) => {
   db.prepare(`UPDATE products SET name=?,name_ar=?,barcode=?,unit_price=?,cost=?,tax_rate=?,uom=?,image=?,category=?,brand=?,is_active=?,updated_at=datetime('now') WHERE id=?`)
     .run(String(b.name || '').trim().slice(0, 200), String(b.nameAr || '').trim().slice(0, 200), String(b.barcode || '').trim().slice(0, 64) || null, Number(b.unitPrice) || 0, Number(b.cost) || 0, Number(b.taxRate ?? 15), String(b.uom || 'Unit').trim().slice(0, 20), String(b.image || '').trim().slice(0, 500), String(b.category || '').trim().slice(0, 64), String(b.brand || '').trim().slice(0, 64), b.isActive !== false ? 1 : 0, id);
   req.audit?.('product.update', { productId: id });
+  emit('product.updated', 'PRODUCT', id, {});
   return res.json({ id });
 });
 

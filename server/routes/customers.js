@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import db from '../db/schema.js';
 import { v4 as uuid } from 'uuid';
+import { emit } from '../lib/webhooks.js';
 
 const router = Router();
 
@@ -61,6 +62,7 @@ router.post('/', (req, res) => {
   db.prepare(`INSERT INTO customers (id,name,phone,email,tax_number,loyalty_tier,credit_limit,address) VALUES (?,?,?,?,?,?,?,?)`)
     .run(id, name, phone || null, email || null, String(b.taxNumber || '').trim().slice(0, 64) || null, String(b.loyaltyTier || 'BRONZE').trim().slice(0, 20), Math.max(0, toNum(b.creditLimit)), String(b.address || '').trim().slice(0, 500));
   req.audit?.('customer.create', { customerId: id });
+  emit('customer.created', 'CUSTOMER', id, { name });
   return res.status(201).json({ id, name });
 });
 

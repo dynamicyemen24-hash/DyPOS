@@ -1,6 +1,6 @@
 {
   "name": "dypos-server",
-  "version": "1.3.2",
+  "version": "1.4.0",
   "description": "DyPOS SaaS backend - REST API + JWT Auth + SQLite (node:sqlite, zero native deps)",
   "main": "server.js",
   "type": "module",
