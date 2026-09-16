@@ -55,10 +55,16 @@ After deployment, verify:
 - Arabic RTL support works
 
 ## Version Info
-- **Version:** `1.17.0`
-- **Build:** `1.17.0`
+- **Version:** `1.18.0`
+- **Build:** `1.18.0`
 - **Date:** September 16, 2026
 - **Framework:** Vue 3 + Chart.js + frappe-ui
 - **PWA:** Yes (Offline support, manifest, service worker)
-- **Package:** `dist-deploy/pos-package-1.17.0.zip` (71 files, Jinja 0, ?v=1.17.0 cache-busted)
-- **Tests:** 343/343 passed (POS) + 9/9 (server) — build + lint clean
+- **Package:** `dist-deploy/pos-package-1.18.0.zip` (71 files, Jinja 0, ?v=1.18.0 cache-busted)
+- **Bundle:** `assets/DyPOS/pos/assets/index-BhIo9O6U.js` (571KB) — replaces stale live `index-BtwtUPYI.js`
+- **Fix:** live `pos.html` was serving raw Jinja (`{% for key in boot %}`) with no
+  cache-busting — this package strips Jinja and adds `?v=1.18.0`
+- **Tests:** 343/343 passed (POS) + 17/17 (server) — build clean, package smoke-tested locally
+- **Deploy:** copy package to ORIGIN → run `ORIGIN-DEPLOY.bat` as Admin →
+  verify `LOCAL BUILD 1.18.0 OK` + `LIVE VERSION 1.18.0 OK` + bundle `200` + CSP OK →
+  purge Cloudflare cache (Everything, or the 3 URLs: `pos.html`, `assets/DyPOS/pos/*`, `sw.js`)

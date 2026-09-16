@@ -16,6 +16,7 @@
     "seed": "node db/seed.js",
     "backup": "node scripts/backup.mjs",
     "load": "node scripts/load-test.mjs",
+    "campaign": "node scripts/stress-campaign.mjs",
     "load:k6": "k6 run -e BASE=http://localhost:3001 tests/load/k6-invoices.js",
     "lint": "biome check .",
     "lint:fix": "biome check --write ."

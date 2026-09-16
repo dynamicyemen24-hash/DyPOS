@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-09-16
+
+### Fixed — نشر الإنتاج (Production redeploy)
+- إصلاح النشر المنشور على `dypos.smartportssoft.com`: النسخة الحية كانت ملف
+  `pos.html` خامًا بوسوم Jinja غير معالجة (`{% for key in boot %}`) وبدون
+  كسر كاش — أُعيد البناء بحزمة إنتاج نظيفة (Jinja مُزالة، `?v=1.18.0`).
+- توحيد الحزمة عبر `scripts/build-prod-package.ps1` + `ORIGIN-DEPLOY.bat`
+  (مرآة بأداة robocopy تحذف المقاطع القديمة تلقائيًا).
+
+### Backend (server v1.3.0 — نفس اليوم)
+- Invoices: ترتيب FK الصحيح، idempotency مفهرس، دفع/إغلاق ذري، توفير المستودعات.
+- Auth: bcrypt غير حاجب، جلسات jti مع إبطال، منع تصعيد ADMIN ذاتي.
+- Tier-1 SQLite معلن + مسار Postgres (`schema-postgres.sql`)، نسخ احتياطي
+  (`VACUUM INTO`)، حمل مثبت (372 req/s، p95 ‏93ms)، تنبيهات Prometheus.
+
 ## [1.17.0] - 2026-09-16
 
 ### Added — المرحلة 2: تقنيات تنافسية متقدمة (معيار SAP/Odoo)

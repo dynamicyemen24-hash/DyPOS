@@ -42,20 +42,30 @@ if (Test-Path $idxPath) {
 Copy-Item $SrcCfg (Join-Path $OutRoot "web.config") -Force
 
 # 5) Origin deploy script (MIR = deletes stale hashed chunks like old Login-*.js)
+#     Step 5 = end-to-end verification: local files AND live URLs (origin + edge).
+$BundleName = (Get-ChildItem (Join-Path $SrcPos "assets\index-*.js") | Select-Object -First 1).Name
 $deployBat = @"
 @echo off
-REM === DyPOS origin deploy v$Version — RUN AS ADMINISTRATOR on the ORIGIN server ===
+REM === DyPOS origin deploy v$Version -- RUN AS ADMINISTRATOR on the ORIGIN server ===
 set SRC=%~dp0
 set DST=C:\inetpub\wwwroot
-echo [1/4] Mirroring POS assets (stale chunks removed)...
+set SITE=https://dypos.smartportssoft.com
+echo [1/5] Mirroring POS assets (stale chunks removed)...
 robocopy "%SRC%assets" "%DST%\assets" /MIR /COPY:DAT /R:3 /W:5 /MT:8 /XF *.log
-echo [2/4] Publishing pos.html + web.config...
+echo [2/5] Publishing pos.html + web.config...
 copy /Y "%SRC%pos.html" "%DST%\pos.html"
 copy /Y "%SRC%web.config" "%DST%\web.config"
-echo [3/4] Restarting IIS...
+echo [3/5] Restarting IIS...
 iisreset /restart
-echo [4/4] Verifying...
-findstr /C:"$Version" "%DST%\pos.html" && echo BUILD $Version LIVE || echo VERIFY FAILED
+echo [4/5] Verifying LOCAL files...
+findstr /C:"$Version" "%DST%\pos.html" && echo LOCAL BUILD $Version OK || echo LOCAL VERIFY FAILED
+findstr /C:"{% for" "%DST%\pos.html" && echo LOCAL JINJA LEAK ^(BAD^) || echo LOCAL JINJA CLEAN ^(GOOD^)
+echo [5/5] Verifying LIVE URLs ^(purge Cloudflare cache FIRST^)...
+curl -s -o NUL -w "live pos.html: %%{http_code}\n" "%SITE%/pos.html?v=$Version"
+curl -s "%SITE%/assets/DyPOS/pos/version.json" | findstr /C:"$Version" && echo LIVE VERSION $Version OK || echo LIVE VERSION MISMATCH ^(purge CF cache^)
+curl -s -o NUL -w "live bundle ${BundleName}: %%{http_code}\n" "%SITE%/assets/DyPOS/pos/assets/$BundleName"
+curl -s -D - -o NUL "%SITE%/pos.html" | findstr /I /C:"content-security-policy" && echo LIVE CSP OK || echo LIVE CSP MISSING ^(check web.config on origin^)
+echo DONE. Expected: 200 / OK / 200 / CSP OK.
 pause
 "@
 [System.IO.File]::WriteAllText((Join-Path $OutRoot "ORIGIN-DEPLOY.bat"), $deployBat, (New-Object System.Text.UTF8Encoding($false)))
@@ -74,13 +84,15 @@ DyPOS — حزمة النشر الإنتاجية v$Version
 خطوات النشر على الخادم الأصل (Origin):
 1) انسخ مجلد الحزمة كاملاً إلى الخادم الأصل.
 2) شغّل ORIGIN-DEPLOY.bat كمسؤول (Run as Administrator).
-3) تأكد من ظهور: BUILD $Version LIVE.
+3) تأكد من ظهور: LOCAL BUILD $Version OK ثم LIVE VERSION $Version OK
+   (النص الحرفي من ORIGIN-DEPLOY.bat — ابحث عنه كما هو).
 
 Cloudflare (مهم — وإلا ستستمر الشاشة القديمة):
 1) افتح: dash.cloudflare.com → smartportssoft.com → Caching → Purge Cache
-2) Purge Everything — أو Custom Purge لهذه الروابط:
+2) Purge Everything — أو Custom Purge لهذه الروابط الثلاثة:
    - https://dypos.smartportssoft.com/pos.html
    - https://dypos.smartportssoft.com/assets/DyPOS/pos/*
+   - https://dypos.smartportssoft.com/sw.js
 3) Rules → Caching: اجعل pos.html و sw.js و version.json = Bypass cache
    (ملف web.config يضبطها من جهة IIS أيضاً).
 

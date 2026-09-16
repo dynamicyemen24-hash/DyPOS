@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light" data-accent="royal" data-density="comfortable">
+	<head>
+		<meta charset="UTF-8" />
+		<script>
+			// DyPOS theme bootstrap — runs before any CSS paints to avoid FOUC.
+			// Mirrors src/composables/useAppTheme.js persistence contract.
+			(function () {
+				try {
+					var validTheme = { "light": 1, "dark": 1, "system": 1 };
+					var validAccent = {
+						"royal": 1, "indigo": 1, "violet": 1,
+						"teal": 1, "emerald": 1, "rose": 1,
+					};
+					var validDensity = { "comfortable": 1, "compact": 1 };
+					var mode = localStorage.getItem("DyPOS_theme");
+					var accent = localStorage.getItem("DyPOS_accent");
+					var density = localStorage.getItem("DyPOS_density");
+					var root = document.documentElement;
+					mode = validTheme[mode] ? mode : "system";
+					accent = validAccent[accent] ? accent : "royal";
+					density = validDensity[density] ? density : "comfortable";
+					var dark = mode === "dark";
+					if (mode === "system" && window.matchMedia) {
+						dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+					}
+					root.setAttribute("data-theme", dark ? "dark" : "light");
+					root.setAttribute("data-accent", accent);
+					root.setAttribute("data-density", density);
+					root.style.colorScheme = dark ? "dark" : "light";
+				} catch (e) {}
+			})();
+		</script>
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0, user-scalable=yes"
+		/>
+		<meta name="theme-color" content="#1E40AF" />
+		<meta
+			name="description"
+			content="DyPOS — نظام نقاط بيع سمارت بورتس: فواتير ومخزون لحظي، تشغيل دون اتصال، مستخدمون متعددون، وربط مباشر بنظام ERP"
+		/>
+		<meta name="mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+		<meta name="apple-mobile-web-app-title" content="DyPOS" />
+
+		<!-- Brand favicons -->
+		<link rel="icon" href="/assets/DyPOS/pos/favicon.ico" sizes="any" />
+		<link
+			rel="icon"
+			type="image/png"
+			sizes="16x16"
+			href="/assets/DyPOS/pos/favicon-16x16.png"
+		/>
+		<link
+			rel="icon"
+			type="image/png"
+			sizes="32x32"
+			href="/assets/DyPOS/pos/favicon-32x32.png"
+		/>
+		<link rel="apple-touch-icon" href="/assets/DyPOS/pos/apple-touch-icon.png" />
+
+		<!-- Company / Open Graph identity -->
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="DyPOS" />
+		<meta property="og:title" content="DyPOS" />
+		<meta
+			property="og:description"
+			content="DyPOS — نظام نقاط بيع سمارت بورتس: فواتير ومخزون لحظي، تشغيل دون اتصال، مستخدمون متعددون، وربط مباشر بنظام ERP"
+		/>
+		<meta property="og:image" content="/assets/DyPOS/pos/smart-ports-og.jpg" />
+		<meta property="og:image:alt" content="DyPOS — نقاط بيع سمارت بورتس" />
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content="DyPOS — نقاط بيع" />
+		<meta
+			name="twitter:description"
+			content="DyPOS — نظام نقاط بيع سمارت بورتس: فواتير ومخزون لحظي، تشغيل دون اتصال، مستخدمون متعددون، وربط مباشر بنظام ERP"
+		/>
+		<meta name="twitter:image" content="/assets/DyPOS/pos/smart-ports-og.jpg" />
+
+		<title>DyPOS — نقاط بيع</title>
+		<script type="module" crossorigin src="/assets/DyPOS/pos/assets/index-BhIo9O6U.js?v=1.18.0"></script>
+		<link rel="modulepreload" crossorigin href="/assets/DyPOS/pos/assets/vendor-vue-BW6WvN3Q.js?v=1.18.0">
+		<link rel="modulepreload" crossorigin href="/assets/DyPOS/pos/assets/vendor-offline-B3HjbqsB.js?v=1.18.0">
+		<link rel="stylesheet" crossorigin href="/assets/DyPOS/pos/assets/index-TGqXp6D9.css?v=1.18.0">
+	<link rel="manifest" href="/assets/DyPOS/pos/manifest.webmanifest">
+  <!-- DyPOS build 1.18.0 -->
+</head>
+
+	<body>
+		<div id="app"></div>
+          </body>
+          
+</html>
