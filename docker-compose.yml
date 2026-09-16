@@ -1,0 +1,42 @@
+services:
+  dypos-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dypos-server
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - DYPOS_PORT=3001
+      - DYPOS_HOST=0.0.0.0
+      - DYPOS_CORS_ORIGIN=http://localhost:5173,http://localhost:8080
+      - DYPOS_DB_PATH=/app/data/dypos.db
+      - DYPOS_JWT_SECRET=${DYPOS_JWT_SECRET}
+      - DYPOS_JWT_EXPIRES=24h
+    volumes:
+      - dypos-data:/app/data
+    depends_on:
+      dypos-db:
+        condition: service_healthy
+
+  dypos-db:
+    image: postgres:16-alpine
+    container_name: dypos-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: dypos
+      POSTGRES_USER: dypos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dypos-prod-pass}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dypos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  dypos-data:
+  pg-data:

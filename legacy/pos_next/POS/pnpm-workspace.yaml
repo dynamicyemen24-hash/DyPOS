@@ -1,0 +1,5 @@
+# (c) 2025 المنافذ الذكية للبرمجيات
+packages:
+  - "."
+allowBuilds:
+  node: set this to true or false

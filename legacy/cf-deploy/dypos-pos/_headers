@@ -1,0 +1,18 @@
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), xr-spatial-tracking=(), gyroscope=(), magnetometer=(), accelerometer=(), autoplay=(), display-capture=(), encrypted-media=()
+  Content-Security-Policy: default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: wss:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+/assets/DyPOS/pos/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+/assets/DyPOS/pos/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+/assets/DyPOS/pos/manifest.webmanifest
+  Cache-Control: public, max-age=3600
+/assets/DyPOS/pos/sw.js
+  Cache-Control: public, max-age=0, must-revalidate
+/assets/DyPOS/pos/offline.html
+  Cache-Control: public, max-age=0, must-revalidate
+/assets/DyPOS/pos/version.json
+  Cache-Control: public, max-age=0, must-revalidate

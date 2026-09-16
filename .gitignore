@@ -1,0 +1,73 @@
+﻿.DS_Store
+*.pyc
+*.egg-info
+*.swp
+tags
+node_modules
+__pycache__
+
+# Build artifacts
+DyPOS/public/pos/
+DyPOS/www/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE and editor files
+.vscode/
+.idea/
+*.sublime-*
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory
+coverage/
+.nyc_output/
+
+# Dependency lock files — COMMITTED for reproducible builds
+# (previously incorrectly ignored)
+
+# Cache
+.cache/
+.parcel-cache/
+
+# Vite
+.vite/
+*.timestamp-*.mjs
+build-validation.log
+
+# Debug/temp artifacts (keep repo clean)
+dev-final-*.html
+dev-final-*.txt
+pkg-dom*.html
+pkg-dom*.txt
+_fix*.txt
+_full*.txt
+_full2.txt
+_rest.txt
+_sc.txt
+_on*.txt
+_srvtest.txt
+_vt*.txt
+_vitest-*.txt
+_lint*.json
+_lint*.txt
+_lint*.err
+_lint-fresh.json
+missing.txt

@@ -1,0 +1,95 @@
+/* =============================================================================
+    RTL-Specific Dashboard Styles
+    ============================================================================= */
+
+@media (direction: rtl) {
+  /* Reverse flex-direction in grid layouts */
+  .dashboard-shell .shell-content .grid {
+    flex-direction: row-reverse;
+  }
+
+  .dashboard-shell .shell-content .grid > * {
+    text-align: right;
+  }
+
+  /* Fix text alignment for RTL */
+  .dashboard-shell .shell-content {
+    text-align: right;
+  }
+
+  .dashboard-shell .shell-content h1,
+  .dashboard-shell .shell-content h2,
+  .dashboard-shell .shell-content h3,
+  .dashboard-shell .shell-content h4,
+  .dashboard-shell .shell-content h5,
+  .dashboard-shell .shell-content h6 {
+    text-align: right;
+  }
+
+  /* Fix chart canvas alignment */
+  .dashboard-shell .shell-content canvas {
+    direction: rtl;
+    text-align: right;
+  }
+
+  .dashboard-shell .shell-content .chart-card {
+    text-align: right;
+  }
+
+  /* Reverse flex layouts in dashboard headers */
+  .dashboard-shell .shell-header {
+    flex-direction: row-reverse;
+  }
+
+  .dashboard-shell .shell-header > div:first-child {
+    text-align: right;
+  }
+
+  /* Fix filter section alignment */
+  .dashboard-shell .shell-filters {
+    text-align: right;
+  }
+
+  /* Fix flex-row items in dashboard content */
+  .dashboard-shell .shell-content .flex {
+    direction: rtl;
+  }
+
+  /* Reverse margin/padding for RTL dashboard grids */
+  .dashboard-shell .shell-content [class*="mx-auto"] {
+    margin-right: auto;
+    margin-left: 0;
+  }
+
+  /* Ensure KPI cards align correctly */
+  .dashboard-shell .shell-content .kpi-grid {
+    direction: rtl;
+  }
+
+  /* Chart tooltip alignment */
+  .dashboard-shell .shell-content .chartjs-tooltip {
+    direction: rtl;
+    text-align: right;
+  }
+
+  /* Table alignment in RTL */
+  .dashboard-shell .shell-content table {
+    direction: rtl;
+    text-align: right;
+  }
+
+  .dashboard-shell .shell-content th {
+    text-align: right;
+  }
+
+  /* Badge alignment */
+  .dashboard-shell .shell-header .flex.items-center {
+    flex-direction: row-reverse;
+  }
+
+  /* Export dropdown positioning */
+  .dashboard-shell .shell-header .absolute.right-0 {
+    right: auto;
+    left: 0;
+  }
+}

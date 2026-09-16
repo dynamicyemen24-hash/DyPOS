@@ -1,0 +1,939 @@
+@import "@fontsource/cairo/arabic-400.css";
+@import "@fontsource/cairo/arabic-500.css";
+@import "@fontsource/cairo/arabic-600.css";
+@import "@fontsource/cairo/arabic-700.css";
+@import "@fontsource/cairo/arabic-800.css";
+
+@import "@abdulrysr/saudi-riyal-new-symbol-font/style.css";
+@import "frappe-ui/style.css";
+@import "./assets/Inter/inter.css";
+
+/* =============================================================================
+   DyPOS — Global Application Entry
+   =============================================================================
+   Product       : DyPOS
+   Layer         : Application CSS Entry Point
+   Direction     : RTL-first
+   Locale        : Arabic-first
+   UI             : POS / Touch / Keyboard / Desktop / Mobile
+   Architecture : Design System → Application Compatibility → Runtime UX
+
+   Design System source of truth:
+     ./styles/dypos/tokens.css
+     ./styles/dypos/themes.css
+     ./styles/dypos/accents.css
+     ./styles/dypos/base.css
+     ./styles/dypos/components.css
+     ./styles/dypos/motion.css
+     ./styles/dypos/utilities.css
+     ./styles/dypos/density.css
+
+   This file MUST NOT become a second design system.
+   ============================================================================= */
+
+/* =============================================================================
+   01. DyPOS Design System
+   ============================================================================= */
+
+@import "./styles/dypos/index.css";
+
+/* =============================================================================
+   02. Application Typography Contract
+   =============================================================================
+   Cairo:
+     Arabic UI and Arabic content
+
+   Inter:
+     Latin / English / technical values / numeric-heavy content
+
+   SaudiRiyalSymbol:
+     Saudi Riyal currency glyph only
+
+   Typography remains inherited wherever possible.
+   ============================================================================= */
+
+:root {
+	--dy-font-ar: "Cairo", "Noto Sans Arabic", "Segoe UI", Tahoma, Arial,
+		sans-serif;
+
+	--dy-font-latin: "Inter", "Segoe UI", Arial, sans-serif;
+
+	--dy-font-ui: "Cairo", "Inter", "Noto Sans Arabic", "Segoe UI", Tahoma, Arial,
+		sans-serif;
+
+	--dy-font-currency: "SaudiRiyalSymbol", "Cairo", "Inter", "Noto Sans Arabic",
+		"Segoe UI", Tahoma, Arial, sans-serif;
+
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	text-rendering: optimizeLegibility;
+}
+
+html {
+	font-family: var(--dy-font-ui);
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	text-rendering: optimizeLegibility;
+}
+
+body {
+	margin: 0;
+	min-width: 320px;
+	min-height: 100%;
+	font-family: var(--dy-font-ui);
+	background-color: var(--surface, #ffffff);
+	color: var(--text-primary, #0f172a);
+}
+
+button,
+input,
+textarea,
+select,
+option {
+	font: inherit;
+}
+
+button,
+input,
+textarea,
+select {
+	color: inherit;
+}
+
+code,
+kbd,
+pre,
+samp {
+	font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+		monospace;
+}
+
+/* =============================================================================
+   03. Currency Typography
+   ============================================================================= */
+
+.dy-riyal,
+.dy-currency-symbol,
+[data-currency-symbol="sar"] {
+	font-family: var(--dy-font-currency);
+	font-variant-numeric: tabular-nums;
+}
+
+/* =============================================================================
+   04. Application Root
+   ============================================================================= */
+
+html,
+body,
+#app {
+	min-height: 100%;
+}
+
+#app {
+	min-height: 100dvh;
+}
+
+html[dir="rtl"],
+body[dir="rtl"] {
+	direction: rtl;
+}
+
+html[dir="ltr"],
+body[dir="ltr"] {
+	direction: ltr;
+}
+
+/* =============================================================================
+   05. Global Interaction Contract
+   =============================================================================
+   POS is touch-first without sacrificing:
+     - mouse
+     - keyboard
+     - accessibility technology
+   ============================================================================= */
+
+button,
+a,
+[role="button"],
+[role="link"],
+summary,
+input[type="button"],
+input[type="submit"],
+input[type="reset"] {
+	-webkit-tap-highlight-color: transparent;
+	touch-action: manipulation;
+}
+
+.touch-manipulation {
+	touch-action: manipulation;
+	-webkit-tap-highlight-color: transparent;
+}
+
+/* =============================================================================
+   06. Focus Accessibility
+   ============================================================================= */
+
+:focus {
+	outline: none;
+}
+
+:focus-visible {
+	outline: var(--dy-focus-ring-width, 2px) solid
+		var(--dy-focus-ring-color, var(--dy-accent, var(--accent, #3f63d9)));
+
+	outline-offset: var(--dy-focus-ring-offset, 2px);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+summary:focus-visible,
+[role="button"]:focus-visible,
+[role="link"]:focus-visible,
+[tabindex]:focus-visible {
+	outline: var(--dy-focus-ring-width, 2px) solid
+		var(--dy-focus-ring-color, var(--dy-accent, var(--accent, #3f63d9)));
+
+	outline-offset: var(--dy-focus-ring-offset, 2px);
+}
+
+[aria-invalid="true"]:focus-visible {
+	outline-color: var(--dy-danger, var(--danger, #dc2626));
+}
+
+/* =============================================================================
+   07. Frappe UI — Dialog Compatibility
+   =============================================================================
+   These are compatibility rules only.
+   Actual modal behavior remains owned by Frappe UI / DyPOS components.
+   ============================================================================= */
+
+.dialog-overlay {
+	z-index: var(--dy-z-dialog, 400) !important;
+	isolation: isolate;
+}
+
+.dialog-overlay .dialog-content,
+.dialog-content {
+	z-index: var(--dy-z-dialog-content, 500) !important;
+}
+
+/* =============================================================================
+   08. Frappe UI — RTL Input Compatibility
+   =============================================================================
+   Frappe UI may generate physical left/right utility classes.
+   DyPOS remains logical/RTL-first at application level.
+   ============================================================================= */
+
+[dir="rtl"] .relative > div.absolute.left-0 {
+	left: auto !important;
+	right: 0 !important;
+	padding-left: 0 !important;
+	padding-right: 0.5rem !important;
+}
+
+[dir="rtl"] .relative > div.absolute.right-0 {
+	right: auto !important;
+	left: 0 !important;
+	padding-right: 0 !important;
+	padding-left: 0.5rem !important;
+}
+
+[dir="rtl"] .relative > input.pl-8 {
+	padding-left: 0.5rem !important;
+	padding-right: 2rem !important;
+}
+
+[dir="rtl"] .relative > input.pr-8 {
+	padding-right: 0.5rem !important;
+	padding-left: 2rem !important;
+}
+
+[dir="rtl"] .relative > input.pl-9 {
+	padding-left: 0.625rem !important;
+	padding-right: 2.25rem !important;
+}
+
+[dir="rtl"] .relative > input.pr-9 {
+	padding-right: 0.625rem !important;
+	padding-left: 2.25rem !important;
+}
+
+[dir="rtl"] .relative > input.pl-10 {
+	padding-left: 0.75rem !important;
+	padding-right: 2.5rem !important;
+}
+
+[dir="rtl"] .relative > input.pr-10 {
+	padding-right: 0.75rem !important;
+	padding-left: 2.5rem !important;
+}
+
+/* =============================================================================
+   09. POS Touch Feedback
+   ============================================================================= */
+
+.btn-touch {
+	transition: transform var(--dy-motion-duration-fast, 150ms)
+		var(--dy-motion-ease-standard, cubic-bezier(0.2, 0, 0, 1)), opacity
+		var(--dy-motion-duration-fast, 150ms)
+		var(--dy-motion-ease-standard, cubic-bezier(0.2, 0, 0, 1));
+}
+
+.btn-touch:active:not(:disabled):not([aria-disabled="true"]) {
+	transform: scale(0.98);
+}
+
+button.active\:scale-95:active:not(:disabled),
+.active\:scale-95:active:not(:disabled) {
+	transform: scale(0.95);
+}
+
+/* =============================================================================
+   10. POS Product Grid Performance
+   ============================================================================= */
+
+.pos-grid-cell {
+	contain: layout style;
+}
+
+.pos-grid-cell img {
+	display: block;
+	max-width: 100%;
+	height: auto;
+}
+
+/* =============================================================================
+   11. Theme Compatibility
+   =============================================================================
+   themes.css remains the source of truth.
+   These rules only map legacy Frappe/Tailwind utilities.
+   ============================================================================= */
+
+[data-theme="light"] body {
+	background-color: var(--surface, #ffffff);
+	color: var(--text-primary, #0f172a);
+}
+
+[data-theme="dark"] body {
+	background-color: var(--surface-alt, #0f172a);
+	color: var(--text-primary, #f8fafc);
+}
+
+[data-theme="dark"] .bg-gray-50 {
+	background-color: var(--surface-alt, #111827);
+}
+
+[data-theme="dark"] .bg-white {
+	background-color: var(--surface, #1e293b);
+}
+
+[data-theme="dark"] .text-gray-900,
+[data-theme="dark"] .text-gray-800,
+[data-theme="dark"] .text-gray-700 {
+	color: var(--text-primary, #f8fafc);
+}
+
+[data-theme="dark"] .text-gray-600,
+[data-theme="dark"] .text-gray-500 {
+	color: var(--text-secondary, #cbd5e1);
+}
+
+[data-theme="dark"] .text-gray-400 {
+	color: var(--text-muted, #94a3b8);
+}
+
+[data-theme="dark"] .border-gray-200 {
+	border-color: var(--border-subtle, rgba(148, 163, 184, 0.18));
+}
+
+[data-theme="dark"] .border-gray-300 {
+	border-color: var(--border-strong, rgba(148, 163, 184, 0.32));
+}
+
+/* =============================================================================
+   12. Scrollbars
+   ============================================================================= */
+
+* {
+	scrollbar-width: thin;
+
+	scrollbar-color: var(--scrollbar-thumb, rgba(100, 116, 139, 0.45))
+		var(--scrollbar-track, transparent);
+}
+
+::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+::-webkit-scrollbar-track {
+	background: var(--scrollbar-track, transparent);
+}
+
+::-webkit-scrollbar-thumb {
+	min-height: 32px;
+
+	background: var(--scrollbar-thumb, rgba(100, 116, 139, 0.45));
+
+	border: 3px solid transparent;
+	border-radius: 999px;
+
+	background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--scrollbar-thumb-hover, rgba(71, 85, 105, 0.65));
+
+	background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+	background: transparent;
+}
+
+/* =============================================================================
+   13. Page Transitions
+   ============================================================================= */
+
+.page-enter-active,
+.page-leave-active {
+	transition: opacity var(--dy-motion-duration-fast, 150ms)
+		var(--dy-motion-ease-standard, cubic-bezier(0.2, 0, 0, 1)), transform
+		var(--dy-motion-duration-fast, 150ms)
+		var(--dy-motion-ease-standard, cubic-bezier(0.2, 0, 0, 1));
+}
+
+.page-enter-from {
+	opacity: 0;
+	transform: translateY(4px);
+}
+
+.page-leave-to {
+	opacity: 0;
+	transform: translateY(-2px);
+}
+
+/* =============================================================================
+   14. Dialog Transitions
+   ============================================================================= */
+
+.dialog-enter-active {
+	animation: dy-dialog-overlay-in var(--dy-motion-duration-fast, 150ms)
+		var(--dy-motion-ease-standard, cubic-bezier(0.2, 0, 0, 1));
+}
+
+.dialog-leave-active {
+	animation: dy-dialog-overlay-out var(--dy-motion-duration-fast, 150ms)
+		var(--dy-motion-ease-standard, cubic-bezier(0.2, 0, 0, 1));
+}
+
+.dialog-content-enter-active {
+	animation: dy-dialog-content-in var(--dy-motion-duration-fast, 150ms)
+		var(--dy-motion-ease-standard, cubic-bezier(0.2, 0, 0, 1));
+}
+
+.dialog-content-leave-active {
+	animation: dy-dialog-content-out var(--dy-motion-duration-fast, 150ms)
+		var(--dy-motion-ease-standard, cubic-bezier(0.2, 0, 0, 1));
+}
+
+@keyframes dy-dialog-overlay-in {
+	from {
+		opacity: 0;
+	}
+
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes dy-dialog-overlay-out {
+	from {
+		opacity: 1;
+	}
+
+	to {
+		opacity: 0;
+	}
+}
+
+@keyframes dy-dialog-content-in {
+	from {
+		opacity: 0;
+		transform: translateY(2px) scale(0.985);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+@keyframes dy-dialog-content-out {
+	from {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+
+	to {
+		opacity: 0;
+		transform: translateY(2px) scale(0.985);
+	}
+}
+
+/* =============================================================================
+   15. Login / Authentication Entrance
+   ============================================================================= */
+
+@keyframes dy-login-in {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.login-card-enter-active,
+.login-in {
+	animation: dy-login-in var(--dy-motion-duration-moderate, 280ms)
+		var(--dy-motion-ease-decelerate, cubic-bezier(0, 0, 0.2, 1));
+}
+
+/* =============================================================================
+   16. Lightweight List Entrance
+   ============================================================================= */
+
+.item-enter-active {
+	transition: opacity var(--dy-motion-duration-base, 220ms)
+		var(--dy-motion-ease-standard, cubic-bezier(0.2, 0, 0, 1));
+
+	transition-delay: var(--item-delay, 0ms);
+}
+
+.item-enter-from {
+	opacity: 0;
+}
+
+/* =============================================================================
+   17. Safe Area
+   ============================================================================= */
+
+.dy-safe-top {
+	padding-top: env(safe-area-inset-top, 0px);
+}
+
+.dy-safe-bottom {
+	padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.dy-safe-inline-start {
+	padding-inline-start: env(safe-area-inset-inline-start, 0px);
+}
+
+.dy-safe-inline-end {
+	padding-inline-end: env(safe-area-inset-inline-end, 0px);
+}
+
+@supports not (padding-inline-start: env(safe-area-inset-inline-start)) {
+	.dy-safe-inline-start {
+		padding-inline-start: env(safe-area-inset-left, 0px);
+	}
+
+	.dy-safe-inline-end {
+		padding-inline-end: env(safe-area-inset-right, 0px);
+	}
+}
+
+/* =============================================================================
+   18. Mobile POS
+   ============================================================================= */
+
+@media (max-width: 640px) {
+	input,
+	textarea,
+	select {
+		font-size: max(16px, 1rem);
+	}
+
+	.dialog-content {
+		max-height: calc(100dvh - 2rem);
+
+		max-height: calc(100svh - 2rem);
+	}
+}
+
+@media (pointer: coarse) {
+	::-webkit-scrollbar {
+		width: 8px;
+		height: 8px;
+	}
+}
+
+/* =============================================================================
+   19. Utility Compatibility
+   ============================================================================= */
+
+.min-h-screen {
+	min-height: 100vh;
+	min-height: 100dvh;
+}
+
+.h-screen {
+	height: 100vh;
+	height: 100dvh;
+}
+
+.dy-interactive {
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+.dy-selectable {
+	user-select: text;
+	-webkit-user-select: text;
+}
+
+/* =============================================================================
+   20. Logical Positioning Helpers
+   ============================================================================= */
+
+.dy-start {
+	inset-inline-start: 0;
+}
+
+.dy-end {
+	inset-inline-end: 0;
+}
+
+.dy-safe-start {
+	padding-inline-start: env(safe-area-inset-inline-start, 0px);
+}
+
+.dy-safe-end {
+	padding-inline-end: env(safe-area-inset-inline-end, 0px);
+}
+
+/* =============================================================================
+   21. Semantic Application Layers
+   =============================================================================
+   These are compatibility fallbacks only.
+   Production components should use the actual tokens from tokens.css.
+   ============================================================================= */
+
+.dy-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: var(--dy-z-overlay, 300);
+}
+
+.dy-drawer {
+	position: fixed;
+	z-index: var(--dy-z-drawer, 350);
+}
+
+.dy-modal {
+	position: fixed;
+	z-index: var(--dy-z-dialog, 400);
+}
+
+.dy-popover {
+	position: absolute;
+	z-index: var(--dy-z-popover, 450);
+}
+
+.dy-toast {
+	position: fixed;
+	z-index: var(--dy-z-toast, 700);
+}
+
+/* =============================================================================
+   22. Controlled Compositing
+   =============================================================================
+   Never apply will-change globally.
+   ============================================================================= */
+
+.dy-will-change-transform {
+	will-change: transform;
+}
+
+.dy-will-change-opacity {
+	will-change: opacity;
+}
+
+/* =============================================================================
+   23. Accessibility — Reduced Motion
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+	html {
+		scroll-behavior: auto !important;
+	}
+
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+
+	.page-enter-active,
+	.page-leave-active,
+	.item-enter-active,
+	.btn-touch {
+		transition: none !important;
+	}
+
+	.btn-touch:active:not(:disabled):not([aria-disabled="true"]),
+	button.active\:scale-95:active:not(:disabled),
+	.active\:scale-95:active:not(:disabled) {
+		transform: none !important;
+	}
+
+	.dy-will-change-transform,
+	.dy-will-change-opacity {
+		will-change: auto;
+	}
+}
+
+/* =============================================================================
+   24. Forced Colors / High Contrast
+   ============================================================================= */
+
+@media (forced-colors: active) {
+	:focus-visible {
+		outline: 2px solid CanvasText;
+		outline-offset: 2px;
+	}
+
+	button,
+	[role="button"],
+	a {
+		border-color: ButtonText;
+	}
+
+	button:disabled,
+	[aria-disabled="true"] {
+		color: GrayText;
+	}
+
+	.pos-grid-cell {
+		contain: none;
+	}
+}
+
+/* =============================================================================
+   25. Print / Invoice / Receipt
+   ============================================================================= */
+
+.dy-print-only {
+	display: none;
+}
+
+@media print {
+	html,
+	body {
+		background: #fff !important;
+		color: #000 !important;
+	}
+
+	* {
+		box-shadow: none !important;
+		text-shadow: none !important;
+		animation: none !important;
+		transition: none !important;
+	}
+
+	.dy-no-print,
+	[data-print-hidden="true"] {
+		display: none !important;
+	}
+
+	.dy-print-only {
+		display: block !important;
+	}
+
+	a {
+		color: inherit;
+		text-decoration: none;
+	}
+}
+
+/* =============================================================================
+   26. Performance / Containment
+   ============================================================================= */
+
+.dy-content-visibility-auto {
+	content-visibility: auto;
+	contain-intrinsic-size: auto 500px;
+}
+
+/* =============================================================================
+   27. Final Application Safety
+   ============================================================================= */
+
+img,
+svg,
+video,
+canvas {
+	max-width: 100%;
+}
+
+img,
+video {
+	height: auto;
+}
+
+button {
+	cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+	cursor: not-allowed;
+}
+
+[hidden] {
+	display: none !important;
+}
+
+/* =============================================================================
+   PRINT STYLES — Dashboards & Reports
+   ============================================================================= */
+
+@media print {
+	/* Hide all non-printable UI elements */
+	.no-print,
+	.shell-header,
+	.shell-filters,
+	nav,
+	aside,
+	.toast-container,
+	.dialog,
+	.modal,
+	.loading-spinner {
+		display: none !important;
+	}
+
+	/* Reset page layout */
+	body {
+		background: #fff !important;
+		margin: 0;
+		padding: 0;
+		font-size: 11pt;
+		color: #000;
+		-webkit-print-color-adjust: exact;
+		print-color-adjust: exact;
+	}
+
+	/* Dashboard shell */
+	.dashboard-shell {
+		padding: 0 !important;
+		max-width: none !important;
+	}
+
+	.dashboard-shell.full-screen {
+		position: static !important;
+		z-index: auto !important;
+	}
+
+	/* Content area */
+	.shell-content {
+		padding: 0 !important;
+	}
+
+	/* Chart cards avoid page breaks */
+	.chart-card {
+		break-inside: avoid;
+		page-break-inside: avoid;
+		border: 1px solid #e5e7eb;
+		margin-bottom: 12px;
+	}
+
+	/* Ensure charts render */
+	canvas {
+		max-width: 100% !important;
+		height: auto !important;
+	}
+
+	/* KPI grid for print */
+	.kpi-grid {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 8px;
+		margin-bottom: 16px;
+	}
+
+	/* Tables */
+	table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: 10pt;
+		break-inside: auto;
+	}
+
+	tr {
+		break-inside: avoid;
+		page-break-inside: avoid;
+	}
+
+	th,
+	td {
+		border: 1px solid #d1d5db !important;
+		padding: 4px 8px;
+		text-align: left;
+	}
+
+	th {
+		background: #f3f4f6 !important;
+		font-weight: 600;
+		color: #111827;
+	}
+
+	/* Grid layout fix for print */
+	.grid {
+		display: block !important;
+	}
+
+	.grid > * {
+		margin-bottom: 12px;
+	}
+
+	/* Page margins */
+	@page {
+		margin: 1.5cm;
+		size: A4 landscape;
+	}
+
+	/* Print header */
+	.print-header {
+		display: block !important;
+		text-align: center;
+		margin-bottom: 20px;
+		padding-bottom: 10px;
+		border-bottom: 2px solid #111827;
+	}
+
+	.print-header h1 {
+		font-size: 18pt;
+		margin: 0;
+	}
+
+	.print-header p {
+		font-size: 10pt;
+		color: #6b7280;
+		margin: 4px 0 0;
+	}
+}
+
+/* =============================================================================
+   END — DyPOS Global Application Entry
+   ============================================================================= */

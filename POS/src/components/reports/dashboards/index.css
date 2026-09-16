@@ -1,0 +1,100 @@
+/* =============================================================================
+    RTL-Specific Dashboard Styles
+
+    Scoped with [dir="rtl"] rather than the previous `@media (direction: rtl)`.
+    `direction` is not a CSS media feature, so that query never matched and
+    every rule in this file was dead. The app sets
+    `document.documentElement.dir = "rtl"` for Arabic, which makes attribute
+    scoping the correct hook (same pattern already used by
+    WarehouseAvailabilityDialog.vue via `:global([dir="rtl"])`).
+    ============================================================================= */
+
+/* Reverse flex-direction in grid layouts */
+[dir="rtl"] .dashboard-shell .shell-content .grid {
+	flex-direction: row-reverse;
+}
+
+[dir="rtl"] .dashboard-shell .shell-content .grid > * {
+	text-align: right;
+}
+
+/* Fix text alignment for RTL */
+[dir="rtl"] .dashboard-shell .shell-content {
+	text-align: right;
+}
+
+[dir="rtl"] .dashboard-shell .shell-content h1,
+[dir="rtl"] .dashboard-shell .shell-content h2,
+[dir="rtl"] .dashboard-shell .shell-content h3,
+[dir="rtl"] .dashboard-shell .shell-content h4,
+[dir="rtl"] .dashboard-shell .shell-content h5,
+[dir="rtl"] .dashboard-shell .shell-content h6 {
+	text-align: right;
+}
+
+/* Fix chart canvas alignment */
+[dir="rtl"] .dashboard-shell .shell-content canvas {
+	direction: rtl;
+	text-align: right;
+}
+
+[dir="rtl"] .dashboard-shell .shell-content .chart-card {
+	text-align: right;
+}
+
+/* Reverse flex layouts in dashboard headers */
+[dir="rtl"] .dashboard-shell .shell-header {
+	flex-direction: row-reverse;
+}
+
+[dir="rtl"] .dashboard-shell .shell-header > div:first-child {
+	text-align: right;
+}
+
+/* Fix filter section alignment */
+[dir="rtl"] .dashboard-shell .shell-filters {
+	text-align: right;
+}
+
+/* Fix flex-row items in dashboard content */
+[dir="rtl"] .dashboard-shell .shell-content .flex {
+	direction: rtl;
+}
+
+/* Reverse margin/padding for RTL dashboard grids */
+[dir="rtl"] .dashboard-shell .shell-content [class*="mx-auto"] {
+	margin-right: auto;
+	margin-left: 0;
+}
+
+/* Ensure KPI cards align correctly */
+[dir="rtl"] .dashboard-shell .shell-content .kpi-grid {
+	direction: rtl;
+}
+
+/* Chart tooltip alignment */
+[dir="rtl"] .dashboard-shell .shell-content .chartjs-tooltip {
+	direction: rtl;
+	text-align: right;
+}
+
+/* Table alignment in RTL */
+[dir="rtl"] .dashboard-shell .shell-content table {
+	direction: rtl;
+	text-align: right;
+}
+
+[dir="rtl"] .dashboard-shell .shell-content th {
+	text-align: right;
+}
+
+/* Badge alignment */
+[dir="rtl"] .dashboard-shell .shell-header .flex.items-center {
+	flex-direction: row-reverse;
+}
+
+/* Export dropdown positioning */
+[dir="rtl"] .dashboard-shell .shell-header .absolute.right-0 {
+	right: auto;
+	left: 0;
+}

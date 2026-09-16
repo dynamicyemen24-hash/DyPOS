@@ -1,0 +1,43 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"],
+      "@core/*": ["./_core/*"],
+      "@routers/*": ["./routers/*"],
+      "@services/*": ["./services/*"],
+      "@db/*": ["./db/*"],
+      "@middleware/*": ["./middleware/*"]
+    },
+    "types": ["node", "vitest/globals"],
+    "experimentalDecorators": true,
+    "useDefineForClassFields": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": false,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitReturns": true
+  },
+  "include": ["./**/*.ts"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
+}

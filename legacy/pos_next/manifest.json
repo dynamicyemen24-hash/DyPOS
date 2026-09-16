@@ -1,0 +1,74 @@
+{
+  "app_name": "DyPOS",
+  "app_title": "Smart Ports POS",
+  "app_publisher": "المنافذ الذكية للبرمجيات",
+  "app_description": "نقاط البيع الذكية - نظام نقاط بيع متكامل",
+  "app_email": "support@smartports.com",
+  "app_license": "AGPL-3.0",
+  "app_version": "1.16.0",
+  "app_icon": "octicon octicon-screen-full",
+  "app_color": "#1E40AF",
+  "app_logo_url": "/assets/smart_ports/images/logo.png",
+  "include": [
+    "DyPOS/doctype/*",
+    "DyPOS/report/*",
+    "DyPOS/print_format/*",
+    "DyPOS/workspace/*",
+    "DyPOS/custom/*",
+    "DyPOS/setup/*",
+    "DyPOS/utils/*"
+  ],
+  "exclude": [
+    "DyPOS/tests/*"
+  ],
+  "docs_app": "frappe",
+  "sync_on_migrate": 1,
+  "setup_wizard": "DyPOS.setup.setup_wizard",
+  "after_install": "DyPOS.hooks.after_install",
+  "before_install": "DyPOS.hooks.before_install",
+  "after_migrate": "DyPOS.hooks.after_migrate",
+  "before_migrate": "DyPOS.hooks.before_migrate",
+  "webhooks": [],
+  "ignored_apps": [],
+  "required_apps": [
+    "frappe>=15.0.0",
+    "Dycos>=15.0.0"
+  ],
+  "jinja": {
+    "methods": [
+      "DyPOS.utils.pos_closing_print.get_items_sold"
+    ]
+  },
+  "permissions": [
+    {
+      "doctype": "POS Settings",
+      "role": "System Manager",
+      "create": 1, "read": 1, "write": 1, "delete": 1, "report": 1, "print": 1, "email": 1, "export": 1, "share": 1
+    },
+    {
+      "doctype": "POS Settings",
+      "role": "Sales Manager",
+      "create": 1, "read": 1, "write": 1, "report": 1, "print": 1, "email": 1, "export": 1, "share": 1
+    }
+  ],
+  "site_config": {
+    "company": "المنافذ الذكية للبرمجيات",
+    "default_currency": "SAR",
+    "country": "Saudi Arabia",
+    "timezone": "Asia/Riyadh",
+    "language": "ar",
+    "rtl": 1
+  },
+  "branding": {
+    "company_name": "المنافذ الذكية للبرمجيات",
+    "company_name_en": "Smart Ports Software",
+    "app_name": "المنافذ الذكية POS",
+    "app_name_en": "Smart Ports POS",
+    "color_primary": "#1E40AF",
+    "color_secondary": "#059669",
+    "color_accent": "#DC2626",
+    "logo_url": "/assets/smart_ports/images/logo.png",
+    "favicon_url": "/assets/smart_ports/images/favicon.ico",
+    "og_image": "/assets/smart_ports/images/smart-ports-og.jpg"
+  }
+}

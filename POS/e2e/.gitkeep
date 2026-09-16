@@ -1,0 +1,20 @@
+# E2 Tests for DyPOS
+
+## Offline Mode Tests
+- Test that POS works without backend connection
+- Test item browsing from cache
+- Test customer selection from cache
+- Test invoice creation and queuing when offline
+- Test auto-sync when back online
+
+## Core Flow Tests
+- Test complete sales cycle (items -> customer -> payment -> receipt)
+- Test promotional offers application
+- Test split payments
+- Test shift management (open/close)
+- Test draft invoice save and resume
+
+## Performance Tests
+- Test cache loading times
+- Test search response times
+- Test UI interaction responsiveness

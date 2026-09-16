@@ -1,0 +1,442 @@
+/* =============================================================================
+   DyPOS Design System v2.0 — Density Layer
+   طبقة الكثافة — RTL-first • POS Optimized • Responsive • Accessible
+
+   الاستخدام:
+   <html data-density="compact">
+
+   ترتيب الاستيراد:
+   tokens → themes → accents → base → motion → components → density
+
+   مبدأ التصميم:
+   الكثافة تضبط المساحات والأبعاد الهيكلية دون كسر قابلية الاستخدام
+   أو تغيير دلالة الألوان أو الحالات أو الهوية البصرية.
+   ============================================================================= */
+
+/* ============================================================================
+   1. COMPACT DENSITY — BASE
+   ============================================================================ */
+
+[data-density="compact"] {
+	/* ------------------------------------------------------------------------
+	   Spacing Scale
+	   ------------------------------------------------------------------------ */
+
+	--dy-space-1: 3px;
+	--dy-space-1-5: 5px;
+	--dy-space-2: 6px;
+	--dy-space-2-5: 8px;
+	--dy-space-3: 10px;
+	--dy-space-4: 12px;
+	--dy-space-5: 14px;
+	--dy-space-6: 18px;
+	--dy-space-8: 24px;
+	--dy-space-10: 30px;
+	--dy-space-12: 36px;
+	--dy-space-16: 48px;
+	--dy-space-20: 56px;
+
+	/* ------------------------------------------------------------------------
+	   Application Chrome
+	   ------------------------------------------------------------------------ */
+
+	--dy-header-h: 56px;
+	--dy-footer-h: 48px;
+
+	/* ------------------------------------------------------------------------
+	   Common Control Heights
+	   ------------------------------------------------------------------------ */
+
+	--dy-control-h-xs: 32px;
+	--dy-control-h-sm: 36px;
+	--dy-control-h-md: 40px;
+	--dy-control-h-lg: 46px;
+	--dy-control-h-xl: 52px;
+
+	/* ------------------------------------------------------------------------
+	   POS Interaction Targets
+
+	   لا ننزل عن 40px في عناصر التحكم التفاعلية الأساسية.
+	   العناصر التي تحتاج لمسًا متكررًا تبقى أكبر من ذلك عبر المكونات نفسها.
+	   ------------------------------------------------------------------------ */
+
+	--dy-touch-min: 40px;
+
+	/* ------------------------------------------------------------------------
+	   Structural Rows
+	   ------------------------------------------------------------------------ */
+
+	--dy-row-h-xs: 32px;
+	--dy-row-h-sm: 36px;
+	--dy-row-h-md: 40px;
+	--dy-row-h-lg: 46px;
+
+	/* ------------------------------------------------------------------------
+	   Table / List Density
+	   ------------------------------------------------------------------------ */
+
+	--dy-table-cell-px: 10px;
+	--dy-table-cell-py: 8px;
+
+	--dy-list-item-px: 10px;
+	--dy-list-item-py: 8px;
+
+	/* ------------------------------------------------------------------------
+	   Cards
+	   ------------------------------------------------------------------------ */
+
+	--dy-card-padding: 14px;
+	--dy-card-header-padding-y: 10px;
+	--dy-card-footer-padding-y: 10px;
+
+	/* ------------------------------------------------------------------------
+	   Form Fields
+	   ------------------------------------------------------------------------ */
+
+	--dy-input-padding-inline: 12px;
+
+	/* ------------------------------------------------------------------------
+	   Dialog / Overlay Content
+	   ------------------------------------------------------------------------ */
+
+	--dy-dialog-padding: 18px;
+	--dy-dialog-gap: 12px;
+
+	/* ------------------------------------------------------------------------
+	   POS Specific
+	   ------------------------------------------------------------------------ */
+
+	--dy-cart-row-h: 56px;
+	--dy-product-tile-gap: 8px;
+	--dy-keypad-gap: 6px;
+
+	/* ------------------------------------------------------------------------
+	   Navigation
+	   ------------------------------------------------------------------------ */
+
+	--dy-nav-item-h: 40px;
+	--dy-nav-item-gap: 4px;
+
+	/* ------------------------------------------------------------------------
+	   Status / Toolbar
+	   ------------------------------------------------------------------------ */
+
+	--dy-toolbar-h: 48px;
+	--dy-statusbar-h: 36px;
+}
+
+/* ============================================================================
+   2. COMPACT COMPONENT OVERRIDES
+   ============================================================================ */
+
+/* ——— Buttons ——— */
+
+[data-density="compact"] .dy-btn-sm {
+	min-height: var(--dy-control-h-xs);
+	height: var(--dy-control-h-xs);
+}
+
+[data-density="compact"] .dy-btn-md {
+	min-height: var(--dy-control-h-md);
+	height: var(--dy-control-h-md);
+}
+
+[data-density="compact"] .dy-btn-lg {
+	min-height: var(--dy-control-h-lg);
+	height: var(--dy-control-h-lg);
+}
+
+[data-density="compact"] .dy-btn-xl {
+	min-height: var(--dy-control-h-xl);
+	height: var(--dy-control-h-xl);
+}
+
+/* ——— Inputs ——— */
+
+[data-density="compact"] .dy-input-sm {
+	min-height: var(--dy-control-h-sm);
+	height: var(--dy-control-h-sm);
+	padding-inline: var(--dy-input-padding-inline);
+}
+
+[data-density="compact"] .dy-input-md {
+	min-height: var(--dy-control-h-md);
+	height: var(--dy-control-h-md);
+	padding-inline: var(--dy-input-padding-inline);
+}
+
+[data-density="compact"] .dy-input-lg {
+	min-height: var(--dy-control-h-lg);
+	height: var(--dy-control-h-lg);
+	padding-inline: var(--dy-input-padding-inline);
+}
+
+/* ——— Cards ——— */
+
+[data-density="compact"] .dy-card-body {
+	padding: var(--dy-card-padding);
+}
+
+[data-density="compact"] .dy-card-header {
+	padding-block: var(--dy-card-header-padding-y);
+	padding-inline: var(--dy-card-padding);
+}
+
+[data-density="compact"] .dy-card-footer {
+	padding-block: var(--dy-card-footer-padding-y);
+	padding-inline: var(--dy-card-padding);
+}
+
+/* ——— Field spacing ——— */
+
+[data-density="compact"] .dy-label {
+	margin-block-end: var(--dy-space-1);
+}
+
+[data-density="compact"] .dy-hint,
+[data-density="compact"] .dy-error {
+	margin-block-start: var(--dy-space-1);
+}
+
+/* ——— Chips ——— */
+
+[data-density="compact"] .dy-chip {
+	min-height: 26px;
+	padding-inline: var(--dy-space-2-5);
+}
+
+/* ——— Badge ——— */
+
+[data-density="compact"] .dy-badge {
+	min-height: 20px;
+	padding-inline: var(--dy-space-2);
+}
+
+/* ——— Avatar ——— */
+
+[data-density="compact"] .dy-avatar-sm {
+	width: 26px;
+	height: 26px;
+}
+
+[data-density="compact"] .dy-avatar-md {
+	width: 36px;
+	height: 36px;
+}
+
+[data-density="compact"] .dy-avatar-lg {
+	width: 48px;
+	height: 48px;
+}
+
+/* ——— Icon Button ——— */
+
+[data-density="compact"] .dy-icon-btn {
+	width: var(--dy-control-h-md);
+	height: var(--dy-control-h-md);
+}
+
+/* ——— Navigation ——— */
+
+[data-density="compact"] .dy-nav-item {
+	min-height: var(--dy-nav-item-h);
+}
+
+[data-density="compact"] .dy-nav-list {
+	gap: var(--dy-nav-item-gap);
+}
+
+/* ============================================================================
+   3. COMPACT LISTS / TABLES
+   ============================================================================ */
+
+[data-density="compact"] .dy-list-item {
+	padding-block: var(--dy-list-item-py);
+	padding-inline: var(--dy-list-item-px);
+	min-height: var(--dy-row-h-md);
+}
+
+[data-density="compact"] .dy-table th,
+[data-density="compact"] .dy-table td {
+	padding-block: var(--dy-table-cell-py);
+	padding-inline: var(--dy-table-cell-px);
+}
+
+[data-density="compact"] .dy-table-row {
+	min-height: var(--dy-row-h-md);
+}
+
+/* ============================================================================
+   4. POS CART
+   ============================================================================ */
+
+[data-density="compact"] .dy-cart-item {
+	min-height: var(--dy-cart-row-h);
+}
+
+[data-density="compact"] .dy-cart-item-content {
+	padding-block: var(--dy-space-2);
+	padding-inline: var(--dy-space-3);
+}
+
+/* ============================================================================
+   5. POS PRODUCT GRID
+   ============================================================================ */
+
+[data-density="compact"] .dy-product-grid {
+	gap: var(--dy-product-tile-gap);
+}
+
+[data-density="compact"] .dy-product-tile {
+	padding: var(--dy-space-2-5);
+}
+
+/* ============================================================================
+   6. POS NUMERIC KEYPAD
+   ============================================================================ */
+
+[data-density="compact"] .dy-keypad {
+	gap: var(--dy-keypad-gap);
+}
+
+[data-density="compact"] .dy-keypad-key {
+	min-height: 44px;
+}
+
+/* ============================================================================
+   7. TOOLBAR / STATUS BAR
+   ============================================================================ */
+
+[data-density="compact"] .dy-toolbar {
+	min-height: var(--dy-toolbar-h);
+}
+
+[data-density="compact"] .dy-statusbar {
+	min-height: var(--dy-statusbar-h);
+}
+
+/* ============================================================================
+   8. DIALOGS / PANELS
+   ============================================================================ */
+
+[data-density="compact"] .dy-dialog-body {
+	padding: var(--dy-dialog-padding);
+}
+
+[data-density="compact"] .dy-dialog-content {
+	gap: var(--dy-dialog-gap);
+}
+
+/* ============================================================================
+   9. SMALL VIEWPORT — ADDITIONAL COMPRESSION
+   ============================================================================ */
+
+/*
+ * الكثافة المدمجة لا تعني تلقائيًا ضغط كل شيء.
+ * الضغط الإضافي لا يحدث إلا عندما تكون الشاشة فعلًا محدودة.
+ */
+
+@media (max-width: 900px) {
+	[data-density="compact"] {
+		--dy-space-5: 12px;
+		--dy-space-6: 16px;
+		--dy-space-8: 20px;
+
+		--dy-card-padding: 12px;
+
+		--dy-table-cell-px: 8px;
+		--dy-table-cell-py: 7px;
+
+		--dy-cart-row-h: 52px;
+	}
+}
+
+/* ============================================================================
+   10. VERY SMALL POS VIEWPORT
+   ============================================================================ */
+
+@media (max-width: 640px) {
+	[data-density="compact"] {
+		--dy-space-4: 10px;
+		--dy-space-5: 12px;
+		--dy-space-6: 14px;
+
+		--dy-card-padding: 10px;
+
+		--dy-dialog-padding: 14px;
+
+		--dy-table-cell-px: 6px;
+		--dy-table-cell-py: 6px;
+
+		--dy-cart-row-h: 48px;
+		--dy-toolbar-h: 44px;
+		--dy-statusbar-h: 32px;
+	}
+
+	[data-density="compact"] .dy-btn-xl {
+		height: 48px;
+		min-height: 48px;
+	}
+
+	[data-density="compact"] .dy-avatar-lg {
+		width: 44px;
+		height: 44px;
+	}
+}
+
+/* ============================================================================
+   11. TOUCH SAFETY
+   ============================================================================ */
+
+/*
+ * لا يتم ضغط عناصر POS الأساسية إلى أحجام صغيرة جدًا.
+ * الكثافة البصرية لا يجب أن تتحول إلى صعوبة في اللمس.
+ */
+
+@media (pointer: coarse) {
+	[data-density="compact"] {
+		--dy-touch-min: 44px;
+
+		--dy-control-h-md: 44px;
+		--dy-control-h-lg: 48px;
+
+		--dy-nav-item-h: 44px;
+		--dy-keypad-gap: 8px;
+	}
+
+	[data-density="compact"] .dy-icon-btn {
+		width: 44px;
+		height: 44px;
+	}
+
+	[data-density="compact"] .dy-keypad-key {
+		min-height: 48px;
+	}
+}
+
+/* ============================================================================
+   12. REDUCED MOTION
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+	[data-density="compact"] {
+		--dy-dur-fast: 0.01ms;
+		--dy-dur-base: 0.01ms;
+		--dy-dur-slow: 0.01ms;
+	}
+}
+
+/* ============================================================================
+   13. PRINT
+   ============================================================================ */
+
+@media print {
+	[data-density="compact"] {
+		--dy-header-h: auto;
+		--dy-footer-h: auto;
+
+		--dy-card-padding: 8px;
+		--dy-table-cell-px: 6px;
+		--dy-table-cell-py: 4px;
+	}
+}

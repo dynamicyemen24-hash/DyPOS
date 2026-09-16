@@ -1,0 +1,6 @@
+packages:
+  - "POS"
+  - "."
+  - "server"
+allowBuilds:
+  node: set this to true or false

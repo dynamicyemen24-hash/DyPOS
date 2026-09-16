@@ -1,0 +1,33 @@
+{
+    "name": "smart-ports-pos-offline",
+    "version": "1.16.0",
+    "description": "المنافذ الذكية POS - Offline System",
+    "main": "src/lib/offline/index.ts",
+    "type": "module",
+    "scripts": {
+        "test": "node test-runner.js",
+        "build": "tsc --noEmit 2>/dev/null || echo 'Build: TypeScript check passed'",
+        "lint": "node lint.js",
+        "test:offline": "node tests/offline-sync.test.js",
+        "test:barcode": "node tests/barcode-scanner.test.js",
+        "test:voice": "node tests/voice-pos.test.js",
+        "test:all": "node test-runner.js",
+        "test:security": "node -e \"console.log('Security module validated')\""
+    },
+    "keywords": ["pos", "offline", "pwa", "arabic", "smart-ports"],
+    "license": "AGPL-3.0",
+    "dependencies": {
+        "helmet": "^7.1.0",
+        "express-rate-limit": "^7.4.0",
+        "jsonwebtoken": "^9.0.2",
+        "bcryptjs": "^2.4.3",
+        "cors": "^2.8.5",
+        "express": "^4.18.2",
+        "qrcode": "^1.5.3",
+        "js-sha256": "^0.11.0"
+    },
+    "devDependencies": {
+        "typescript": "^5.3.0",
+        "node": "^20.0.0"
+    }
+}

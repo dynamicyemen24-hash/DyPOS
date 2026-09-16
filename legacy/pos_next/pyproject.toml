@@ -1,0 +1,27 @@
+[project]
+name = "DyPOS"
+version = "1.16.0"
+description = "نقاط البيع الذكية - نظام نقاط بيع متكامل"
+authors = [{name = "المنافذ الذكية للبرمجيات", email = "support@smartports.com"}]
+license = {text = "AGPL-3.0"}
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "frappe>=15.0.0",
+    "Dycos>=15.0.0",
+]
+
+[build-system]
+requires = ["flit_core>=3.4,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["I", "E", "W", "F"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "tab"

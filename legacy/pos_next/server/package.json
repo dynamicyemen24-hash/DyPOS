@@ -1,0 +1,62 @@
+{
+  "name": "smartports-pos-server",
+  "version": "1.16.0",
+  "description": "Smart Ports POS Backend - Express + tRPC + Drizzle ORM",
+  "type": "module",
+  "main": "_core/index.ts",
+  "scripts": {
+    "dev": "tsx watch _core/index.ts",
+    "build": "tsc && node dist/_core/index.js",
+    "start": "node dist/_core/index.js",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest watch",
+    "lint": "eslint . --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "drizzle-kit migrate",
+    "db:generate": "drizzle-kit generate",
+    "db:seed": "tsx db/seed/index.ts",
+    "db:push": "drizzle-kit push",
+    "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm db:migrate"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.0",
+    "@trpc/server": "^11.0.0",
+    "drizzle-orm": "^0.34.0",
+    "express": "^4.19.0",
+    "helmet": "^7.1.0",
+    "jose": "^5.9.0",
+    "zod": "^3.23.0",
+    "superjson": "^2.2.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.0",
+    "pg": "^8.12.0",
+    "uuid": "^10.0.0",
+    "qrcode": "^1.5.3",
+    "xml2js": "^0.6.2",
+    "nodemailer": "^6.9.14",
+    "prom-client": "^15.1.0",
+    "scrypt": "^1.1.0",
+    "express-rate-limit": "^7.4.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.0",
+    "@types/uuid": "^10.0.0",
+    "@types/qrcode": "^1.5.5",
+    "@types/scrypt": "^6.0.0",
+    "@vitest/coverage-v8": "^2.1.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0",
+    "eslint": "^9.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "drizzle-kit": "^0.30.0",
+    "playwright": "^1.46.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

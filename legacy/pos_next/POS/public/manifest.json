@@ -1,0 +1,100 @@
+{
+    "name": "المنافذ الذكية POS",
+    "short_name": "SP POS",
+    "description": "نقاط البيع الذكية - نظام نقاط بيع متكامل مع دعم العمل بدون اتصال",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#F9FAFB",
+    "theme_color": "#1E40AF",
+    "orientation": "portrait-primary",
+    "dir": "rtl",
+    "lang": "ar",
+    "categories": ["business", "productivity"],
+    "icons": [
+        {
+            "src": "/icons/icon-72x72.png",
+            "sizes": "72x72",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icons/icon-96x96.png",
+            "sizes": "96x96",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icons/icon-144x144.png",
+            "sizes": "144x144",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icons/icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icons/icon-384x384.png",
+            "sizes": "384x384",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icons/icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icons/apple-touch-icon.png",
+            "sizes": "180x180",
+            "type": "image/png"
+        },
+        {
+            "src": "/icons/maskable-icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "/icons/maskable-icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ],
+    "screenshots": [],
+    "shortcuts": [
+        {
+            "name": "فاتورة جديدة",
+            "url": "/pos",
+            "description": "إنشاء فاتورة جديدة"
+        },
+        {
+            "name": "المنتجات",
+            "url": "/items",
+            "description": "عرض المنتجات"
+        },
+        {
+            "name": "التقارير",
+            "url": "/reports",
+            "description": "عرض التقارير"
+        },
+        {
+            "name": "السلات المعلقة",
+            "url": "/holds",
+            "description": "عرض السلات المعلقة"
+        }
+    ],
+    "prefer_related_applications": false,
+    "related_applications": [],
+    "display_override": ["window-controls-overlay", "standalone"],
+    "handle_links": "preferred",
+    "scope": "/",
+    "id": "/",
+    "launch_handler": {
+        "client_mode": "navigate-existing"
+    }
+}

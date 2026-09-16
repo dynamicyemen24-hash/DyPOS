@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="light" data-accent="royal" data-density="comfortable" style="color-scheme: light;" class="rtl"><head>
+		<meta charset="UTF-8">
+		<script>
+			// DyPOS theme bootstrap — runs before any CSS paints to avoid FOUC.
+			// Mirrors src/composables/useAppTheme.js persistence contract.
+			(function () {
+				try {
+					var validTheme = { "light": 1, "dark": 1, "system": 1 };
+					var validAccent = {
+						"royal": 1, "indigo": 1, "violet": 1,
+						"teal": 1, "emerald": 1, "rose": 1,
+					};
+					var validDensity = { "comfortable": 1, "compact": 1 };
+					var mode = localStorage.getItem("DyPOS_theme");
+					var accent = localStorage.getItem("DyPOS_accent");
+					var density = localStorage.getItem("DyPOS_density");
+					var root = document.documentElement;
+					mode = validTheme[mode] ? mode : "system";
+					accent = validAccent[accent] ? accent : "royal";
+					density = validDensity[density] ? density : "comfortable";
+					var dark = mode === "dark";
+					if (mode === "system" && window.matchMedia) {
+						dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+					}
+					root.setAttribute("data-theme", dark ? "dark" : "light");
+					root.setAttribute("data-accent", accent);
+					root.setAttribute("data-density", density);
+					root.style.colorScheme = dark ? "dark" : "light";
+				} catch (e) {}
+			})();
+		</script>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0, user-scalable=yes">
+		<meta name="theme-color" content="#1E40AF">
+		<meta name="description" content="DyPOS — نظام نقاط بيع سمارت بورتس: فواتير ومخزون لحظي، تشغيل دون اتصال، مستخدمون متعددون، وربط مباشر بنظام ERP">
+		<meta name="mobile-web-app-capable" content="yes">
+		<meta name="apple-mobile-web-app-capable" content="yes">
+		<meta name="apple-mobile-web-app-status-bar-style" content="default">
+		<meta name="apple-mobile-web-app-title" content="DyPOS">
+
+		<!-- Brand favicons -->
+		<link rel="icon" href="/assets/DyPOS/pos/favicon.ico" sizes="any">
+		<link rel="icon" type="image/png" sizes="16x16" href="/assets/DyPOS/pos/favicon-16x16.png">
+		<link rel="icon" type="image/png" sizes="32x32" href="/assets/DyPOS/pos/favicon-32x32.png">
+		<link rel="apple-touch-icon" href="/assets/DyPOS/pos/apple-touch-icon.png">
+
+		<!-- Company / Open Graph identity -->
+		<meta property="og:type" content="website">
+		<meta property="og:site_name" content="DyPOS">
+		<meta property="og:title" content="DyPOS">
+		<meta property="og:description" content="DyPOS — نظام نقاط بيع سمارت بورتس: فواتير ومخزون لحظي، تشغيل دون اتصال، مستخدمون متعددون، وربط مباشر بنظام ERP">
+		<meta property="og:image" content="/assets/DyPOS/pos/smart-ports-og.jpg">
+		<meta property="og:image:alt" content="DyPOS — نقاط بيع سمارت بورتس">
+		<meta name="twitter:card" content="summary_large_image">
+		<meta name="twitter:title" content="DyPOS — نقاط بيع">
+		<meta name="twitter:description" content="DyPOS — نظام نقاط بيع سمارت بورتس: فواتير ومخزون لحظي، تشغيل دون اتصال، مستخدمون متعددون، وربط مباشر بنظام ERP">
+		<meta name="twitter:image" content="/assets/DyPOS/pos/smart-ports-og.jpg">
+
+		<title>DyPOS — نقاط بيع</title>
+		<script type="module" crossorigin="" src="/assets/DyPOS/pos/assets/index-DcOc3Ii2.js?v=1789399255269"></script>
+		<link rel="modulepreload" crossorigin="" href="/assets/DyPOS/pos/assets/vendor-vue-BW6WvN3Q.js?v=1789399255269">
+		<link rel="modulepreload" crossorigin="" href="/assets/DyPOS/pos/assets/vendor-offline-B3HjbqsB.js?v=1789399255269">
+		<link rel="stylesheet" crossorigin="" href="/assets/DyPOS/pos/assets/index-TGqXp6D9.css?v=1789399255269">
+	<link rel="manifest" href="/assets/DyPOS/pos/manifest.webmanifest">
+  <!-- DyPOS build 1789399255269 -->
+<link rel="modulepreload" as="script" crossorigin="" href="/assets/DyPOS/pos/assets/virtual_pwa-register-D4FPYuh2.js"><link rel="modulepreload" as="script" crossorigin="" href="/assets/DyPOS/pos/assets/vendor-vue-BW6WvN3Q.js"><link rel="modulepreload" as="script" crossorigin="" href="/assets/DyPOS/pos/assets/vendor-offline-B3HjbqsB.js"><style id="dypos-dashboard-print-styles">
+		@media print {
+			/* Hide non-printable elements */
+			.no-print,
+			.shell-header,
+			.shell-filters,
+			nav,
+			aside,
+			.toast,
+			.dialog {
+				display: none !important;
+			}
+
+			/* Reset body */
+			body {
+				background: white !important;
+				margin: 0;
+				padding: 0;
+				font-size: 11pt;
+				color: #000;
+			}
+
+			/* Dashboard shell */
+			.dashboard-shell {
+				padding: 0 !important;
+				max-width: none !important;
+			}
+
+			.dashboard-shell.full-screen {
+				position: static !important;
+				z-index: auto !important;
+			}
+
+			/* Content area */
+			.shell-content {
+				padding: 0 !important;
+			}
+
+			/* Charts */
+			.chart-card {
+				break-inside: avoid;
+				page-break-inside: avoid;
+				border: 1px solid #e5e7eb;
+				margin-bottom: 12px;
+			}
+
+			canvas {
+				max-width: 100% !important;
+				height: auto !important;
+			}
+
+			/* KPI cards */
+			.kpi-grid {
+				display: grid;
+				grid-template-columns: repeat(4, 1fr);
+				gap: 8px;
+				margin-bottom: 16px;
+			}
+
+			/* Tables */
+			table {
+				width: 100%;
+				border-collapse: collapse;
+				font-size: 10pt;
+				break-inside: auto;
+			}
+
+			tr {
+				break-inside: avoid;
+				page-break-inside: avoid;
+			}
+
+			th, td {
+				border: 1px solid #d1d5db;
+				padding: 4px 8px;
+				text-align: left;
+			}
+
+			th {
+				background: #f3f4f6 !important;
+				font-weight: 600;
+				color: #111827;
+			}
+
+			/* Page header */
+			.print-header {
+				display: block !important;
+				text-align: center;
+				margin-bottom: 20px;
+				padding-bottom: 10px;
+				border-bottom: 2px solid #111827;
+			}
+
+			.print-header h1 {
+				font-size: 18pt;
+				margin: 0;
+			}
+
+			.print-header p {
+				font-size: 10pt;
+				color: #6b7280;
+				margin: 4px 0 0;
+			}
+
+			/* Grid adjustments */
+			.grid {
+				display: block !important;
+			}
+
+			.grid > div {
+				margin-bottom: 12px;
+			}
+
+			/* Page margins */
+			@page {
+				margin: 1.5cm;
+				size: A4 landscape;
+			}
+		}
+	</style><link rel="modulepreload" as="script" crossorigin="" href="/assets/DyPOS/pos/assets/Login-qLMiiE77.js"><link rel="modulepreload" as="script" crossorigin="" href="/assets/DyPOS/pos/assets/useSessionTimeout-b4SPsJ32.js"><link rel="modulepreload" as="script" crossorigin="" href="/assets/DyPOS/pos/assets/session-JLq-Sf9V.js"><link rel="modulepreload" as="script" crossorigin="" href="/assets/DyPOS/pos/assets/sync-auth-CrqEdced.js"><link rel="modulepreload" as="script" crossorigin="" href="/assets/DyPOS/pos/assets/sync-manager-B8XMSU92.js"><link rel="modulepreload" as="script" crossorigin="" href="/assets/DyPOS/pos/assets/securityHardening-Ac8NWgoS.js"><link rel="stylesheet" crossorigin="" href="/assets/DyPOS/pos/assets/Login-CYNcUlBP.css"></head>
+
+	<body>
+		<div id="app" data-v-app=""><div id="dypos-app" class="dy-app" dir="rtl" lang="ar" data-app-ready="true" aria-busy="false"><!----><!----><div class="dy-sr-only" role="status" aria-live="polite" aria-atomic="true"></div></div></div>
+          
+          
+
+<!----></body></html>

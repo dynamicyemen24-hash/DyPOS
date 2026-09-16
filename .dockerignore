@@ -1,0 +1,29 @@
+# Build artifacts
+DyPOS/public/pos/
+DyPOS/www/
+dist-deploy/
+dev-dist/
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Cache
+.cache/
+node_modules/
+.vite/
+
+# Debug/temp
+*.timestamp-*.mjs

@@ -1,0 +1,309 @@
+/* =============================================================================
+   DyPOS Design System v2.0
+   Accent Tokens — Runtime Accent Presets
+
+   المسؤولية:
+   - تعريف لوحة الهوية الديناميكية لـ DyPOS.
+   - العمل مستقلًا عن [data-theme].
+   - إعادة ربط --dy-brand-* في زمن التشغيل عبر [data-accent].
+   - توفير RGB channels للاستخدام مع rgba / color-mix.
+   - الحفاظ على Contract ثابت مع بقية Design System.
+
+   الاستخدام:
+     [data-accent="indigo"]
+     [data-accent="violet"]
+     [data-accent="teal"]
+     [data-accent="emerald"]
+     [data-accent="rose"]
+
+   ملاحظة:
+   هذا الملف لا يحدد ألوان semantic states مثل:
+   success / warning / danger / info.
+   هذه الألوان يجب أن تبقى مستقلة عن Accent الخاص بالعلامة التجارية.
+   ============================================================================= */
+
+/* ============================================================================
+   01. ROOT / DEFAULT ACCENT
+   ============================================================================ */
+
+:root {
+	/*
+	 * DyPOS Default Brand
+	 * Royal Blue
+	 */
+
+	--dy-brand-50: #f0f5ff;
+	--dy-brand-100: #e0eaff;
+	--dy-brand-200: #c7d7fe;
+	--dy-brand-300: #a5bdfc;
+	--dy-brand-400: #7b9ef9;
+	--dy-brand-500: #567df3;
+	--dy-brand-600: #3f63d9;
+	--dy-brand-700: #1e40af;
+	--dy-brand-800: #1e3a8a;
+	--dy-brand-900: #172554;
+	--dy-brand-950: #0f172a;
+
+	/* RGB channels — no # prefix */
+	--dy-brand-c-50: 240 245 255;
+	--dy-brand-c-100: 224 234 255;
+	--dy-brand-c-200: 199 215 254;
+	--dy-brand-c-300: 165 189 252;
+	--dy-brand-c-400: 123 158 249;
+	--dy-brand-c-500: 86 125 243;
+	--dy-brand-c-600: 63 99 217;
+	--dy-brand-c-700: 30 64 175;
+	--dy-brand-c-800: 30 58 138;
+	--dy-brand-c-900: 23 37 84;
+	--dy-brand-c-950: 15 23 42;
+
+	/*
+	 * Canonical semantic aliases.
+	 * Components should prefer these over hard-coded brand steps.
+	 */
+	--dy-accent: var(--dy-brand-600);
+	--dy-accent-hover: var(--dy-brand-700);
+	--dy-accent-active: var(--dy-brand-800);
+	--dy-accent-soft: var(--dy-brand-50);
+	--dy-accent-subtle: var(--dy-brand-100);
+	--dy-accent-border: var(--dy-brand-200);
+	--dy-accent-muted: var(--dy-brand-400);
+
+	/*
+	 * Foreground intended for accent surfaces.
+	 */
+	--dy-accent-foreground: #ffffff;
+}
+
+/* ============================================================================
+   02. INDIGO
+   ============================================================================ */
+
+[data-accent="indigo"] {
+	--dy-brand-50: #eef2ff;
+	--dy-brand-100: #e0e7ff;
+	--dy-brand-200: #c7d2fe;
+	--dy-brand-300: #a5b4fc;
+	--dy-brand-400: #818cf8;
+	--dy-brand-500: #6366f1;
+	--dy-brand-600: #4f46e5;
+	--dy-brand-700: #4338ca;
+	--dy-brand-800: #3730a3;
+	--dy-brand-900: #312e81;
+	--dy-brand-950: #1e1b4b;
+
+	--dy-brand-c-50: 238 242 255;
+	--dy-brand-c-100: 224 231 255;
+	--dy-brand-c-200: 199 210 254;
+	--dy-brand-c-300: 165 180 252;
+	--dy-brand-c-400: 129 140 248;
+	--dy-brand-c-500: 99 102 241;
+	--dy-brand-c-600: 79 70 229;
+	--dy-brand-c-700: 67 56 202;
+	--dy-brand-c-800: 55 48 163;
+	--dy-brand-c-900: 49 46 129;
+	--dy-brand-c-950: 30 27 75;
+
+	--dy-accent: var(--dy-brand-600);
+	--dy-accent-hover: var(--dy-brand-700);
+	--dy-accent-active: var(--dy-brand-800);
+	--dy-accent-soft: var(--dy-brand-50);
+	--dy-accent-subtle: var(--dy-brand-100);
+	--dy-accent-border: var(--dy-brand-200);
+	--dy-accent-muted: var(--dy-brand-400);
+	--dy-accent-foreground: #ffffff;
+}
+
+/* ============================================================================
+   03. VIOLET
+   ============================================================================ */
+
+[data-accent="violet"] {
+	--dy-brand-50: #f5f3ff;
+	--dy-brand-100: #ede9fe;
+	--dy-brand-200: #ddd6fe;
+	--dy-brand-300: #c4b5fd;
+	--dy-brand-400: #a78bfa;
+	--dy-brand-500: #8b5cf6;
+	--dy-brand-600: #7c3aed;
+	--dy-brand-700: #6d28d9;
+	--dy-brand-800: #5b21b6;
+	--dy-brand-900: #4c1d95;
+	--dy-brand-950: #2e1065;
+
+	--dy-brand-c-50: 245 243 255;
+	--dy-brand-c-100: 237 233 254;
+	--dy-brand-c-200: 221 214 254;
+	--dy-brand-c-300: 196 181 253;
+	--dy-brand-c-400: 167 139 250;
+	--dy-brand-c-500: 139 92 246;
+	--dy-brand-c-600: 124 58 237;
+	--dy-brand-c-700: 109 40 217;
+	--dy-brand-c-800: 91 33 182;
+	--dy-brand-c-900: 76 29 149;
+	--dy-brand-c-950: 46 16 101;
+
+	--dy-accent: var(--dy-brand-600);
+	--dy-accent-hover: var(--dy-brand-700);
+	--dy-accent-active: var(--dy-brand-800);
+	--dy-accent-soft: var(--dy-brand-50);
+	--dy-accent-subtle: var(--dy-brand-100);
+	--dy-accent-border: var(--dy-brand-200);
+	--dy-accent-muted: var(--dy-brand-400);
+	--dy-accent-foreground: #ffffff;
+}
+
+/* ============================================================================
+   04. TEAL
+   ============================================================================ */
+
+[data-accent="teal"] {
+	--dy-brand-50: #f0fdfa;
+	--dy-brand-100: #ccfbf1;
+	--dy-brand-200: #99f6e4;
+	--dy-brand-300: #5eead4;
+	--dy-brand-400: #2dd4bf;
+	--dy-brand-500: #14b8a6;
+	--dy-brand-600: #0d9488;
+	--dy-brand-700: #0f766e;
+	--dy-brand-800: #115e59;
+	--dy-brand-900: #134e4a;
+	--dy-brand-950: #042f2e;
+
+	--dy-brand-c-50: 240 253 250;
+	--dy-brand-c-100: 204 251 241;
+	--dy-brand-c-200: 153 246 228;
+	--dy-brand-c-300: 94 234 212;
+	--dy-brand-c-400: 45 212 191;
+	--dy-brand-c-500: 20 184 166;
+	--dy-brand-c-600: 13 148 136;
+	--dy-brand-c-700: 15 118 110;
+	--dy-brand-c-800: 17 94 89;
+	--dy-brand-c-900: 19 78 74;
+	--dy-brand-c-950: 4 47 46;
+
+	--dy-accent: var(--dy-brand-600);
+	--dy-accent-hover: var(--dy-brand-700);
+	--dy-accent-active: var(--dy-brand-800);
+	--dy-accent-soft: var(--dy-brand-50);
+	--dy-accent-subtle: var(--dy-brand-100);
+	--dy-accent-border: var(--dy-brand-200);
+	--dy-accent-muted: var(--dy-brand-400);
+	--dy-accent-foreground: #ffffff;
+}
+
+/* ============================================================================
+   05. EMERALD
+   ============================================================================ */
+
+[data-accent="emerald"] {
+	--dy-brand-50: #ecfdf5;
+	--dy-brand-100: #d1fae5;
+	--dy-brand-200: #a7f3d0;
+	--dy-brand-300: #6ee7b7;
+	--dy-brand-400: #34d399;
+	--dy-brand-500: #10b981;
+	--dy-brand-600: #059669;
+	--dy-brand-700: #047857;
+	--dy-brand-800: #065f46;
+	--dy-brand-900: #064e3b;
+	--dy-brand-950: #022c22;
+
+	--dy-brand-c-50: 236 253 245;
+	--dy-brand-c-100: 209 250 229;
+	--dy-brand-c-200: 167 243 208;
+	--dy-brand-c-300: 110 231 183;
+	--dy-brand-c-400: 52 211 153;
+	--dy-brand-c-500: 16 185 129;
+	--dy-brand-c-600: 5 150 105;
+	--dy-brand-c-700: 4 120 87;
+	--dy-brand-c-800: 6 95 70;
+	--dy-brand-c-900: 6 78 59;
+	--dy-brand-c-950: 2 44 34;
+
+	--dy-accent: var(--dy-brand-600);
+	--dy-accent-hover: var(--dy-brand-700);
+	--dy-accent-active: var(--dy-brand-800);
+	--dy-accent-soft: var(--dy-brand-50);
+	--dy-accent-subtle: var(--dy-brand-100);
+	--dy-accent-border: var(--dy-brand-200);
+	--dy-accent-muted: var(--dy-brand-400);
+	--dy-accent-foreground: #ffffff;
+}
+
+/* ============================================================================
+   06. ROSE
+   ============================================================================ */
+
+[data-accent="rose"] {
+	--dy-brand-50: #fff1f2;
+	--dy-brand-100: #ffe4e6;
+	--dy-brand-200: #fecdd3;
+	--dy-brand-300: #fda4af;
+	--dy-brand-400: #fb7185;
+	--dy-brand-500: #f43f5e;
+	--dy-brand-600: #e11d48;
+	--dy-brand-700: #be123c;
+	--dy-brand-800: #9f1239;
+	--dy-brand-900: #881337;
+	--dy-brand-950: #4c0519;
+
+	--dy-brand-c-50: 255 241 242;
+	--dy-brand-c-100: 255 228 230;
+	--dy-brand-c-200: 254 205 211;
+	--dy-brand-c-300: 253 164 175;
+	--dy-brand-c-400: 251 113 133;
+	--dy-brand-c-500: 244 63 94;
+	--dy-brand-c-600: 225 29 72;
+	--dy-brand-c-700: 190 18 60;
+	--dy-brand-c-800: 159 18 57;
+	--dy-brand-c-900: 136 19 55;
+	--dy-brand-c-950: 76 5 25;
+
+	--dy-accent: var(--dy-brand-600);
+	--dy-accent-hover: var(--dy-brand-700);
+	--dy-accent-active: var(--dy-brand-800);
+	--dy-accent-soft: var(--dy-brand-50);
+	--dy-accent-subtle: var(--dy-brand-100);
+	--dy-accent-border: var(--dy-brand-200);
+	--dy-accent-muted: var(--dy-brand-400);
+	--dy-accent-foreground: #ffffff;
+}
+
+/* ============================================================================
+   07. RGB / ALPHA UTILITIES
+   ----------------------------------------------------------------------------
+   لا تستخدم ألوانًا صلبة داخل المكونات عندما يكون الغرض هو accent.
+   استخدم القنوات المعيارية:
+   
+     rgb(var(--dy-brand-c-500) / 0.12)
+     rgb(var(--dy-brand-c-600) / 0.16)
+     rgb(var(--dy-brand-c-700) / 0.24)
+   ============================================================================ */
+
+:root {
+	--dy-accent-rgb: var(--dy-brand-c-600);
+
+	--dy-accent-alpha-04: rgb(var(--dy-brand-c-600) / 0.04);
+	--dy-accent-alpha-06: rgb(var(--dy-brand-c-600) / 0.06);
+	--dy-accent-alpha-08: rgb(var(--dy-brand-c-600) / 0.08);
+	--dy-accent-alpha-10: rgb(var(--dy-brand-c-600) / 0.1);
+	--dy-accent-alpha-12: rgb(var(--dy-brand-c-600) / 0.12);
+	--dy-accent-alpha-16: rgb(var(--dy-brand-c-600) / 0.16);
+	--dy-accent-alpha-20: rgb(var(--dy-brand-c-600) / 0.2);
+	--dy-accent-alpha-24: rgb(var(--dy-brand-c-600) / 0.24);
+	--dy-accent-alpha-32: rgb(var(--dy-brand-c-600) / 0.32);
+}
+
+/* ============================================================================
+   08. SAFE FALLBACK
+   ----------------------------------------------------------------------------
+   في حال وصول قيمة accent غير معروفة، تبقى :root هي مصدر الحقيقة.
+   لا يوجد هنا selector عام قد يكسر semantic colors.
+   ============================================================================ */
+
+/* ============================================================================
+   09. REDUCED MOTION
+   ----------------------------------------------------------------------------
+   هذا الملف لا يفرض animations.
+   ============================================================================ */

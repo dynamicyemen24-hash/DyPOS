@@ -1,0 +1,608 @@
+/* =============================================================================
+   DyPOS Design System v2.0
+   طبقة الثيمات الدلالية — Semantic Themes
+
+   المسؤولية:
+   - تحويل الرموز الخام إلى ألوان دلالية قابلة للاستخدام
+   - Light Mode هو الوضع الافتراضي الرسمي
+   - Dark Mode بديل كامل
+   - الحفاظ على اتساق POS عبر جميع الشاشات
+   - عدم ربط المكونات بدرجات لونية خام
+
+   الهوية:
+   DyPOS — رسمي، واضح، احترافي
+   RTL-first • Arabic-first • Light-first • Production Grade
+   ============================================================================= */
+
+/* =============================================================================
+   01. LIGHT THEME
+   الوضع الرسمي الافتراضي
+   ============================================================================= */
+
+:root,
+[data-theme="light"] {
+	color-scheme: light;
+
+	/* -------------------------------------------------------------------------
+	   الأسطح والخلفيات
+	   ------------------------------------------------------------------------- */
+
+	/*
+	 * الخلفية الأساسية بيضاء عمدًا.
+	 * شاشات POS تحتاج أعلى وضوح بصري وأقل تشويش ممكن.
+	 */
+	--dy-bg: #ffffff;
+
+	/* خلفية المناطق المنخفضة بصريًا */
+	--dy-bg-sunken: var(--dy-ink-50);
+
+	/* سطح أعلى من الخلفية */
+	--dy-bg-elevated: #ffffff;
+
+	/* الأسطح الأساسية للبطاقات والنوافذ */
+	--dy-surface: #ffffff;
+
+	/* حالات التحويم والتفاعل */
+	--dy-surface-hover: var(--dy-ink-50);
+	--dy-surface-active: var(--dy-ink-100);
+
+	/* سطح معكوس */
+	--dy-surface-inverted: var(--dy-ink-950);
+
+	/* -------------------------------------------------------------------------
+	   النصوص
+	   ------------------------------------------------------------------------- */
+
+	/* العناوين والقيم المهمة */
+	--dy-text-strong: var(--dy-ink-950);
+
+	/* النص الأساسي */
+	--dy-text: var(--dy-ink-900);
+
+	/* النص الثانوي */
+	--dy-text-secondary: var(--dy-ink-600);
+
+	/* النص الأقل أهمية */
+	--dy-text-muted: var(--dy-ink-500);
+
+	/* النص فوق اللون الأساسي */
+	--dy-text-on-brand: #ffffff;
+
+	/* النص فوق النجاح */
+	--dy-text-on-mint: #ffffff;
+
+	/* النص فوق الخطر */
+	--dy-text-on-crimson: #ffffff;
+
+	/* النص فوق التحذير */
+	--dy-text-on-warning: var(--dy-ink-950);
+
+	/* النص فوق المعلومات */
+	--dy-text-on-info: #ffffff;
+
+	/* -------------------------------------------------------------------------
+	   الحدود والحلقات
+	   ------------------------------------------------------------------------- */
+
+	--dy-border: var(--dy-ink-200);
+	--dy-border-soft: var(--dy-ink-100);
+	--dy-border-strong: var(--dy-ink-300);
+
+	/* لون التركيز الرسمي */
+	--dy-ring: var(--dy-accent);
+
+	/* حلقة التركيز الناعمة */
+	--dy-ring-soft: rgb(var(--dy-accent-rgb) / 0.24);
+
+	/* -------------------------------------------------------------------------
+	   الهوية الأساسية — Primary
+	   ------------------------------------------------------------------------- */
+
+	--dy-primary: var(--dy-accent);
+	--dy-primary-hover: var(--dy-accent-hover);
+	--dy-primary-active: var(--dy-accent-active);
+
+	/* خلفيات ناعمة للهوية */
+	--dy-primary-soft: var(--dy-accent-soft);
+	--dy-primary-softer: var(--dy-accent-subtle);
+
+	/* النص/الأيقونة فوق primary */
+	--dy-primary-contrast: var(--dy-accent-foreground);
+
+	/* -------------------------------------------------------------------------
+	   النجاح — Success
+	   ------------------------------------------------------------------------- */
+
+	--dy-success: var(--dy-mint-600);
+	--dy-success-hover: var(--dy-mint-700);
+	--dy-success-active: var(--dy-mint-800);
+
+	--dy-success-soft: var(--dy-mint-50);
+	--dy-success-subtle: var(--dy-mint-100);
+
+	--dy-success-border: var(--dy-mint-200);
+	--dy-success-contrast: #ffffff;
+
+	/* -------------------------------------------------------------------------
+	   الخطر — Danger
+	   ------------------------------------------------------------------------- */
+
+	--dy-danger: var(--dy-crimson-600);
+	--dy-danger-hover: var(--dy-crimson-700);
+	--dy-danger-active: var(--dy-crimson-800);
+
+	--dy-danger-soft: var(--dy-crimson-50);
+	--dy-danger-subtle: var(--dy-crimson-100);
+
+	--dy-danger-border: var(--dy-crimson-200);
+	--dy-danger-contrast: #ffffff;
+
+	/* -------------------------------------------------------------------------
+	   التحذير — Warning
+	   ------------------------------------------------------------------------- */
+
+	--dy-warning: var(--dy-amber-600);
+	--dy-warning-hover: var(--dy-amber-700);
+	--dy-warning-active: var(--dy-amber-800);
+
+	--dy-warning-soft: var(--dy-amber-50);
+	--dy-warning-subtle: var(--dy-amber-100);
+
+	--dy-warning-border: var(--dy-amber-200);
+
+	/*
+	 * الأسود/الحبر أفضل فوق الأصفر والبرتقالي
+	 * من الأبيض من ناحية الوضوح.
+	 */
+	--dy-warning-contrast: var(--dy-ink-950);
+
+	/* -------------------------------------------------------------------------
+	   المعلومات — Info
+	   ------------------------------------------------------------------------- */
+
+	--dy-info: var(--dy-cyan-600);
+	--dy-info-hover: var(--dy-cyan-700);
+	--dy-info-active: var(--dy-cyan-800);
+
+	--dy-info-soft: var(--dy-cyan-50);
+	--dy-info-subtle: var(--dy-cyan-100);
+
+	--dy-info-border: var(--dy-cyan-200);
+	--dy-info-contrast: #ffffff;
+
+	/* -------------------------------------------------------------------------
+	   الحالات التشغيلية الخاصة بـ POS
+	   ------------------------------------------------------------------------- */
+
+	/* اتصال */
+	--dy-online: var(--dy-success);
+	--dy-online-soft: var(--dy-success-soft);
+
+	/* غير متصل */
+	--dy-offline: var(--dy-danger);
+	--dy-offline-soft: var(--dy-danger-soft);
+
+	/* مزامنة */
+	--dy-syncing: var(--dy-info);
+	--dy-syncing-soft: var(--dy-info-soft);
+
+	/* انتظار */
+	--dy-pending: var(--dy-warning);
+	--dy-pending-soft: var(--dy-warning-soft);
+
+	/* معطل */
+	--dy-disabled: var(--dy-ink-400);
+	--dy-disabled-soft: var(--dy-ink-100);
+
+	/* -------------------------------------------------------------------------
+	   الظلال
+	   ------------------------------------------------------------------------- */
+
+	--dy-shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 3px
+		rgb(15 23 42 / 0.06);
+
+	--dy-shadow-dropdown: 0 8px 24px rgb(15 23 42 / 0.1), 0 2px 8px
+		rgb(15 23 42 / 0.06);
+
+	--dy-shadow-modal: 0 24px 64px rgb(15 23 42 / 0.16), 0 8px 24px
+		rgb(15 23 42 / 0.08);
+
+	--dy-shadow-brand: var(--dy-glow-brand);
+
+	/* -------------------------------------------------------------------------
+	   Glass
+	   ------------------------------------------------------------------------- */
+
+	/*
+	 * يستخدم فقط عند الحاجة.
+	 * الأسطح الأساسية في POS تبقى solid وليس glass.
+	 */
+	--dy-glass-bg: rgb(255 255 255 / 0.88);
+	--dy-glass-border: rgb(255 255 255 / 0.72);
+	--dy-glass-blur: 16px;
+
+	/* -------------------------------------------------------------------------
+	   الشريط الهيكلي
+	   ------------------------------------------------------------------------- */
+
+	--dy-header-h: 64px;
+	--dy-sidebar-w: 240px;
+	--dy-footer-h: 56px;
+
+	/* -------------------------------------------------------------------------
+	   التوافق مع الأنظمة القديمة
+	   ------------------------------------------------------------------------- */
+
+	--surface: var(--dy-surface);
+	--surface-alt: var(--dy-bg-sunken);
+	--surface-muted: var(--dy-surface-active);
+
+	--text-primary: var(--dy-text-strong);
+	--text-secondary: var(--dy-text-secondary);
+	--text-muted: var(--dy-text-muted);
+
+	--border-subtle: var(--dy-border);
+	--border-strong: var(--dy-border-strong);
+
+	--accent: var(--dy-primary);
+	--accent-contrast: var(--dy-primary-contrast);
+
+	--overlay: rgb(15 23 42 / 0.48);
+
+	--shadow-soft: var(--dy-shadow-card);
+
+	--scrollbar-track: var(--dy-bg-sunken);
+	--scrollbar-thumb: var(--dy-border-strong);
+}
+
+/* =============================================================================
+   02. DARK THEME
+   الوضع الداكن
+   ============================================================================= */
+
+[data-theme="dark"] {
+	color-scheme: dark;
+
+	/* -------------------------------------------------------------------------
+	   الأسطح والخلفيات
+	   ------------------------------------------------------------------------- */
+
+	--dy-bg: var(--dy-ink-950);
+
+	--dy-bg-sunken: #020617;
+
+	--dy-bg-elevated: var(--dy-ink-900);
+
+	--dy-surface: var(--dy-ink-900);
+
+	--dy-surface-hover: var(--dy-ink-800);
+
+	--dy-surface-active: var(--dy-ink-700);
+
+	--dy-surface-inverted: var(--dy-ink-50);
+
+	/* -------------------------------------------------------------------------
+	   النصوص
+	   ------------------------------------------------------------------------- */
+
+	--dy-text-strong: #ffffff;
+
+	--dy-text: var(--dy-ink-100);
+
+	--dy-text-secondary: var(--dy-ink-400);
+
+	--dy-text-muted: var(--dy-ink-500);
+
+	--dy-text-on-brand: #ffffff;
+
+	--dy-text-on-mint: #ffffff;
+
+	--dy-text-on-crimson: #ffffff;
+
+	--dy-text-on-warning: var(--dy-ink-950);
+
+	--dy-text-on-info: #ffffff;
+
+	/* -------------------------------------------------------------------------
+	   الحدود والحلقات
+	   ------------------------------------------------------------------------- */
+
+	--dy-border: var(--dy-ink-800);
+
+	--dy-border-soft: var(--dy-ink-900);
+
+	--dy-border-strong: var(--dy-ink-700);
+
+	--dy-ring: var(--dy-accent);
+
+	--dy-ring-soft: rgb(var(--dy-accent-rgb) / 0.32);
+
+	/* -------------------------------------------------------------------------
+	   الهوية الأساسية
+	   ------------------------------------------------------------------------- */
+
+	/*
+	 * في الوضع الداكن نرفع سطوع اللون الأساسي
+	 * بدل استخدام الدرجة الداكنة الخاصة بالوضع الفاتح.
+	 */
+	--dy-primary: var(--dy-accent);
+
+	--dy-primary-hover: var(--dy-accent-hover);
+
+	--dy-primary-active: var(--dy-accent-active);
+
+	--dy-primary-soft: rgb(var(--dy-accent-rgb) / 0.14);
+
+	--dy-primary-softer: rgb(var(--dy-accent-rgb) / 0.22);
+
+	--dy-primary-contrast: var(--dy-accent-foreground);
+
+	/* -------------------------------------------------------------------------
+	   النجاح
+	   ------------------------------------------------------------------------- */
+
+	--dy-success: var(--dy-mint-500);
+	--dy-success-hover: var(--dy-mint-400);
+	--dy-success-active: var(--dy-mint-300);
+
+	--dy-success-soft: rgb(var(--dy-mint-c-500) / 0.14);
+	--dy-success-subtle: rgb(var(--dy-mint-c-500) / 0.2);
+
+	--dy-success-border: rgb(var(--dy-mint-c-500) / 0.32);
+	--dy-success-contrast: #ffffff;
+
+	/* -------------------------------------------------------------------------
+	   الخطر
+	   ------------------------------------------------------------------------- */
+
+	--dy-danger: var(--dy-crimson-500);
+	--dy-danger-hover: var(--dy-crimson-400);
+	--dy-danger-active: var(--dy-crimson-300);
+
+	--dy-danger-soft: rgb(var(--dy-crimson-c-500) / 0.14);
+	--dy-danger-subtle: rgb(var(--dy-crimson-c-500) / 0.2);
+
+	--dy-danger-border: rgb(var(--dy-crimson-c-500) / 0.32);
+	--dy-danger-contrast: #ffffff;
+
+	/* -------------------------------------------------------------------------
+	   التحذير
+	   ------------------------------------------------------------------------- */
+
+	--dy-warning: var(--dy-amber-500);
+	--dy-warning-hover: var(--dy-amber-400);
+	--dy-warning-active: var(--dy-amber-300);
+
+	--dy-warning-soft: rgb(var(--dy-amber-c-500) / 0.14);
+	--dy-warning-subtle: rgb(var(--dy-amber-c-500) / 0.2);
+
+	--dy-warning-border: rgb(var(--dy-amber-c-500) / 0.32);
+	--dy-warning-contrast: var(--dy-ink-950);
+
+	/* -------------------------------------------------------------------------
+	   المعلومات
+	   ------------------------------------------------------------------------- */
+
+	--dy-info: var(--dy-cyan-500);
+	--dy-info-hover: var(--dy-cyan-400);
+	--dy-info-active: var(--dy-cyan-300);
+
+	--dy-info-soft: rgb(var(--dy-cyan-c-500) / 0.14);
+	--dy-info-subtle: rgb(var(--dy-cyan-c-500) / 0.2);
+
+	--dy-info-border: rgb(var(--dy-cyan-c-500) / 0.32);
+	--dy-info-contrast: #ffffff;
+
+	/* -------------------------------------------------------------------------
+	   الحالات التشغيلية
+	   ------------------------------------------------------------------------- */
+
+	--dy-online: var(--dy-success);
+	--dy-online-soft: var(--dy-success-soft);
+
+	--dy-offline: var(--dy-danger);
+	--dy-offline-soft: var(--dy-danger-soft);
+
+	--dy-syncing: var(--dy-info);
+	--dy-syncing-soft: var(--dy-info-soft);
+
+	--dy-pending: var(--dy-warning);
+	--dy-pending-soft: var(--dy-warning-soft);
+
+	--dy-disabled: var(--dy-ink-500);
+	--dy-disabled-soft: var(--dy-ink-800);
+
+	/* -------------------------------------------------------------------------
+	   الظلال
+	   ------------------------------------------------------------------------- */
+
+	--dy-shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 0 0 1px
+		rgb(255 255 255 / 0.035);
+
+	--dy-shadow-dropdown: 0 16px 40px rgb(0 0 0 / 0.52), 0 0 0 1px
+		rgb(255 255 255 / 0.06);
+
+	--dy-shadow-modal: 0 32px 72px rgb(0 0 0 / 0.68), 0 0 0 1px
+		rgb(255 255 255 / 0.08);
+
+	--dy-shadow-brand: var(--dy-glow-brand);
+
+	/* -------------------------------------------------------------------------
+	   Glass
+	   ------------------------------------------------------------------------- */
+
+	--dy-glass-bg: rgb(15 23 42 / 0.82);
+	--dy-glass-border: rgb(255 255 255 / 0.08);
+	--dy-glass-blur: 18px;
+
+	/* -------------------------------------------------------------------------
+	   الشريط الهيكلي
+	   ------------------------------------------------------------------------- */
+
+	--dy-header-h: 64px;
+	--dy-sidebar-w: 240px;
+	--dy-footer-h: 56px;
+
+	/* -------------------------------------------------------------------------
+	   التوافق
+	   ------------------------------------------------------------------------- */
+
+	--surface: var(--dy-surface);
+	--surface-alt: var(--dy-bg-sunken);
+	--surface-muted: var(--dy-surface-active);
+
+	--text-primary: var(--dy-text-strong);
+	--text-secondary: var(--dy-text-secondary);
+	--text-muted: var(--dy-text-muted);
+
+	--border-subtle: var(--dy-border);
+	--border-strong: var(--dy-border-strong);
+
+	--accent: var(--dy-primary);
+	--accent-contrast: var(--dy-primary-contrast);
+
+	--overlay: rgb(0 0 0 / 0.64);
+
+	--shadow-soft: var(--dy-shadow-card);
+
+	--scrollbar-track: var(--dy-surface-active);
+	--scrollbar-thumb: var(--dy-border-strong);
+}
+
+/* =============================================================================
+   03. SYSTEM THEME FALLBACK
+   إذا استخدم التطبيق data-theme="system"
+   ============================================================================= */
+
+[data-theme="system"] {
+	color-scheme: light;
+
+	--dy-bg: #ffffff;
+	--dy-surface: #ffffff;
+	--dy-text-strong: var(--dy-ink-950);
+	--dy-text: var(--dy-ink-900);
+	--dy-text-secondary: var(--dy-ink-600);
+	--dy-text-muted: var(--dy-ink-500);
+	--dy-border: var(--dy-ink-200);
+	--dy-border-soft: var(--dy-ink-100);
+	--dy-border-strong: var(--dy-ink-300);
+}
+
+/* النظام يختار الوضع الداكن تلقائيًا */
+@media (prefers-color-scheme: dark) {
+	[data-theme="system"] {
+		color-scheme: dark;
+
+		--dy-bg: var(--dy-ink-950);
+		--dy-bg-sunken: #020617;
+		--dy-bg-elevated: var(--dy-ink-900);
+
+		--dy-surface: var(--dy-ink-900);
+		--dy-surface-hover: var(--dy-ink-800);
+		--dy-surface-active: var(--dy-ink-700);
+		--dy-surface-inverted: var(--dy-ink-50);
+
+		--dy-text-strong: #ffffff;
+		--dy-text: var(--dy-ink-100);
+		--dy-text-secondary: var(--dy-ink-400);
+		--dy-text-muted: var(--dy-ink-500);
+
+		--dy-border: var(--dy-ink-800);
+		--dy-border-soft: var(--dy-ink-900);
+		--dy-border-strong: var(--dy-ink-700);
+
+		--dy-primary-soft: rgb(var(--dy-accent-rgb) / 0.14);
+		--dy-primary-softer: rgb(var(--dy-accent-rgb) / 0.22);
+
+		--dy-success-soft: rgb(var(--dy-mint-c-500) / 0.14);
+		--dy-danger-soft: rgb(var(--dy-crimson-c-500) / 0.14);
+		--dy-warning-soft: rgb(var(--dy-amber-c-500) / 0.14);
+		--dy-info-soft: rgb(var(--dy-cyan-c-500) / 0.14);
+
+		--dy-shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 0 0 1px
+			rgb(255 255 255 / 0.035);
+
+		--dy-shadow-dropdown: 0 16px 40px rgb(0 0 0 / 0.52), 0 0 0 1px
+			rgb(255 255 255 / 0.06);
+
+		--dy-shadow-modal: 0 32px 72px rgb(0 0 0 / 0.68), 0 0 0 1px
+			rgb(255 255 255 / 0.08);
+
+		--dy-glass-bg: rgb(15 23 42 / 0.82);
+		--dy-glass-border: rgb(255 255 255 / 0.08);
+
+		--surface: var(--dy-surface);
+		--surface-alt: var(--dy-bg-sunken);
+		--surface-muted: var(--dy-surface-active);
+
+		--text-primary: var(--dy-text-strong);
+		--text-secondary: var(--dy-text-secondary);
+		--text-muted: var(--dy-text-muted);
+
+		--border-subtle: var(--dy-border);
+		--border-strong: var(--dy-border-strong);
+
+		--accent: var(--dy-primary);
+		--accent-contrast: var(--dy-primary-contrast);
+
+		--overlay: rgb(0 0 0 / 0.64);
+
+		--shadow-soft: var(--dy-shadow-card);
+
+		--scrollbar-track: var(--dy-surface-active);
+		--scrollbar-thumb: var(--dy-border-strong);
+	}
+}
+
+/* =============================================================================
+   04. REDUCED MOTION
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+	:root,
+	[data-theme="light"],
+	[data-theme="dark"],
+	[data-theme="system"] {
+		--dy-dur-instant: 0ms;
+		--dy-dur-micro: 0ms;
+		--dy-dur-fast: 0ms;
+		--dy-dur-snappy: 0ms;
+		--dy-dur-base: 0ms;
+		--dy-dur-moderate: 0ms;
+		--dy-dur-slow: 0ms;
+		--dy-dur-emphasis: 0ms;
+
+		--dy-ease-spring: ease;
+	}
+}
+
+/* =============================================================================
+   05. PRINT
+   ============================================================================= */
+
+@media print {
+	:root,
+	[data-theme="light"],
+	[data-theme="dark"],
+	[data-theme="system"] {
+		color-scheme: light;
+
+		--dy-bg: #ffffff;
+		--dy-surface: #ffffff;
+
+		--dy-text-strong: #000000;
+		--dy-text: #111111;
+		--dy-text-secondary: #333333;
+		--dy-text-muted: #555555;
+
+		--dy-border: #d1d5db;
+		--dy-border-soft: #e5e7eb;
+		--dy-border-strong: #9ca3af;
+
+		--dy-shadow-card: none;
+		--dy-shadow-dropdown: none;
+		--dy-shadow-modal: none;
+		--dy-glass-bg: #ffffff;
+		--dy-glass-border: #d1d5db;
+	}
+}

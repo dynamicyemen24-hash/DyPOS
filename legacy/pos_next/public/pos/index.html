@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+  <meta name="theme-color" content="#4F46E5" />
+  <meta name="description" content="POS built on ERPNext with real-time billing, stock management, multi-user access, offline mode, and direct ERP integration" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="DyPOS" />
+
+  <!-- Brand favicons -->
+  <link rel="icon" href="/assets/DyPOS/pos/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/DyPOS/pos/favicon-16x16.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/DyPOS/pos/favicon-32x32.png" />
+  <link rel="apple-touch-icon" href="/assets/DyPOS/pos/apple-touch-icon.png" />
+
+  <!-- Company / Open Graph identity -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="DyPOS" />
+  <meta property="og:title" content="DyPOS" />
+  <meta property="og:description" content="POS built on ERPNext with real-time billing, stock management, multi-user access, offline mode, and direct ERP integration" />
+  <meta property="og:image" content="/assets/DyPOS/pos/smart-ports-og.jpg" />
+  <meta property="og:image:alt" content="DyPOS" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="DyPOS" />
+  <meta name="twitter:description" content="POS built on ERPNext with real-time billing, stock management, multi-user access, offline mode, and direct ERP integration" />
+  <meta name="twitter:image" content="/assets/DyPOS/pos/smart-ports-og.jpg" />
+
+  <title>DyPOS</title>
+  <script type="module" crossorigin src="/assets/DyPOS/pos/assets/index-FH4HwjR2.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/DyPOS/pos/assets/vendor-vue-CS1avmQv.js">
+  <link rel="modulepreload" crossorigin href="/assets/DyPOS/pos/assets/vendor-offline-B3HjbqsB.js">
+  <link rel="stylesheet" crossorigin href="/assets/DyPOS/pos/assets/index-B5idPTpm.css">
+<link rel="manifest" href="/assets/DyPOS/pos/manifest.webmanifest"></head>
+
+<body>
+  <div id="app"></div>
+
+          <script>
+              {% for key in boot %}
+              window["{{ key }}"] = {{ boot[key] | tojson }};
+              {% endfor %}
+          </script>
+          </body>
+          
+
+</html>
