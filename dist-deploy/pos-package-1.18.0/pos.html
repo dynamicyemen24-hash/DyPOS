@@ -84,7 +84,11 @@
 		<link rel="modulepreload" crossorigin href="/assets/DyPOS/pos/assets/vendor-vue-BW6WvN3Q.js?v=1.18.0">
 		<link rel="modulepreload" crossorigin href="/assets/DyPOS/pos/assets/vendor-offline-B3HjbqsB.js?v=1.18.0">
 		<link rel="stylesheet" crossorigin href="/assets/DyPOS/pos/assets/index-TGqXp6D9.css?v=1.18.0">
-	<link rel="manifest" href="/assets/DyPOS/pos/manifest.webmanifest">
+	<link rel="manifest" href="/assets/DyPOS/pos/manifest.webmanifest"><script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/assets/DyPOS/pos/sw.js', { scope: '/' }).catch(function () {});
+}
+</script>
   <!-- DyPOS build 1.18.0 -->
 </head>
 

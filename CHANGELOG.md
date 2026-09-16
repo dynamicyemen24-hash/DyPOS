@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [server v1.3.2] - 2026-09-16
+
+### Security / Operations
+- `uuid` ‏10 ← ‏`11.1.1` (‏GHSA-w5hq-g745-h8pq) — `npm audit` صفر ثغرات.
+- حراس بدء الإنتاج: تنبيه FATAL عند قاعدة بلا مستخدمين، وتحذيرات توكن
+  المقاييس وغياب النسخ.
+- `npm run backup:verify` + خطوة CI لاختبار الاستعادة تلقائيًا.
+- ثغرات toolchain الواجهة (‏vite/vitest — تطوير فقط، لا تُشحن) مُوثقة كمقبولة
+  لحين نافذة صيانة مع rebuild كامل.
+
+## [server v1.3.1] - 2026-09-16
+
+### Added / Fixed
+- `DYPOS_RATE_LIMIT_MAX` و `DYPOS_AUTH_LIMIT_MAX` للتحكم بالمعدلات (حمل/اختبار).
+- حملة ضغط `npm run campaign` خضراء 8/8 (انفجار، idempotency، سباق دفع،
+  دقة مخزون، مزيج، مسابر أمنية، نسخة قراءة، ثبات) بعد إصلاح 4 عيوب في أدواتها.
+
 ## [1.18.0] - 2026-09-16
 
 ### Fixed — نشر الإنتاج (Production redeploy)

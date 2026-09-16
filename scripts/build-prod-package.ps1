@@ -24,10 +24,13 @@ Copy-Item (Join-Path $SrcPos "*") $OutAssets -Recurse -Force
 
 # 2) Static-safe pos.html: strip Frappe Jinja boot block (IIS cannot render Jinja;
 #    raw {% %} tags are a JS syntax error + unprofessional), add ?v= cache-buster
+#    + register the SW with root scope so /pos.html is SW-controlled and the
+#    browser install prompt fires (allowed by Service-Worker-Allowed: / in web.config)
 $html = Get-Content $SrcWww -Raw -Encoding UTF8
 $html = $html -replace "(?s)\s*<script>\s*\{% for key in boot %\}.*?\{% endfor %\}\s*</script>", ""
 $html = $html -replace "(/assets/DyPOS/pos/assets/[^""']+\.(js|css))", ('$1?v=' + $Version)
-$html = $html -replace "</head>", "`r`n  <!-- DyPOS build $Version -->`r`n</head>"
+$swReg = "<script>`r`nif ('serviceWorker' in navigator) {`r`n  navigator.serviceWorker.register('/assets/DyPOS/pos/sw.js', { scope: '/' }).catch(function () {});`r`n}`r`n</script>"
+$html = $html -replace "</head>", ($swReg + "`r`n  <!-- DyPOS build $Version -->`r`n</head>")
 [System.IO.File]::WriteAllText((Join-Path $OutRoot "pos.html"), $html, (New-Object System.Text.UTF8Encoding($false)))
 
 # 3) Same treatment for inner index.html (direct-asset access path)
@@ -102,6 +105,14 @@ Cloudflare (مهم — وإلا ستستمر الشاشة القديمة):
 3) أعد فتح https://dypos.smartportssoft.com/pos.html
 4) تحقق من الفوتر/الكونسول: يجب أن تظهر النسخة $Version
    (افتح version.json للتأكد: /assets/DyPOS/pos/version.json)
+
+تثبيت كتطبيق (سطح مكتب + موبايل) — PWA:
+- هذه الحزمة تسجّل الـ Service Worker بنطاق الجذر، فيظهر زر التثبيت تلقائياً.
+- سطح المكتب (Chrome/Edge): افتح /pos.html ← أيقونة التثبيت في شريط العنوان
+  (أو القائمة ⋮ ← تثبيت/Install) ← يعمل مستقلاً ويدعم الأوفلاين.
+- أندرويد (Chrome): القائمة ⋮ ← إضافة إلى الشاشة الرئيسية/تثبيت التطبيق.
+- آيفون (Safari): مشاركة ← إضافة إلى الشاشة الرئيسية.
+- تحقق: DevTools ← Application ← Manifest (أخضر) + Service Workers (مفعّل).
 
 ملاحظة: مجلد C:\inetpub\wwwroot على جهاز التطوير الحالي ليس هو خادم
 الإنتاج (لا توجد خدمة IIS عليه) — النشر الحقيقي يجب أن يتم على الخادم
