@@ -64,6 +64,9 @@ jobs:
       - name: Backup smoke (snapshot + integrity)
         run: npm run backup
 
+      - name: Restore drill (verify newest backup)
+        run: npm run backup:verify
+
   tests:
     runs-on: ubuntu-latest
     strategy:

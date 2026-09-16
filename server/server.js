@@ -39,7 +39,7 @@ import { auditMiddleware } from './middleware/audit.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.DYPOS_PORT) || 3001;
 const HOST = process.env.DYPOS_HOST || '0.0.0.0';
-const VERSION = '1.3.1';
+const VERSION = '1.3.2';
 
 // ── Optional clustering: DYPOS_CLUSTER=1 uses all CPUs (throughput × cores) ──
 // NOTE: kept outside the request path so `export` stays top-level (ESM requirement).
@@ -75,6 +75,22 @@ console.log('[DyPOS] DB mode:', JSON.stringify(describeDbMode()));
 
 mkdirSync(join(__dirname, '..', 'data'), { recursive: true });
 migrate();
+
+// Production startup guards — loud, actionable, never silent (SRE best practice)
+if (isProduction) {
+  try {
+    const users = db.prepare('SELECT COUNT(*) AS c FROM users').get()?.c || 0;
+    if (users === 0) {
+      console.error('[DyPOS FATAL] Production database has ZERO users: first-come ADMIN bootstrap is OPEN. Create the admin account immediately and restrict network access until then.');
+    }
+  } catch { /* users table check is best-effort */ }
+  if (!process.env.DYPOS_METRICS_TOKEN) {
+    console.warn('[DyPOS WARN] DYPOS_METRICS_TOKEN unset — /api/metrics is publicly scrapable.');
+  }
+  if (!process.env.DYPOS_BACKUP_S3 && !process.env.DYPOS_BACKUP_DIR) {
+    console.warn('[DyPOS WARN] No backup target configured — set DYPOS_BACKUP_S3 or verify the backup sidecar volume.');
+  }
+}
 
 // Request-ID + structured request logger (skips health probes to save I/O)
 function requestLogger(req, res, next) {
