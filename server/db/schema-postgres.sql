@@ -265,3 +265,10 @@ CREATE TABLE IF NOT EXISTS webhook_outbox (
 CREATE INDEX IF NOT EXISTS idx_outbox_status ON webhook_outbox(status, next_attempt_at, id);
 CREATE INDEX IF NOT EXISTS idx_subs_active ON webhook_subscriptions(is_active);
 INSERT INTO schema_version (version, description) VALUES (4, 'Webhooks + outbox') ON CONFLICT DO NOTHING;
+
+-- ── v5: customers is_active + invoice void fields ──
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS voided_at timestamptz;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS voided_by TEXT;
+CREATE INDEX IF NOT EXISTS idx_customers_active ON customers(is_active);
+INSERT INTO schema_version (version, description) VALUES (5, 'Customers is_active + void') ON CONFLICT DO NOTHING;

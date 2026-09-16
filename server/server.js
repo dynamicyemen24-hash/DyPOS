@@ -36,6 +36,7 @@ import syncRoutes from './routes/sync.js';
 import exportRoutes from './routes/export.js';
 import importRoutes from './routes/import.js';
 import webhookRoutes from './routes/webhooks.js';
+import printRoutes from './routes/print.js';
 import { metricsMiddleware, metricsHandler } from './middleware/metrics.js';
 import { auditMiddleware } from './middleware/audit.js';
 import { startDispatcher } from './lib/webhooks.js';
@@ -43,7 +44,7 @@ import { startDispatcher } from './lib/webhooks.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.DYPOS_PORT) || 3001;
 const HOST = process.env.DYPOS_HOST || '0.0.0.0';
-const VERSION = '1.4.0';
+const VERSION = '1.4.1';
 
 // ── Optional clustering: DYPOS_CLUSTER=1 uses all CPUs (throughput × cores) ──
 // NOTE: kept outside the request path so `export` stays top-level (ESM requirement).
@@ -246,6 +247,7 @@ app.use('/api/sync', authMiddleware, syncRoutes);
 app.use('/api/export', authMiddleware, exportRoutes);
 app.use('/api/import', authMiddleware, importRoutes);
 app.use('/api/webhooks', authMiddleware, webhookRoutes);
+app.use('/api/print', authMiddleware, printRoutes);
 
 // Webhook dispatcher (outbox → subscriber systems). No-op in tests / when DYPOS_WEBHOOKS=0.
 startDispatcher();

@@ -13,6 +13,7 @@ function clampInt(v, def, min, max) {
 
 router.get('/', (req, res) => {
   const q = req.query.q ? String(req.query.q).trim().slice(0, 64) : '';
+  const active = req.query.active != null ? String(req.query.active) : null;
   const limit = clampInt(req.query.limit, 50, 1, 200);
   const offset = clampInt(req.query.offset, 0, 0, 100000);
   let sql = 'SELECT * FROM customers WHERE 1=1';
@@ -27,7 +28,21 @@ router.get('/', (req, res) => {
       params.push(like, like, like);
     }
   }
-  const countRow = db.prepare(`SELECT COUNT(*) as c FROM customers WHERE 1=1${q ? (q.length <= 3 ? ' AND (name LIKE ? OR phone LIKE ?)' : ' AND (name LIKE ? OR phone LIKE ? OR id LIKE ?)') : ''}`).get(...params);
+  if (active === '1' || active === '0') { sql += ' AND is_active=?'; params.push(Number(active)); }
+  // Count with same filters
+  const whereOnly = sql.replace('SELECT *', 'SELECT COUNT(*) as c').replace(' ORDER BY name LIMIT ? OFFSET ?', '');
+  // Rebuild count from flags to avoid string-munging fragility
+  const countSql = (() => {
+    let s = 'SELECT COUNT(*) as c FROM customers WHERE 1=1';
+    const p = [];
+    if (q) {
+      if (q.length <= 3) { s += ' AND (name LIKE ? OR phone LIKE ?)'; p.push(`${q}%`, `${q}%`); }
+      else { s += ' AND (name LIKE ? OR phone LIKE ? OR id LIKE ?)'; const like = `%${q}%`; p.push(like, like, like); }
+    }
+    if (active === '1' || active === '0') { s += ' AND is_active=?'; p.push(Number(active)); }
+    return { s, p };
+  })();
+  const countRow = db.prepare(countSql.s).get(...countSql.p);
   sql += ' ORDER BY name LIMIT ? OFFSET ?';
   params.push(limit, offset);
   return res.json({ customers: db.prepare(sql).all(...params), total: countRow?.c || 0, limit, offset });
@@ -77,6 +92,18 @@ router.put('/:id', (req, res) => {
     .run(name, String(b.phone || '').trim().slice(0, 32) || null, String(b.email || '').trim().slice(0, 128) || null, String(b.taxNumber || '').trim().slice(0, 64) || null, String(b.loyaltyTier || 'BRONZE').trim().slice(0, 20), Math.max(0, toNum(b.creditLimit)), String(b.address || '').trim().slice(0, 500), id);
   req.audit?.('customer.update', { customerId: id });
   return res.json({ id });
+});
+
+// PATCH /api/customers/:id/toggle — إيقاف/تفعيل (ADMIN/MANAGER)
+router.patch('/:id/toggle', (req, res) => {
+  if (!['ADMIN', 'MANAGER'].includes(req.user?.role)) return res.status(403).json({ error: 'صلاحية غير كافية' });
+  const id = String(req.params.id).slice(0, 64);
+  const row = db.prepare('SELECT is_active FROM customers WHERE id=?').get(id);
+  if (!row) return res.status(404).json({ error: 'العميل غير موجود' });
+  const next = Number(row.is_active) ? 0 : 1;
+  db.prepare('UPDATE customers SET is_active=?,updated_at=datetime(\'now\') WHERE id=?').run(next, id);
+  req.audit?.('customer.toggle', { customerId: id, is_active: next });
+  return res.json({ id, is_active: next });
 });
 
 export default router;

@@ -14,7 +14,7 @@ import { mkdirSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DYPOS_DB_PATH || join(__dirname, '..', 'data', 'dypos.db');
-const MIGRATION_VERSION = 4; // Increment when schema changes
+const MIGRATION_VERSION = 5; // Increment when schema changes
 
 function columnExists(table, column) {
 	try {
@@ -404,7 +404,22 @@ export function migrate() {
       CREATE INDEX IF NOT EXISTS idx_subs_active ON webhook_subscriptions(is_active);
     `);
     db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
-      .run(4, 'Webhook subscriptions + delivery outbox');
+      .run(4, 'Webhooks + outbox');
+  }
+
+  // ── v5: functional requirements hardening — customers toggle + voided flag ──
+  if (currentVersion < 5) {
+    addColumnIfMissing('customers', 'is_active', 'INTEGER NOT NULL DEFAULT 1');
+    addColumnIfMissing('invoices', 'voided_at', 'TEXT');
+    addColumnIfMissing('invoices', 'voided_by', 'TEXT');
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_customers_active ON customers(is_active);
+      CREATE INDEX IF NOT EXISTS idx_products_name_active ON products(is_active, name);
+    `);
+    // Existing customers: all active
+    try { db.prepare('UPDATE customers SET is_active=1 WHERE is_active IS NULL').run(); } catch { /* ignore */ }
+    db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+      .run(5, 'Customers is_active + invoice void fields');
   }
 
   console.log('[DyPOS] Database migrated (v' + MIGRATION_VERSION + ')');

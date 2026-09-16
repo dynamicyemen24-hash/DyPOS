@@ -86,12 +86,24 @@ router.put('/:id', validate(productSchema), (req, res) => {
   return res.json({ id });
 });
 
-// DELETE /api/products/:id (soft delete)
+// DELETE /api/products/:id (soft delete — إيقاف)
 router.delete('/:id', (req, res) => {
   const id = String(req.params.id).slice(0, 64);
   db.prepare("UPDATE products SET is_active=0,updated_at=datetime('now') WHERE id=?").run(id);
   req.audit?.('product.delete', { productId: id });
   return res.json({ deleted: true });
+});
+
+// PATCH /api/products/:id/toggle — إيقاف/تفعيل (ADMIN/MANAGER)
+router.patch('/:id/toggle', (req, res) => {
+  if (!['ADMIN', 'MANAGER'].includes(req.user?.role)) return res.status(403).json({ error: 'صلاحية غير كافية' });
+  const id = String(req.params.id).slice(0, 64);
+  const row = db.prepare('SELECT is_active FROM products WHERE id=?').get(id);
+  if (!row) return res.status(404).json({ error: 'الصنف غير موجود' });
+  const next = Number(row.is_active) ? 0 : 1;
+  db.prepare('UPDATE products SET is_active=?,updated_at=datetime(\'now\') WHERE id=?').run(next, id);
+  req.audit?.('product.toggle', { productId: id, is_active: next });
+  return res.json({ id, is_active: next });
 });
 
 export default router;

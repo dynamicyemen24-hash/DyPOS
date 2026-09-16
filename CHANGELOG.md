@@ -28,6 +28,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   الاستيراد) — حاوية Docker الإنتاجية كانت ستصمّ. الآن `start()` صريحة.
 - إصلاح مسار النسخة المُدرجة (مجلد النسخ لا البيانات) + تحمّل BOM.
 
+## [server v1.4.1] - 2026-09-16 — المتطلبات الوظيفية (إنتاج)
+
+### Functional (بحث/إضافة/تعديل/طباعة/إيقاف/استيراد/تصدير)
+- بحث موحّد `q` في الفواتير + فلتر `active` للعملاء + سقف pagination آمن.
+- إيقاف/تفعيل: `PATCH /:id/toggle` للعملاء والمنتجات (ADMIN/MANAGER) +
+  `POST /invoices/:id/void` (يعكس المخزون والولاء والائتمان).
+- طباعة: `GET /api/print/invoice/:id` (‏HTML + ‏QR) و `GET /api/print/daily`.
+- استيراد/تصدير: متكامل + فحوص `functional.test.js` (‏39/39).
+
+### Schema
+- ترحيل v5: ‏`customers.is_active` + ‏`invoices.voided_*` + فهارس.
+
 ## [server v1.3.2] - 2026-09-16
 
 ### Security / Operations

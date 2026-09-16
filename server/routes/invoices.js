@@ -6,6 +6,8 @@ import { validate, invoiceSchema } from '../middleware/validate.js';
 import { invoicesCounter } from '../middleware/metrics.js';
 import { emit } from '../lib/webhooks.js';
 
+const cryptoId = () => crypto.randomUUID();
+
 const router = Router();
 
 function genInvoiceNumber() {
@@ -163,9 +165,9 @@ router.get('/reports/daily', (req, res) => {
   return res.json({ date: raw, ...stats, payment_methods: Object.fromEntries(payMethods.map(p => [p.method, p.total])) });
 });
 
-// GET /api/invoices — capped pagination (prevents full-table DoS at scale)
+// GET /api/invoices — capped pagination + بحث نصي q (رقم/عميل/حالة)
 router.get('/', (req, res) => {
-  const { status, shift_id, from, to } = req.query;
+  const { status, shift_id, from, to, q } = req.query;
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
   const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
   if (offset > 100000) return res.status(400).json({ error: 'Offset يتجاوز الحد — استخدم فلاتر التاريخ' });
@@ -183,6 +185,11 @@ router.get('/', (req, res) => {
   if (to) {
     if (!/^\d{4}-\d{2}-\d{2}/.test(String(to))) return res.status(400).json({ error: 'صيغة to غير صالحة' });
     sql += ' AND created_at<=?'; params.push(to);
+  }
+  if (q) {
+    const needle = String(q).trim().slice(0, 64);
+    if (needle.length <= 3) { sql += ' AND (number LIKE ? OR customer_name LIKE ?)'; const like = `${needle}%`; params.push(like, like); }
+    else { sql += ' AND (number LIKE ? OR customer_name LIKE ? OR id LIKE ?)'; const like = `%${needle}%`; params.push(like, like, like); }
   }
   sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
   params.push(limit, offset);
@@ -230,6 +237,44 @@ router.post('/:id/pay', (req, res) => {
     return res.json(result);
   } catch (e) {
     return res.status(e.statusCode || 400).json({ error: String(e.message || '').slice(0, 300) });
+  }
+});
+
+// POST /api/invoices/:id/void — إيقاف/إلغاء فاتورة (ADMIN/MANAGER) — يعكس المخزون والنقاط
+router.post('/:id/void', async (req, res) => {
+  if (!['ADMIN', 'MANAGER'].includes(req.user?.role)) return res.status(403).json({ error: 'صلاحية غير كافية' });
+  const id = String(req.params.id).slice(0, 64);
+  const reason = String(req.body?.reason || '').trim().slice(0, 200);
+  try {
+    const r = db.transaction(() => {
+      const inv = db.prepare('SELECT * FROM invoices WHERE id=?').get(id);
+      if (!inv) throw Object.assign(new Error('الفاتورة غير موجودة'), { statusCode: 404 });
+      if (inv.status === 'VOIDED') throw Object.assign(new Error('الفاتورة ملغاة مسبقًا'), { statusCode: 400 });
+      const items = db.prepare('SELECT * FROM invoice_items WHERE invoice_id=?').all(id);
+      // Restore stock atomically
+      for (const it of items) {
+        const wh = String(it.warehouse_id || 'W-01').slice(0, 32);
+        db.prepare(`INSERT INTO stock_levels (product_id,warehouse_id,qty,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(product_id,warehouse_id) DO UPDATE SET qty=qty+?,updated_at=datetime('now')`).run(it.product_id, wh, Number(it.qty), Number(it.qty));
+      }
+      // Reverse loyalty if earned
+      if (inv.customer_id && inv.status === 'PAID') {
+        const pts = Math.floor(Number(inv.total) / 10);
+        if (pts > 0) {
+          db.prepare('UPDATE customers SET loyalty_points=MAX(0,loyalty_points-?) WHERE id=?').run(pts, inv.customer_id);
+          db.prepare(`INSERT INTO loyalty_transactions (id,customer_id,points,amount,type,reference_type,reference_id,note) VALUES (?,?,?,?,?,?,?,?)`).run(cryptoId(), inv.customer_id, -pts, Number(inv.total), 'VOID', 'INVOICE', id, reason || 'إلغاء فاتورة');
+        }
+      }
+      // Reverse credit if was unpaid/partial
+      if (inv.customer_id && Number(inv.remaining_amount) > 0) {
+        db.prepare('UPDATE customers SET credit_used=MAX(0,credit_used-?) WHERE id=?').run(Number(inv.remaining_amount), inv.customer_id);
+      }
+      db.prepare(`UPDATE invoices SET status='VOIDED',voided_at=datetime('now'),voided_by=?,notes=COALESCE(notes,'') || ? WHERE id=?`).run(req.user.username, ` | إلغاء: ${reason}`, id);
+      return { invoiceId: id, status: 'VOIDED' };
+    })();
+    req.audit?.('invoice.void', { invoiceId: id, reason });
+    return res.json(r);
+  } catch (e) {
+    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 300) });
   }
 });
 
