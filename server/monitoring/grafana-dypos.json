@@ -1,0 +1,32 @@
+{
+  "title": "DyPOS — Production Overview",
+  "uid": "dypos-prod",
+  "timezone": "browser",
+  "panels": [
+    {
+      "title": "Request rate (rps)",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum(rate(dypos_http_request_duration_seconds_count[1m]))" }]
+    },
+    {
+      "title": "p95 latency (s)",
+      "type": "timeseries",
+      "targets": [{ "expr": "histogram_quantile(0.95, sum(rate(dypos_http_request_duration_seconds_bucket[5m])) by (le))" }]
+    },
+    {
+      "title": "Error rate (5xx share)",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum(rate(dypos_http_request_duration_seconds_count{status=~\"5..\"}[5m])) / sum(rate(dypos_http_request_duration_seconds_count[5m]))" }]
+    },
+    {
+      "title": "Invoices created (total)",
+      "type": "stat",
+      "targets": [{ "expr": "dypos_invoices_created_total" }]
+    },
+    {
+      "title": "Sync ops by status",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by (status) (rate(dypos_sync_operations_total[5m]))" }]
+    }
+  ]
+}

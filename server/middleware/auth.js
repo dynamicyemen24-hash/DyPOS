@@ -1,9 +1,13 @@
 ﻿/**
- * DyPOS Auth — JWT middleware
- * Production-safe: validates JWT secret length on startup.
+ * DyPOS Auth — JWT middleware (production-hardened for scale)
+ * - Non-blocking bcrypt (async) so login storms don't stall the event loop
+ * - jti-based sessions with revocation check (logout / forced rotation)
+ * - No insecure fallback in production
  */
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+import { v4 as uuid } from 'uuid';
 import db from '../db/schema.js';
 
 export const isProduction = process.env.NODE_ENV === 'production';
@@ -19,34 +23,75 @@ if (isProduction && (!process.env.DYPOS_JWT_SECRET || process.env.DYPOS_JWT_SECR
 }
 
 export function hashPassword(password) {
-  return bcrypt.hashSync(String(password), 12); // bcrypt rounds increased to 12
+  return bcrypt.hashSync(String(password), 12);
+}
+
+export function hashPasswordAsync(password) {
+  return new Promise((resolve, reject) => {
+    bcrypt.hash(String(password), 12, (err, hash) => (err ? reject(err) : resolve(hash)));
+  });
 }
 
 export function verifyPassword(password, hash) {
   return bcrypt.compareSync(String(password), String(hash));
 }
 
+export function verifyPasswordAsync(password, hash) {
+  return new Promise((resolve, reject) => {
+    bcrypt.compare(String(password), String(hash), (err, ok) => (err ? reject(err) : resolve(ok)));
+  });
+}
+
+function tokenHash(token) {
+  return crypto.createHash('sha256').update(String(token)).digest('hex');
+}
+
 export function generateToken(user) {
-  return jwt.sign(
-    { id: user.id, username: user.username, role: user.role, fullName: user.full_name },
+  const jti = uuid();
+  const token = jwt.sign(
+    { id: user.id, username: user.username, role: user.role, fullName: user.full_name, jti },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES },
   );
+  // Best-effort session record for revocation (logout). Failures must not break login.
+  try {
+    const decoded = jwt.decode(token);
+    const exp = decoded?.exp ? new Date(decoded.exp * 1000).toISOString() : new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+    db.prepare(`INSERT OR IGNORE INTO user_sessions (id,user_id,token_hash,expires_at) VALUES (?,?,?,?)`)
+      .run(jti, user.id, tokenHash(token), exp);
+  } catch { /* sessions table may not exist yet during bootstrap */ }
+  return token;
+}
+
+export function revokeToken(token) {
+  try {
+    db.prepare(`UPDATE user_sessions SET revoked=1 WHERE token_hash=?`).run(tokenHash(token));
+  } catch { /* ignore */ }
 }
 
 export function verifyToken(token) {
   return jwt.verify(token, JWT_SECRET);
 }
 
-/** Express middleware — attaches req.user */
+/** Express middleware — attaches req.user + enforces revocation */
 export function authMiddleware(req, res, next) {
   const auth = req.headers.authorization;
   if (!auth || !auth.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'غير مصرح — تسجيل الدخول مطلوب' });
   }
+  const token = auth.slice(7);
   try {
-    const decoded = verifyToken(auth.slice(7));
+    const decoded = verifyToken(token);
+    // Revocation check (single indexed lookup on token_hash)
+    try {
+      const sess = db.prepare('SELECT revoked FROM user_sessions WHERE id=? OR token_hash=? LIMIT 1')
+        .get(decoded.jti || '', tokenHash(token));
+      if (sess && Number(sess.revoked) === 1) {
+        return res.status(401).json({ error: 'تم تسجيل الخروج — سجل الدخول مجددًا' });
+      }
+    } catch { /* if sessions table missing, allow token through */ }
     req.user = decoded;
+    req.token = token;
     next();
   } catch (e) {
     return res.status(401).json({ error: 'رمز غير صالح أو منتهي الصلاحية' });
@@ -62,4 +107,4 @@ export function requireRole(...roles) {
   };
 }
 
-export default { hashPassword, verifyPassword, generateToken, verifyToken, authMiddleware, requireRole };
+export default { hashPassword, hashPasswordAsync, verifyPassword, verifyPasswordAsync, generateToken, revokeToken, verifyToken, authMiddleware, requireRole };

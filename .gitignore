@@ -36,6 +36,13 @@ pids
 *.seed
 *.pid.lock
 
+# SQLite runtime journals + local backups (never commit)
+*.db-shm
+*.db-wal
+*.db-journal
+server/data/backups/
+data/backups/
+
 # Coverage directory
 coverage/
 .nyc_output/

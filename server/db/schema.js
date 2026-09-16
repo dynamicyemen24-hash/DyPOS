@@ -14,7 +14,22 @@ import { mkdirSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DYPOS_DB_PATH || join(__dirname, '..', 'data', 'dypos.db');
-const MIGRATION_VERSION = 2; // Increment when schema changes
+const MIGRATION_VERSION = 3; // Increment when schema changes
+
+function columnExists(table, column) {
+	try {
+		const rows = db.prepare(`PRAGMA table_info(${table})`).all();
+		return rows.some((r) => r.name === column);
+	} catch {
+		return false;
+	}
+}
+
+function addColumnIfMissing(table, column, ddl) {
+	if (!columnExists(table, column)) {
+		db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+	}
+}
 
 mkdirSync(dirname(DB_PATH), { recursive: true });
 
@@ -30,12 +45,20 @@ export function checkDbHealth() {
   try {
     const result = db.prepare('SELECT 1 as alive').get();
     const version = db.prepare('SELECT version FROM schema_version ORDER BY version DESC LIMIT 1').get();
+    // Size signals for capacity planning (millions of rows → watch file growth)
+    let pageCount = null, pageSize = null;
+    try {
+      pageCount = db.prepare('PRAGMA page_count').get()?.page_count ?? null;
+      pageSize = db.prepare('PRAGMA page_size').get()?.page_size ?? null;
+    } catch { /* PRAGMA best-effort */ }
     return {
       healthy: result?.alive === 1,
       type: 'sqlite',
+      mode: process.env.DYPOS_READ_ONLY === '1' ? 'tier1-replica' : 'tier1-primary',
       path: DB_PATH,
       migration_version: version?.version || 'unknown',
       migrations_applied: version?.version || 0,
+      size_bytes: pageCount != null && pageSize != null ? pageCount * pageSize : undefined,
     };
   } catch (e) {
     return {
@@ -45,6 +68,13 @@ export function checkDbHealth() {
       error: e.message,
     };
   }
+}
+
+/** Deep integrity check (used by backup verify + admin endpoint). Slow on huge DBs — ADMIN only. */
+export function checkIntegrity() {
+  const row = db.prepare('PRAGMA integrity_check').get();
+  const ok = row && Object.values(row)[0] === 'ok';
+  return { ok: !!ok, detail: ok ? 'ok' : JSON.stringify(row).slice(0, 500) };
 }
 
 export function migrate() {
@@ -59,7 +89,7 @@ export function migrate() {
   const current = db.prepare('SELECT version FROM schema_version ORDER BY version DESC LIMIT 1').get();
   const currentVersion = current ? current.version : 0;
 
-  if (currentVersion < MIGRATION_VERSION) {
+  if (currentVersion < 2) {
     db.exec(`
       -- ══════════════════════════════════════════════════════════
       -- Products
@@ -312,7 +342,36 @@ export function migrate() {
       CREATE INDEX IF NOT EXISTS idx_sessions_token ON user_sessions(token_hash);
     `);
     db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
-      .run(MIGRATION_VERSION, 'Auto-migration v' + MIGRATION_VERSION);
+      .run(2, 'Auto-migration v2');
+  }
+
+  // Default warehouse must exist: stock_levels.warehouse_id is a real FK,
+  // so any sale/adjust against a fresh DB would fail without this row.
+  // (Previously masked because dev DBs were always seeded with W-01.)
+  db.prepare(`INSERT OR IGNORE INTO warehouses (id,name) VALUES ('W-01','المستودع الرئيسي')`).run();
+
+  // ── v3: correctness + scale ──
+  // Adds columns that invoices.js already writes (currency, channel_id,
+  // idempotency_key) + indexes for high-throughput workloads.
+  if (currentVersion < 3) {
+    addColumnIfMissing('invoices', 'currency', "TEXT NOT NULL DEFAULT 'SAR'");
+    addColumnIfMissing('invoices', 'channel_id', 'TEXT NOT NULL DEFAULT \'\'');
+    addColumnIfMissing('invoices', 'idempotency_key', 'TEXT');
+    db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_number ON invoices(number);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_idem ON invoices(idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
+      CREATE INDEX IF NOT EXISTS idx_invoices_customer ON invoices(customer_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_invoices_terminal_created ON invoices(terminal_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_invoice_items_product ON invoice_items(product_id);
+      CREATE INDEX IF NOT EXISTS idx_products_active_cat ON products(is_active, category);
+      CREATE INDEX IF NOT EXISTS idx_products_code ON products(code);
+      CREATE INDEX IF NOT EXISTS idx_stock_warehouse ON stock_levels(warehouse_id, product_id);
+      CREATE INDEX IF NOT EXISTS idx_payments_method ON payments(method);
+      CREATE INDEX IF NOT EXISTS idx_sync_entity ON sync_log(entity_type, status, id);
+      CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+    `);
+    db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+      .run(3, 'Invoices currency/channel/idem + scale indexes');
   }
 
   console.log('[DyPOS] Database migrated (v' + MIGRATION_VERSION + ')');

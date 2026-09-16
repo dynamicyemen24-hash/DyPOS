@@ -1,0 +1,32 @@
+# DyPOS Alert Rules — page on what kills POS peaks (latency, errors, DB).
+groups:
+  - name: dypos-slo
+    interval: 30s
+    rules:
+      - alert: DyPOSApiDown
+        expr: up{job="dypos-api"} == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: 'DyPOS API unreachable ({{ $labels.instance }})'
+
+      - alert: DyPOSHighErrorRate
+        expr: sum(rate(dypos_http_request_duration_seconds_count{status=~"5.."}[5m])) / sum(rate(dypos_http_request_duration_seconds_count[5m])) > 0.01
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: 'Error rate > 1% over 5m'
+
+      - alert: DyPOSHighLatency
+        expr: histogram_quantile(0.95, sum(rate(dypos_http_request_duration_seconds_bucket[5m])) by (le)) > 0.8
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: 'p95 latency > 800ms over 10m'
+
+      - alert: DyPOSAuthBruteForce
+        expr: sum(rate(dypos_auth_attempts_total{outcome="fail"}[5m])) > 1
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Sustained failed logins (>1/s over 5m)'

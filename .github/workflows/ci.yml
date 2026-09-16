@@ -38,6 +38,32 @@ jobs:
       - name: Build
         run: yarn build
 
+  server-api:
+    runs-on: ubuntu-latest
+    name: DyPOS Server API (SQLite)
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - name: Clone
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package.json
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: API regression tests (auth + invoices)
+        run: npm test
+
+      - name: Backup smoke (snapshot + integrity)
+        run: npm run backup
+
   tests:
     runs-on: ubuntu-latest
     strategy:

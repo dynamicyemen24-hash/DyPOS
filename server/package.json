@@ -1,6 +1,6 @@
 ﻿{
   "name": "dypos-server",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "DyPOS SaaS backend - REST API + JWT Auth + SQLite (node:sqlite, zero native deps)",
   "main": "server.js",
   "type": "module",
@@ -14,6 +14,9 @@
     "test:watch": "node --watch --import ./tests/setup.js \"tests/**/*.test.js\"",
     "migrate": "node db/migrate.js",
     "seed": "node db/seed.js",
+    "backup": "node scripts/backup.mjs",
+    "load": "node scripts/load-test.mjs",
+    "load:k6": "k6 run -e BASE=http://localhost:3001 tests/load/k6-invoices.js",
     "lint": "biome check .",
     "lint:fix": "biome check --write ."
   },
@@ -26,8 +29,13 @@
     "express-rate-limit": "^7.4.0",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.0",
+    "pino": "^9.6.0",
+    "pino-http": "^10.3.0",
+    "prom-client": "^15.1.3",
     "qrcode": "^1.5.4",
-    "uuid": "^10.0.0"
+    "uuid": "^10.0.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {}
 }
