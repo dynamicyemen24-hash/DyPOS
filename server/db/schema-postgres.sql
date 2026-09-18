@@ -222,10 +222,30 @@ CREATE TABLE IF NOT EXISTS sync_log (
   payload TEXT,
   synced_at timestamptz,
   status TEXT NOT NULL DEFAULT 'PENDING',
+  tenant_id TEXT,
+  idempotency_key TEXT,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_sync_status ON sync_log(status);
 CREATE INDEX IF NOT EXISTS idx_sync_entity ON sync_log(entity_type, status, id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_idem ON sync_log(idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
+CREATE INDEX IF NOT EXISTS idx_sync_tenant ON sync_log(tenant_id, status, id);
+
+-- v16: minimal device registry (see SQLite migrate() v16)
+CREATE TABLE IF NOT EXISTS devices (
+  id UUID PRIMARY KEY,
+  device_id TEXT UNIQUE NOT NULL,
+  tenant_id TEXT,
+  platform TEXT NOT NULL DEFAULT 'unknown',
+  app_version TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'ACTIVE',
+  last_sync timestamptz,
+  registered_by TEXT,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_devices_tenant ON devices(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_devices_device ON devices(device_id);
 
 CREATE TABLE IF NOT EXISTS user_sessions (
   id UUID PRIMARY KEY,
@@ -473,3 +493,69 @@ INSERT INTO schema_version (version, description) VALUES (10, 'API keys + passwo
 --  window on large tables, tracked work — not run blindly here.)
 CREATE INDEX IF NOT EXISTS idx_stock_qty ON stock_levels(qty);
 INSERT INTO schema_version (version, description) VALUES (11, 'FTS5 catalog + low-stock index') ON CONFLICT DO NOTHING;
+
+-- ── v12: dispatcher leader lease (parity with SQLite) ──
+CREATE TABLE IF NOT EXISTS dispatcher_lock (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  owner TEXT,
+  lease_until timestamptz,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+INSERT INTO dispatcher_lock (id, owner, lease_until) VALUES (1, NULL, NULL) ON CONFLICT DO NOTHING;
+INSERT INTO schema_version (version, description) VALUES (12, 'webhook dispatcher leader lease') ON CONFLICT DO NOTHING;
+
+-- ── v13: payment methods + business settings (parity with SQLite) ──
+CREATE TABLE IF NOT EXISTS payment_methods (
+  code TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  name_ar TEXT NOT NULL DEFAULT '',
+  kind TEXT NOT NULL DEFAULT 'OTHER',
+  requires_reference BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order INTEGER NOT NULL DEFAULT 100,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS business_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL DEFAULT '',
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+INSERT INTO payment_methods (code,name,name_ar,kind,requires_reference,is_active,sort_order) VALUES
+  ('CASH','Cash','نقدي','CASH',FALSE,TRUE,10),
+  ('CARD','Card','بطاقة','CARD',TRUE,TRUE,20),
+  ('MADA','Mada','مدى','CARD',TRUE,TRUE,30),
+  ('WALLET','Wallet','محفظة','WALLET',FALSE,TRUE,40),
+  ('BANK_TRANSFER','Bank transfer','تحويل بنكي','BANK',TRUE,TRUE,50),
+  ('OTHER','Other','أخرى','OTHER',FALSE,TRUE,60)
+ON CONFLICT DO NOTHING;
+INSERT INTO business_settings (key,value) VALUES
+  ('business_name',''),('country_code','SA'),('currency','SAR'),
+  ('tax_rate_default','15'),('tax_inclusive','0'),('invoice_prefix','INV')
+ON CONFLICT DO NOTHING;
+INSERT INTO schema_version (version, description) VALUES (13, 'payment methods master + business settings') ON CONFLICT DO NOTHING;
+
+-- ── v14: fiscal years + gapless sequences (parity with SQLite) ──
+CREATE TABLE IF NOT EXISTS fiscal_years (
+  code TEXT PRIMARY KEY,
+  starts_on DATE NOT NULL,
+  ends_on DATE NOT NULL,
+  status TEXT NOT NULL DEFAULT 'OPEN',
+  closed_by TEXT,
+  closed_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS invoice_sequences (
+  scope TEXT PRIMARY KEY,
+  prefix TEXT NOT NULL DEFAULT 'INV',
+  last_number INTEGER NOT NULL DEFAULT 0,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+INSERT INTO schema_version (version, description) VALUES (14, 'fiscal years + gapless invoice sequences') ON CONFLICT DO NOTHING;
+
+-- ── v15: Arabic invoice items + invoice version (parity with SQLite) ──
+ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS name_ar TEXT NOT NULL DEFAULT '';
+ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS free_qty INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS is_free_item INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1;
+INSERT INTO schema_version (version, description) VALUES (15, 'invoice_items Arabic name + free-item tracking + version stamp') ON CONFLICT DO NOTHING;

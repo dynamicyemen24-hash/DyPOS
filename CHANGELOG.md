@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-09-18 — Gap closure (sync isolation + devices + parity green)
+
+### Added — Device registry (schema v16)
+- `devices` table + `POST /api/devices/register` (any role — terminal
+  self-enrollment on first boot), `GET /api/devices` (tenant-filtered),
+  `POST /:id/revoke` + `/:id/revive` (ADMIN/MANAGER).
+- Re-registration never clears REVOKED (423) — a lost device stays cut
+  off until a manager revives it.
+
+### Added — Sync tenant isolation (schema v16)
+- `sync_log.tenant_id`: pull filters `(tenant_id=? OR tenant_id IS
+  NULL)` for scoped callers — cross-tenant rows never returned.
+- Push stamps `tenant_id` (COALESCE — legacy rows untouched).
+
+### Added — Sync push idempotency (schema v16)
+- `sync_log.idempotency_key` (partial UNIQUE): replayed batches return
+  `{deduped:true}`; UNIQUE-race on concurrent retries is treated as
+  dedupe, never FAILED.
+
+### Fixed — Postgres parity RED → GREEN
+- `schema-postgres.sql` was missing 5 tables (v12–v14) + 4 columns
+  (v15): `dispatcher_lock`, `payment_methods`, `business_settings`,
+  `fiscal_years`, `invoice_sequences`, `invoice_items.name_ar/
+  free_qty/is_free_item`, `invoices.version`. `npm run parity`: **ok:true**.
+
+### Evaluated — Dependencies
+- `npm audit`: **0 vulnerabilities**. `npm outdated`: only major bumps
+  available (express 4→5, zod 3→4, …) — deliberately NOT upgraded in a
+  production release; tracked for a dedicated major-upgrade window.
+
+### Fixed — Stale IIS root file
+- `C:\inetpub\wwwroot\pos.html` was from the previous build while
+  assets were current — deploy step now syncs root entry + assets
+  together.
+
+### Changed
+- Version bumps: server `1.25.0`, root `1.25.0`, Docker `1.25.0`.
+  Frontend unchanged (`2.4.0`).
+
+### Verified
+- `npm test`: **170/170** (7 new gap tests) — `npm run parity`:
+  **ok:true** — production health: `env=production`.
+
 ## [1.24.1] - 2026-09-18 — Production env fix (third-party audit patch)
 
 ### Fixed — Critical boot debt (found by external audit)

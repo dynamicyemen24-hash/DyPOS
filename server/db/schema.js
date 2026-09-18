@@ -14,7 +14,7 @@ import { mkdirSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DYPOS_DB_PATH || join(__dirname, '..', 'data', 'dypos.db');
-const MIGRATION_VERSION = 15; // Increment when schema changes
+const MIGRATION_VERSION = 16; // Increment when schema changes
 
 function columnExists(table, column) {
 	try {
@@ -792,6 +792,37 @@ export function migrate() {
     addColumnIfMissing('invoices', 'version', 'INTEGER NOT NULL DEFAULT 1');
     db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
       .run(15, 'invoice_items Arabic name + free-item tracking + version stamp');
+  }
+
+  // ── v16: sync tenant isolation + push idempotency + device registry ──
+  // Closes three audit gaps without breaking legacy rows:
+  // - sync_log.tenant_id: pull filters by tenant scope; legacy NULL rows
+  //   stay visible to all (same rule as assertRecordTenant).
+  // - sync_log.idempotency_key: UNIQUE (partial) — a retried push batch
+  //   returns {deduped:true} instead of re-applying.
+  // - devices: minimal registry (register/list/revoke) so a tenant can
+  //   see which terminals hold its data and cut off a lost device.
+  if (currentVersion < 16) {
+    addColumnIfMissing('sync_log', 'tenant_id', 'TEXT');
+    addColumnIfMissing('sync_log', 'idempotency_key', 'TEXT');
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_idem ON sync_log(idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
+      CREATE INDEX IF NOT EXISTS idx_sync_tenant ON sync_log(tenant_id, status, id);
+      CREATE TABLE IF NOT EXISTS devices (
+        id TEXT PRIMARY KEY,
+        device_id TEXT UNIQUE NOT NULL,
+        tenant_id TEXT,
+        platform TEXT NOT NULL DEFAULT 'unknown',
+        app_version TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'ACTIVE',
+        last_sync TEXT,
+        registered_by TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_devices_tenant ON devices(tenant_id, status);
+      CREATE INDEX IF NOT EXISTS idx_devices_device ON devices(device_id);`);
+    db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+      .run(16, 'sync tenant isolation + push idempotency + device registry');
   }
 
   console.log('[DyPOS] Database migrated (v' + MIGRATION_VERSION + ')');

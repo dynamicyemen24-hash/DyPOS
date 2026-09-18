@@ -1,17 +1,27 @@
 import { Router } from 'express';
 import db from '../db/schema.js';
 import { syncCounter } from '../middleware/metrics.js';
+import { assertTenantScope, resolveTenantFilter } from '../lib/tenant.js';
 
 const router = Router();
 
 // GET /api/sync/pull — checkpoint-based pull for ERP (?entity=PRODUCT|STOCK|INVOICE…)
+// Tenant-scoped (v16): a scoped caller sees its own rows + legacy NULL rows;
+// cross-tenant rows are never returned (same rule as assertRecordTenant).
 router.get('/pull', (req, res) => {
   const checkpoint = Math.max(parseInt(req.query.checkpoint, 10) || 0, 0);
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 500, 1), 2000);
   const entity = req.query.entity ? String(req.query.entity).toUpperCase().slice(0, 32) : '';
   if (entity && !/^[A-Z_]{2,32}$/.test(entity)) return res.status(400).json({ error: 'نوع كيان غير صالح' });
+  let scopeTenant = null;
+  try {
+    scopeTenant = resolveTenantFilter(req).tenantId;
+  } catch (e) {
+    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
+  }
   const params = [checkpoint, 'PENDING'];
   let sql = 'SELECT * FROM sync_log WHERE id>? AND status=?';
+  if (scopeTenant) { sql += ' AND (tenant_id=? OR tenant_id IS NULL)'; params.push(scopeTenant); }
   if (entity) { sql += ' AND entity_type=?'; params.push(entity); }
   sql += ' ORDER BY id ASC LIMIT ?';
   params.push(limit);
@@ -27,11 +37,31 @@ router.post('/push', (req, res) => {
   const { changes = [] } = req.body || {};
   if (!Array.isArray(changes)) return res.status(400).json({ error: 'changes يجب أن تكون مصفوفة' });
   if (changes.length > 1000) return res.status(400).json({ error: 'الدفعة تتجاوز 1000 عنصر' });
+  let pushTenant = null;
+  try {
+    pushTenant = assertTenantScope(req).tenantId;
+  } catch (e) {
+    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
+  }
   const results = [];
   const upsert = db.transaction(() => {
     for (const ch of changes) {
       const savepoint = `sp_${String(ch.id || Math.random()).replace(/[^a-zA-Z0-9]/g, '').slice(0, 16)}`;
+      // Declared outside try: the catch handler below (UNIQUE-race dedupe)
+      // must see the same key. Declaring it inside try would scope it away.
+      let idemKey = '';
       try {
+        // Push idempotency (v16): a retried batch replays safely — an
+        // already-SYNCED key returns deduped without re-applying.
+        idemKey = ch.idempotencyKey != null ? String(ch.idempotencyKey).trim().slice(0, 128) : '';
+        if (idemKey) {
+          const prior = db.prepare("SELECT id FROM sync_log WHERE idempotency_key=? AND status='SYNCED' LIMIT 1").get(idemKey);
+          if (prior) {
+            results.push({ id: ch.id, status: 'SYNCED', deduped: true });
+            try { syncCounter.labels('in', 'ok').inc(); } catch { /* ignore */ }
+            continue;
+          }
+        }
         if (ch.entity_type === 'PRODUCT' && ch.action === 'UPSERT') {
           const p = JSON.parse(ch.payload || '{}');
           if (!p.id || !p.code || !p.name) throw new Error('بيانات صنف ناقصة');
@@ -51,15 +81,27 @@ router.post('/push', (req, res) => {
           throw new Error(`نوع مزامنة غير مدعوم: ${String(ch.entity_type || '?').slice(0, 32)}/${String(ch.action || '?').slice(0, 32)}`);
         }
         if (ch.id != null) {
-          db.prepare("UPDATE sync_log SET status='SYNCED',synced_at=datetime('now') WHERE id=?").run(ch.id);
+          db.prepare(`UPDATE sync_log SET status='SYNCED',synced_at=datetime('now'),
+            tenant_id=COALESCE(tenant_id, ?),
+            idempotency_key=CASE WHEN ?<>'' THEN ? ELSE idempotency_key END
+            WHERE id=?`).run(pushTenant, idemKey, idemKey || null, ch.id);
         }
         results.push({ id: ch.id, status: 'SYNCED' });
         try { syncCounter.labels('in', 'ok').inc(); } catch { /* ignore */ }
       } catch (e) {
+        const msg = String(e.message || '');
+        // A lost ACK racing a retry can hit the UNIQUE key on UPDATE even
+        // though the pre-check passed — that is a successful dedupe, not a
+        // failure. Never report FAILED for an idempotent replay.
+        if (idemKey && /idempotency_key|idx_sync_idem/i.test(msg)) {
+          results.push({ id: ch.id, status: 'SYNCED', deduped: true });
+          try { syncCounter.labels('in', 'ok').inc(); } catch { /* ignore */ }
+          continue;
+        }
         try {
           if (ch.id != null) db.prepare("UPDATE sync_log SET status='FAILED' WHERE id=?").run(ch.id);
         } catch { /* ignore */ }
-        results.push({ id: ch.id, status: 'FAILED', error: String(e.message).slice(0, 200) });
+        results.push({ id: ch.id, status: 'FAILED', error: msg.slice(0, 200) });
         try { syncCounter.labels('in', 'failed').inc(); } catch { /* ignore */ }
       }
     }
