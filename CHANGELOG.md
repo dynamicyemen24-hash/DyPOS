@@ -7,6 +7,308 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.22.0] - 2026-09-18 — Arabic Smart User Edition (debt settlement + operational hardening)
+
+### Fixed — Technical Debt
+- **CORS production warning** now actionable: tells operators exactly what to set
+  (`DYPOS_CORS_ORIGIN=https://domain.com`). (`server.js`)
+- **Body limit raised** from 1MB → 2MB to support large invoices with 500+ lines,
+  pricing_rules, batch/serial data, and free-item rows. (`server.js`)
+- **Stock guard recommendation**: production now warns when `DYPOS_STOCK_GUARD`
+  is not "strict" — guides operators away from legacy overselling risk. (`server.js`)
+- **Metrics token warning** now suggests setting a token to restrict scraping. (`server.js`)
+- **Backup warning** now mentions both `DYPOS_BACKUP_S3` and `DYPOS_BACKUP_DIR`. (`server.js`)
+
+### Fixed — Functional Debt
+- **`invoice_items` Arabic name + free-item tracking** (schema v15):
+  - Added `name_ar` column — Arabic product name for RTL receipts and APIs.
+  - Added `free_qty` column — BOGO free count on the paid line.
+  - Added `is_free_item` column — flag for dedicated free rows (Dycos convention).
+  - Added `version` column on `invoices` for optimistic concurrency.
+- **Server writes new columns**: `POST /api/invoices` now populates `name_ar`,
+  `free_qty`, and `is_free_item` on each invoice item row. (`invoices.js`)
+- **Product query upgraded**: batch-loads `name_ar` alongside `name`. (`invoices.js`)
+
+### Fixed — Operational Debt
+- **Shell error boundary** now covers the entire app (not just dashboards):
+  a render throw during sale → pay → close surfaces a retryable banner
+  instead of freezing the cashier. (`App.vue`)
+
+### Added — Arabic Smart User Enhancements
+- Improved Arabic error messages across server routes for better UX:
+  - Stock guard 409 now shows `(المتاح N)` with available quantity.
+  - Shift requirement message now more actionable.
+  - Credit limit exceeded shows remaining capacity.
+  - Payment method errors now include the method name in Arabic.
+- `payment_methods.name_ar` displayed in API responses for Arabic clients.
+
+### Infrastructure
+- Version bumps: server `1.22.0`, frontend `2.2.0`, root `1.22.0`, Docker `1.22.0`.
+- Schema migration: v14 → v15 (backward compatible, adds columns with defaults).
+
+### Verified (2026-09-18)
+- Schema migration: v14 → v15 applies cleanly.
+- All existing invoice routes work with new columns.
+- CORS, body limit, stock guard warnings verified in production mode.
+
+## [1.21.0] - 2026-09-17 — Ops edition (console + doctor + load-tooling fixes)
+
+### Added — وحدة تحكم التشغيل ( screens بلا بناء)
+- `GET /admin` (عام كصفحة دخول، `no-store`): وحدة تحكم عربية RTL بملف واحد
+  (`server/public/admin.html`) بلا خطوة بناء — 6 شاشات: نظرة عامة (الصحة+
+  الجهاز)، طرق الدفع (تفعيل/إنشاء)، الإعدادات (نموذج الملف التجاري)، السنوات
+  المالية (فتح/إغلاق/إعادة فتح)، الـ Outbox (ملخص + تصفية + إعادة + تشغيل
+  دفعة)، سجل التدقيق. كل استدعاء بيانات JWT — تعقيم HTML ضد XSS.
+- اختبارا انحدار `tests/ops.test.js` (تقديم HTML + تشغيل الطبيب).
+
+### Added — الطبيب (preflight)
+- `npm run doctor` (`server/scripts/doctor.mjs`): Node ≥22.5، تطابق النسخة،
+  ترحيل قاعدة البيانات + سلامتها، وجود جداول الحملات، ضغط الـ outbox، مساحة
+  القرص، وضعية الإنتاج (JWT/CORS/cluster) — JSON + خروج 0/1.
+
+### Fixed — أدوات الضغط كانت مكسورة مع نموذج الصلاحيات
+- `scripts/load-test.mjs` و`tests/load/k6-invoices.js` كانا يسجلان CASHIER
+  فيفشل إنشاء الصنف (403) — الآن ADMIN (bootstrap). دخان مُقاس: **100/100،
+  p95 ≈ 16ms، ≈397 طلب/ث**.
+- `npm audit`: **0 ثغرات**.
+
+### Verified (2026-09-17)
+- `npm test`: **server 163/163** — strict **3/3** — frontend **354/354**.
+
+## [1.20.0] - 2026-09-17 — Finance-core campaign (user-managed payments, any-country profile, fiscal control)
+
+### Added — طرق دفع يديرها المستخدم (payment methods master)
+- جدول `payment_methods` (ترحيل v13) + بذور: CASH/CARD/MADA/WALLET/BANK_TRANSFER/OTHER.
+- `GET/POST /api/payment-methods` + `PATCH /:code/toggle` (نمط currencies؛ ADMIN للكتابة؛
+  CASH مقفل — طريقة النظام الاحتياطية لا تُوقف أبدًا).
+- `POST /api/invoices` و`/:id/pay` يتحققان من الطريقة: غير معرفة/موقوفة → 400،
+  وطرق `requires_reference` (CARD/MADA/BANK_TRANSFER) ترفض الدفع بلا مرجع.
+- WALLET يحتفظ بخصمه الخاص من الرصيد. الاختبارات القديمة (CASH/WALLET) خضراء بلا تغيير.
+
+### Added — ملف النشاط التجاري لأي دولة (business profile)
+- جدول `business_settings` (v13) + `GET/PUT /api/settings` (قراءة لأي دور، كتابة ADMIN،
+  كل-أو-لا-شيء): business_name/country_code (ISO-3166)/currency (عملة نشطة)/tax_rate_default/
+  tax_inclusive/invoice_prefix — كلها مُتحقق منها (القيم الأطول تُرفض ولا تُشذَّب لتصبح صالحة).
+- الأصناف الجديدة ترث `tax_rate_default` (بدل 15 المكتوبة يدويًا) — يعمل لأي نسبة ضريبية.
+
+### Added — سنوات مالية وترقيم متسلسل بلا فجوات (معيار الفوترة العالمي)
+- جدولا `fiscal_years` + `invoice_sequences` (ترحيل v14)؛ السنة الميلادية الحالية
+  تُستحدث OPEN تلقائيًا (صفر إعداد).
+- أرقام الفواتير أصبحت `{prefix}-{YYYY}-{000000}` لكل (فرع/سنة)، تُخصص داخل المعاملة
+  (ذرية بكاتب واحد)؛ طلبات idempotency المكررة تُخصم مسبقًا بلا استهلاك رقم.
+- إغلاق السنة يحظر: الإنشاء + الدفع + الإلغاء + الإرجاع على فواتيرها (409) — الفترات
+  المُبلغ عنها للضرائب ثابتة؛ إعادة الفتح متاحة (ADMIN) للطوارئ.
+- `GET/POST /api/fiscal-years` + `/close` + `/reopen` (الكتابة ADMIN).
+
+### Added — دقة التحصيل والتسعير (best-practice POS)
+- الزيادة المدفوعة أصبحت `change` صريحًا: `paid/remaining` يُحَدَّدان عند الإجمالي
+  فلا تظهر ذمم سالبة في التقارير أبدًا (الإنشاء والدفع)؛ المحفظة الرقمية تُخصم
+  بحد ما تبقى فقط (النقدي يُسجَّل كاملًا ويُرجع الباقي — تدقيق الدرج سليم).
+- `tax_inclusive=1` في الملف: الأسعار الشاملة تُفكك ضريبيًا بالهللة بدقة
+  (`net = round(gross*100/(100+rate))`) — الإجمالي المحصَّل لا يتغير فلسًا.
+- عملة الفاتورة الافتراضية من الملف (بدل SAR الثابتة)؛ اسم النشاط التجاري من
+  الملف يظهر في رأس الفاتورة المطبوعة.
+
+### Fixed (found by the new tests — best-practice class)
+- محققو الإعدادات كانوا يشذّبون قبل التحقق (`USA`→`US` صالحة!) — الآن يُتحقق من القيمة
+  الكاملة أولًا. اختبار انحدار يغطي `USAD` والبادئات الطويلة.
+- تحقق طرق الدفع كان مُحضَّرًا على مستوى الوحدة قبل `migrate()` في قواعد جديدة —
+  كان سيعطّل التحقق بصمت للأبد. أصبح الاستعلام كسولًا مع فحص مخبَّأ (يُحضَّر
+  لكل استدعاء بعد الترحيل). مسح يؤكد: لا prepares على مستوى الوحدة لجداول مُرحَّلة.
+
+### Docs
+- `.env.example`: تحذير CLUSTER=1 (Postgres فقط) + توثيق `DYPOS_STOCK_GUARD`.
+- OpenAPI: 409 التجاوز + مسارات `/payment-methods` و`/settings` و`/fiscal-years` و`/device`.
+
+### Verified (2026-09-17)
+- `npm test`: **server 155/155** (منها 14 مالية جديدة) — `npm run test:stock-strict`: **3/3** —
+  frontend `vitest`: **354/354**.
+
+## [1.19.0] - 2026-09-17 — Enterprise audit fixes C1–C5 + version unification + device adaptation
+
+### Fixed — منع الجرد السالب (C1+C5)
+- `POST /api/invoices` now decrements stock through a guarded statement
+  (`UPDATE … WHERE qty+?>=reserved_qty`) inside the same write transaction —
+  a sale that would drive `qty` below `reserved_qty` (available) is refused
+  with **409 + Arabic message** and the whole invoice rolls back. Tracked
+  stock can never go negative; a second oversell can no longer interleave
+  (SQLite single-writer + in-transaction check).
+- Missing-row policy via `DYPOS_STOCK_GUARD` (default `legacy`): untracked
+  walk-in rows stay unlimited (backward compatible); `strict` treats a
+  missing row as 0 available → 409 (enable on the origin once every sellable
+  SKU carries a `stock_levels` row).
+- Regression tests: `server/tests/stock-guard.test.js` (legacy, 6 tests) +
+  `server/tests/stock-guard-strict.test.js` via `npm run test:stock-strict`
+  (strict, 3 tests).
+
+### Fixed — cluster + SQLite fail-fast (C2, verified in place)
+- `DYPOS_CLUSTER=1` with the SQLite driver refuses to boot with an Arabic/
+  English FATAL explaining the single-writer reality (zero write scale-out,
+  N duplicate dispatchers) and the two fixes (single process, or PostgreSQL).
+
+### Fixed — version single source (C3)
+- New `server/lib/version.js` (`VERSION = '1.19.0'`) imported by `server.js`,
+  `routes/openapi.js`, `routes/print.js`; `server/package.json` bumped to
+  match; frontend build stamps `DyPOS_BUILD_VERSION` into
+  `DyPOS/public/pos/version.json` (the old timestamp fallback is gone from
+  releases — always build with the version env).
+- Drift test `server/tests/version.test.js`: package.json ≡ lib ≡
+  `/api/health` ≡ `/api/ready` ≡ `/api/openapi.json`.
+
+### Fixed — webhook dispatcher leader lease (C4)
+- Migration **v12** adds `dispatcher_lock`; `lib/webhooks.js` acquires a 20s
+  lease every 10s tick and only the holder delivers the outbox — no duplicate
+  deliveries with several processes on one SQLite file.
+- Regression test `server/tests/dispatcher-lease.test.js` (acquire / refuse /
+  renew / steal-expired).
+
+### Added — device adaptation + perf warnings
+- Public `GET /api/device` (`server/lib/device.js`): classifies the caller UA
+  (mobile/tablet/desktop/bot), returns UI adaptation hints + Arabic warnings
+  (bot traffic, unsupported/outdated browser, origin memory pressure).
+- POS `src/composables/useDevice.js`, wired fail-soft into `main.js` boot:
+  viewport+touch classification (catches iPad-as-Mac), body classes
+  (`dypos-device-*`, `dypos-device-low-spec`), low-spec/save-data toast
+  warnings that never block rendering.
+
+### Verified (2026-09-17)
+- `npm test`: **server 140/140** — `npm run test:stock-strict`: **3/3** —
+  frontend `vite build` clean (bundle `index-gpZjn86c.js`, 0 Jinja blocks).
+
+## [server v1.11.0] - 2026-09-17 — معيار المليارات (Async Safety + IDOR + Exact Money + FTS)
+
+### Added / Hardened (كل عملية/استعلام/تقرير بمعيار: احترافي، موثوق، محمي، سريع، دقيق)
+- أمان غير متزامن: `lib/async.js` (`ah()`) يغلف كل المعالجات الـ23 + الصحة/الجاهزية/المقاييس — لا طلب معلق أبدًا (Express 4 لا يلتقط رفض الوعود).
+- منع IDOR عبر المستأجرين: `assertRecordTenant` (404 بلا تسريب وجود) على كل قراءة/كتابة برقم (أصناف/عملاء/فواتير/دفع/إلغاء/إرجاع/تدقيق/طباعة/ورديات/مخزون).
+- دقة المال: `lib/money.js` (هللات صحيحة، تقريب نصف-لأعلى وحيد) + إعادة كتابة إجماليات الفواتير والدفعات — `0.1×3=0.30` و`19.99×3+15%=68.97` بالضبط.
+- تواريخ قابلة للفهرسة: `lib/dates.js` + إسقاط `date()` من اليومي/الملخص/الطباعة/التصدير (بحث فهرسي بدل مسح كامل).
+- بحث FTS5 للكتالوج (ترحيل v11 + triggers + تعبئة) مع سقوط LIKE + `toFtsQuery` المعقم + `idx_stock_qty`.
+- keyset (`?after=` + `nextCursor` بترتيب مستقر) و`?count=false` للفواتير والأصناف.
+- تكافؤ Postgres محدث (tsvector موثق + الفهرس) — الفاحص يتجاهل جداول FTS الظلية.
+
+### Verified (2026-09-17)
+- `npm test`: **server 111/111** (106+5) — `frontend 348/348` — `npm audit` صفر — `parity` أخضر.
+
+## [server v1.10.0] - 2026-09-17 — الربط الآلي والاسترداد (API Keys + Recovery + Pay Idempotency)
+
+### Added
+- مفاتيح API للربط الآلي (ترحيل v10): `POST/GET /admin/api-keys` (السر يظهر مرة واحدة، hash فقط يُخزن) + تدوير + إبطال ناعم (يحفظ الأثر) + أدوار + نطاقات + مستأجر + انتهاء + `X-API-Key` مقبول في كل المسارات المحمية (آخر استخدام مختوم كل ساعة).
+- استرداد كلمة المرور: `POST /auth/forgot` (200 دائمًا بلا تعداد، رمز وحيد 15 دقيقة) + `POST /auth/reset` (يبطل كل الجلسات) — الخام يُعرض خارج الإنتاج فقط.
+- منع تكرار الدفع: `idempotencyKey` في `POST /:id/pay` (فهرس فريد جزئي + `{deduped:true}` للمعاد).
+- مساحة القرص في الصحة (`disk.free_mb`, أفضل جهد).
+
+### Verified (2026-09-17)
+- `npm test`: **server 106/106** (102+4) — `frontend 348/348` — `npm audit` صفر — `parity` أخضر 26/26.
+
+## [server v1.9.0] - 2026-09-17 — التعدد والتحكم (Tenancy + Masters + Trail)
+
+### Added (فرض تعدد المشتركين والمؤسسات والفروع والمزامنة والرقابة)
+- تعدد المستأجرين (ترحيل v8 + تكافؤ Postgres): `tenants → organizations → branches` (تسلسل مفروض كتابةً) + أعمدة نطاق (`tenant_id` للأصناف/العملاء/الفواتير/الورديات، `branch_id` للفواتير/الورديات) + `DYPOS_REQUIRE_TENANT=1` للفرض (افتراضي 0 للتوافق) + فلترة القراءات + سياق `X-Tenant-Id/X-Org-Id/X-Branch-Id`.
+- حقول الرقابة: `created_by/updated_by` (أصناف/عملاء/فواتير) تُملأ من الجلسة في كل كتابة.
+- تتبع الأثر الدائم: `audit_trail` (قبل/بعد + مستخدم + IP + مستأجر) عبر `lib/trail.js` مربوط في المنتجات/العملاء/الفواتير/المخزون/الورديات + `GET /api/admin/trail` (مفلتر ومرقم) — مكمل للحلقة المؤقتة.
+- عملات (ترحيل v9 + بذور): `currencies` (SAR أساس + 7 عملات) + `GET/POST/PATCH /currencies` + `POST /currencies/convert` + تحقق الفواتير (400 لعملة مجهولة).
+- وحدات قياس: `uoms` (12 وحدة: count/weight/volume/length) + `GET/POST /uoms` + `POST /uoms/convert` (نفس الفئة فقط) + تحقق الأصناف والفواتير.
+- جلسات: `GET /auth/sessions` (بلا تسريب hash) + `DELETE /auth/sessions/:id` (إبطال واحد).
+- عملاء: `DELETE /:id` (إيقاف ناعم ADMIN/MANAGER).
+- ورديات: `POST /:id/handover` (إغلاق+فتح ذري مع ترحيل النقدية والنطاق).
+- مخزون: `POST /stock/reserve` (تحقق المتاح = الكمية−المحجوز) + `POST /stock/release`.
+- أصناف: `PATCH /:id` (جزئي + 409 للكود المكرر).
+- مزامنة: `GET /pull?entity=` + تصدير `?fields=`.
+- دفع بالمحفظة عند البيع: طريقة `WALLET` في الإنشاء والدفع اللاحق (402 للرصيد، 400 بلا عميل، ذرية مع الفاتورة + دفتر).
+- تدوير الرموز: `POST /auth/refresh` (القديم يموت فورًا) + ربط `tenantId` بالتسجيل (404 للمجهول) ويظهر في الدخول و`/me` وقائمة المستخدمين.
+- محرك العروض: `POST /offers/evaluate` (PERCENT/FIXED بالعتبات والنوافذ + BXGY أسطر مجانية + `one_time_per_customer`، بلا آثار).
+- ورديات: `GET /:id/xreport` (لقطة بلا إغلاق + معاينة فرق).
+- تقارير: `GET /api/reports/summary` (نطاق + متوسط تذكرة + أعلى 5 + حسب الحالة/الطريقة، ADMIN/MANAGER/AUDITOR).
+- عملاء: `POST /:id/credit/pay` (سداد الائتمان بأرضية صفر).
+- مخزون: `GET /stock?tenant=` عبر المستودعات.
+
+### Verified (2026-09-17)
+- `npm test`: **server 102/102** (96+6) — `frontend 348/348` — `npm audit` صفر — `parity` أخضر 26/26.
+
+## [server v1.8.0] - 2026-09-17 — الدفتر والقفل المشترك وXML (Ledger + Shared Lockout + UBL)
+
+### Added
+- دفتر محفظة canonical (ترحيل v7 + تكافؤ Postgres): `wallet_transactions` (مبلغ/اتجاه/رصيد بعد) + تعبئة رجعية + كتابة مزدوجة في الشحن/الاستبدال + `GET /customers/:id/wallet` (كشف مرقم).
+- إلزام الوردية الاختياري: `DYPOS_REQUIRE_SHIFT=1` يرفض البيع بلا `shiftId` مفتوحة (400/404/409) — افتراضي 0 للتوافق.
+- قفل دخول مشترك عبر الكاش (ذاكرة أحادي + Redis متعدد العمال) بدل `Map` لكل عملية.
+- مقياس `dypos_stock_low_products` + `stock{low_count,threshold}` في الصحة + تنبيه `DyPOSLowStock` + `DYPOS_LOW_STOCK_THRESHOLD`.
+- فاتورة UBL 2.1: `GET /print/invoice/:id?format=xml` (مورّد/ضريبة/بنود/إجماليات، بلا اعتماديات) + توثيق OpenAPI.
+- فاحص تكافؤ Postgres `npm run parity` (جداول/أعمدة/فهارس، يطبع الانحراف) — اصطاد `idx_products_name_active` المفقودة وأُضيفت.
+- واجهة: `useCachedResource` (SWR تفاعلي فوق `memoizeAsync`) + 5 اختبارات + `dy-cv-row` (content-visibility) لقوائم الفواتير/المرتجعات/الكوبونات/الأصناف.
+
+### Fixed (حرج)
+- `GET /export/jobs` كان يبتلعه `/:entity` (404 دائم) — أُعيد الترتيب.
+- عنصر `cac:Item` مكرر في UBL أُزيل.
+
+### Verified (2026-09-17)
+- `npm test`: **server 82/82** (39+18+13+7+5) — `frontend 348/348` — `npm audit` صفر — `parity` أخضر 20/20.
+- `campaign --soak 5` (قاعدة نظيفة): **8/8 PASS** (burst 455rps p95 94ms، soak 2425 فاتورة p95 32ms).
+
+## [server v1.7.0] - 2026-09-17 — الملايين الجاهزة (Shared Limits + Chain + Jobs + Shell)
+
+### Added
+- حد مشترك `lib/rate-store.js` (واجهة Store الرسمية): خرائط لكل محدد (`global`/`auth`) + Redis مشترك عند `DYPOS_REDIS_URL` — يغلق فجوة «الحد × العمال» مع `localKeys:true` (عقد MemoryStore) وسقوط آمن للذاكرة.
+- سلسلة تشفير الفواتير (ترحيل v6 + تكافؤ Postgres): `invoices.chain_hash/chain_prev` + `invoice_audit` (number/status/total/action) + `zatca_settings` — ربط ذري في CREATE/PAY/VOID/RETURN عبر `lib/chain.js` + `GET /invoices/:id/audit` + `GET /admin/chain/verify` (إعادة تشغيل دقيقة).
+- إعدادات زاتكا: `GET/PUT /admin/zatca/settings` (تحقق 15 رقمًا) — الطباعة تفضل DB على env في QR-TLV.
+- مهام تصدير خلفية حتى 100k صف: `POST /export/:entity/jobs` (202) + `GET /export/jobs` + `GET /export/jobs/:id?download=1` عبر `lib/jobs.js` (دفعات 2000 + تنازل، نتائج 10 دقائق) — المتزامن يبقى ≤10k.
+- واجهة: حد أخطاء عام في `App.vue` (يحمي مسار البيع الحرج، لا يدمر السلة) + skip-link عالمي + `main#dypos-main` + تركيز المسار في `router.afterEach`.
+- اختبارات `tests/scale3.test.js` (7 حراس: مخزن، سلسلة، زاتكا، مهام، OpenAPI).
+
+### Fixed (حرج)
+- `ERR_ERL_DOUBLE_COUNT`: المخزنان المخصصان كانا يتشاركان `Map` ومفتاح نافذة واحد — حركة API كانت تأكل ميزانية الدخول (30). الآن عزل + نطاقات + `localKeys`.
+- ترتيب مسارات التصدير: `GET /jobs` كان يبتلعه `/:entity` (404 دائم) — أُعيد الترتيب مع تعليق حارس.
+
+### Verified (2026-09-17)
+- `npm test`: **server 77/77** (39+18+13+7) — `frontend 343/343` — `npm audit` صفر.
+- `load 400@20`: **338 rps, p95 83ms, 0 أخطاء** — `campaign --soak 5` (قاعدة نظيفة): **8/8 PASS** (burst 314rps، soak 1676 فاتورة p95 45ms).
+
+## [server v1.6.0] - 2026-09-17 — استكمال الديون (Wallet/Loyalty + Offers/Coupons + Ops)
+
+### Added
+- محفظة: `POST /customers/:id/wallet` (شحن/خصم يدوي ADMIN/MANAGER، يمنع السالب،+Loyalty ledger) + `GET /:id/loyalty` (كشف النقاط المرقم).
+- ولاء: `POST /:id/loyalty/redeem` (نقاط → محفظة بسعر `DYPOS_LOYALTY_RATE=0.1` + ترقية فئة تلقائية BRONZE→SILVER→GOLD→PLATINUM، وVIP يدوي) + ربط الكسب/العكس في إنشاء/إلغاء/إرجاع الفواتير (`lib/loyalty.js` مصدر حقيقة واحد).
+- عروض/كوبونات (كانت جداول بلا API): `GET/POST /offers/offers` + `toggle` + `GET/POST /offers/coupons` + `toggle` + `POST /offers/coupons/validate` (بلا آثار) + حقل `couponCode` في إنشاء الفواتير (خصم ذري + `used_count` بسباق آمن، 409 عند النفاد).
+- مخزون: `POST /stock/transfer` (نقل ذري بين المستودعات، 402 عند عدم الكفاية).
+- إدارة: `PATCH /admin/users/:id` (تعطيل/دور، يبطل الجلسات عند التعطيل، يمنع تعطيل/تخفيض الذات) + `POST /admin/users/:id/reset-password` (يبطل الكل + `mustChangePassword`) + `GET /admin/audit` (نافذة ring-buffer قابلة للفلترة) + `DELETE /admin/backups/:file` (تقليم آمن) + قفل تزامن النسخ (409 عند التشغيل).
+- ويبهوك: `PUT /:id` (تحديث url/events) + `POST /:id/rotate-secret` + إصلاح `DELETE` (404 عند الغياب) + `retry` يقبل `FAILED` + قراءة لـ MANAGER/AUDITOR + كتالوج أحداث موسع.
+- ورديات: حد الفرق من `DYPOS_SHIFT_VARIANCE_LIMIT` (بدل 100 الثابتة).
+- مراقبة: عدادا `dypos_webhook_outbox_pending/dead` (تُغذى من `/health`) + 4 تنبيهات جديدة (lockout، dead، backlog، miss-storm، DB slow) + وسم صور Docker `1.6.0`.
+- واجهة: `manifest` في `index.html` + `preconnect` (fonts/flagcdn) + `noscript` + توحيد `manifest.webmanifest` مع إعداد Vite + حذف ملف `query` الدخيل (W3SVC).
+- اختبارات `tests/scale2.test.js` (13 حارسًا) + حملة ضغط متسامحة مع DB غير نظيفة (ADMIN ثم CASHIER fallback).
+
+### Verified (2026-09-17)
+- `npm test`: **server 70/70** (39+18+13) — `frontend 343/343` — `npm audit` صفر.
+- `load 400@20`: **442 rps, p95 64ms, 0 أخطاء** — `campaign --soak 5`: **8/8 PASS** (burst 316rps، soak 2113 فاتورة p95 31ms).
+
+## [server v1.5.0] - 2026-09-17 — حملة الترقية للملايين (Scale + Hardening + Functional Debts)
+
+### Added (تقنيات معيارية للملايين)
+- كاش قراءة متعدد المستويات `lib/cache.js`: LRU + TTL (5s افتراضي) + SWR مع دعم اختياري لـ Redis عبر `DYPOS_REDIS_URL` (يسقط تلقائيًا للذاكرة دون `ioredis`).
+- دلالات HTTP قياسية: `ETag` ضعيف + `304` + `Cache-Control: private, max-age, stale-while-revalidate` + `Vary: Authorization` على الكتالوج/المخزون/الفواتير + `X-Cache: HIT/MISS`.
+- عقد OpenAPI 3.0 في `GET /api/openapi.json` (كل المسارات بما فيها الجديد `return` و`logout-all`).
+- صحة موسعة `GET /api/health`: كاش + `outbox{pending,dead}` + ذاكرة + uptime؛ ترويسات `X-Response-Time` و`X-Request-Id` و`X-QR-Kind`.
+- مقاييس حية: `dypos_auth_attempts_total{ok,fail,locked}` (كانت ميتة) + `dypos_cache_operations_total{hit,miss}` + `dypos_db_query_duration_seconds{operation}` عبر `observeDb`.
+- قفل brute-force داخل الذاكرة (8 فشل/15د → 429) + `POST /auth/logout-all` + إبطال كل الجلسات الأخرى عند تغيير كلمة المرور (`revokeAllSessions`).
+- مروحة Webhook متوازية لكل مشترك (8s timeout) مع كتابات DB تسلسلية — مشترك بطيء لا يحجب الدفعة.
+- `POST /api/invoices/:id/return` (يعكس مخزون/ولاء/ائتمان، حالة `RETURNED`) — تقرير `daily refunds` صار حيًا.
+- `GET /api/shifts` (سجل الورديات المرقم) + فلاتر `low/threshold` و`offset` للمخزون + `sort/order` و`includeInactive` للأصناف + `offset` للتصدير + `total/hasMore` في كل القوائم.
+- QR زاتكا TLV (Base64) عند ضبط `DYPOS_VAT_NUMBER` (`X-QR-Kind: zatca-tlv` وإلا `json`).
+- واجهة: إصلاح كسر البناء `POSFooter→useI18n` (استبدال بـ `useLocale+__`) + تقسيم حِزم (`vendor-frappe/charts/realtime/print`) + `target es2020` + حد 500KB + قاعدة `flagcdn` في PWA.
+- توثيق `docs/SCALING_MILLIONS.md` (معمارية Single-Writer + حدود معلنة + خطوة Postgres/Redis التالية).
+- اختبارات `tests/scale.test.js` (18 حارسًا جديدًا) + إصلاح حملة الضغط لتسجيل ADMIN (ضروري بعد RBAC).
+
+### Changed / Fixed (سداد ديون وظيفية وأمنية)
+- **RBAC:** `POST /stock/adjust` و`DELETE /products/:id` و`POST /sync/push` صارت ADMIN/MANAGER فقط (كانت مفتوحة للكاشير/المدقق).
+- **مالية:** فرض `credit_limit` (402 عند التجاوز، 0 = غير محدود للتوافق) + إصلاح إرجاع `statusCode` في إنشاء الفواتير (كان دائمًا 400).
+- **`sync/push` مغلق الفشل:** الأنواع المجهولة تُرفض `FAILED` بدل تعليم `SYNCED` كاذب.
+- **تحقق متكافئ:** `PUT /customers` يتحقق من الهاتف/البريد/فئة الولاء مثل `POST`؛ `POST /shifts/:id/close` يتحقق من `closingCash`.
+- **حملة الضغط 8/8 خضراء** بعد الإصلاح (burst 463rps p95 122ms، soak 5s: 1849 فاتورة p95 36ms، صفر أخطاء).
+
+### Verified (أدلة التشغيل 2026-09-17، in-memory)
+- `npm test`: **server 57/57** (39 قديمة + 18 جديدة) — `frontend 343/343` — `npm audit` صفر ثغرات.
+- `load-test 400@20`: **621 rps, p95 37ms, errors 0** (الميزانية p95<800ms).
+- `stress-campaign --soak 5`: **8/8 PASS** (انظر التقرير أعلاه).
+
 ## [server v1.4.0] - 2026-09-16 — منصة التكامل (Backup/Restore/Import/Export/Webhooks)
 
 ### Added

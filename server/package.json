@@ -1,6 +1,6 @@
 {
   "name": "dypos-server",
-  "version": "1.4.1",
+  "version": "1.22.0",
   "description": "DyPOS SaaS backend - REST API + JWT Auth + SQLite (node:sqlite, zero native deps)",
   "main": "server.js",
   "type": "module",
@@ -11,6 +11,8 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "test": "node --test --import ./tests/setup.js \"tests/**/*.test.js\"",
+    "test:stock-strict": "node --test --import ./tests/setup-strict.js --import ./tests/setup.js tests/stock-guard-strict.test.js",
+    "doctor": "node scripts/doctor.mjs",
     "test:watch": "node --watch --import ./tests/setup.js \"tests/**/*.test.js\"",
     "migrate": "node db/migrate.js",
     "seed": "node db/seed.js",
@@ -18,6 +20,7 @@
     "backup:verify": "node scripts/verify-restore.mjs",
     "load": "node scripts/load-test.mjs",
     "campaign": "node scripts/stress-campaign.mjs",
+    "parity": "node scripts/check-pg-parity.mjs",
     "load:k6": "k6 run -e BASE=http://localhost:3001 tests/load/k6-invoices.js",
     "lint": "biome check .",
     "lint:fix": "biome check --write ."

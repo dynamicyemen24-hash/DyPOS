@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: dypos-server:1.3.0
+    image: dypos-server:1.22.0
     container_name: dypos-server
     restart: unless-stopped
     ports:
@@ -61,7 +61,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: dypos-server:1.3.0
+    image: dypos-server:1.22.0
     restart: unless-stopped
     command: ["sh", "-c", "while true; do node scripts/backup.mjs; sleep 86400; done"]
     environment:

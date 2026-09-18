@@ -331,11 +331,23 @@ export const useItemSearchStore = defineStore("itemSearch", () => {
 			})
 
 			// Last resort: Show user a message
-			// TODO: Integrate with notification system
+			// Emit a custom event for the global notification system to pick up
+			// (Toast, service worker banner, or any registered listener).
 			console.error(
 				"Failed to update item cache. Please refresh the page manually.",
 				recoveryError,
 			)
+			try {
+				window.dispatchEvent(
+					new CustomEvent("dypos:notification", {
+						detail: {
+							type: "error",
+							title: "خطأ في تحديث الكاش",
+							message: "فشل تحديث كاش الأصناف. يرجى تحديث الصفحة يدويًا.",
+						},
+					}),
+				)
+			} catch { /* dispatch best-effort */ }
 		}
 	}
 

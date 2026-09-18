@@ -14,7 +14,7 @@ import { mkdirSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DYPOS_DB_PATH || join(__dirname, '..', 'data', 'dypos.db');
-const MIGRATION_VERSION = 5; // Increment when schema changes
+const MIGRATION_VERSION = 15; // Increment when schema changes
 
 function columnExists(table, column) {
 	try {
@@ -422,6 +422,378 @@ export function migrate() {
       .run(5, 'Customers is_active + invoice void fields');
   }
 
+  // ── v6: tamper-evident invoice chain (ZATCA/SAMA foundation) ──
+  // chain_hash links each invoice mutation to its predecessor (hash-chained
+  // audit trail). Verification needs no new dependency: SHA-256 over
+  // prev_hash + invoice_id + number + total + status.
+  if (currentVersion < 6) {
+    addColumnIfMissing('invoices', 'chain_hash', 'TEXT');
+    addColumnIfMissing('invoices', 'chain_prev', 'TEXT');
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS invoice_audit (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        invoice_id TEXT NOT NULL REFERENCES invoices(id),
+        prev_hash TEXT NOT NULL DEFAULT 'GENESIS',
+        hash TEXT NOT NULL,
+        action TEXT NOT NULL DEFAULT 'CREATE',
+        total REAL NOT NULL DEFAULT 0,
+        number TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_audit_invoice ON invoice_audit(invoice_id, id);
+      CREATE TABLE IF NOT EXISTS zatca_settings (
+        id TEXT PRIMARY KEY,
+        seller_name TEXT NOT NULL DEFAULT '',
+        vat_number TEXT NOT NULL DEFAULT '',
+        cr_number TEXT NOT NULL DEFAULT '',
+        branch_id TEXT NOT NULL DEFAULT '1',
+        phase TEXT NOT NULL DEFAULT 'simulation',
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_invoices_chain ON invoices(chain_hash);
+    `);
+    db.prepare(`INSERT OR IGNORE INTO zatca_settings (id) VALUES ('default')`).run();
+    db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+      .run(6, 'Invoice hash chain + audit + zatca_settings');
+  }
+
+  // ── v7: wallet ledger (canonical money trail) ──
+  // Wallet moves previously lived only in customers.wallet_balance (+ a mirror
+  // row in loyalty_transactions). The ledger makes every credit/debit/redeem
+  // independently auditable with balance_after per row (bank-statement style).
+  if (currentVersion < 7) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS wallet_transactions (
+        id TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL REFERENCES customers(id),
+        amount REAL NOT NULL,
+        direction TEXT NOT NULL DEFAULT 'credit',
+        balance_after REAL NOT NULL DEFAULT 0,
+        reference_type TEXT NOT NULL DEFAULT 'MANUAL',
+        reference_id TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT '',
+        created_by TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_wallet_customer ON wallet_transactions(customer_id, created_at DESC);
+    `);
+    // Backfill from the loyalty mirror (WALLET_CREDIT/WALLET_DEBIT/REDEEM only).
+    try {
+      const mirrors = db.prepare(`SELECT id,customer_id,points,amount,type,reference_type,reference_id,note,created_at FROM loyalty_transactions WHERE type IN ('WALLET_CREDIT','WALLET_DEBIT','REDEEM')`).all();
+      const ins = db.prepare(`INSERT OR IGNORE INTO wallet_transactions (id,customer_id,amount,direction,balance_after,reference_type,reference_id,note,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)`);
+      for (const m of mirrors) {
+        const amt = Math.abs(Number(m.amount) || 0);
+        const dir = Number(m.amount) < 0 ? 'debit' : 'credit';
+        ins.run(`wf-${m.id}`, m.customer_id, amt, dir, 0, m.reference_type || 'MANUAL', m.reference_id || '', m.note || '', '', m.created_at || new Date().toISOString());
+      }
+    } catch { /* backfill best-effort */ }
+    db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+      .run(7, 'Wallet ledger + backfill');
+  }
+
+  // ── v8: multi-tenancy (tenants → organizations → branches) + control fields + trail ──
+  // Scoping columns are NULLABLE: legacy single-tenant rows keep working, and
+  // DYPOS_REQUIRE_TENANT=1 flips enforcement on (same pattern as REQUIRE_SHIFT).
+  if (currentVersion < 8) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS tenants (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        code TEXT UNIQUE,
+        plan TEXT NOT NULL DEFAULT 'standard',
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS organizations (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        code TEXT,
+        vat_number TEXT,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_orgs_tenant ON organizations(tenant_id);
+      CREATE TABLE IF NOT EXISTS branches (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL DEFAULT '',
+        name TEXT NOT NULL,
+        code TEXT,
+        warehouse_id TEXT,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_branches_org ON branches(org_id);
+      CREATE INDEX IF NOT EXISTS idx_branches_tenant ON branches(tenant_id);
+      CREATE TABLE IF NOT EXISTS audit_trail (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id TEXT NOT NULL DEFAULT '',
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        before_json TEXT NOT NULL DEFAULT '{}',
+        after_json TEXT NOT NULL DEFAULT '{}',
+        user_id TEXT,
+        username TEXT,
+        ip TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_trail_entity ON audit_trail(entity_type, entity_id, id);
+      CREATE INDEX IF NOT EXISTS idx_trail_tenant ON audit_trail(tenant_id, created_at DESC);
+    `);
+    addColumnIfMissing('products', 'tenant_id', 'TEXT');
+    addColumnIfMissing('products', 'created_by', 'TEXT');
+    addColumnIfMissing('products', 'updated_by', 'TEXT');
+    addColumnIfMissing('customers', 'tenant_id', 'TEXT');
+    addColumnIfMissing('customers', 'created_by', 'TEXT');
+    addColumnIfMissing('customers', 'updated_by', 'TEXT');
+    addColumnIfMissing('invoices', 'tenant_id', 'TEXT');
+    addColumnIfMissing('invoices', 'branch_id', 'TEXT');
+    addColumnIfMissing('invoices', 'created_by', 'TEXT');
+    addColumnIfMissing('invoices', 'updated_by', 'TEXT');
+    addColumnIfMissing('shifts', 'tenant_id', 'TEXT');
+    addColumnIfMissing('shifts', 'branch_id', 'TEXT');
+    addColumnIfMissing('warehouses', 'tenant_id', 'TEXT');
+    addColumnIfMissing('warehouses', 'branch_id', 'TEXT');
+    addColumnIfMissing('users', 'tenant_id', 'TEXT');
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_products_tenant ON products(tenant_id);
+      CREATE INDEX IF NOT EXISTS idx_customers_tenant ON customers(tenant_id);
+      CREATE INDEX IF NOT EXISTS idx_invoices_tenant ON invoices(tenant_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_shifts_tenant ON shifts(tenant_id, status);
+    `);
+    db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+      .run(8, 'Tenancy hierarchy + scoping + control fields + audit_trail');
+  }
+
+  // ── v9: master data — currencies + units of measure (+ seeds) ──
+  if (currentVersion < 9) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS currencies (
+        code TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        name_ar TEXT NOT NULL DEFAULT '',
+        symbol TEXT NOT NULL DEFAULT '',
+        decimals INTEGER NOT NULL DEFAULT 2,
+        rate_to_base REAL NOT NULL DEFAULT 1,
+        is_base INTEGER NOT NULL DEFAULT 0,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS uoms (
+        code TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        name_ar TEXT NOT NULL DEFAULT '',
+        category TEXT NOT NULL DEFAULT 'count',
+        factor_to_base REAL NOT NULL DEFAULT 1,
+        is_base INTEGER NOT NULL DEFAULT 0,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const cur = db.prepare(`INSERT OR IGNORE INTO currencies (code,name,name_ar,symbol,decimals,rate_to_base,is_base) VALUES (?,?,?,?,?,?,?)`);
+    cur.run('SAR', 'Saudi Riyal', 'ريال سعودي', 'ر.س', 2, 1, 1);
+    cur.run('USD', 'US Dollar', 'دولار أمريكي', '$', 2, 0.26667, 0);
+    cur.run('EUR', 'Euro', 'يورو', '€', 2, 0.24510, 0);
+    cur.run('AED', 'UAE Dirham', 'درهم إماراتي', 'د.إ', 2, 0.97933, 0);
+    cur.run('KWD', 'Kuwaiti Dinar', 'دينار كويتي', 'د.ك', 3, 0.08170, 0);
+    cur.run('BHD', 'Bahraini Dinar', 'دينار بحريني', 'د.ب', 3, 0.10040, 0);
+    cur.run('QAR', 'Qatari Riyal', 'ريال قطري', 'ر.ق', 2, 0.97087, 0);
+    cur.run('EGP', 'Egyptian Pound', 'جنيه مصري', 'ج.م', 2, 12.80000, 0);
+    const uom = db.prepare(`INSERT OR IGNORE INTO uoms (code,name,name_ar,category,factor_to_base,is_base) VALUES (?,?,?,?,?,?)`);
+    uom.run('Unit', 'Unit', 'قطعة', 'count', 1, 1);
+    uom.run('PCS', 'Pieces', 'قطع', 'count', 1, 0);
+    uom.run('DOZEN', 'Dozen', 'درزن', 'count', 12, 0);
+    uom.run('BOX', 'Box', 'كرتون', 'count', 12, 0);
+    uom.run('G', 'Gram', 'جرام', 'weight', 1, 1);
+    uom.run('KG', 'Kilogram', 'كيلوجرام', 'weight', 1000, 0);
+    uom.run('TON', 'Ton', 'طن', 'weight', 1000000, 0);
+    uom.run('ML', 'Milliliter', 'ملليلتر', 'volume', 1, 1);
+    uom.run('L', 'Liter', 'لتر', 'volume', 1000, 0);
+    uom.run('M', 'Meter', 'متر', 'length', 1000, 0);
+    uom.run('CM', 'Centimeter', 'سنتيمتر', 'length', 10, 0);
+    uom.run('MM', 'Millimeter', 'ملليمتر', 'length', 1, 1);
+    db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+      .run(9, 'Currencies + UoMs + seeds');
+  }
+
+  // ── v10: machine integration + auth recovery + pay idempotency ──
+  if (currentVersion < 10) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS api_keys (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        key_prefix TEXT NOT NULL,
+        key_hash TEXT NOT NULL UNIQUE,
+        role TEXT NOT NULL DEFAULT 'AUDITOR',
+        scopes TEXT NOT NULL DEFAULT '[]',
+        tenant_id TEXT,
+        expires_at TEXT,
+        last_used_at TEXT,
+        revoked INTEGER NOT NULL DEFAULT 0,
+        created_by TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_apikeys_hash ON api_keys(key_hash);
+      CREATE TABLE IF NOT EXISTS password_resets (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id),
+        token_hash TEXT NOT NULL UNIQUE,
+        expires_at TEXT NOT NULL,
+        used INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_resets_token ON password_resets(token_hash);
+    `);
+    addColumnIfMissing('payments', 'idempotency_key', 'TEXT');
+    db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_idem ON payments(idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
+    `);
+    db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+      .run(10, 'API keys + password resets + payment idempotency');
+  }
+
+  // ── v11: billions-scale reads — FTS5 catalog search + low-stock index ──
+  // FTS5 is compiled into standard SQLite builds (incl. node:sqlite). Triggers
+  // keep the index in lockstep with products; LIKE remains the fallback when
+  // FTS is unavailable or the query is a short prefix (index-friendly already).
+  if (currentVersion < 11) {
+    try {
+      db.exec(`
+        CREATE VIRTUAL TABLE IF NOT EXISTS products_fts USING fts5(name, code, barcode, name_ar, content='products', content_rowid='rowid');
+        CREATE TRIGGER IF NOT EXISTS trg_products_fts_ai AFTER INSERT ON products BEGIN
+          INSERT INTO products_fts(rowid, name, code, barcode, name_ar) VALUES (new.rowid, new.name, new.code, new.barcode, new.name_ar);
+        END;
+        CREATE TRIGGER IF NOT EXISTS trg_products_fts_ad AFTER DELETE ON products BEGIN
+          INSERT INTO products_fts(products_fts, rowid, name, code, barcode, name_ar) VALUES ('delete', old.rowid, old.name, old.code, old.barcode, old.name_ar);
+        END;
+        CREATE TRIGGER IF NOT EXISTS trg_products_fts_au AFTER UPDATE ON products BEGIN
+          INSERT INTO products_fts(products_fts, rowid, name, code, barcode, name_ar) VALUES ('delete', old.rowid, old.name, old.code, old.barcode, old.name_ar);
+          INSERT INTO products_fts(rowid, name, code, barcode, name_ar) VALUES (new.rowid, new.name, new.code, new.barcode, new.name_ar);
+        END;
+      `);
+      // Backfill existing catalog (idempotent: rebuild wipes + reinserts).
+      db.exec(`INSERT INTO products_fts(products_fts) VALUES ('rebuild')`);
+    } catch {
+      // FTS5 unavailable on exotic builds — LIKE fallback stays correct.
+    }
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_stock_qty ON stock_levels(qty);`);
+    db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+      .run(11, 'FTS5 catalog + low-stock index');
+  }
+
+  // ── v12: webhook dispatcher leader lease (C4) ──
+  // Single row (id=1). The dispatcher in lib/webhooks.js acquires it with a
+  // heartbeat; only the lease holder delivers the outbox. Prevents duplicate
+  // webhook deliveries when several processes open the same SQLite file
+  // (multi-instance origin, forked workers, or a stale primary overlapping
+  // a fresh one during deploys).
+  if (currentVersion < 12) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS dispatcher_lock (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        owner TEXT,
+        lease_until TEXT,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    db.prepare('INSERT OR IGNORE INTO dispatcher_lock (id, owner, lease_until) VALUES (1, NULL, NULL)').run();
+    db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+      .run(12, 'webhook dispatcher leader lease');
+  }
+
+  // ── v13: payment methods master + business settings (finance campaign) ──
+  // payment_methods is user-managed master data (currencies/UoMs pattern):
+  // POST /api/invoices and /:id/pay validate the method against ACTIVE rows.
+  // business_settings is a validated KV store (country/tax/invoice profile
+  // for any-country operation); only allowlisted keys are writable.
+  if (currentVersion < 13) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS payment_methods (
+        code TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        name_ar TEXT NOT NULL DEFAULT '',
+        kind TEXT NOT NULL DEFAULT 'OTHER',
+        requires_reference INTEGER NOT NULL DEFAULT 0,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        sort_order INTEGER NOT NULL DEFAULT 100,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS business_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const seedPm = db.prepare(`INSERT OR IGNORE INTO payment_methods (code,name,name_ar,kind,requires_reference,is_active,sort_order) VALUES (?,?,?,?,?,?,?)`);
+    seedPm.run('CASH', 'Cash', 'نقدي', 'CASH', 0, 1, 10);
+    seedPm.run('CARD', 'Card', 'بطاقة', 'CARD', 1, 1, 20);
+    seedPm.run('MADA', 'Mada', 'مدى', 'CARD', 1, 1, 30);
+    seedPm.run('WALLET', 'Wallet', 'محفظة', 'WALLET', 0, 1, 40);
+    seedPm.run('BANK_TRANSFER', 'Bank transfer', 'تحويل بنكي', 'BANK', 1, 1, 50);
+    seedPm.run('OTHER', 'Other', 'أخرى', 'OTHER', 0, 1, 60);
+    const seedSet = db.prepare(`INSERT OR IGNORE INTO business_settings (key,value) VALUES (?,?)`);
+    seedSet.run('business_name', '');
+    seedSet.run('country_code', 'SA');
+    seedSet.run('currency', 'SAR');
+    seedSet.run('tax_rate_default', '15');
+    seedSet.run('tax_inclusive', '0');
+    seedSet.run('invoice_prefix', 'INV');
+    db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+      .run(13, 'payment methods master + business settings');
+  }
+
+  // ── v14: fiscal years + gapless invoice sequences (finance campaign) ──
+  // Sequential, gapless numbering per (branch-scope, fiscal year) — the
+  // e-invoicing norm in every country (ZATCA and equivalents): no gaps, no
+  // duplicates. fiscal_years gates posting (CLOSED year → 409/400); the
+  // current calendar year is auto-provisioned OPEN so fresh DBs and tests
+  // keep working with zero setup.
+  if (currentVersion < 14) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS fiscal_years (
+        code TEXT PRIMARY KEY,
+        starts_on TEXT NOT NULL,
+        ends_on TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'OPEN',
+        closed_by TEXT,
+        closed_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS invoice_sequences (
+        scope TEXT PRIMARY KEY,
+        prefix TEXT NOT NULL DEFAULT 'INV',
+        last_number INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const y = new Date().getUTCFullYear();
+    db.prepare(`INSERT OR IGNORE INTO fiscal_years (code,starts_on,ends_on,status) VALUES (?,?,?,'OPEN')`)
+      .run(String(y), `${y}-01-01`, `${y}-12-31`);
+    db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+      .run(14, 'fiscal years + gapless invoice sequences');
+  }
+
+  // ── v15: invoice_items Arabic name + free-item tracking + version stamp ──
+  // Adds `name_ar` (Arabic product name for RTL receipts), `free_qty` (BOGO
+  // free count on the paid line), and `is_free_item` (flag for dedicated free
+  // rows — Dycos convention). These columns are written by the server when
+  // creating invoices and echoed in GET /invoices/:id for the Arabic UI.
+  if (currentVersion < 15) {
+    addColumnIfMissing('invoice_items', 'name_ar', "TEXT NOT NULL DEFAULT ''");
+    addColumnIfMissing('invoice_items', 'free_qty', 'INTEGER NOT NULL DEFAULT 0');
+    addColumnIfMissing('invoice_items', 'is_free_item', 'INTEGER NOT NULL DEFAULT 0');
+    addColumnIfMissing('invoices', 'version', 'INTEGER NOT NULL DEFAULT 1');
+    db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+      .run(15, 'invoice_items Arabic name + free-item tracking + version stamp');
+  }
+
   console.log('[DyPOS] Database migrated (v' + MIGRATION_VERSION + ')');
 }
 
@@ -429,4 +801,5 @@ export function migrate() {
 // `{ migrate, db, checkDbHealth }`, while every route module uses the default.
 // Both styles must resolve, otherwise the ESM linker fails at startup.
 export { db };
+export { MIGRATION_VERSION };
 export default db;
