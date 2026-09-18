@@ -47,6 +47,44 @@ export const authAttempts = new client.Counter({
   registers: [register],
 });
 
+export const cacheOps = new client.Counter({
+  name: 'dypos_cache_operations_total',
+  help: 'Cache hits/misses by tier',
+  labelNames: ['result'],
+  registers: [register],
+});
+
+export const outboxPending = new client.Gauge({
+  name: 'dypos_webhook_outbox_pending',
+  help: 'Webhook outbox PENDING jobs (updated on /api/health)',
+  registers: [register],
+});
+
+export const outboxDead = new client.Gauge({
+  name: 'dypos_webhook_outbox_dead',
+  help: 'Webhook outbox DEAD jobs (updated on /api/health)',
+  registers: [register],
+});
+
+export const stockLow = new client.Gauge({
+  name: 'dypos_stock_low_products',
+  help: 'Products at/below the low-stock threshold (updated on /api/health)',
+  registers: [register],
+});
+
+/** Time a sync DB operation and observe it (never throws). */
+export function observeDb(operation, fn) {
+  const start = process.hrtime.bigint();
+  try {
+    return fn();
+  } finally {
+    try {
+      const secs = Number(process.hrtime.bigint() - start) / 1e9;
+      dbQueryDuration.labels(operation).observe(secs);
+    } catch { /* ignore */ }
+  }
+}
+
 /** Normalize /api/invoices/<uuid> → /api/invoices/:id to bound cardinality */
 export function normalizeRoute(req) {
   const base = req.baseUrl || '';
@@ -81,4 +119,4 @@ export async function metricsHandler(req, res) {
 }
 
 export { register };
-export default { httpDuration, dbQueryDuration, invoicesCounter, syncCounter, authAttempts, metricsMiddleware, metricsHandler, register, normalizeRoute };
+export default { httpDuration, dbQueryDuration, invoicesCounter, syncCounter, authAttempts, cacheOps, outboxPending, outboxDead, stockLow, observeDb, metricsMiddleware, metricsHandler, register, normalizeRoute };

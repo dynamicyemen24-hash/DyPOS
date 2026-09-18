@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>DyPOS Ops Console — وحدة التحكم</title>
+<style>
+  *{box-sizing:border-box} body{font-family:system-ui,Tahoma,Arial;margin:0;background:#0f1420;color:#e8ecf4}
+  header{background:#161d2e;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a3550}
+  header b{font-size:18px} .ver{color:#8ea0c2;font-size:12px}
+  main{max-width:1080px;margin:0 auto;padding:16px}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .tabs button{background:#1c2540;color:#cfd8ec;border:1px solid #2a3550;border-radius:8px;padding:8px 14px;cursor:pointer}
+  .tabs button.on{background:#2f6fed;border-color:#2f6fed;color:#fff}
+  .card{background:#161d2e;border:1px solid #2a3550;border-radius:10px;padding:14px;margin-bottom:12px}
+  table{width:100%;border-collapse:collapse;font-size:13px} th,td{border-bottom:1px solid #2a3550;padding:7px 6px;text-align:right}
+  th{color:#8ea0c2;font-weight:600} code{font-family:ui-monospace,Consolas;background:#0b1020;padding:1px 6px;border-radius:6px;font-size:12px}
+  .badge{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;border:1px solid #3b4a6e}
+  .ok{color:#7ee2a8} .warn{color:#ffd479} .bad{color:#ff9d9d} .muted{color:#8ea0c2}
+  input,select{background:#0b1020;color:#e8ecf4;border:1px solid #2a3550;border-radius:8px;padding:7px 10px;margin:2px}
+  button.act{background:#2f6fed;color:#fff;border:0;border-radius:8px;padding:7px 14px;cursor:pointer;margin:2px}
+  button.ghost{background:transparent;color:#cfd8ec;border:1px solid #3b4a6e;border-radius:8px;padding:6px 12px;cursor:pointer;margin:2px}
+  button.danger{border-color:#7a2e2e;color:#ff9d9d}
+  #msg{position:sticky;top:0;padding:9px 14px;border-radius:8px;margin-bottom:12px;display:none}
+  #msg.err{display:block;background:#3a1d1d;border:1px solid #7a2e2e} #msg.inf{display:block;background:#13283f;border:1px solid #2f6fed}
+  #login{max-width:380px;margin:60px auto}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  small.en{color:#5f6f8f;font-size:11px}
+</style>
+</head>
+<body>
+<header><div><b>DyPOS Ops</b> <span class="muted">وحدة تحكم التشغيل</span></div><div><span class="ver" id="hver"></span> <button class="ghost" id="logout" style="display:none">خروج</button></div></header>
+<main>
+<div id="msg"></div>
+<section id="login" class="card">
+  <h3>تسجيل الدخول <small class="en">ADMIN / MANAGER</small></h3>
+  <div class="row"><input id="u" placeholder="المستخدم" autocomplete="username"/><input id="p" type="password" placeholder="كلمة المرور" autocomplete="current-password"/><button class="act" id="go">دخول</button></div>
+</section>
+<section id="app" style="display:none">
+  <div class="tabs" id="tabs"></div>
+  <div id="pane"></div>
+</section>
+</main>
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const token = () => sessionStorage.getItem('dypos_ops_token') || '';
+function msg(t, kind) { const m = $('#msg'); m.className = kind || 'inf'; m.textContent = t; if (t) setTimeout(() => { m.className = ''; m.style.display = 'none'; }, 6000); m.style.display = t ? 'block' : 'none'; }
+async function api(path, opts) {
+  const r = await fetch(path, { headers: Object.assign({ 'Content-Type': 'application/json' }, token() ? { Authorization: 'Bearer ' + token() } : {}), ...(opts || {}) });
+  let body = null; try { body = await r.json(); } catch (e) { body = null; }
+  if (r.status === 401 || r.status === 403) { logout(true); throw new Error((body && body.error) || ('HTTP ' + r.status)); }
+  if (!r.ok) throw new Error((body && body.error) || ('HTTP ' + r.status));
+  return body;
+}
+function logout(expired) {
+  sessionStorage.removeItem('dypos_ops_token');
+  $('#app').style.display = 'none'; $('#login').style.display = 'block'; $('#logout').style.display = 'none';
+  if (expired) msg('انتهت الجلسة — سجّل الدخول مجددًا', 'err');
+}
+async function login() {
+  try {
+    const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: $('#u').value.trim(), password: $('#p').value }) });
+    const b = await r.json();
+    if (!r.ok) throw new Error(b.error || ('HTTP ' + r.status));
+    sessionStorage.setItem('dypos_ops_token', b.token);
+    $('#login').style.display = 'none'; $('#app').style.display = 'block'; $('#logout').style.display = '';
+    show('overview');
+  } catch (e) { msg('فشل الدخول: ' + e.message, 'err'); }
+}
+const TABS = [
+  ['overview', 'نظرة عامة'],
+  ['pay', 'طرق الدفع'],
+  ['settings', 'الإعدادات'],
+  ['fiscal', 'السنوات المالية'],
+  ['outbox', 'الـ Outbox'],
+  ['audit', 'التدقيق'],
+];
+function show(name) {
+  document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.t === name));
+  ({ overview: vOverview, pay: vPay, settings: vSettings, fiscal: vFiscal, outbox: vOutbox, audit: vAudit })[name]().catch((e) => msg(e.message, 'err'));
+}
+function renderTabs() { $('#tabs').innerHTML = TABS.map(([k, t]) => `<button data-t="${k}">${t}</button>`).join(''); document.querySelectorAll('#tabs button').forEach((b) => (b.onclick = () => show(b.dataset.t))); }
+function badge(s) { const c = s === 'OPEN' || s === 'DELIVERED' || s === 'ok' ? 'ok' : (s === 'PENDING' ? 'warn' : (s === 'DEAD' || s === 'CLOSED' ? 'bad' : '')); return `<span class="badge ${c}">${esc(s)}</span>`; }
+
+async function vOverview() {
+  const [h, d] = await Promise.all([api('/api/health'), api('/api/device')]);
+  $('#hver').textContent = 'v' + h.version;
+  $('#pane').innerHTML = `<div class="card"><h3>الصحة <small class="en">health</small></h3>
+    <div>الحالة: ${badge(h.status)} النسخة: <code>${esc(h.version)}</code> قاعدة البيانات: <code>${esc(h.database?.mode || h.database?.tier || '?')}</code></div>
+    <div class="muted">ذاكرة RSS ${esc(h.memory?.rss_mb)}MB — heap ${esc(h.memory?.heap_mb)}MB — مخزون منخفض: ${esc(h.stock?.low_count ?? '?')}</div></div>
+    <div class="card"><h3>جهازك <small class="en">device</small></h3>
+    <div>النوع: <code>${esc(d.device.type)}</code> النظام: <code>${esc(d.device.os)}</code> المتصفح: <code>${esc(d.device.browser)}</code></div>
+    <div>${(d.warnings || []).map((w) => `<div class="${w.level === 'critical' ? 'bad' : 'warn'}">⚠ ${esc(w.message)}</div>`).join('') || '<span class="muted">لا تحذيرات</span>'}</div></div>`;
+}
+
+async function vPay() {
+  const r = await api('/api/payment-methods?limit=100');
+  $('#pane').innerHTML = `<div class="card"><h3>طرق الدفع <small class="en">${r.total}</small></h3>
+    <table><tr><th>الكود</th><th>الاسم</th><th>النوع</th><th>مرجع؟</th><th>الحالة</th><th></th></tr>
+    ${r.methods.map((m) => `<tr><td><code>${esc(m.code)}</code></td><td>${esc(m.name_ar || m.name)}</td><td>${esc(m.kind)}</td><td>${m.requires_reference ? 'نعم' : '—'}</td><td>${badge(m.is_active ? 'ACTIVE' : 'OFF')}</td>
+    <td><button class="ghost" onclick="pmToggle('${esc(m.code)}',${m.is_active ? 'false' : 'true'})">${m.is_active ? 'إيقاف' : 'تفعيل'}</button></td></tr>`).join('')}</table></div>
+    <div class="card"><h3>طريقة جديدة</h3><div class="row">
+    <input id="pmc" placeholder="الكود CODE"/><input id="pmn" placeholder="الاسم"/><input id="pma" placeholder="الاسم عربي"/>
+    <select id="pmk"><option>CASH</option><option>CARD</option><option>BANK</option><option>WALLET</option><option>OTHER</option></select>
+    <label><input type="checkbox" id="pmr"/> يتطلب مرجعًا</label><button class="act" onclick="pmCreate()">إضافة</button></div></div>`;
+}
+async function pmToggle(code, on) { try { await api('/api/payment-methods/' + encodeURIComponent(code) + '/toggle', { method: 'PATCH', body: JSON.stringify({ isActive: on }) }); vPay(); } catch (e) { msg(e.message, 'err'); } }
+async function pmCreate() {
+  try {
+    await api('/api/payment-methods', { method: 'POST', body: JSON.stringify({ code: $('#pmc').value, name: $('#pmn').value, nameAr: $('#pma').value, kind: $('#pmk').value, requiresReference: $('#pmr').checked }) });
+    msg('أُضيفت الطريقة', 'inf'); vPay();
+  } catch (e) { msg(e.message, 'err'); }
+}
+
+async function vSettings() {
+  const r = await api('/api/settings');
+  const s = r.settings || {};
+  const num = (k) => `<input data-k="${k}" type="number" value="${esc(s[k] ?? '')}" style="width:110px"/>`;
+  const txt = (k, w) => `<input data-k="${k}" value="${esc(s[k] ?? '')}" style="width:${w || 220}px"/>`;
+  $('#pane').innerHTML = `<div class="card"><h3>ملف النشاط <small class="en">any-country profile</small></h3>
+    <table>
+    <tr><td>اسم النشاط</td><td>${txt('business_name', 300)}</td></tr>
+    <tr><td>الدولة (ISO-3166)</td><td>${txt('country_code', 90)}</td></tr>
+    <tr><td>العملة (ISO-4217 نشطة)</td><td>${txt('currency', 90)}</td></tr>
+    <tr><td>الضريبة الافتراضية %</td><td>${num('tax_rate_default')}</td></tr>
+    <tr><td>الأسعار شاملة الضريبة</td><td><select data-k="tax_inclusive"><option value="0"${s.tax_inclusive === '1' ? '' : ' selected'}>لا (0)</option><option value="1"${s.tax_inclusive === '1' ? ' selected' : ''}>نعم (1)</option></select></td></tr>
+    <tr><td>بادئة الفواتير</td><td>${txt('invoice_prefix', 120)}</td></tr>
+    </table><button class="act" onclick="svSave()">حفظ (ADMIN)</button>
+    <div class="muted">يُحفظ الكل أو لا شيء — أي قيمة مرفوضة تلغي العملية كاملة.</div></div>`;
+}
+async function svSave() {
+  try {
+    const body = {};
+    document.querySelectorAll('#pane [data-k]').forEach((el) => { body[el.dataset.k] = el.value; });
+    const r = await api('/api/settings', { method: 'PUT', body: JSON.stringify(body) });
+    msg('حُفظ الملف التجاري', 'inf'); vSettings();
+  } catch (e) { msg(e.message, 'err'); }
+}
+
+async function vFiscal() {
+  const r = await api('/api/fiscal-years');
+  $('#pane').innerHTML = `<div class="card"><h3>السنوات المالية <small class="en">period control</small></h3>
+    <table><tr><th>السنة</th><th>من</th><th>إلى</th><th>الحالة</th><th></th></tr>
+    ${r.years.map((y) => `<tr><td><code>${esc(y.code)}</code></td><td>${esc(y.starts_on)}</td><td>${esc(y.ends_on)}</td><td>${badge(y.status)}</td>
+    <td>${y.status === 'OPEN' ? `<button class="ghost danger" onclick="fyClose('${esc(y.code)}')">إغلاق</button>` : `<button class="ghost" onclick="fyReopen('${esc(y.code)}')">إعادة فتح</button>`}</td></tr>`).join('')}</table></div>
+    <div class="card"><h3>فتح سنة</h3><div class="row"><input id="fyc" placeholder="YYYY" style="width:100px"/><button class="act" onclick="fyOpen()">فتح (ADMIN)</button></div>
+    <div class="muted">إغلاق السنة يحظر عليها: الإنشاء والدفع والإلغاء والإرجاع (409).</div></div>`;
+}
+async function fyOpen() { try { await api('/api/fiscal-years', { method: 'POST', body: JSON.stringify({ code: $('#fyc').value }) }); vFiscal(); } catch (e) { msg(e.message, 'err'); } }
+async function fyClose(c) { try { await api(`/api/fiscal-years/${encodeURIComponent(c)}/close`, { method: 'POST' }); vFiscal(); } catch (e) { msg(e.message, 'err'); } }
+async function fyReopen(c) { try { await api(`/api/fiscal-years/${encodeURIComponent(c)}/reopen`, { method: 'POST' }); vFiscal(); } catch (e) { msg(e.message, 'err'); } }
+
+async function vOutbox() {
+  const r = await api('/api/webhooks/outbox?limit=50');
+  const sum = r.summary || {};
+  $('#pane').innerHTML = `<div class="card"><h3>الـ Outbox <small class="en">webhook dispatcher</small></h3>
+    <div class="row">${Object.entries(sum).map(([k, v]) => `<span class="badge">${esc(k)}: ${v}</span>`).join('')}
+    <button class="act" onclick="obDispatch()">تشغيل دفعة الآن</button></div>
+    <div class="row"><select id="obf"><option value="">الكل</option><option>PENDING</option><option>DELIVERED</option><option>DEAD</option><option>SKIPPED</option></select>
+    <button class="ghost" onclick="vOutbox()">تصفية</button></div>
+    <table><tr><th>#</th><th>الحدث</th><th>الكيان</th><th>محاولات</th><th>الحالة</th><th>آخر خطأ</th><th></th></tr>
+    ${(r.outbox || []).filter((j) => !$('#obf') || !$('#obf').value || j.status === $('#obf').value).map((j) => `<tr><td>${j.id}</td><td><code>${esc(j.event)}</code></td><td>${esc(j.entity_type)}:${esc(String(j.entity_id).slice(0, 8))}</td><td>${j.attempts}</td><td>${badge(j.status)}</td><td class="muted">${esc((j.last_error || '').slice(0, 60))}</td>
+    <td>${j.status !== 'DELIVERED' ? `<button class="ghost" onclick="obRetry(${j.id})">إعادة</button>` : ''}</td></tr>`).join('')}</table></div>`;
+}
+async function obRetry(id) { try { await api(`/api/webhooks/outbox/${id}/retry`, { method: 'POST' }); vOutbox(); } catch (e) { msg(e.message, 'err'); } }
+async function obDispatch() { try { const r = await api('/api/webhooks/dispatch', { method: 'POST' }); msg(`دُفّع: ${r.delivered} — فشل: ${r.failed}`, 'inf'); vOutbox(); } catch (e) { msg(e.message, 'err'); } }
+
+async function vAudit() {
+  const r = await api('/api/admin/audit?limit=50');
+  $('#pane').innerHTML = `<div class="card"><h3>سجل التدقيق <small class="en">ring buffer</small></h3>
+    <table><tr><th>الوقت</th><th>الحدث</th><th>المستخدم</th><th>IP</th></tr>
+    ${(r.audit || []).map((a) => `<tr><td class="muted">${esc(a.ts || a.time || '')}</td><td><code>${esc(a.event || '')}</code></td><td>${esc(a.user || a.username || '')}</td><td class="muted">${esc(a.ip || '')}</td></tr>`).join('')}</table></div>`;
+}
+
+$('#go').onclick = login;
+$('#p').addEventListener('keydown', (e) => { if (e.key === 'Enter') login(); });
+$('#logout').onclick = () => logout(false);
+if (token()) { $('#login').style.display = 'none'; $('#app').style.display = 'block'; $('#logout').style.display = ''; renderTabs(); show('overview'); }
+else { renderTabs(); }
+</script>
+</body>
+</html>

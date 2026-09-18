@@ -32,6 +32,7 @@ export const registerSchema = z.object({
   password: z.string().min(8).max(128).regex(/^(?=.*[A-Za-z])(?=.*\d).+$/, 'كلمة المرور يجب أن تحتوي حرفًا ورقمًا'),
   fullName: z.string().trim().min(2).max(100),
   role: z.enum(['ADMIN', 'MANAGER', 'CASHIER', 'AUDITOR']).optional().default('CASHIER'),
+  tenantId: z.string().trim().max(64).optional(),
 });
 
 export const productSchema = z.object({
@@ -46,6 +47,12 @@ export const productSchema = z.object({
   category: z.string().trim().max(64).optional(),
   brand: z.string().trim().max(64).optional(),
   isActive: z.boolean().optional(),
+  tenantId: z.string().trim().max(64).optional(),
+});
+
+// Partial update: every field optional (PUT requires full name).
+export const productPatchSchema = productSchema.partial().extend({
+  name: z.string().trim().min(1).max(200).optional(),
 });
 
 export const invoiceSchema = z.object({
@@ -69,15 +76,21 @@ export const invoiceSchema = z.object({
   shiftId: z.string().trim().max(64).optional(),
   terminalId: z.string().trim().max(32).optional(),
   discountAmount: z.number().min(0).max(10_000_000).optional(),
+  couponCode: z.string().trim().max(64).optional(),
   currency: z.string().trim().max(10).optional(),
   notes: z.string().trim().max(1000).optional(),
   idempotencyKey: z.string().trim().max(128).optional(),
   channelId: z.string().trim().max(64).optional(),
+  tenantId: z.string().trim().max(64).optional(),
+  orgId: z.string().trim().max(64).optional(),
+  branchId: z.string().trim().max(64).optional(),
 });
 
 export const shiftOpenSchema = z.object({
   terminalId: z.string().trim().min(1).max(32),
   openingCash: z.number().min(0).max(1_000_000).optional(),
+  tenantId: z.string().trim().max(64).optional(),
+  branchId: z.string().trim().max(64).optional(),
 });
 
-export default { validate, loginSchema, registerSchema, productSchema, invoiceSchema, shiftOpenSchema };
+export default { validate, loginSchema, registerSchema, productSchema, productPatchSchema, invoiceSchema, shiftOpenSchema };

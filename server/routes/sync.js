@@ -4,17 +4,26 @@ import { syncCounter } from '../middleware/metrics.js';
 
 const router = Router();
 
-// GET /api/sync/pull — checkpoint-based pull for ERP
+// GET /api/sync/pull — checkpoint-based pull for ERP (?entity=PRODUCT|STOCK|INVOICE…)
 router.get('/pull', (req, res) => {
   const checkpoint = Math.max(parseInt(req.query.checkpoint, 10) || 0, 0);
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 500, 1), 2000);
-  const rows = db.prepare('SELECT * FROM sync_log WHERE id>? AND status=? ORDER BY id ASC LIMIT ?').all(checkpoint, 'PENDING', limit);
+  const entity = req.query.entity ? String(req.query.entity).toUpperCase().slice(0, 32) : '';
+  if (entity && !/^[A-Z_]{2,32}$/.test(entity)) return res.status(400).json({ error: 'نوع كيان غير صالح' });
+  const params = [checkpoint, 'PENDING'];
+  let sql = 'SELECT * FROM sync_log WHERE id>? AND status=?';
+  if (entity) { sql += ' AND entity_type=?'; params.push(entity); }
+  sql += ' ORDER BY id ASC LIMIT ?';
+  params.push(limit);
+  const rows = db.prepare(sql).all(...params);
   const newCheckpoint = rows.length ? rows[rows.length - 1].id : checkpoint;
-  return res.json({ changes: rows, checkpoint: newCheckpoint, hasMore: rows.length === limit });
+  return res.json({ changes: rows, checkpoint: newCheckpoint, hasMore: rows.length === limit, entity: entity || null });
 });
 
 // POST /api/sync/push — bounded batch, per-item isolation (one bad row ≠ failed batch)
+// ADMIN/MANAGER only — cashiers pull, never push authoritative catalog/stock.
 router.post('/push', (req, res) => {
+  if (!['ADMIN', 'MANAGER'].includes(req.user?.role)) return res.status(403).json({ error: 'صلاحية غير كافية — الدفع للإدارة فقط' });
   const { changes = [] } = req.body || {};
   if (!Array.isArray(changes)) return res.status(400).json({ error: 'changes يجب أن تكون مصفوفة' });
   if (changes.length > 1000) return res.status(400).json({ error: 'الدفعة تتجاوز 1000 عنصر' });
@@ -37,6 +46,9 @@ router.post('/push', (req, res) => {
             .run(String(s.productId).slice(0, 64), String(s.warehouseId).slice(0, 32), Number(s.qty) || 0);
         } else if (ch.id == null) {
           throw new Error('معرف المزامنة مفقود');
+        } else {
+          // Unknown entity/action: fail closed — never silently mark SYNCED (prevents data loss).
+          throw new Error(`نوع مزامنة غير مدعوم: ${String(ch.entity_type || '?').slice(0, 32)}/${String(ch.action || '?').slice(0, 32)}`);
         }
         if (ch.id != null) {
           db.prepare("UPDATE sync_log SET status='SYNCED',synced_at=datetime('now') WHERE id=?").run(ch.id);

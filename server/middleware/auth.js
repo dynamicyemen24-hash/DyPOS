@@ -46,10 +46,22 @@ function tokenHash(token) {
   return crypto.createHash('sha256').update(String(token)).digest('hex');
 }
 
+export { tokenHash };
+
+export function revokeAllSessions(userId, exceptToken = null) {
+  try {
+    if (exceptToken) {
+      db.prepare(`UPDATE user_sessions SET revoked=1 WHERE user_id=? AND token_hash!=?`).run(userId, tokenHash(exceptToken));
+    } else {
+      db.prepare(`UPDATE user_sessions SET revoked=1 WHERE user_id=?`).run(userId);
+    }
+  } catch { /* ignore */ }
+}
+
 export function generateToken(user) {
   const jti = uuid();
   const token = jwt.sign(
-    { id: user.id, username: user.username, role: user.role, fullName: user.full_name, jti },
+    { id: user.id, username: user.username, role: user.role, fullName: user.full_name, tenantId: user.tenant_id || null, jti },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES },
   );
@@ -88,8 +100,42 @@ function extractToken(req) {
   return null;
 }
 
+/** Machine credential: X-API-Key (ERP/WMS/BI integrations, see GET /api/admin/api-keys). */
+export function hashApiKey(raw) {
+  return crypto.createHash('sha256').update(String(raw)).digest('hex');
+}
+
+function resolveApiKey(req) {
+  const raw = String(req.headers['x-api-key'] || '').trim();
+  if (!raw || raw.length > 128) return null;
+  let row = null;
+  try {
+    row = db.prepare('SELECT * FROM api_keys WHERE key_hash=?').get(hashApiKey(raw));
+  } catch {
+    return null; // pre-v10 DBs: no api_keys table yet
+  }
+  if (!row || Number(row.revoked) === 1) return null;
+  if (row.expires_at && new Date(row.expires_at).getTime() <= Date.now()) return null;
+  // Throttled last-used stamp (hourly) — avoids a write per read at scale.
+  try {
+    db.prepare(`UPDATE api_keys SET last_used_at=datetime('now') WHERE id=? AND (last_used_at IS NULL OR last_used_at < datetime('now','-1 hour'))`).run(row.id);
+  } catch { /* ignore */ }
+  return row;
+}
+
 /** Express middleware — attaches req.user + enforces revocation */
 export function authMiddleware(req, res, next) {
+  // Machine keys first (no JWT parsing cost for ERP traffic).
+  const apiRow = resolveApiKey(req);
+  if (apiRow) {
+    req.user = {
+      id: `key:${apiRow.id}`, username: `apikey:${apiRow.name}`, role: apiRow.role,
+      tenantId: apiRow.tenant_id || null, apiKeyId: apiRow.id, isApiKey: true,
+    };
+    req.token = null;
+    req.apiKey = apiRow;
+    return next();
+  }
   const token = extractToken(req);
   if (!token) {
     return res.status(401).json({ error: 'غير مصرح — تسجيل الدخول مطلوب' });
@@ -123,4 +169,4 @@ export function requireRole(...roles) {
 
 export { extractToken };
 
-export default { hashPassword, hashPasswordAsync, verifyPassword, verifyPasswordAsync, generateToken, revokeToken, verifyToken, authMiddleware, requireRole };
+export default { hashPassword, hashPasswordAsync, verifyPassword, verifyPasswordAsync, generateToken, revokeToken, revokeAllSessions, tokenHash, hashApiKey, verifyToken, authMiddleware, requireRole };

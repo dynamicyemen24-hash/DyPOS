@@ -39,6 +39,7 @@ CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
 CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
 CREATE INDEX IF NOT EXISTS idx_products_active_cat ON products(is_active, category);
 CREATE INDEX IF NOT EXISTS idx_products_code ON products(code);
+CREATE INDEX IF NOT EXISTS idx_products_name_active ON products(is_active, name);
 
 CREATE TABLE IF NOT EXISTS customers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -272,3 +273,203 @@ ALTER TABLE invoices ADD COLUMN IF NOT EXISTS voided_at timestamptz;
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS voided_by TEXT;
 CREATE INDEX IF NOT EXISTS idx_customers_active ON customers(is_active);
 INSERT INTO schema_version (version, description) VALUES (5, 'Customers is_active + void') ON CONFLICT DO NOTHING;
+
+-- ── v6: tamper-evident invoice chain + audit + zatca_settings (parity with SQLite) ──
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS chain_hash TEXT;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS chain_prev TEXT;
+CREATE TABLE IF NOT EXISTS invoice_audit (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+  prev_hash TEXT NOT NULL DEFAULT 'GENESIS',
+  hash TEXT NOT NULL,
+  action TEXT NOT NULL DEFAULT 'CREATE',
+  total NUMERIC(12,2) NOT NULL DEFAULT 0,
+  number TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_audit_invoice ON invoice_audit(invoice_id, id);
+CREATE TABLE IF NOT EXISTS zatca_settings (
+  id TEXT PRIMARY KEY,
+  seller_name TEXT NOT NULL DEFAULT '',
+  vat_number TEXT NOT NULL DEFAULT '',
+  cr_number TEXT NOT NULL DEFAULT '',
+  branch_id TEXT NOT NULL DEFAULT '1',
+  phase TEXT NOT NULL DEFAULT 'simulation',
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+INSERT INTO zatca_settings (id) VALUES ('default') ON CONFLICT DO NOTHING;
+CREATE INDEX IF NOT EXISTS idx_invoices_chain ON invoices(chain_hash);
+INSERT INTO schema_version (version, description) VALUES (6, 'Invoice hash chain + audit + zatca_settings') ON CONFLICT DO NOTHING;
+
+-- ── v7: wallet ledger (parity with SQLite) ──
+CREATE TABLE IF NOT EXISTS wallet_transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  amount NUMERIC(12,2) NOT NULL,
+  direction TEXT NOT NULL DEFAULT 'credit',
+  balance_after NUMERIC(12,2) NOT NULL DEFAULT 0,
+  reference_type TEXT NOT NULL DEFAULT 'MANUAL',
+  reference_id TEXT NOT NULL DEFAULT '',
+  note TEXT NOT NULL DEFAULT '',
+  created_by TEXT NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_wallet_customer ON wallet_transactions(customer_id, created_at DESC);
+INSERT INTO schema_version (version, description) VALUES (7, 'Wallet ledger + backfill') ON CONFLICT DO NOTHING;
+
+-- ── v8: multi-tenancy + control fields + audit_trail (parity with SQLite) ──
+CREATE TABLE IF NOT EXISTS tenants (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  code TEXT UNIQUE,
+  plan TEXT NOT NULL DEFAULT 'standard',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS organizations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  code TEXT,
+  vat_number TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_orgs_tenant ON organizations(tenant_id);
+CREATE TABLE IF NOT EXISTS branches (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  tenant_id UUID NOT NULL,
+  name TEXT NOT NULL,
+  code TEXT,
+  warehouse_id TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_branches_org ON branches(org_id);
+CREATE INDEX IF NOT EXISTS idx_branches_tenant ON branches(tenant_id);
+CREATE TABLE IF NOT EXISTS audit_trail (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT '',
+  entity_type TEXT NOT NULL,
+  entity_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  before_json TEXT NOT NULL DEFAULT '{}',
+  after_json TEXT NOT NULL DEFAULT '{}',
+  user_id UUID,
+  username TEXT,
+  ip TEXT,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_trail_entity ON audit_trail(entity_type, entity_id, id);
+CREATE INDEX IF NOT EXISTS idx_trail_tenant ON audit_trail(tenant_id, created_at DESC);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS tenant_id UUID;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS created_by TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS updated_by TEXT;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS tenant_id UUID;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS created_by TEXT;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS updated_by TEXT;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS tenant_id UUID;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS branch_id UUID;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS created_by TEXT;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS updated_by TEXT;
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS tenant_id UUID;
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS branch_id UUID;
+ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS tenant_id UUID;
+ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS branch_id UUID;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id UUID;
+CREATE INDEX IF NOT EXISTS idx_products_tenant ON products(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_customers_tenant ON customers(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_tenant ON invoices(tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_shifts_tenant ON shifts(tenant_id, status);
+INSERT INTO schema_version (version, description) VALUES (8, 'Tenancy hierarchy + scoping + control fields + audit_trail') ON CONFLICT DO NOTHING;
+
+-- ── v9: master data — currencies + UoMs + seeds (parity with SQLite) ──
+CREATE TABLE IF NOT EXISTS currencies (
+  code TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  name_ar TEXT NOT NULL DEFAULT '',
+  symbol TEXT NOT NULL DEFAULT '',
+  decimals INTEGER NOT NULL DEFAULT 2,
+  rate_to_base NUMERIC(14,5) NOT NULL DEFAULT 1,
+  is_base BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS uoms (
+  code TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  name_ar TEXT NOT NULL DEFAULT '',
+  category TEXT NOT NULL DEFAULT 'count',
+  factor_to_base NUMERIC(14,5) NOT NULL DEFAULT 1,
+  is_base BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+INSERT INTO currencies (code,name,name_ar,symbol,decimals,rate_to_base,is_base) VALUES
+  ('SAR','Saudi Riyal','ريال سعودي','ر.س',2,1,TRUE),
+  ('USD','US Dollar','دولار أمريكي','$',2,0.26667,FALSE),
+  ('EUR','Euro','يورو','€',2,0.24510,FALSE),
+  ('AED','UAE Dirham','درهم إماراتي','د.إ',2,0.97933,FALSE),
+  ('KWD','Kuwaiti Dinar','دينار كويتي','د.ك',3,0.08170,FALSE),
+  ('BHD','Bahraini Dinar','دينار بحريني','د.ب',3,0.10040,FALSE),
+  ('QAR','Qatari Riyal','ريال قطري','ر.ق',2,0.97087,FALSE),
+  ('EGP','Egyptian Pound','جنيه مصري','ج.م',2,12.80000,FALSE)
+ON CONFLICT DO NOTHING;
+INSERT INTO uoms (code,name,name_ar,category,factor_to_base,is_base) VALUES
+  ('Unit','Unit','قطعة','count',1,TRUE),
+  ('PCS','Pieces','قطع','count',1,FALSE),
+  ('DOZEN','Dozen','درزن','count',12,FALSE),
+  ('BOX','Box','كرتون','count',12,FALSE),
+  ('G','Gram','جرام','weight',1,TRUE),
+  ('KG','Kilogram','كيلوجرام','weight',1000,FALSE),
+  ('TON','Ton','طن','weight',1000000,FALSE),
+  ('ML','Milliliter','ملليلتر','volume',1,TRUE),
+  ('L','Liter','لتر','volume',1000,FALSE),
+  ('M','Meter','متر','length',1000,FALSE),
+  ('CM','Centimeter','سنتيمتر','length',10,FALSE),
+  ('MM','Millimeter','ملليمتر','length',1,TRUE)
+ON CONFLICT DO NOTHING;
+INSERT INTO schema_version (version, description) VALUES (9, 'Currencies + UoMs + seeds') ON CONFLICT DO NOTHING;
+
+-- ── v10: machine integration + auth recovery + pay idempotency (parity with SQLite) ──
+CREATE TABLE IF NOT EXISTS api_keys (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  key_prefix TEXT NOT NULL,
+  key_hash TEXT NOT NULL UNIQUE,
+  role TEXT NOT NULL DEFAULT 'AUDITOR',
+  scopes TEXT NOT NULL DEFAULT '[]',
+  tenant_id UUID,
+  expires_at timestamptz,
+  last_used_at timestamptz,
+  revoked BOOLEAN NOT NULL DEFAULT FALSE,
+  created_by TEXT,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_apikeys_hash ON api_keys(key_hash);
+CREATE TABLE IF NOT EXISTS password_resets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at timestamptz NOT NULL,
+  used BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_resets_token ON password_resets(token_hash);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_idem ON payments(idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
+INSERT INTO schema_version (version, description) VALUES (10, 'API keys + password resets + payment idempotency') ON CONFLICT DO NOTHING;
+
+-- ── v11: billions-scale reads (parity with SQLite) ──
+-- Postgres FTS path (SQLite uses the products_fts FTS5 table instead):
+--   ALTER TABLE products ADD COLUMN IF NOT EXISTS search_vector tsvector;
+--   CREATE INDEX IF NOT EXISTS idx_products_fts ON products USING GIN (search_vector);
+-- (Left as a documented snippet: backfilling tsvector needs a data migration
+--  window on large tables, tracked work — not run blindly here.)
+CREATE INDEX IF NOT EXISTS idx_stock_qty ON stock_levels(qty);
+INSERT INTO schema_version (version, description) VALUES (11, 'FTS5 catalog + low-stock index') ON CONFLICT DO NOTHING;
