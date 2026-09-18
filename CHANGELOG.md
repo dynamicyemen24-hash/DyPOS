@@ -7,6 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.23.0] - 2026-09-18 — Enterprise hardening (multi-tenant + brute-force guard + a11y + new routes)
+
+### Added — Multi-Tenant Scoping
+- All read/write routes (customers, products, shifts, stock, invoices) now respect `X-Tenant-Id` / `X-Org-Id` headers via `lib/tenant.js`.
+- New routes: `tenants`, `masters`, `offers`, `fiscal`, `reports`, `settings`, `device`, `openapi`.
+- `POST /api/admin/trail` — audit trail with before/after snapshots + IP + user.
+
+### Added — Security Hardening
+- **Brute-force lockout**: 8 failed logins in 15min → 429 for 15min. Cache-backed (Redis when available, local Map fallback). (`routes/auth.js`)
+- `POST /auth/logout-all` + `revokeAllSessions` on password change.
+- Auth attempt metrics: `dypos_auth_attempts_total{ok,fail,locked}`.
+- Admin dashboard endpoint (`GET /admin` — `server/public/admin.html`).
+
+### Added — Product Catalog
+- FTS5 search with sanitization (`toFtsQuery` — prefix-match, quote-neutral).
+- Read-through cache (5s) absorbs catalog browse storms.
+- Sort (`name`/`price`/`created`) + `?count=false` + `total`/`hasMore` in all list responses.
+- `?includeInactive` for ADMIN/MANAGER.
+
+### Added — Frontend Accessibility (a11y)
+- Skip link for keyboard users (bypass header/nav to `#dypos-main`).
+- SPA focus reset on route change (screen-reader users land on new page).
+- Global shell error boundary (`onErrorCaptured`) with dismiss/retry.
+
+### Added — Device Adaptation
+- `initDeviceAdaptation()` in `main.js` — classifies phone/tablet/desktop, warns on low-spec/save-data.
+
+### Added — Webhook Hardening
+- Async retry with payload signing + dedup.
+- `lib/jobs.js` — background export jobs up to 100k rows.
+
+### Added — Backend Libraries
+- `lib/async.js` (`ah()`) — wraps all 23 handlers (Express 4 swallows promise rejections).
+- `lib/cache.js` — LRU + TTL + SWR + optional Redis.
+- `lib/loyalty.js` — earn/redeem/tier with tier auto-upgrade.
+- `lib/money.js` — halala-precise rounding (half-up).
+- `lib/dates.js` — indexable date helpers.
+- `lib/trail.js` — audit trail records.
+- `lib/fx.js` — currency conversion + UOM assertions.
+- `lib/settings.js` — business settings resolver.
+- `lib/chain.js` — invoice hash chain (ZATCA-ready).
+- `lib/device.js` — UA classification + perf hints.
+- `lib/rate-store.js` — shared rate limiter.
+
+### Added — Postgres Parity
+- `server/db/schema-postgres.sql` — full schema with tsvector + FTS indexes.
+
+### Added — Tests (17 new files)
+- `device`, `dispatcher-lease`, `finance-core`, `ops`, `stock-guard-strict`, `version`, `scale1`–`scale9`.
+
+### Added — Infrastructure
+- `scripts/doctor.mjs` — preflight checks (Node, migrations, disk, cluster).
+- `scripts/check-pg-parity.mjs` — verify SQLite ↔ Postgres schema.
+- `docs/SCALING_MILLIONS.md` — architecture guide for millions of terminals.
+
+### Changed
+- Version bumps: server `1.23.0`, frontend `2.3.0`, root `1.23.0`, Docker `1.23.0`.
+
+### Verified (2026-09-18)
+- `npm test`: **server 163/163** — 0 failures.
+- Frontend production build: clean (73 entries, 4295 KB).
+
 ## [1.22.0] - 2026-09-18 — Arabic Smart User Edition (debt settlement + operational hardening)
 
 ### Fixed — Technical Debt
