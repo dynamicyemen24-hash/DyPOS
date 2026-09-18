@@ -12,6 +12,17 @@ import { fileURLToPath } from 'node:url';
 import { existsSync, readFileSync, renameSync, unlinkSync, mkdirSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 
+// ── Env file first (debt fix) ──
+// Static `import`s hoist above dotenv.config() in server.js, so top-level
+// reads (NODE_ENV, DYPOS_JWT_SECRET, DYPOS_DB_PATH) previously ignored
+// server/.env entirely. loadEnvFile() here runs before every
+// process.env read below and before the dynamic server.js import.
+try {
+  process.loadEnvFile(join(dirname(fileURLToPath(import.meta.url)), '.env'));
+} catch {
+  // No .env — environment variables / defaults apply. Never fatal.
+}
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.DYPOS_DB_PATH && process.env.DYPOS_DB_PATH !== ':memory:'
   ? dirname(process.env.DYPOS_DB_PATH)

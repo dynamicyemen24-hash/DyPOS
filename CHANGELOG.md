@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.24.1] - 2026-09-18 — Production env fix (third-party audit patch)
+
+### Fixed — Critical boot debt (found by external audit)
+- **`server/.env` was silently ignored**: static `import` hoisting runs
+  before `dotenv.config()` in `server.js`, so top-level reads
+  (`NODE_ENV`, `DYPOS_JWT_SECRET`, `DYPOS_DB_PATH`) never saw the env
+  file. `entrypoint.js` now calls `process.loadEnvFile()` before every
+  `process.env` read and before the dynamic `server.js` import.
+- **Backend now runs `NODE_ENV=production`**: masked error responses
+  (no stack leaks), localhost CORS origins removed, production rate
+  limits + startup guards active. Strong 96-char JWT secret generated
+  into gitignored `server/.env` (existing tokens invalidated once —
+  users re-login).
+- **Fresh backup + restore drill**: `dypos-2026-09-18T18-32-33.db`
+  (512KB, integrity ok, schema v15).
+
+### Verified
+- `npm test`: **163/163** — frontend vitest: **354/354** —
+  `doctor.mjs`: all ok — CORS whitelist enforced (evil origin blocked,
+  prod origin allowed) — `/api/health` reports `env=production`.
+
 ## [1.24.0] - 2026-09-18 — UX polish + resilience + interaction speed (final operational release)
 
 ### Fixed — Resilience
