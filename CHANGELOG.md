@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.25.1] - 2026-09-18 — Device heartbeat + DB audit
+
+### Added
+- `POST /api/devices/:id/heartbeat` (any role): refreshes `last_sync`,
+  optionally reports `appVersion`; revoked devices get 423 with the
+  record so a cut-off terminal shows why sync stopped. Unknown id → 404.
+
+### Verified — Database level
+- Live DB `integrity_check=ok`, schema v16, index inventory reviewed:
+  invoices/products/payments/customers/shifts/stock fully covered
+  (tenant/status/idempotency/chain) — no new index justified (writes
+  pay per index).
+
+### Tests
+- `npm test`: **171/171** (1 new heartbeat test). One full run showed
+  a single flaky failure in scale9 (timing-sensitive lockout test);
+  scale9 alone 5/5 and full rerun 171/171 green — recorded, not code.
+
 ## [1.25.0] - 2026-09-18 — Gap closure (sync isolation + devices + parity green)
 
 ### Added — Device registry (schema v16)

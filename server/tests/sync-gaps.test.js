@@ -126,4 +126,22 @@ describe('Device registry (v16)', () => {
     const r = await req('POST', '/api/devices/register', { deviceId: 'bad id!!' }, admin);
     assert.strictEqual(r.status, 400);
   });
+
+  it('heartbeat refreshes last_sync; revoked heartbeat is 423', async () => {
+    const devId = 'POS-T3-' + Date.now();
+    const reg = await req('POST', '/api/devices/register', { deviceId: devId, platform: 'android', appVersion: '2.4.0' }, cashier);
+    assert.strictEqual(reg.status, 201);
+    const id = reg.body.device.id;
+    const before = reg.body.device.lastSync;
+    await new Promise((r) => setTimeout(r, 1100));
+    const hb = await req('POST', `/api/devices/${id}/heartbeat`, { appVersion: '2.4.1' }, cashier);
+    assert.strictEqual(hb.status, 200);
+    assert.strictEqual(hb.body.device.appVersion, '2.4.1');
+    assert.ok(hb.body.device.lastSync >= before, 'last_sync advances');
+    await req('POST', `/api/devices/${id}/revoke`, {}, admin);
+    const dead = await req('POST', `/api/devices/${id}/heartbeat`, {}, cashier);
+    assert.strictEqual(dead.status, 423);
+    const missing = await req('POST', '/api/devices/no-such-id/heartbeat', {}, cashier);
+    assert.strictEqual(missing.status, 404);
+  });
 });

@@ -65,6 +65,24 @@ router.get('/', (req, res) => {
   return res.json({ devices: rows.map(sanitize), total: rows.length });
 });
 
+// POST /api/devices/:id/heartbeat — terminal reports in (any role).
+// Updates last_sync (+ app_version when the client upgraded itself).
+// Revoked devices get 423 so a cut-off terminal visibly knows why sync stopped.
+router.post('/:id/heartbeat', (req, res) => {
+  const row = db.prepare('SELECT * FROM devices WHERE id=?').get(String(req.params.id).slice(0, 64));
+  if (!row) return res.status(404).json({ error: 'الجهاز غير موجود' });
+  if (String(row.status) === 'REVOKED') {
+    return res.status(423).json({ error: 'الجهاز موقف — تواصل مع الإدارة', device: sanitize(row) });
+  }
+  const b = req.body || {};
+  const appVersion = clean(b.appVersion, 32);
+  db.prepare(`UPDATE devices SET last_sync=datetime('now'),
+    app_version=CASE WHEN ?<>'' THEN ? ELSE app_version END,
+    updated_at=datetime('now') WHERE id=?`)
+    .run(appVersion, appVersion || null, row.id);
+  return res.json({ device: sanitize(db.prepare('SELECT * FROM devices WHERE id=?').get(row.id)) });
+});
+
 // POST /api/devices/:id/revive — ADMIN/MANAGER re-activates a revoked device.
 router.post('/:id/revive', (req, res) => {
   if (!['ADMIN', 'MANAGER'].includes(req.user?.role)) return res.status(403).json({ error: 'صلاحية غير كافية' });
