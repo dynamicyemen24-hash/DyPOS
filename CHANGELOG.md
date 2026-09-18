@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.24.0] - 2026-09-18 — UX polish + resilience + interaction speed (final operational release)
+
+### Fixed — Resilience
+- **`LoadingSpinner` hardening** (`POS/src/components/common/LoadingSpinner.vue`):
+  explicit `__` import (was window-global dependent), `role="status"` +
+  polite live region, static ring under `prefers-reduced-motion`.
+- Verified shell safety net covers sale → pay → close without cart loss
+  (dismiss clears banner, transaction state preserved).
+
+### Verified — End-User Journey (login → last screen)
+- Login: autofocus (email or password when remembered), Enter/Escape
+  handling, show/hide password, `autocomplete` + `inputmode`, disabled
+  states while submitting, CSRF + offline-runtime readiness gates.
+- POS → checkout → reports: lazy routes, toast queue (4s, FIFO, no
+  stacking), global error banner, PWA update banner, screen-reader
+  announcements, SPA focus reset, skip link.
+
+### Verified — Interaction Speed (measured 2026-09-18, warm)
+- `GET /api/ready`: ~18ms | `GET /api/health`: ~18ms |
+  `GET /api/openapi.json`: ~37ms.
+- Frontend bundle: JS 35 files / 1451KB, CSS 9 files / 352KB, precache
+  73 entries; heaviest chunks route-split (frappe 281KB, charts 191KB
+  dashboard-only, print 118KB on demand).
+- Note: `localhost` hostname resolution on this host adds seconds vs
+  `127.0.0.1` (OS-level IPv6 fallback) — production uses relative URLs
+  + domain, unaffected.
+
+### Design System Quality
+- RTL-first (logical properties, `border-s-4`, start/end), Arabic
+  default, theme tokens, density modes, reduced-motion respected across
+  shell/toast/spinner/gradients, content-visibility virtualized rows.
+
+### Docs — Encryption deferred (advanced, next release, per customer)
+- New `docs/ENCRYPTION_ADVANCED.md`: AES-GCM opt-in plan with
+  performance acceptance gate (invoice p95 +50ms, search +1 frame,
+  boot +300ms). v1.24.0 ships unencrypted for maximum speed on
+  low-end POS hardware.
+
+### Changed
+- Version bumps: server `1.24.0`, frontend `2.4.0`, root `1.24.0`,
+  Docker `1.24.0`.
+
 ## [1.23.0] - 2026-09-18 — Enterprise hardening (multi-tenant + brute-force guard + a11y + new routes)
 
 ### Added — Multi-Tenant Scoping
