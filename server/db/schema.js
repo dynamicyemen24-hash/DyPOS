@@ -14,7 +14,7 @@ import { mkdirSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DYPOS_DB_PATH || join(__dirname, '..', 'data', 'dypos.db');
-const MIGRATION_VERSION = 16; // Increment when schema changes
+const MIGRATION_VERSION = 17; // Increment when schema changes
 
 function columnExists(table, column) {
 	try {
@@ -823,6 +823,32 @@ export function migrate() {
       CREATE INDEX IF NOT EXISTS idx_devices_device ON devices(device_id);`);
     db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
       .run(16, 'sync tenant isolation + push idempotency + device registry');
+  }
+
+  // ── v17: alert notifications inbox (Alertmanager → backend) ──
+  // Firing alerts must reach humans with full context, not vanish into a
+  // monitoring sidecar nobody watches. Alertmanager POSTs here; the admin
+  // console / auditors read via GET /api/admin/alerts. Resolved alerts
+  // close the row instead of deleting it (forensic trail preserved).
+  if (currentVersion < 17) {
+    db.exec(`CREATE TABLE IF NOT EXISTS alert_notifications (
+        id TEXT PRIMARY KEY,
+        fingerprint TEXT NOT NULL,
+        alertname TEXT NOT NULL,
+        severity TEXT NOT NULL DEFAULT 'warning',
+        status TEXT NOT NULL DEFAULT 'firing',
+        summary TEXT NOT NULL DEFAULT '',
+        description TEXT NOT NULL DEFAULT '',
+        starts_at TEXT,
+        ends_at TEXT,
+        resolved_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_alerts_status ON alert_notifications(status, severity, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_alerts_fingerprint ON alert_notifications(fingerprint);`);
+    db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+      .run(17, 'alert notifications inbox');
   }
 
   console.log('[DyPOS] Database migrated (v' + MIGRATION_VERSION + ')');

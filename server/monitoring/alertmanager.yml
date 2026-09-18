@@ -1,0 +1,50 @@
+# DyPOS Alertmanager — delivers Prometheus alerts to humans (webhook).
+# Without this, alerts.yml rules fire into the void: alerts exist but
+# nobody is notified. Point the webhook at Slack/Teams/Opsgenie or the
+# bundled dypos-alertsink sidecar (logs + optional SMS gateway hook).
+#
+# Run: docker compose --profile monitoring up -d prometheus alertmanager
+# Replace the webhook_url before production use. Severity routing:
+#   critical → paging receiver (immediate, repeat 5m)
+#   warning/info → team receiver (grouped 5m, repeat 1h)
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: team-webhook
+  group_by: [alertname, severity]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 1h
+  routes:
+    - matchers: [severity = critical]
+      receiver: paging-webhook
+      group_wait: 10s
+      repeat_interval: 5m
+      continue: true
+
+# Delivery target: the DyPOS backend itself (no extra sidecar to operate).
+# The hook authenticates via X-Alert-Token: DYPOS_ALERT_TOKEN — set the SAME
+# value in the backend environment and here (compose: DYPOS_ALERT_TOKEN).
+receivers:
+  - name: team-webhook
+    webhook_configs:
+      - url: http://dypos-server:3001/api/admin/alerts/hook
+        http_config:
+          headers:
+            X-Alert-Token: ${DYPOS_ALERT_TOKEN:?Set DYPOS_ALERT_TOKEN}
+        send_resolved: true
+        max_alerts: 20
+  - name: paging-webhook
+    webhook_configs:
+      - url: http://dypos-server:3001/api/admin/alerts/hook
+        http_config:
+          headers:
+            X-Alert-Token: ${DYPOS_ALERT_TOKEN:?Set DYPOS_ALERT_TOKEN}
+        send_resolved: true
+        max_alerts: 20
+
+inhibit_rules:
+  - source_matchers: [severity = critical]
+    target_matchers: [severity = warning]
+    equal: [alertname]

@@ -1,6 +1,6 @@
 {
   "name": "dypos-server",
-  "version": "1.25.1",
+  "version": "1.25.2",
   "description": "DyPOS SaaS backend - REST API + JWT Auth + SQLite (node:sqlite, zero native deps)",
   "main": "server.js",
   "type": "module",
@@ -8,7 +8,8 @@
     "node": ">=22.5.0"
   },
   "scripts": {
-    "start": "node server.js",
+    "start": "node entrypoint.js",
+    "supervise": "node scripts/watchdog.mjs",
     "dev": "node --watch server.js",
     "test": "node --test --import ./tests/setup.js \"tests/**/*.test.js\"",
     "test:stock-strict": "node --test --import ./tests/setup-strict.js --import ./tests/setup.js tests/stock-guard-strict.test.js",

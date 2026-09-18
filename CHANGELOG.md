@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.25.2] - 2026-09-18 — Self-healing + alerting backbone
+
+### Added — Self-healing watchdog
+- `scripts/watchdog.mjs` (zero-dep): owns ONE backend child, probes
+  `/api/ready` every 10s, restarts after 3 failures with exp backoff
+  (1s → 60s cap), attaches safely if port already owned, recovers from
+  silent OOM/kill without human intervention. Exposed as `npm run
+  supervise`; run via Task Scheduler / NSSM / pm2 / docker --restart.
+
+### Added — Alerting delivery (Alertmanager → backend inbox)
+- Migration v17: `alert_notifications` table + indexes.
+- `POST /api/admin/alerts/hook` (shared-secret, constant-time verify):
+  Alertmanager delivers here; deduplicates by fingerprint; firing→resolved
+  lifecycle tracked; resolved rows preserved for forensics.
+- `GET /api/admin/alerts` (ADMIN): filtered inbox with status/severity.
+- `docker-compose.yml` + `monitoring/alertmanager.yml`: production-ready
+  routing (critical → paging, warning → team), delivered to the same
+  backend via `X-Alert-Token` (no sidecar to operate).
+- `DYPOS_ALERT_TOKEN` env required on both sides — fail-closed 503 if unset.
+
+### Enhanced — Client update delivery
+- `main.js` watchdog: existing 15-min poll + **reconnect check** (online
+  event → check `version.json` within 5s) guarantees stale terminals
+  learn about new deployments within seconds of reconnect.
+
+### Verified
+- DB: integrity ok, schema v17, indexes reviewed (no change needed).
+- Tests: **171/171** (8 new heartbeat + alert tests).
+
 ## [1.25.1] - 2026-09-18 — Device heartbeat + DB audit
 
 ### Added

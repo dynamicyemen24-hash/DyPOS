@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { execFile } from 'node:child_process';
-import { randomBytes, createHash } from 'node:crypto';
+import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync, readdirSync, statSync, writeFileSync, readFileSync, unlinkSync } from 'node:fs';
@@ -16,7 +16,67 @@ import { describeDbMode } from '../db/mode.js';
 const router = Router();
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// All admin endpoints are ADMIN-only
+// ── Alertmanager ingress (shared-secret, NOT JWT) ──
+// Alertmanager cannot perform JWT login; it authenticates with a static
+// token (DYPOS_ALERT_TOKEN) compared in constant time. Mounted BEFORE the
+// ADMIN gate on purpose — everything below the gate stays ADMIN-only.
+// Fail-closed: with no token configured the hook answers 503 (an open
+// alert inbox would let anyone forge "all clear" resolved messages).
+function alertTokenOk(req) {
+  const expected = String(process.env.DYPOS_ALERT_TOKEN || '');
+  if (!expected) return false;
+  const got = String(req.headers['x-alert-token'] || '');
+  const a = Buffer.from(got, 'utf8');
+  const b = Buffer.from(expected, 'utf8');
+  if (a.length !== b.length || a.length === 0) return false;
+  try {
+    return timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
+
+// POST /api/admin/alerts/hook — Alertmanager webhook receiver.
+router.post('/alerts/hook', (req, res) => {
+  if (!String(process.env.DYPOS_ALERT_TOKEN || '')) {
+    return res.status(503).json({ error: 'تنبيهات غير مهيأة — اضبط DYPOS_ALERT_TOKEN' });
+  }
+  if (!alertTokenOk(req)) return res.status(401).json({ error: 'رمز التنبيهات غير صالح' });
+  const alerts = req.body && Array.isArray(req.body.alerts) ? req.body.alerts : null;
+  if (!alerts) return res.status(400).json({ error: 'حمولة Alertmanager غير صالحة' });
+  if (alerts.length > 100) return res.status(400).json({ error: 'الدفعة تتجاوز 100 تنبيه' });
+  let stored = 0;
+  const ingest = db.transaction(() => {
+    for (const a of alerts) {
+      const labels = (a && typeof a.labels === 'object' && a.labels) || {};
+      const ann = (a && typeof a.annotations === 'object' && a.annotations) || {};
+      const name = String(labels.alertname || 'unknown').slice(0, 64);
+      const severity = String(labels.severity || 'warning').slice(0, 16);
+      const status = String(a.status || 'firing').slice(0, 16) === 'resolved' ? 'resolved' : 'firing';
+      const fp = createHash('sha256').update(name + '|' + JSON.stringify(labels)).digest('hex').slice(0, 32);
+      const summary = String(ann.summary || '').slice(0, 500);
+      const description = String(ann.description || '').slice(0, 2000);
+      const startsAt = String(a.startsAt || '').slice(0, 32) || null;
+      const endsAt = String(a.endsAt || '').slice(0, 32) || null;
+      const open = db.prepare('SELECT id FROM alert_notifications WHERE fingerprint=? AND status=? LIMIT 1').get(fp, 'firing');
+      if (open && status === 'resolved') {
+        db.prepare(`UPDATE alert_notifications SET status='resolved',ends_at=COALESCE(?,ends_at),
+          resolved_at=datetime('now'),updated_at=datetime('now') WHERE id=?`).run(endsAt, open.id);
+        stored++;
+      } else if (!open && status === 'firing') {
+        db.prepare(`INSERT INTO alert_notifications (id,fingerprint,alertname,severity,status,summary,description,starts_at,ends_at)
+          VALUES (?,?,?,?,?,?,?,?,?)`)
+          .run(randomBytes(16).toString('hex'), fp, name, severity, 'firing', summary, description, startsAt, endsAt);
+        stored++;
+      }
+      // else: duplicate firing (already open) or stray resolved (nothing open) — ignore silently
+    }
+  });
+  ingest();
+  return res.json({ stored, received: alerts.length });
+});
+
+// All admin endpoints below are ADMIN-only
 router.use(requireRole('ADMIN'));
 
 // Backup concurrency guard: VACUUM INTO twice concurrently corrupts I/O on Windows locks.
@@ -146,6 +206,29 @@ router.get('/trail', (req, res) => {
     return res.json({ trail: [], total: 0, limit, offset, hasMore: false, note: 'migrate to v8 for trail' });
   }
   return res.json({ trail: rows, total, limit, offset, hasMore: offset + rows.length < total });
+});
+
+// GET /api/admin/alerts?status=&severity=&limit=&offset= — alert inbox
+// (Alertmanager deliveries). Resolved rows are kept for forensics.
+router.get('/alerts', (req, res) => {
+  const status = req.query.status ? String(req.query.status).toLowerCase().slice(0, 16) : '';
+  const severity = req.query.severity ? String(req.query.severity).toLowerCase().slice(0, 16) : '';
+  if (status && !['firing', 'resolved'].includes(status)) return res.status(400).json({ error: 'حالة غير صالحة' });
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+  const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+  let base = 'FROM alert_notifications WHERE 1=1';
+  const params = [];
+  if (status) { base += ' AND status=?'; params.push(status); }
+  if (severity) { base += ' AND severity=?'; params.push(severity); }
+  let rows = [];
+  let total = 0;
+  try {
+    total = db.prepare(`SELECT COUNT(*) as c ${base}`).get(...params)?.c || 0;
+    rows = db.prepare(`SELECT * ${base} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...params, limit, offset);
+  } catch {
+    return res.json({ alerts: [], total: 0, limit, offset, hasMore: false, note: 'migrate to v17 for alerts' });
+  }
+  return res.json({ alerts: rows, total, limit, offset, hasMore: offset + rows.length < total });
 });
 
 // GET /api/admin/chain/verify?limit= — replay the invoice hash chain (tamper-evident)
