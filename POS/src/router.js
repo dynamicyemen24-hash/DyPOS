@@ -466,6 +466,17 @@ router.afterEach((to, from, failure) => {
 	 */
 	if (!failure) {
 		clearChunkRecovery()
+		/**
+		 * SPA focus reset (a11y standard): move focus to the main landmark
+		 * so screen-reader users land on the new page, not the old position.
+		 * Guarded for SSR/tests where document is unavailable.
+		 */
+		try {
+			const main = typeof document !== "undefined" ? document.getElementById("dypos-main") : null
+			if (main && typeof main.focus === "function") main.focus({ preventScroll: true })
+		} catch {
+			/* focus never breaks navigation */
+		}
 	}
 
 	if (isDev()) {

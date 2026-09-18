@@ -56,6 +56,7 @@ import {
 
 import { applyThemeEarly } from "./composables/useAppTheme"
 import { enforceDefaultArabic } from "./composables/useLocale"
+import { initDeviceAdaptation } from "./composables/useDevice"
 
 import translationPlugin from "./utils/translation"
 import { initSocket } from "./socket"
@@ -695,6 +696,23 @@ function initializePerformanceMonitoring() {
 }
 
 /* =============================================================================
+   Device adaptation (phone / tablet / desktop + perf warnings)
+   Fail-soft like performance monitoring: a throw here must never block boot.
+   ============================================================================= */
+
+function initializeDeviceAdaptation() {
+	if (!isBrowser) {
+		return
+	}
+
+	try {
+		void initDeviceAdaptation({ notify: true })
+	} catch (error) {
+		log.debug("Device adaptation unavailable", error)
+	}
+}
+
+/* =============================================================================
    Idle warm-up
    ============================================================================= */
 
@@ -926,6 +944,7 @@ async function initializeApp() {
 
 		initializeIdleWarmup()
 		initializePerformanceMonitoring()
+		initializeDeviceAdaptation()
 		initializeScheduledCSRFRefresh()
 		initPrintStyles()
 

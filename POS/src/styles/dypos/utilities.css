@@ -22,6 +22,18 @@
    ============================================================================= */
 
 /* =============================================================================
+   02. VIRTUALIZED LIST ROWS (millions-scale rendering)
+   Skips layout/paint for off-screen rows in long POS lists (invoices,
+   returns, coupons, products). Intrinsic size prevents scrollbar jumps.
+   Apply `dy-cv-row` to the v-for row element inside a scroll container.
+   Respects reduced-motion implicitly (no animation involved).
+   ============================================================================= */
+.dy-cv-row {
+	content-visibility: auto;
+	contain-intrinsic-size: auto 96px;
+}
+
+/* =============================================================================
    01. GLASS / SURFACE EFFECTS
    تأثيرات الزجاج — للاستخدام المحدود
 

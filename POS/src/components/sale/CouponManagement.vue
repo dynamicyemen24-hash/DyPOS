@@ -89,7 +89,7 @@
 						:key="coupon.name"
 						@click="handleSelectCoupon(coupon)"
 						:class="[
-							'w-full text-start p-3 rounded-md transition-all',
+							'dy-cv-row w-full text-start p-3 rounded-md transition-all',
 							selectedCoupon?.name === coupon.name
 								? 'bg-indigo-50 ring-2 ring-indigo-500 ring-inset'
 								: 'hover:bg-gray-100',

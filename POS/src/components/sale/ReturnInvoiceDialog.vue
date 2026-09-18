@@ -213,7 +213,7 @@
 							v-for="invoice in filteredInvoiceList"
 							:key="invoice.name"
 							@click="openReturnModal(invoice)"
-							class="bg-white border border-gray-200 rounded-lg p-3 hover:border-indigo-400 hover:bg-indigo-50/30 cursor-pointer transition-all"
+							class="dy-cv-row bg-white border border-gray-200 rounded-lg p-3 hover:border-indigo-400 hover:bg-indigo-50/30 cursor-pointer transition-all"
 						>
 							<div class="flex items-start justify-between gap-3">
 								<!-- Invoice Info (Start Side) -->

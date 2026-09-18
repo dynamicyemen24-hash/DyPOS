@@ -131,7 +131,7 @@
 										:key="product.name"
 										@click="selectProduct(product)"
 										:class="[
-											'w-full text-start p-4 hover:bg-white transition-colors relative flex items-center gap-3',
+											'dy-cv-row w-full text-start p-4 hover:bg-white transition-colors relative flex items-center gap-3',
 											selectedProduct?.name === product.name
 												? 'bg-white border-s-4 border-indigo-600'
 												: 'border-s-4 border-transparent',

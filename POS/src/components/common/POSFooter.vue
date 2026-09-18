@@ -19,13 +19,21 @@
 </template>
 
 <script setup>
-import { useI18n } from "@/composables/useI18n"
+import { computed } from "vue"
+import { useLocale } from "@/composables/useLocale"
+import { __ } from "@/utils/translation"
 import DyLogo from "@/components/ui/DyLogo.vue"
 
-const { t } = useI18n()
+const { locale } = useLocale()
+const t = computed(() => ({
+	footerPoweredBy: __("Powered by"),
+	footerBrand: __("DyPOS"),
+}))
 const currentYear = new Date().getFullYear()
 const footerVersion = "1.0.0-rt"
 const companyName = "شركة المنافذ الذكية للبرمجيات"
+// reactive locale binding (keeps footer translated on language switch)
+void locale
 </script>
 
 <style scoped>

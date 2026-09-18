@@ -8,6 +8,11 @@
 		:aria-busy="!appReady"
 	>
 		<!--
+			Global skip link (millions-scale a11y): keyboard users jump straight
+			to the transaction, bypassing header/nav on every route.
+		-->
+		<a href="#dypos-main" class="dy-skip-link">{{ skipLabel }}</a>
+		<!--
 			Global application shell.
 
 			Keep this component intentionally thin:
@@ -19,6 +24,11 @@
 
 			Those responsibilities belong to their respective layers.
 		-->
+		<div v-if="shellError" class="dy-shell-error" role="alert">
+			<p>{{ shellError }}</p>
+			<button type="button" @click="dismissShellError">{{ retryLabel }}</button>
+		</div>
+		<main v-else id="dypos-main" ref="mainRef" tabindex="-1" aria-label="DyPOS">
 		<RouterView v-slot="{ Component, route }">
 			<Transition
 				name="dy-page"
@@ -36,6 +46,7 @@
 				</KeepAlive>
 			</Transition>
 		</RouterView>
+		</main>
 
 		<!--
 			Global feedback surface.
@@ -67,12 +78,12 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref } from "vue"
+import { computed, onBeforeUnmount, onErrorCaptured, ref, useTemplateRef } from "vue"
 
 import Toast from "@/components/common/Toast.vue"
 import ServiceWorkerUpdateBanner from "@/components/reports/dashboards/core/ServiceWorkerUpdateBanner.vue"
 import { useAppTheme } from "@/composables/useAppTheme"
-import { translationVersion } from "@/utils/translation"
+import { translationVersion, __ } from "@/utils/translation"
 
 /**
  * --------------------------------------------------------------------------
@@ -183,6 +194,30 @@ function getRouteKey(route) {
  */
 
 const appAnnouncement = ref("")
+
+/**
+ * --------------------------------------------------------------------------
+ * Global shell safety net (critical-path boundary for POSSale & checkout)
+ * --------------------------------------------------------------------------
+ *
+ * Dashboard-only boundaries left the highest-value path (sale → pay → close)
+ * unguarded: a render throw there froze the cashier with no recovery.
+ * This app-level capture keeps cart state alive (no route-key reset) and
+ * surfaces a retryable banner instead of a blank screen.
+ */
+const shellError = ref("")
+const skipLabel = computed(() => __("Skip to main content"))
+const retryLabel = computed(() => __("Dismiss"))
+const mainRef = useTemplateRef("mainRef")
+
+onErrorCaptured((err) => {
+	shellError.value = err?.message || __("Something went wrong")
+	return false
+})
+
+function dismissShellError() {
+	shellError.value = ""
+}
 
 let announcementTimer = null
 
@@ -350,6 +385,53 @@ onBeforeUnmount(() => {
  * Accessibility
  * ==========================================================================
  */
+
+/* Global skip link: visually hidden until focused (keyboard / switch users). */
+.dy-skip-link {
+	position: absolute;
+	top: -100px;
+	inset-inline-start: 12px;
+	z-index: 9999;
+	padding: 8px 14px;
+	border-radius: 8px;
+	background: #1e40af;
+	color: #fff;
+	font-size: 13px;
+	text-decoration: none;
+	transition: top 150ms ease;
+}
+
+.dy-skip-link:focus-visible {
+	top: 12px;
+	outline: 2px solid #fff;
+	outline-offset: 2px;
+}
+
+#dypos-main:focus {
+	outline: none;
+}
+
+.dy-shell-error {
+	margin: 12px;
+	padding: 12px 16px;
+	border: 1px solid #fca5a5;
+	border-radius: 10px;
+	background: #fef2f2;
+	color: #991b1b;
+	display: flex;
+	gap: 12px;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.dy-shell-error button {
+	padding: 6px 12px;
+	border-radius: 8px;
+	border: 1px solid #991b1b;
+	background: #fff;
+	color: #991b1b;
+	cursor: pointer;
+}
 
 @media (forced-colors: active) {
 	#dypos-app,

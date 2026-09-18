@@ -76,7 +76,7 @@
 					<div
 						v-for="(invoice, index) in filteredInvoices"
 						:key="invoice.name + invoice.posting_date"
-						class="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-md transition-all"
+						class="dy-cv-row bg-white border border-gray-200 rounded-lg p-3 hover:shadow-md transition-all"
 					>
 						<div class="flex items-start justify-between gap-3">
 							<!-- Invoice Info (Start Side) -->

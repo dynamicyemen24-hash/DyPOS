@@ -202,6 +202,15 @@ export default defineConfig({
 				navigateFallbackDenylist: [/^\/api/, /^\/app/],
 				runtimeCaching: [
 					{
+						urlPattern: /^https:\/\/flagcdn\.com\/.*/i,
+						handler: "CacheFirst",
+						options: {
+							cacheName: "flags-cache",
+							expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
+							cacheableResponse: { statuses: [0, 200] },
+						},
+					},
+					{
 						urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
 						handler: "CacheFirst",
 						options: {
@@ -296,10 +305,10 @@ export default defineConfig({
 		}),
 	],
 	build: {
-		chunkSizeWarningLimit: 1500,
+		chunkSizeWarningLimit: 500,
 		outDir: path.resolve(import.meta.dirname, "..", "DyPOS", "public", "pos"),
 		emptyOutDir: true,
-		target: "es2015",
+		target: "es2020",
 		sourcemap: enableSourceMap,
 		rollupOptions: {
 			output: {
@@ -309,8 +318,9 @@ export default defineConfig({
 					}
 					return "assets/[name]-[hash].js"
 				},
-				// Vendor splitting: stable framework code gets its own cacheable
-				// chunks so app-code deploys don't invalidate the whole bundle.
+				// Vendor splitting (millions-scale): stable framework/vendor code gets
+				// its own long-cacheable chunks so app-code deploys don't invalidate everything.
+				// Budgets: vendor-vue ~180KB, vendor-charts lazy, vendor-print lazy, vendor-realtime lazy.
 				manualChunks(id) {
 					if (!id.includes("node_modules")) return undefined
 					if (
@@ -320,6 +330,18 @@ export default defineConfig({
 					}
 					if (/[\\/]node_modules[\\/](dexie|idb|@vertexvis)[\\/]/.test(id)) {
 						return "vendor-offline"
+					}
+					if (/[\\/]node_modules[\\/](frappe-ui)[\\/]/.test(id)) {
+						return "vendor-frappe"
+					}
+					if (/[\\/]node_modules[\\/](chart\.js|vue-chartjs)[\\/]/.test(id)) {
+						return "vendor-charts"
+					}
+					if (/[\\/]node_modules[\\/](socket\.io-client|socket\.io-parser|engine\.io-client)[\\/]/.test(id)) {
+						return "vendor-realtime"
+					}
+					if (/[\\/]node_modules[\\/](qz-tray|feather-icons)[\\/]/.test(id)) {
+						return "vendor-print"
 					}
 					return undefined
 				},
