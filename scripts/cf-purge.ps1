@@ -4,8 +4,8 @@
 #   powershell -ExecutionPolicy Bypass -File scripts\cf-purge.ps1 -ZoneId "<zone-id>"
 # Zone ID: dash.cloudflare.com → smartportssoft.com → Overview (right sidebar).
 # NOTE: purge alone cannot fix 404 origin files — run ORIGIN-DEPLOY.bat on the
-# origin FIRST, then this script. Exit 0 = live 1.18.0 verified.
-param([string]$ZoneId = "", [string]$Version = "1.18.0")
+# origin FIRST, then this script. Exit 0 = live 1.21.0 verified.
+param([string]$ZoneId = "", [string]$Version = "1.21.0")
 $ErrorActionPreference = "Stop"
 $Token = $env:CF_TOKEN
 if (-not $Token) { Write-Output "ERROR: set CF_TOKEN first."; exit 2 }

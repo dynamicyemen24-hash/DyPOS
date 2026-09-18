@@ -1,8 +1,8 @@
 import { createServer } from "node:http";
-import { promises as fsp } from "node:fs";
+import { promises as fsp, readdirSync } from "node:fs";
 import path from "node:path";
 
-const ROOT = "D:\\SulationDy\\DyPOS\\dist-deploy\\pos-package-1789399255269";
+const DEPLOY_DIR = "D:\\SulationDy\\DyPOS\\dist-deploy";
 const PORT = 8123;
 
 const MIME = {
@@ -18,8 +18,29 @@ const MIME = {
 	".webmanifest": "application/manifest+json",
 };
 
-function json(res, data, status = 200) {
-	res.writeHead(status, {
+function rootOf() {
+	const names = readdirSync(DEPLOY_DIRonti);
+	// Prefer canonical semver names (pos-package-1.21.0). Semver >= legacy
+	// timestamps are never comparable numerically (13-digit vs 4-6 digit),
+	// so separate the two schemes and let semver win explicitly.
+	const semver = names
+		.filter((n) => /^pos-package-\d+\.\d+\.\d+$/.test(n))
+		.map((n) => ({ n, t: n.match(/-(\d+)\.(\d+)\.(\d+)$/).slice(1).map(Number) }))
+		.sort((a, b) => {
+			for (let i = 0; i < 3; i++) if (a.t[i] !== b.t[i]) return b.t[i] - a.t[i];
+			return 0;
+		})[0];
+	if (semver) return path.join(DEPLOY_DIR, semver.n);
+
+	const legacy = names
+		.filter((n) => /^pos-package-\d+$/.test(n))
+		.sort((a, b) => Number(b.replace(/^pos-package-/, "")) - Number(a.replace(/^pos-package-/, "")))[0];
+	if (!legacy) throw new Error(`No pos-package-* (semver or legacy) under ${DEPLOY_DIR}`);
+	return path.join(DEPLOY_DIR, legacy);
+}
+
+function json(res, data) {
+	res.writeHead(200, {
 		"Content-Type": "application/json; charset=utf-8",
 		"Cache-Control": "no-store",
 		"Set-Cookie": "user_id=Guest; Path=/; HttpOnly; SameSite=Lax",
@@ -51,6 +72,7 @@ createServer(async (req, res) => {
 		return json(res, { message: "Logged Out" });
 	}
 
+	const ROOT = rootOf();
 	let target = pathname;
 	if (target === "/") target = "/pos.html";
 	const file = path.join(ROOT, target);
@@ -69,5 +91,5 @@ createServer(async (req, res) => {
 		res.end(shell);
 	}
 }).listen(PORT, "127.0.0.1", () => {
-	console.log(`Serving DyPOS package (API mock) at http://127.0.0.1:${PORT}/pos.html`);
+	console.log(`Serving latest DyPOS package at http://127.0.0.1:${PORT}/pos.html`);
 });

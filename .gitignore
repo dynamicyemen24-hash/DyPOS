@@ -78,3 +78,9 @@ _lint*.txt
 _lint*.err
 _lint-fresh.json
 missing.txt
+
+# Deployment packages
+dist-deploy/
+
+# Drill/test data
+server/data/drill/

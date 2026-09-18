@@ -29,7 +29,7 @@ const BASE = __ENV.BASE || 'http://localhost:3001';
 
 export function setup() {
   const uname = `k6_${Date.now()}`;
-  http.post(`${BASE}/api/auth/register`, JSON.stringify({ username: uname, password: 'K6load123', fullName: 'k6' }), { headers: { 'Content-Type': 'application/json' } });
+  http.post(`${BASE}/api/auth/register`, JSON.stringify({ username: uname, password: 'K6load123', fullName: 'k6', role: 'ADMIN' }), { headers: { 'Content-Type': 'application/json' } });
   const login = http.post(`${BASE}/api/auth/login`, JSON.stringify({ username: uname, password: 'K6load123' }), { headers: { 'Content-Type': 'application/json' } });
   const token = login.json('token');
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };

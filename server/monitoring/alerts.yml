@@ -30,3 +30,45 @@ groups:
         labels: { severity: warning }
         annotations:
           summary: 'Sustained failed logins (>1/s over 5m)'
+
+      - alert: DyPOSAuthLocked
+        expr: sum(rate(dypos_auth_attempts_total{outcome="locked"}[5m])) > 0.1
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Account lockouts firing — credential stuffing likely'
+
+      - alert: DyPOSWebhookDead
+        expr: dypos_webhook_outbox_dead > 50
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Webhook outbox DEAD > 50 — subscriber ERP down?'
+
+      - alert: DyPOSWebhookBacklog
+        expr: dypos_webhook_outbox_pending > 1000
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Webhook outbox PENDING > 1000 — dispatcher behind'
+
+      - alert: DyPOSCacheMissStorm
+        expr: sum(rate(dypos_cache_operations_total{result="miss"}[5m])) / clamp_min(sum(rate(dypos_cache_operations_total[5m])),1) > 0.9
+        for: 15m
+        labels: { severity: info }
+        annotations:
+          summary: 'Cache miss rate > 90% — TTL too low or cardinality explosion'
+
+      - alert: DyPOSDbSlow
+        expr: histogram_quantile(0.95, sum(rate(dypos_db_query_duration_seconds_bucket[5m])) by (le, operation)) > 0.1
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: 'DB p95 > 100ms ({{ $labels.operation }}) — index or WAL pressure'
+
+      - alert: DyPOSLowStock
+        expr: dypos_stock_low_products > 100
+        for: 30m
+        labels: { severity: info }
+        annotations:
+          summary: 'More than 100 products at/below low-stock threshold — replenish'

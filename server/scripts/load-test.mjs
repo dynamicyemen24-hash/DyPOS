@@ -45,7 +45,7 @@ if (boot.status !== 200) {
   process.exit(2);
 }
 const uname = `load_${Date.now()}`;
-await req('POST', '/api/auth/register', { username: uname, password: 'Load1234', fullName: 'Load Test' });
+await req('POST', '/api/auth/register', { username: uname, password: 'Load1234', fullName: 'Load Test', role: 'ADMIN' });
 const login = await req('POST', '/api/auth/login', { username: uname, password: 'Load1234' });
 if (login.status !== 200 || !login.body?.token) {
   console.error(JSON.stringify({ ok: false, error: 'login failed', detail: login.body }));

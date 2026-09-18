@@ -23,7 +23,7 @@ before(async () => {
   port = server.address().port;
 
   const uname = 'inv_' + Date.now();
-  await req('POST', '/api/auth/register', { username: uname, password: 'Pass1234', fullName: 'Inv Test' });
+  await req("POST", "/api/auth/register", { username: uname, password: "Pass1234", fullName: "Inv Test", role: "ADMIN" });
   const login = await req('POST', '/api/auth/login', { username: uname, password: 'Pass1234' });
   assert.strictEqual(login.status, 200);
   token = login.body.token;

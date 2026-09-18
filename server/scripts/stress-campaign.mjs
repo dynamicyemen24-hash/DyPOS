@@ -98,7 +98,15 @@ if (health.status !== 200) {
   process.exit(2);
 }
 const uname = `camp_${RUN}`;
-await req('POST', '/api/auth/register', { username: uname, password: 'Camp1234', fullName: 'Campaign' });
+// Register as ADMIN (bootstrap on fresh DB) — stock accuracy phase needs
+// POST /api/stock/adjust which is ADMIN/MANAGER-only since v1.5.0 hardening.
+// If the DB already has users (e.g. load-test ran first), ADMIN self-register
+// is correctly refused → fall back to CASHIER so the campaign still runs;
+// phase D then fails closed with a clear message instead of silently testing -200.
+let reg = await req('POST', '/api/auth/register', { username: uname, password: 'Camp1234', fullName: 'Campaign', role: 'ADMIN' });
+if (![200, 201].includes(reg.status)) {
+  await req('POST', '/api/auth/register', { username: uname, password: 'Camp1234', fullName: 'Campaign' });
+}
 const login = await req('POST', '/api/auth/login', { username: uname, password: 'Camp1234' });
 if (login.status !== 200 || !login.body?.token) {
   console.error(JSON.stringify({ ok: false, error: 'campaign login failed' }));
@@ -167,7 +175,10 @@ const pidD = await mkProd('D', 10);    // stock-accuracy phase
 
 // ── D: Stock accuracy (+1000, then 100×qty2 → 800) ───────────────────────
 {
-  await req('POST', '/api/stock/adjust', { productId: pidD, warehouseId: 'W-01', qty: 1000, reason: 'campaign' }, T);
+  const adj = await req('POST', '/api/stock/adjust', { productId: pidD, warehouseId: 'W-01', qty: 1000, reason: 'campaign' }, T);
+  if (adj.status === 403) {
+    phase('D stock accuracy', false, { summary: `stock/adjust forbidden (campaign user lacks ADMIN) — rerun on fresh DB for bootstrap ADMIN` });
+  } else {
   const rs = await pool(20, 100, (i) =>
     req('POST', '/api/invoices', { items: [{ productId: pidD, qty: 2 }], idempotencyKey: `campD-${RUN}-${i}` }, T));
   const okN = rs.filter((r) => [200, 201].includes(r.status)).length;
@@ -176,6 +187,7 @@ const pidD = await mkProd('D', 10);    // stock-accuracy phase
   phase('D stock accuracy', okN === 100 && finalQty === 800, {
     summary: `ok ${okN}/100, final stock=${st.body ? st.body.qty : 'read-failed(' + st.status + ')'} (expect 800)`,
   });
+  }
 }
 
 // ── E: Mixed workload ────────────────────────────────────────────────────
