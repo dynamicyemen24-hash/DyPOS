@@ -37,6 +37,7 @@ pids
 *.pid.lock
 
 # SQLite runtime journals + local backups (never commit)
+*.db
 *.db-shm
 *.db-wal
 *.db-journal
