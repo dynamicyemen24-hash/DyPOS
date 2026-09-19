@@ -326,6 +326,13 @@ function startBuildVersionWatchdog() {
 	// First check shortly after mount, then every 15 minutes.
 	window.setTimeout(check, 30_000)
 	window.setInterval(check, 15 * 60 * 1000)
+
+	// Reconnect check: a terminal offline for hours must learn about a
+	// deployment within seconds of coming back — not at the next 15-minute
+	// tick. Fail-soft: check() never throws (all errors caught inside).
+	window.addEventListener("online", () => {
+		window.setTimeout(check, 5_000)
+	})
 }
 
 startBuildVersionWatchdog()

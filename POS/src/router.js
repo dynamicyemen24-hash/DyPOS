@@ -472,8 +472,12 @@ router.afterEach((to, from, failure) => {
 		 * Guarded for SSR/tests where document is unavailable.
 		 */
 		try {
-			const main = typeof document !== "undefined" ? document.getElementById("dypos-main") : null
-			if (main && typeof main.focus === "function") main.focus({ preventScroll: true })
+			const main =
+				typeof document !== "undefined"
+					? document.getElementById("dypos-main")
+					: null
+			if (main && typeof main.focus === "function")
+				main.focus({ preventScroll: true })
 		} catch {
 			/* focus never breaks navigation */
 		}

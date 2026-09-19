@@ -112,7 +112,11 @@ export async function nextOfflineInvoiceNumber({
  * @param {string} [kind]
  * @returns {Promise<number>}
  */
-export async function peekSequence(yyyymmdd, store = db, kind = "offlineInvoiceSeq") {
+export async function peekSequence(
+	yyyymmdd,
+	store = db,
+	kind = "offlineInvoiceSeq",
+) {
 	const row = await store.settings.get(sequenceKey(yyyymmdd, kind))
 	return Number(row?.value) || 0
 }

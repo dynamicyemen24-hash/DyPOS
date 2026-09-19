@@ -347,7 +347,9 @@ export const useItemSearchStore = defineStore("itemSearch", () => {
 						},
 					}),
 				)
-			} catch { /* dispatch best-effort */ }
+			} catch {
+				/* dispatch best-effort */
+			}
 		}
 	}
 

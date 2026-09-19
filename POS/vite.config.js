@@ -337,7 +337,11 @@ export default defineConfig({
 					if (/[\\/]node_modules[\\/](chart\.js|vue-chartjs)[\\/]/.test(id)) {
 						return "vendor-charts"
 					}
-					if (/[\\/]node_modules[\\/](socket\.io-client|socket\.io-parser|engine\.io-client)[\\/]/.test(id)) {
+					if (
+						/[\\/]node_modules[\\/](socket\.io-client|socket\.io-parser|engine\.io-client)[\\/]/.test(
+							id,
+						)
+					) {
 						return "vendor-realtime"
 					}
 					if (/[\\/]node_modules[\\/](qz-tray|feather-icons)[\\/]/.test(id)) {

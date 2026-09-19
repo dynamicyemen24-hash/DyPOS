@@ -19,7 +19,7 @@ const MIME = {
 };
 
 function rootOf() {
-	const names = readdirSync(DEPLOY_DIRonti);
+	const names = readdirSync(DEPLOY_DIR);
 	// Prefer canonical semver names (pos-package-1.21.0). Semver >= legacy
 	// timestamps are never comparable numerically (13-digit vs 4-6 digit),
 	// so separate the two schemes and let semver win explicitly.

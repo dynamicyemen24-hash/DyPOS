@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: dypos-server:1.25.2
+    image: dypos-server:1.26.0
     container_name: dypos-server
     restart: unless-stopped
     ports:
@@ -61,7 +61,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: dypos-server:1.25.2
+    image: dypos-server:1.26.0
     container_name: dypos-server ["sh", "-c", "while true; do node scripts/backup.mjs; sleep 86400; done"]
     environment:
       - DYPOS_DB_PATH=/app/data/dypos.db

@@ -78,7 +78,13 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onErrorCaptured, ref, useTemplateRef } from "vue"
+import {
+	computed,
+	onBeforeUnmount,
+	onErrorCaptured,
+	ref,
+	useTemplateRef,
+} from "vue"
 
 import Toast from "@/components/common/Toast.vue"
 import ServiceWorkerUpdateBanner from "@/components/reports/dashboards/core/ServiceWorkerUpdateBanner.vue"

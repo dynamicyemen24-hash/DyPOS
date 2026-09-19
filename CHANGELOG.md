@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.26.0] - 2026-09-19 — الإصدار الاحترافي (Performance & UX release)
+
+### Added — Unified cached resource (SWR reads)
+- `POS/src/composables/useCachedResource.js`: façade تفاعلية واحدة فوق
+  `memoizeAsync` لكل قراءات الـ POS (مجموعات الأصناف، الماركات، الإعدادات،
+  لوحات القياسات…) — الاستدعاءات المتزامنة تتشارك وعدًا واحدًا قيد التنفيذ،
+  والقيم القديمة تُبقي الواجهة فورية بينما يجري إعادة التحقق في الخلفية.
+- `POS/tests/useCachedResource.test.js`: 5 اختبارات (تجميع الوعود، SWR،
+  الإبطال، منع تلبس البيانات عند تعاقب المفاتيح).
+
+### Added — Device adaptation (performance budget)
+- `POS/src/composables/useDevice.js`: استكشاف الجهاز (هاتف/تابلت/سطح مكتب)
+  من أرخص إشارة موثوقة (viewport + touch points ← صنف الخادم ← ميزانية
+  العتاد: الأنوية/الذاكرة/Save-Data/نوع الشبكة)، مع فئات على `body`
+  ووضع خفيف تلقائي للأجهزة الضعيفة وتحذير عربي فشل-طري لا يمنع البيع أبدًا.
+- `POS/tests/useDevice.test.js`: 6 اختبارات (تصنيف، isLowSpec، idempotent init).
+
+### Enhanced — Client update delivery
+- `main.js` watchdog: الاستطلاع كل 15 دقيقة + **فحص عند العودة للاتصال**
+  (حدث online → فحص `version.json` خلال 5 ثوانٍ) فتتعلم الأجهزة المقطوعة
+  عن النشر الجديد خلال ثوانٍ من عودة الشبكة.
+
+### Fixed — Postgres parity v17
+- `schema-postgres.sql` يضم جدول `alert_notifications` + فهارسه
+  (v17) — `npm run parity`: **ok:true**.
+
+### Verified — Quality gates (release)
+- Frontend vitest: **354/354** ✅ — Server node:test: **171/171** ✅ —
+  Biome lint: **332 ملفًا نظيفًا** ✅ — Parity: **ok:true** ✅.
+- إصدار بناء الواجهة مثبّت عبر `DyPOS_BUILD_VERSION=1.26.0`
+  (لا طوابع زمنية في الحزم الاحترافية).
+
+### Deploy
+- حزمة إنتاج نظيفة: `dist-deploy/pos-package-1.26.0/` (+zip) — Jinja 0،
+  كسر كاش `?v=1.26.0`، تسجيل SW بنطاق الجذر. النشر على خادم الأصل عبر
+  `ORIGIN-DEPLOY.bat` كمسؤول ثم تنقية كاش Cloudflare
+  (pos.html + assets/DyPOS/pos/* + sw.js).
+
+
 ## [1.25.2] - 2026-09-18 — Self-healing + alerting backbone
 
 ### Added — Self-healing watchdog
