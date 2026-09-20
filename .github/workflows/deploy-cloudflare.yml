@@ -1,0 +1,128 @@
+name: Deploy to Cloudflare (production)
+
+# أي تعديل يُدمج في main يُبنى ويُنشر تلقائيًا إلى Cloudflare Pages
+# (dypos.smartportssoft.com) ثم يتحقق حيًا أن العملاء يرون الإصدار الجديد.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build → Pages deploy → live verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Clone
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Resolve release version (single source: root package.json)
+        id: ver
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Install frontend dependencies
+        working-directory: POS
+        run: yarn install
+
+      - name: Quality gate (vitest + noConsole lint)
+        working-directory: POS
+        run: npm run verify
+
+      - name: Build frontend (version-pinned, no timestamps)
+        working-directory: POS
+        run: yarn build
+        env:
+          DyPOS_BUILD_VERSION: ${{ steps.ver.outputs.version }}
+
+      - name: Assemble Cloudflare Pages site
+        run: node scripts/build-pages-site.mjs --out .pages-site
+
+      # ── Gate: the deploy runs only when the Cloudflare secrets exist. ──
+      # Missing secrets = the build/assembly still prove themselves on every
+      # push; the publish waits for the owner to add them (see
+      # docs/DEPLOYMENT_GUIDE.md → "النشر الآلي إلى Cloudflare").
+      - name: Check Cloudflare credentials
+        id: cf
+        run: |
+          if [ -n "$CF_TOKEN" ] && [ -n "$CF_ACCOUNT" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID secrets are missing — build verified, deploy SKIPPED. Add both secrets (repo → Settings → Secrets → Actions) and re-run."
+          fi
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Ensure Pages project exists
+        if: steps.cf.outputs.available == 'true'
+        continue-on-error: true
+        run: npx --yes wrangler@3 pages project create "${{ vars.CF_PAGES_PROJECT || 'dypos-pos' }}" --production-branch main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy to Cloudflare Pages (production)
+        if: steps.cf.outputs.available == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy .pages-site --project-name=${{ vars.CF_PAGES_PROJECT || 'dypos-pos' }} --branch=main --commit-dirty=true
+
+      # Optional cache purge — only when the zone id secret is provided
+      # (Pages on a custom domain normally picks up instantly; kept for belt
+      # and braces with Cloudflare's edge cache).
+      - name: Purge Cloudflare cache (optional)
+        if: steps.cf.outputs.available == 'true'
+        continue-on-error: true
+        run: |
+          if [ -z "$CF_ZONE" ]; then echo "CF_ZONE_ID not set — skipping purge (Pages serves fresh deployments by default)."; exit 0; fi
+          curl -sf -X POST "https://api.cloudflare.com/client/v4/zones/${CF_ZONE}/purge_cache" \
+            -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
+            --data '{"purge_everything":true}' | head -c 300
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ZONE: ${{ secrets.CF_ZONE_ID }}
+
+      # ── Live verification: the whole point is that CUSTOMERS see the new
+      # build. If the custom domain is not bound to this Pages project (or an
+      # old IIS origin still fronts the domain) this step says so loudly. ──
+      - name: Live verify (customers must see the new build)
+        if: steps.cf.outputs.available == 'true'
+        continue-on-error: true
+        run: |
+          SITE="https://dypos.smartportssoft.com"
+          VERSION="${{ steps.ver.outputs.version }}"
+          sleep 20
+          echo "Expected version: $VERSION"
+          LIVE_JSON=$(curl -fsS "$SITE/assets/DyPOS/pos/version.json" || true)
+          echo "version.json → $LIVE_JSON"
+          LIVE_HTML=$(curl -fsS "$SITE/pos.html" || true)
+          BUNDLE=$(echo "$LIVE_HTML" | grep -o 'assets/index-[A-Za-z0-9_-]*\.js?v='"$VERSION" | head -1 || true)
+          echo "pos.html bundle → ${BUNDLE:-MISSING}"
+          {
+            echo "## Live verification"
+            echo "- expected: $VERSION"
+            echo "- version.json: ${LIVE_JSON:-NOT FOUND (404)}" 
+            echo "- pos.html bundle: ${BUNDLE:-NOT FOUND}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if echo "$LIVE_JSON" | grep -q "$VERSION" && [ -n "$BUNDLE" ]; then
+            echo "✅ LIVE $VERSION VERIFIED — customers are on the new build."
+          else
+            echo "::warning::Live site does NOT serve $VERSION yet. If the deploy step succeeded, the custom domain is bound to a different Pages project/origin. Fix: Cloudflare dashboard → Workers & Pages → dypos-pos → Custom domains → add dypos.smartportssoft.com (and remove it from the project currently holding it)."
+          fi
