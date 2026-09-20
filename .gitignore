@@ -54,6 +54,9 @@ coverage/
 # Cache
 .cache/
 .parcel-cache/
+.wrangler/
+DyPOS/.wrangler/
+legacy/.wrangler/
 
 # Vite
 .vite/
@@ -63,6 +66,8 @@ build-validation.log
 # Debug/temp artifacts (keep repo clean)
 dev-final-*.html
 dev-final-*.txt
+pkg-*.html
+pkg-*.txt
 pkg-dom*.html
 pkg-dom*.txt
 _fix*.txt

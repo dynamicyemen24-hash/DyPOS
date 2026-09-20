@@ -54,6 +54,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - مراجعة تغييرات `usePinAuth` (مسبقة): `savePin/pinLogin` (PBKDF2) متسقة مع
   `Login.vue` والبناء والاختبارات خضراء.
 
+### Chore — تنظيف مساحة العمل وترقيات آمنة
+- حذف النفايات المتعقبة بلا مراجع: `pkg-*` (تشخيصات HTML/TXT) وملف `$null`
+  (خطأ تحويل) ولقطة `_backup_pos_20260915-013721/` (306 ملفات — التاريخ يحفظها).
+  أُبقي `legacy/` (469 ملفًا) عمدًا: مهمة CI المعطلة تشير إليه (revive-or-delete).
+- `.gitignore`: `pkg-*.html/txt` و`.wrangler/` و`DyPOS/.wrangler/`.
+- ترقيات patch/minor آمنة فقط (الواجهة): lucide-icons `1.2.135`،
+  test-utils `2.5.1`، autoprefixer `10.6.1`، baseline-mapping `2.11.25`،
+  browserslist `4.29.0` — الاختبارات والبناء خضراء بعدها.
+  أُجّلت الكبرى لنوافذ هجرة مستقلة: vite 5→8، tailwind 3→4، vue-router 4→5،
+  pinia 3→4، vitest 2→5، frappe-ui 0.1.240→0.1.278، express 4→5، zod 3→4.
+
 ## [1.27.0] - 2026-09-20 — محرّك الاشتراكات + سلامة فوترة لا تتكرر (Recurring Commerce)
 
 ### Added — Subscription engine (schema v18 → v19)
