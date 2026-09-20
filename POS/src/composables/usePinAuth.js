@@ -37,6 +37,11 @@ const failedAttempts = ref(0)
 const isLocked = ref(false)
 const lockUntil = ref(null)
 
+function getLockRemainingSeconds() {
+	if (!lockUntil.value) return 0
+	return Math.max(0, Math.ceil((lockUntil.value - Date.now()) / 1000))
+}
+
 function loadPinState() {
 	try {
 		const raw = localStorage.getItem(PIN_STORAGE_KEY)
@@ -55,4 +60,4 @@ function clearPin() {
 	failedAttempts.value = 0; isLocked.value = false; lockUntil.value = null
 }
 
-export { isPinValid, pinExpiry, pinSettings, failedAttempts, isLocked, lockUntil, loadPinState, clearPin }
+export { isPinValid, pinExpiry, pinSettings, failedAttempts, isLocked, lockUntil, loadPinState, clearPin, getLockRemainingSeconds }

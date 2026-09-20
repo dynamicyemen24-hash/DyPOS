@@ -720,7 +720,7 @@ async function cleanup() {
  * PIN Authentication
  * ============================================================================ */
 
-const { isPinValid: pinAvailable, pinLogin: attemptPinLogin, savePin: storePin, clearPin: wipePin, getLockRemainingSeconds } = usePinAuth()
+const { isPinValid: pinAvailable, pinLogin: attemptPinLogin, savePin: storePin, clearPin: wipePin } = usePinAuth()
 
 async function handlePinLogin() {
 	if (!pinAvailable.value) {
