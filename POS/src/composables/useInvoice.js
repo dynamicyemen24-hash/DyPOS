@@ -186,7 +186,7 @@ export function useInvoice() {
 	//
 	// This ensures tax is not double-counted in inclusive mode!
 	// ========================================================================
-	// Use roundCurrency for monetary totals to match Dycos's currency precision (from System Settings)
+	// Use roundCurrency for monetary totals to match DyPOS's currency precision (from System Settings)
 	const subtotal = computed(() => roundCurrency(_cachedSubtotal.value))
 	const totalTax = computed(() => roundCurrency(_cachedTotalTax.value))
 	const totalDiscount = computed(() =>
@@ -198,11 +198,11 @@ export function useInvoice() {
 
 		if (taxInclusive.value) {
 			// Tax inclusive: Subtotal already includes tax, so don't add it again
-			// Use roundCurrency to match Dycos's currency precision (from System Settings)
+			// Use roundCurrency to match DyPOS's currency precision (from System Settings)
 			return roundCurrency(_cachedSubtotal.value - discount)
 		} else {
 			// Tax exclusive: Add tax on top of subtotal
-			// Use roundCurrency to match Dycos's currency precision (from System Settings)
+			// Use roundCurrency to match DyPOS's currency precision (from System Settings)
 			return roundCurrency(
 				_cachedSubtotal.value + _cachedTotalTax.value - discount,
 			)
@@ -255,7 +255,7 @@ export function useInvoice() {
 			recalculateItem(existingItem)
 
 			// Update cache incrementally (new values - old values)
-			// Use rounded price_list_rate for subtotal to match Dycos
+			// Use rounded price_list_rate for subtotal to match DyPOS
 			const priceListRate = existingItem.price_list_rate || existingItem.rate
 			_cachedSubtotal.value +=
 				roundCurrency(existingItem.quantity * roundCurrency(priceListRate)) -
@@ -302,7 +302,7 @@ export function useInvoice() {
 			recalculateItem(newItem)
 
 			// Update cache incrementally (add new item values)
-			// Use rounded price_list_rate for subtotal to match Dycos
+			// Use rounded price_list_rate for subtotal to match DyPOS
 			const priceListRate = newItem.price_list_rate || newItem.rate
 			_cachedSubtotal.value += roundCurrency(
 				newItem.quantity * roundCurrency(priceListRate),
@@ -699,7 +699,7 @@ export function useInvoice() {
 		item.discount_amount = discountAmount
 
 		// Calculate tax based on inclusive/exclusive mode
-		// Use currency precision for all monetary calculations to match Dycos
+		// Use currency precision for all monetary calculations to match DyPOS
 		const totalTaxRate = calculateTotalTaxRate()
 		let netAmount = 0
 		let taxAmount = 0
@@ -726,7 +726,7 @@ export function useInvoice() {
 	}
 
 	/**
-	 * Compute the rate to send to Dycos based on tax mode.
+	 * Compute the rate to send to DyPOS based on tax mode.
 	 * - Tax-inclusive: gross rate (price - discount, before tax extraction)
 	 * - Tax-exclusive: net rate (amount / qty, after discount)
 	 */
@@ -758,11 +758,11 @@ export function useInvoice() {
 	 * Used by both online and offline flows for consistent formatting.
 	 *
 	 * Legacy carts could mark same-item BOGO only via `free_qty` on the paid line.
-	 * Sales Invoice Item has no `free_qty` field — Dycos expects a second row with
+	 * Sales Invoice Item has no `free_qty` field — DyPOS expects a second row with
 	 * is_free_item=1. When there is no matching dedicated free row, synthesize one.
 	 *
 	 * @param {Array} items - Raw cart items
-	 * @returns {Array} Items formatted for Dycos Sales Invoice
+	 * @returns {Array} Items formatted for DyPOS Sales Invoice
 	 */
 	function formatItemsForSubmission(items) {
 		const mapRow = (item) => ({

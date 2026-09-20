@@ -3,7 +3,7 @@ from DyPOS.utils import get_build_version
 app_name = "DyPOS"
 app_title = "POS Next"
 app_publisher = "BrainWise"
-app_description = "POS built on Dycos that brings together real-time billing, stock management, multi-user access, offline mode, and direct ERP integration. Run your store or restaurant with confidence and control, while staying 100% open source."
+app_description = "POS built on DyPOS that brings together real-time billing, stock management, multi-user access, offline mode, and direct ERP integration. Run your store or restaurant with confidence and control, while staying 100% open source."
 app_email = "support@brainwise.me"
 app_license = "agpl-3.0"
 

@@ -46,7 +46,7 @@ Implement EOD report printing for `POS Closing Shift` with:
 
 ## Consolidation Requirement
 
-For closed shifts where Dycos consolidated POS Invoices into Sales Invoices:
+For closed shifts where DyPOS consolidated POS Invoices into Sales Invoices:
 
 - `get_items_sold(doc)` must follow `POS Invoice.consolidated_invoice`
 - If `consolidated_invoice` is set, fetch items from `Sales Invoice Item` with:

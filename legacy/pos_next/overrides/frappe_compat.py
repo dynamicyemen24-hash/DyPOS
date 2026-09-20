@@ -1,4 +1,4 @@
-"""Runtime compatibility patches for mixed Frappe/Dycos versions."""
+"""Runtime compatibility patches for mixed Frappe/DyPOS versions."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import inspect
 def patch_round_floats_in_signature(document_class):
 	"""Make Document.round_floats_in accept do_not_round_fields when missing.
 
-	Dycos (newer) calls:
+	DyPOS (newer) calls:
 	    doc.round_floats_in(row, do_not_round_fields=[...])
 
 	Older Frappe implementations only accept:

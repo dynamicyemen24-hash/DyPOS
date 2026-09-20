@@ -81,7 +81,7 @@ function browserOf(s) {
 }
 
 function majorOf(m) {
-  const n = Number(m && m[1]);
+  const n = Number(m?.[1]);
   return Number.isFinite(n) ? Math.trunc(n) : 0;
 }
 

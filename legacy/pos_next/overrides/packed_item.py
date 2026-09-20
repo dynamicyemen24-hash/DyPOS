@@ -1,9 +1,9 @@
 """
-Runtime patch for Dycos packed item key matching.
+Runtime patch for DyPOS packed item key matching.
 
 Why this patch exists:
 - POS Next saves Sales Invoice drafts multiple times during offer/payment flows.
-- Dycos's packed item matching can append duplicate bundle rows when keys are
+- DyPOS's packed item matching can append duplicate bundle rows when keys are
   built from inconsistent identifiers across save cycles.
 - We patch key generation to use a stable parent-row identifier.
 """

@@ -5,8 +5,8 @@ import json
 from collections import defaultdict
 
 import frappe
-from Dycos.stock.doctype.batch.batch import get_batch_qty
-from Dycos.stock.get_item_details import get_item_details as Dycos_get_item_details
+from DyPOS.stock.doctype.batch.batch import get_batch_qty
+from DyPOS.stock.get_item_details import get_item_details as DyPOS_get_item_details
 from frappe import _
 from frappe.query_builder import DocType
 from frappe.query_builder import functions as fn
@@ -37,7 +37,7 @@ def _get_item_price_transaction_date(transaction_date=None):
 
 
 def _item_price_validity_conditions(ItemPrice, transaction_date=None):
-	"""Match Dycos get_item_price: only prices valid on transaction_date."""
+	"""Match DyPOS get_item_price: only prices valid on transaction_date."""
 	date = _get_item_price_transaction_date(transaction_date)
 	return (
 		(IfNull(ItemPrice.valid_from, "2000-01-01") <= date)
@@ -173,7 +173,7 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
 
 	Returns:
 		dict: Enriched item details containing:
-			  - All Dycos item_details (rate, tax, etc.)
+			  - All DyPOS item_details (rate, tax, etc.)
 			  - actual_qty: Stock available in warehouse
 			  - batch_no_data: List of available batches with expiry dates
 			  - serial_no_data: List of available serial numbers
@@ -195,7 +195,7 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
 	Database Queries:
 		- Batches: 1 query (only if has_batch_no=1)
 		- Serial Numbers: 1 query (only if has_serial_no=1)
-		- Item Details: 1 query via Dycos's get_item_details
+		- Item Details: 1 query via DyPOS's get_item_details
 		- Stock: 1 query (only if is_stock_item=1)
 		- UOMs: 1 query for conversion details
 		Total: 2-5 queries depending on item type
@@ -290,7 +290,7 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
 
 		exchange_rate = 1
 		if price_list_currency != company_currency:
-			from Dycos.setup.utils import get_exchange_rate
+			from DyPOS.setup.utils import get_exchange_rate
 
 			try:
 				exchange_rate = get_exchange_rate(price_list_currency, company_currency, today)
@@ -339,7 +339,7 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
 		}
 	)
 
-	res = Dycos_get_item_details(args, doc)
+	res = DyPOS_get_item_details(args, doc)
 
 	if item.get("is_stock_item") and warehouse:
 		res["actual_qty"] = get_stock_availability(item_code, warehouse)

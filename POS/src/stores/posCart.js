@@ -428,7 +428,7 @@ export const usePOSCartStore = defineStore("posCart", () => {
 	/**
 	 * Processes free items from backend offer response.
 	 *
-	 * Dycos represents product discounts as separate SI rows: paid line(s) plus
+	 * DyPOS represents product discounts as separate SI rows: paid line(s) plus
 	 * one or more rows with is_free_item=1 (see pricing_rule tests for same_item).
 	 * We always add a dedicated free row so formatItemsForSubmission sends qty > 0
 	 * for stock and accounting; annotating only free_qty on the paid line never
@@ -529,7 +529,7 @@ export const usePOSCartStore = defineStore("posCart", () => {
 
 	/**
 	 * Apply (or clear) the header-level discount the server surfaced when an
-	 * apply_on=Transaction Price rule fired. Dycos stores this on the invoice
+	 * apply_on=Transaction Price rule fired. DyPOS stores this on the invoice
 	 * header as discount_amount + apply_discount_on; in the cart we mirror it
 	 * via additionalDiscount.value (which is sent back as discount_amount in
 	 * the invoice payload — see useInvoice.js#submitInvoice).

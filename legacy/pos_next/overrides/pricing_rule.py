@@ -3,7 +3,7 @@
 
 """
 Pricing Rule Override
-Adds POS-only filtering to Dycos's pricing rule conditions.
+Adds POS-only filtering to DyPOS's pricing rule conditions.
 
 When a Pricing Rule has pos_only=1, it should only apply to POS transactions
 (Sales Invoice with is_pos=1, or POS Invoice). Non-POS documents like
@@ -16,7 +16,7 @@ A Price-type Pricing Rule may set ``apply_discount_on_price`` to ``Min`` or
 ``Max`` so the discount lands only on the single cheapest (Min) or most
 expensive (Max) line carrying that rule. ``min_or_max_discount_qty_limit`` caps
 how many units of that one line are discounted (``0`` = every unit of the line).
-Dycos's per-item engine cannot rank items against each other, so we suppress
+DyPOS's per-item engine cannot rank items against each other, so we suppress
 its application of these rules (``apply_price_discount_rule`` below) and apply
 them in a single bulk pass (``apply_min_max_price_discounts``) instead.
 """
@@ -27,10 +27,10 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
-from Dycos.accounts.doctype.pricing_rule.pricing_rule import (
+from DyPOS.accounts.doctype.pricing_rule.pricing_rule import (
 	apply_price_discount_rule as _original_apply_price_discount_rule,
 )
-from Dycos.accounts.doctype.pricing_rule.utils import get_applied_pricing_rules
+from DyPOS.accounts.doctype.pricing_rule.utils import get_applied_pricing_rules
 
 # Values of the ``apply_discount_on_price`` custom field that trigger ranking.
 MIN_MAX_OPTIONS = ("Min", "Max")
@@ -65,7 +65,7 @@ def _has_pos_only_column():
 def sync_pos_only_to_pricing_rules(doc, method=None):
 	"""Sync POS Next custom flags from Promotional Scheme to its generated Pricing Rules.
 
-	Called via doc_events on_update hook, which runs after Dycos's
+	Called via doc_events on_update hook, which runs after DyPOS's
 	PromotionalScheme.on_update() has already created/updated the Pricing Rules.
 
 	Propagates both ``pos_only`` and ``one_time_per_customer`` so a scheme acts as
@@ -123,7 +123,7 @@ def enforce_min_max_pricing_config(doc, method=None):
 
 	A Min/Max ("cheapest / most expensive item") discount only makes sense when the
 	engine evaluates the whole document together, so we force ``mixed_conditions``
-	on (Dycos otherwise gates each line independently and a one-of-each cart never
+	on (DyPOS otherwise gates each line independently and a one-of-each cart never
 	qualifies). The quantity limit may be ``0`` (discount every unit of the cheapest /
 	most expensive line).
 
@@ -164,7 +164,7 @@ def enforce_min_max_pricing_config(doc, method=None):
 
 
 def apply_price_discount_rule(pricing_rule, item_details, args):
-	"""Override of Dycos's ``apply_price_discount_rule`` (installed via monkey-patch).
+	"""Override of DyPOS's ``apply_price_discount_rule`` (installed via monkey-patch).
 
 	For ``Min``/``Max`` rules we *defer* the discount: the per-item engine cannot
 	know which items are the cheapest/most expensive across the whole cart, so we
@@ -172,7 +172,7 @@ def apply_price_discount_rule(pricing_rule, item_details, args):
 	it later. We still mirror the original's bookkeeping (``pricing_rule_for`` and
 	margin handling) so nothing else downstream changes.
 
-	All non-Min/Max rules fall through to Dycos's original implementation.
+	All non-Min/Max rules fall through to DyPOS's original implementation.
 	"""
 	if (pricing_rule.get("apply_discount_on_price") or "") in MIN_MAX_OPTIONS:
 		# Keep parity with the original function's side effects.
@@ -277,7 +277,7 @@ def _apply_discount(pr, item, eligible_qty):
 	"""Discount ``eligible_qty`` units of ``item`` under pricing rule ``pr``.
 
 	We set *only* the blended ``discount_percentage`` (plus ``price_list_rate``)
-	and let Dycos's ``calculate_item_values`` derive ``rate``/``amount``/
+	and let DyPOS's ``calculate_item_values`` derive ``rate``/``amount``/
 	``discount_amount`` from it (taxes_and_totals.py). This keeps all the money
 	math owned by core and identical across every document type. The same formula
 	is materialised inline for the POS mock, which has no recalculation step.
@@ -316,7 +316,7 @@ def _apply_discount(pr, item, eligible_qty):
 
 
 def _materialize_rate(item, base_rate, discount_percentage, qty):
-	"""Fill ``rate``/``amount``/``discount_amount`` using Dycos's own formula.
+	"""Fill ``rate``/``amount``/``discount_amount`` using DyPOS's own formula.
 
 	Mirrors ``calculate_item_values`` (taxes_and_totals.py): ``rate`` is
 	``price_list_rate`` less the blended percentage and ``discount_amount`` is

@@ -1,6 +1,6 @@
 /**
  * Currency Utility for DyPOS
- * Handles formatting and rounding with Dycos System Settings compatibility
+ * Handles formatting and rounding with DyPOS System Settings compatibility
  *
  * Rounding Methods (matches frappe/utils/data.py):
  * - Banker's Rounding: Rounds .5 to nearest even number

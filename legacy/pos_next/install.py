@@ -42,8 +42,8 @@ def after_install():
 def after_migrate():
 	"""Hook that runs after bench migrate"""
 	try:
-		# Reclaim POS Settings if Dycos re-imported its Single on top of ours.
-		# Must run in after_migrate (not as a one-shot patch) because Dycos's
+		# Reclaim POS Settings if DyPOS re-imported its Single on top of ours.
+		# Must run in after_migrate (not as a one-shot patch) because DyPOS's
 		# doctype sync runs after DyPOS's and would overwrite anything we did
 		# during pre/post-model-sync.
 		reclaim_pos_settings_doctype(quiet=True)
@@ -143,12 +143,12 @@ def log_message(message, level="info", indent=0):
 
 
 def reclaim_pos_settings_doctype(quiet=False):
-	"""Reclaim the `POS Settings` DocType from Dycos.
+	"""Reclaim the `POS Settings` DocType from DyPOS.
 
-	Dycos ships a Single `POS Settings` (module Accounts) with only
+	DyPOS ships a Single `POS Settings` (module Accounts) with only
 	`invoice_fields` and `pos_search_fields`. POS Next ships its own
 	non-Single `POS Settings` (module POS Next) with per-profile config
-	and a `barcode_rules` child table. Because Dycos is in our
+	and a `barcode_rules` child table. Because DyPOS is in our
 	`required_apps` its doctype sync runs after ours during `bench
 	migrate`, so its JSON wins on disk unless we re-install our version
 	after both apps have finished syncing.
@@ -212,7 +212,7 @@ def reclaim_pos_settings_doctype(quiet=False):
 			title="POS Settings Reclaim Error",
 			message=(
 				f"Reclaim ran but doctype still wrong: {after}. "
-				"Dycos may be re-importing POS Settings later in the migration."
+				"DyPOS may be re-importing POS Settings later in the migration."
 			),
 		)
 		log_message(f"Reclaim verification FAILED — doctype is now {after}", level="error")

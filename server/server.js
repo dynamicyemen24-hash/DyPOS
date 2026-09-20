@@ -43,6 +43,7 @@ import mastersRoutes from './routes/masters.js';
 import settingsRoutes from './routes/settings.js';
 import fiscalRoutes from './routes/fiscal.js';
 import reportsRoutes from './routes/reports.js';
+import subscriptionsRoutes from './routes/subscriptions.js';
 import openapiRoutes from './routes/openapi.js';
 import deviceRoutes from './routes/device.js';
 import devicesRoutes from './routes/devices.js';
@@ -341,6 +342,7 @@ app.use('/api/settings', authMiddleware, settingsRoutes);
 app.use('/api/fiscal-years', authMiddleware, fiscalRoutes);
 app.use('/api/reports', authMiddleware, reportsRoutes);
 app.use('/api/devices', authMiddleware, devicesRoutes);
+app.use('/api/subscriptions', authMiddleware, subscriptionsRoutes);
 
 // Webhook dispatcher (outbox → subscriber systems). No-op in tests / when DYPOS_WEBHOOKS=0.
 startDispatcher();

@@ -41,6 +41,9 @@ class ApiClient {
 	put(path, body) {
 		return this.request(path, { method: "PUT", body: JSON.stringify(body) })
 	}
+	patch(path, body) {
+		return this.request(path, { method: "PATCH", body: JSON.stringify(body) })
+	}
 	del(path) {
 		return this.request(path, { method: "DELETE" })
 	}
@@ -164,6 +167,44 @@ export async function getSyncCheckpoint() {
 	return api.get("/sync/checkpoint")
 }
 
+// ── Subscriptions ──
+export async function getSubscriptionPlans(params = {}) {
+	const qs = new URLSearchParams(params).toString()
+	return api.get(`/subscriptions/plans?${qs}`)
+}
+export async function createSubscriptionPlan(data) {
+	return api.post("/subscriptions/plans", data)
+}
+export async function updateSubscriptionPlan(id, data) {
+	return api.patch(`/subscriptions/plans/${id}`, data)
+}
+export async function getSubscriptions(params = {}) {
+	const qs = new URLSearchParams(params).toString()
+	return api.get(`/subscriptions?${qs}`)
+}
+export async function subscribeCustomer(data) {
+	return api.post("/subscriptions/subscribe", data)
+}
+export async function pauseSubscription(id) {
+	return api.post(`/subscriptions/${id}/pause`)
+}
+export async function resumeSubscription(id) {
+	return api.post(`/subscriptions/${id}/resume`)
+}
+export async function cancelSubscription(id) {
+	return api.post(`/subscriptions/${id}/cancel`)
+}
+export async function runBilling(date) {
+	return api.post("/subscriptions/run-billing", { date })
+}
+export async function getSubscriptionReport() {
+	return api.get("/subscriptions/report")
+}
+export async function getCustomerBillings(customerId, params = {}) {
+	const qs = new URLSearchParams(params).toString()
+	return api.get(`/subscriptions/billings/${customerId}?${qs}`)
+}
+
 // ── Export ──
 export { api as default }
 export const dyposApi = {
@@ -195,4 +236,15 @@ export const dyposApi = {
 	syncPull,
 	syncPush,
 	getSyncCheckpoint,
+	getSubscriptionPlans,
+	createSubscriptionPlan,
+	updateSubscriptionPlan,
+	getSubscriptions,
+	subscribeCustomer,
+	pauseSubscription,
+	resumeSubscription,
+	cancelSubscription,
+	runBilling,
+	getSubscriptionReport,
+	getCustomerBillings,
 }

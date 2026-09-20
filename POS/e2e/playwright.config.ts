@@ -16,7 +16,7 @@ import { defineConfig, devices } from "@playwright/test"
  * في الإصدارات القادمة سنضيف:
  * - مولد بيانات عشوائي (Faker) للاختبارات
  * - Page Objects للمكونات المعقدة
- * - اختبارات دمج مع ERP (Dycos)
+ * - اختبارات دمج مع ERP (DyPOS)
  * - اختبارات أداء (Lighthouse, Web Vitals)
  * - اختبارات أمان (OWASP)
  */

@@ -7,8 +7,8 @@ import json
 from functools import lru_cache
 
 import frappe
-from Dycos.accounts.doctype.sales_invoice.sales_invoice import get_bank_cash_account
-from Dycos.stock.doctype.batch.batch import get_batch_no, get_batch_qty
+from DyPOS.accounts.doctype.sales_invoice.sales_invoice import get_bank_cash_account
+from DyPOS.stock.doctype.batch.batch import get_batch_no, get_batch_qty
 from frappe import _
 from frappe.utils import cint, cstr, flt, get_datetime, nowdate, nowtime
 
@@ -34,20 +34,20 @@ DOCTYPE_COMMENT = "Comment"
 
 
 try:
-	from Dycos.accounts.doctype.pricing_rule.pricing_rule import (
-		apply_pricing_rule as Dycos_apply_pricing_rule,
+	from DyPOS.accounts.doctype.pricing_rule.pricing_rule import (
+		apply_pricing_rule as DyPOS_apply_pricing_rule,
 	)
-	from Dycos.accounts.doctype.pricing_rule.utils import (
-		apply_pricing_rule_on_transaction as Dycos_apply_pricing_rule_on_transaction,
+	from DyPOS.accounts.doctype.pricing_rule.utils import (
+		apply_pricing_rule_on_transaction as DyPOS_apply_pricing_rule_on_transaction,
 	)
-	from Dycos.accounts.doctype.pricing_rule.utils import (
-		get_applied_pricing_rules as Dycos_get_applied_pricing_rules,
+	from DyPOS.accounts.doctype.pricing_rule.utils import (
+		get_applied_pricing_rules as DyPOS_get_applied_pricing_rules,
 	)
 	from DyPOS.overrides.pricing_rule import apply_min_max_price_discounts
-except Exception:  # pragma: no cover - Dycos not installed in some environments
-	Dycos_apply_pricing_rule = None
-	Dycos_get_applied_pricing_rules = None
-	Dycos_apply_pricing_rule_on_transaction = None
+except Exception:  # pragma: no cover - DyPOS not installed in some environments
+	DyPOS_apply_pricing_rule = None
+	DyPOS_get_applied_pricing_rules = None
+	DyPOS_apply_pricing_rule_on_transaction = None
 	apply_min_max_price_discounts = None
 
 
@@ -229,7 +229,7 @@ def log_manual_rate_edit(item, invoice_name, user=None):
 def standardize_pricing_rules(items):
 	"""
 	Standardize pricing_rules field on invoice items.
-	Dycos expects a comma-separated string, but frontend/offline may send:
+	DyPOS expects a comma-separated string, but frontend/offline may send:
 	- Python list: ["PRLE-0001", "PRLE-0002"]
 	- JSON string: '["PRLE-0001"]' or '[\\n "PRLE-0001"\\n]'
 
@@ -500,7 +500,7 @@ def _get_item_negative_stock_allow_set(items):
 
 def _should_block(pos_profile):
 	"""Check if sale should be blocked for insufficient stock."""
-	# First check global Dycos Stock Settings
+	# First check global DyPOS Stock Settings
 	allow_negative = cint(frappe.db.get_single_value("Stock Settings", "allow_negative_stock") or 0)
 	if allow_negative:
 		return False
@@ -514,7 +514,7 @@ def _should_block(pos_profile):
 		if pos_settings_allow_negative:
 			return False
 
-		# Try to get custom field (may not exist in vanilla Dycos)
+		# Try to get custom field (may not exist in vanilla DyPOS)
 		block_sale = cint(
 			frappe.db.get_value("POS Profile", pos_profile, "posa_block_sale_beyond_available_qty") or 1
 		)
@@ -564,7 +564,7 @@ def _auto_set_return_batches(invoice_doc):
 			batch_list = [b for b in batch_list if flt(b.get("qty")) > 0]
 
 			if batch_list:
-				# FIFO: batches are already sorted by posting/expiry in Dycos
+				# FIFO: batches are already sorted by posting/expiry in DyPOS
 				d.batch_no = batch_list[0].get("batch_no")
 			else:
 				frappe.throw(_("No batches available in {0} for {1}.").format(d.warehouse, d.item_code))
@@ -853,15 +853,15 @@ def update_invoice(data):
 					item.price_list_rate = item_rate
 
 			# IMPORTANT: Keep the rate from frontend (do NOT set to 0)
-			# Dycos will recalculate if needed, but preserving frontend rate
+			# DyPOS will recalculate if needed, but preserving frontend rate
 			# prevents rounding issues and ensures UI matches invoice
 
 			# POS Next computes offers itself (via apply_offers) and sends each
 			# item with discount_percentage / discount_amount / rate already set.
-			# We pair that with invoice_doc.ignore_pricing_rule = 1 so Dycos's
+			# We pair that with invoice_doc.ignore_pricing_rule = 1 so DyPOS's
 			# own pricing engine stays out of the way.
 			#
-			# However, Dycos's get_pricing_rule_for_item() has a branch that
+			# However, DyPOS's get_pricing_rule_for_item() has a branch that
 			# fires when ignore_pricing_rule=1 AND the doc already exists in DB
 			# AND item.pricing_rules is non-empty — it interprets that as the
 			# user disabling pricing rules on an invoice that previously had
@@ -870,16 +870,16 @@ def update_invoice(data):
 			# That branch fires on the 2nd save (submit step), producing
 			# "Partly Paid" invoices where the cashier collected the discounted
 			# amount but the saved grand_total reverted to the pre-discount
-			# price. See Dycos/accounts/doctype/pricing_rule/pricing_rule.py
+			# price. See DyPOS/accounts/doctype/pricing_rule/pricing_rule.py
 			# around line 421.
 			#
 			# Clearing item.pricing_rules here avoids that branch entirely. The
 			# discount itself is preserved via the discount_percentage /
 			# discount_amount fields we already set above.
 			if item.get("pricing_rules"):
-				if Dycos_get_applied_pricing_rules:
+				if DyPOS_get_applied_pricing_rules:
 					applied_rule_names_seen.update(
-						Dycos_get_applied_pricing_rules(item.pricing_rules) or []
+						DyPOS_get_applied_pricing_rules(item.pricing_rules) or []
 					)
 				else:
 					applied_rule_names_seen.update(
@@ -915,7 +915,7 @@ def update_invoice(data):
 		# ROUNDING CONFIGURATION
 		# ========================================================================
 		# Load rounding preference from POS Settings (use cached value)
-		# When disabled (0): Dycos rounds to nearest whole number
+		# When disabled (0): DyPOS rounds to nearest whole number
 		# When enabled (1): Shows exact amount without rounding
 		# ========================================================================
 		disable_rounded = 1  # Default: disable rounding for POS (show exact amounts)
@@ -928,7 +928,7 @@ def update_invoice(data):
 		# ========================================================================
 		# POPULATE MISSING FIELDS — using for_validate=True intentionally
 		# ========================================================================
-		# Dycos's set_missing_values() calls set_pos_fields() internally.
+		# DyPOS's set_missing_values() calls set_pos_fields() internally.
 		#
 		# With for_validate=False (the default):
 		#   set_pos_fields() -> update_multi_mode_option() which does:
@@ -943,7 +943,7 @@ def update_invoice(data):
 		#   cost_center, etc.) without overwriting values already set.
 		#   Payment accounts are set separately via _set_payment_accounts() below.
 		#
-		# This is safe on all Dycos versions because POS Next already sets
+		# This is safe on all DyPOS versions because POS Next already sets
 		# the fields that for_validate=True skips:
 		#   - ignore_pricing_rule  → set above (line ~752)
 		#   - customer             → sent from frontend
@@ -2201,7 +2201,7 @@ def _remap_foreign_payment_modes(payments_data, current_profile, original_profil
 	    Each POS branch has its own cash Mode of Payment that maps to a
 	    dedicated GL cash account (e.g. "Boulaq Cash" -> account 12114,
 	    "Cash lebanon" -> account 12123). When a customer returns an invoice
-	    that was originally sold at a different branch, Dycos's
+	    that was originally sold at a different branch, DyPOS's
 	    make_sales_return() copies the *original* branch's payment modes.
 
 	    If we don't remap, two things go wrong:
@@ -2322,13 +2322,13 @@ def _remap_foreign_payment_modes(payments_data, current_profile, original_profil
 
 @frappe.whitelist()
 def prepare_return_invoice(invoice_name, pos_opening_shift=None):
-	"""Prepare a return invoice using Dycos's make_sales_return.
+	"""Prepare a return invoice using DyPOS's make_sales_return.
 
-	This uses Dycos's standard return document creation which properly copies
+	This uses DyPOS's standard return document creation which properly copies
 	all child tables including:
 	- sales_team: For correct commission reversal on returned items
 	- taxes: For correct tax reversal
-	- Other child tables maintained by Dycos
+	- Other child tables maintained by DyPOS
 
 	The function validates:
 	- Invoice exists and is submitted (docstatus = 1)
@@ -2345,7 +2345,7 @@ def prepare_return_invoice(invoice_name, pos_opening_shift=None):
 	        - _original_invoice: Reference data from original invoice (payments, amounts)
 	        - Each item includes original_qty, already_returned, and remaining_qty
 	"""
-	from Dycos.accounts.doctype.sales_invoice.sales_invoice import make_sales_return
+	from DyPOS.accounts.doctype.sales_invoice.sales_invoice import make_sales_return
 	from frappe.query_builder.functions import Abs, Coalesce, Sum
 	from frappe.utils import date_diff, getdate
 
@@ -2402,7 +2402,7 @@ def prepare_return_invoice(invoice_name, pos_opening_shift=None):
 					).format(invoice_name, days_since_invoice, return_validity_days)
 				)
 
-	# Use Dycos's make_sales_return to create properly mapped return document
+	# Use DyPOS's make_sales_return to create properly mapped return document
 	# This automatically copies sales_team, taxes, and other child tables
 	return_doc = make_sales_return(invoice_name)
 
@@ -2507,7 +2507,7 @@ def prepare_return_invoice(invoice_name, pos_opening_shift=None):
 		)
 
 		# For inclusive taxes, use the original rate (already includes tax) to prevent
-		# Dycos from back-calculating and double-reducing the tax.
+		# DyPOS from back-calculating and double-reducing the tax.
 		# For exclusive taxes, use net_rate as before.
 		if tax_inclusive:
 			item_rate = flt(item.get("rate"), precision)
@@ -2790,9 +2790,9 @@ def _evaluate_transaction_offers(
 	rule_map,
 	selected_offer_names,
 ):
-	"""Run Dycos's transaction-level pricing engine and collect free items.
+	"""Run DyPOS's transaction-level pricing engine and collect free items.
 
-	Dycos routes `apply_on = "Transaction"` rules through a different entry
+	DyPOS routes `apply_on = "Transaction"` rules through a different entry
 	point (`apply_pricing_rule_on_transaction`) than the per-item engine. That
 	function mutates a real Sales Invoice document in place — appending free
 	item rows via `doc.append("items", ...)` — so we build a transient,
@@ -2800,7 +2800,7 @@ def _evaluate_transaction_offers(
 
 	Returns {"free_items": dict keyed by (item_code, rule_name), "applied_rules": set}.
 	"""
-	if not Dycos_apply_pricing_rule_on_transaction or not pricing_items:
+	if not DyPOS_apply_pricing_rule_on_transaction or not pricing_items:
 		return {"free_items": {}, "applied_rules": set()}
 
 	total_qty = sum(flt(it.qty) for it in pricing_items)
@@ -2852,7 +2852,7 @@ def _evaluate_transaction_offers(
 		)
 
 	# filter_pricing_rules_for_qty_amount reads these straight off the doc
-	# (Dycos/accounts/doctype/pricing_rule/utils.py:572).
+	# (DyPOS/accounts/doctype/pricing_rule/utils.py:572).
 	doc.total_qty = total_qty
 	doc.total = total
 
@@ -2860,7 +2860,7 @@ def _evaluate_transaction_offers(
 	pre_addl_pct = flt(doc.get("additional_discount_percentage") or 0)
 	pre_discount_amt = flt(doc.get("discount_amount") or 0)
 	try:
-		Dycos_apply_pricing_rule_on_transaction(doc)
+		DyPOS_apply_pricing_rule_on_transaction(doc)
 	except Exception:
 		# A misconfigured transaction-scoped rule must not break the per-item
 		# discounts that have already been computed by the caller.
@@ -2888,10 +2888,10 @@ def _evaluate_transaction_offers(
 		free_items[(row.item_code, rule_name)] = fid
 		applied_rules.add(rule_name)
 
-	# Capture header-level discount that Dycos's apply_pricing_rule_on_transaction
-	# set on the doc when a Price-type Transaction rule fired. Dycos writes one of
+	# Capture header-level discount that DyPOS's apply_pricing_rule_on_transaction
+	# set on the doc when a Price-type Transaction rule fired. DyPOS writes one of
 	# additional_discount_percentage / discount_amount onto the doc (see
-	# Dycos/accounts/doctype/pricing_rule/utils.py:578-616) but does not surface
+	# DyPOS/accounts/doctype/pricing_rule/utils.py:578-616) but does not surface
 	# which rule fired. We detect "fired" by diffing the doc fields against the
 	# pre-call snapshot and attribute the application to every selected, in-scope
 	# transaction-level Price rule in rule_map. The frontend treats the response
@@ -2923,13 +2923,13 @@ def _evaluate_transaction_offers(
 
 @frappe.whitelist()
 def apply_offers(invoice_data, selected_offers=None):
-	"""Calculate and apply promotional offers using Dycos Pricing Rules.
+	"""Calculate and apply promotional offers using DyPOS Pricing Rules.
 
 	Args:
 	        invoice_data (str | dict): Sales Invoice payload used for offer evaluation.
 	        selected_offers (str | list | None): Optional collection of Pricing Rule names.
 	                When provided, results are filtered to only include these rules.
-	                Dycos handles all conflict resolution based on priority.
+	                DyPOS handles all conflict resolution based on priority.
 	"""
 	try:
 		if isinstance(invoice_data, str):
@@ -2952,8 +2952,8 @@ def apply_offers(invoice_data, selected_offers=None):
 		if not items:
 			return {"items": []}
 
-		if not invoice.get("pos_profile") or not Dycos_apply_pricing_rule:
-			# Either no POS profile supplied or Dycos promotional engine unavailable
+		if not invoice.get("pos_profile") or not DyPOS_apply_pricing_rule:
+			# Either no POS profile supplied or DyPOS promotional engine unavailable
 			return {"items": items}
 
 		profile = frappe.get_cached_doc("POS Profile", invoice.get("pos_profile"))
@@ -3073,18 +3073,18 @@ def apply_offers(invoice_data, selected_offers=None):
 			}
 		)
 
-		# Call Dycos pricing engine - it handles all conflicts based on priority
+		# Call DyPOS pricing engine - it handles all conflicts based on priority
 		#
 		# Why we pass pricing_args twice:
-		# - 1st param (args): Dycos extracts and pops 'items' from this, then processes each item individually
+		# - 1st param (args): DyPOS extracts and pops 'items' from this, then processes each item individually
 		# - 2nd param (doc): Used by 'mixed_conditions' pricing rules to access the FULL items list
 		#                    for quantity accumulation across different items in the same group
 		#
 		# Example: A rule "Buy 2 from Demo Item Group, get 10% off" with mixed_conditions=1
 		# needs to see ALL items (1 Book + 1 Camera) to know total qty=2, not just each item's qty=1
 		#
-		# See: Dycos/accounts/doctype/pricing_rule/utils.py -> get_qty_and_rate_for_mixed_conditions()
-		pricing_results = Dycos_apply_pricing_rule(pricing_args, doc=pricing_args) or []
+		# See: DyPOS/accounts/doctype/pricing_rule/utils.py -> get_qty_and_rate_for_mixed_conditions()
+		pricing_results = DyPOS_apply_pricing_rule(pricing_args, doc=pricing_args) or []
 
 		if not pricing_results:
 			return {"items": items}
@@ -3094,8 +3094,8 @@ def apply_offers(invoice_data, selected_offers=None):
 			if not result:
 				continue
 			rules = []
-			if Dycos_get_applied_pricing_rules:
-				rules = Dycos_get_applied_pricing_rules(result.get("pricing_rules"))
+			if DyPOS_get_applied_pricing_rules:
+				rules = DyPOS_get_applied_pricing_rules(result.get("pricing_rules"))
 			else:
 				raw_rules = result.get("pricing_rules") or []
 				if isinstance(raw_rules, str):
@@ -3107,9 +3107,9 @@ def apply_offers(invoice_data, selected_offers=None):
 					rules = list(raw_rules)
 			raw_rule_names.update(rules)
 
-		# Build a map of applicable pricing rules from the Dycos engine results.
+		# Build a map of applicable pricing rules from the DyPOS engine results.
 		#
-		# Dycos has two types of pricing rules:
+		# DyPOS has two types of pricing rules:
 		#
 		# 1. Promotional Scheme Rules (promotional_scheme is set):
 		#    - Created automatically when a Promotional Scheme is saved
@@ -3163,9 +3163,9 @@ def apply_offers(invoice_data, selected_offers=None):
 		# Top up rule_map with transaction-scoped rules. The per-item engine
 		# never surfaces apply_on="Transaction" rules, so without this they
 		# would be dropped at the `if not rule_map: return` check below.
-		# Dycos's own SQL inside apply_pricing_rule_on_transaction handles
+		# DyPOS's own SQL inside apply_pricing_rule_on_transaction handles
 		# date/currency/pos_only filtering, so a broad superset is sufficient.
-		if Dycos_apply_pricing_rule_on_transaction:
+		if DyPOS_apply_pricing_rule_on_transaction:
 			txn_rule_records = frappe.get_all(
 				"Pricing Rule",
 				filters={
@@ -3195,9 +3195,9 @@ def apply_offers(invoice_data, selected_offers=None):
 
 		applied_rules = set()
 		# Deduplicate free items using a dict keyed by (item_code, pricing_rule).
-		# Dycos's apply_pricing_rule() returns one result per cart item and for
+		# DyPOS's apply_pricing_rule() returns one result per cart item and for
 		# mixed_conditions rules attaches the same free_item_data to every matching
-		# item's result. Dycos's own apply_pricing_rule_for_free_items() deduplicates
+		# item's result. DyPOS's own apply_pricing_rule_for_free_items() deduplicates
 		# the same way: {(item_code, pricing_rules): data for data in free_item_data}.
 		free_items_map = {}
 
@@ -3205,8 +3205,8 @@ def apply_offers(invoice_data, selected_offers=None):
 			if not result:
 				continue
 
-			if Dycos_get_applied_pricing_rules:
-				rule_names = Dycos_get_applied_pricing_rules(result.get("pricing_rules"))
+			if DyPOS_get_applied_pricing_rules:
+				rule_names = DyPOS_get_applied_pricing_rules(result.get("pricing_rules"))
 			else:
 				raw_rules = result.get("pricing_rules") or []
 				if isinstance(raw_rules, str):
@@ -3236,7 +3236,7 @@ def apply_offers(invoice_data, selected_offers=None):
 			discount_percentage = flt(result.get("discount_percentage") or 0)
 			per_unit_discount = flt(result.get("discount_amount") or 0)
 
-			# If Dycos didn't calculate discount (validate_applied_rule=1),
+			# If DyPOS didn't calculate discount (validate_applied_rule=1),
 			# we need to fetch and apply it manually
 			if not discount_percentage and not per_unit_discount and applicable_rule_names:
 				for rule_name in applicable_rule_names:
@@ -3278,7 +3278,7 @@ def apply_offers(invoice_data, selected_offers=None):
 			item_doc.discount_amount = line_discount_amount
 			item_doc.price_list_rate = price_list_rate
 			item_doc.rate = flt(item_doc.get("rate") or price_list_rate)
-			# Dycos expects pricing_rules as comma-separated string, not a list
+			# DyPOS expects pricing_rules as comma-separated string, not a list
 			item_doc.pricing_rules = ",".join(applicable_rule_names) if applicable_rule_names else ""
 
 			item_doc.applied_promotional_schemes = list(
@@ -3297,7 +3297,7 @@ def apply_offers(invoice_data, selected_offers=None):
 				free_item_doc.applied_promotional_scheme = rule_map[rule_name].promotional_scheme
 				free_items_map[(free_item.get("item_code"), rule_name)] = free_item_doc
 
-		# Evaluate apply_on="Transaction" rules through Dycos's separate
+		# Evaluate apply_on="Transaction" rules through DyPOS's separate
 		# transaction-level engine. The per-item engine above does not see
 		# them, so without this step "Entire Transaction" promotional schemes
 		# (free product based on cart total) would never apply.
@@ -3339,11 +3339,11 @@ def apply_offers(invoice_data, selected_offers=None):
 			apply_min_max_price_discounts(mock_doc, allowed_rules=min_max_allowed)
 
 		# Surface Min/Max rules in the response so the frontend tracks them as applied.
-		if Dycos_get_applied_pricing_rules:
+		if DyPOS_get_applied_pricing_rules:
 			for prepared_item in prepared_items:
 				if not prepared_item.get("pricing_rules"):
 					continue
-				for pr_name in Dycos_get_applied_pricing_rules(prepared_item.get("pricing_rules")):
+				for pr_name in DyPOS_get_applied_pricing_rules(prepared_item.get("pricing_rules")):
 					if pr_name in rule_map:
 						applied_rules.add(pr_name)
 

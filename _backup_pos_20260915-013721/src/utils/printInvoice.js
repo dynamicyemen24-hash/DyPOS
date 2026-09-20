@@ -405,7 +405,7 @@ export async function printInvoice(
 
 		invoiceData = await hydrateLocalOnlyInvoice(invoiceData)
 
-		// Pending offline / local IDs are not in Dycos — use embedded receipt HTML.
+		// Pending offline / local IDs are not in DyPOS — use embedded receipt HTML.
 		if (isLocalOnlyInvoiceName(invoiceData.name)) {
 			if (invoiceData.items?.length > 0) return printInvoiceCustom(invoiceData)
 			throw new Error(

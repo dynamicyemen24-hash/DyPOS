@@ -55,7 +55,7 @@ Loyalty Program Enabled → All wallet features automatically activated
 │         │                                                               │
 │         ▼                                                               │
 │  ┌─────────────┐                                                        │
-│  │  Loyalty    │  ◄── Created by Dycos on invoice submit              │
+│  │  Loyalty    │  ◄── Created by DyPOS on invoice submit              │
 │  │Point Entry  │                                                        │
 │  └─────────────┘                                                        │
 │                                                                         │
@@ -95,7 +95,7 @@ DyPOS/
    ▼
 2. Sales Invoice submitted
    │
-   ├──▶ Dycos creates Loyalty Point Entry (automatic)
+   ├──▶ DyPOS creates Loyalty Point Entry (automatic)
    │    └── Based on Loyalty Program Collection Rules
    │
    └──▶ process_loyalty_to_wallet() hook triggered
@@ -198,7 +198,7 @@ DyPOS/
 
 > **Important**: Payment methods with `is_wallet_payment = 1` are only shown in POS when loyalty is enabled.
 
-### Loyalty Program (Dycos Standard)
+### Loyalty Program (DyPOS Standard)
 
 | Field | Description |
 |-------|-------------|
@@ -369,7 +369,7 @@ doc_events = {
 
 ### Prerequisites
 
-1. Dycos with Loyalty Program module
+1. DyPOS with Loyalty Program module
 2. DyPOS installed
 3. Chart of Accounts configured
 

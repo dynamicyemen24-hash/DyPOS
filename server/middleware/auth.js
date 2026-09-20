@@ -88,7 +88,7 @@ export function verifyToken(token) {
 /** Extract Bearer token from header, cookie, or legacy Frappe session header. */
 function extractToken(req) {
   const auth = req.headers.authorization;
-  if (auth && auth.startsWith('Bearer ')) return auth.slice(7);
+  if (auth?.startsWith('Bearer ')) return auth.slice(7);
   // Legacy Frappe cookie — allows the published static pos.html (which
   // boots from window.boot) to reuse its server-issued sid without CORS.
   const cookie = String(req.headers.cookie || '');

@@ -6,11 +6,11 @@
 from types import SimpleNamespace
 
 import frappe
-from Dycos.accounts.doctype.sales_invoice.test_sales_invoice import create_sales_invoice
-from Dycos.selling.doctype.product_bundle.test_product_bundle import make_product_bundle
-from Dycos.stock.doctype.item.test_item import make_item
-from Dycos.stock.doctype.packed_item import packed_item as packed_item_module
-from Dycos.stock.doctype.stock_entry.test_stock_entry import make_stock_entry
+from DyPOS.accounts.doctype.sales_invoice.test_sales_invoice import create_sales_invoice
+from DyPOS.selling.doctype.product_bundle.test_product_bundle import make_product_bundle
+from DyPOS.stock.doctype.item.test_item import make_item
+from DyPOS.stock.doctype.packed_item import packed_item as packed_item_module
+from DyPOS.stock.doctype.stock_entry.test_stock_entry import make_stock_entry
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import nowdate
 
@@ -27,7 +27,7 @@ def _assert_no_duplicate_packed_rows(si):
 
 
 def _sales_invoice_bundle_context():
-	"""Use Dycos test fixtures when present; otherwise resolve from the live site."""
+	"""Use DyPOS test fixtures when present; otherwise resolve from the live site."""
 	if frappe.db.exists("Warehouse", "_Test Warehouse - _TC"):
 		return SimpleNamespace(
 			company="_Test Company",
@@ -107,7 +107,7 @@ class TestPackedItemsNoDuplicates(FrappeTestCase):
 		super().setUp()
 		self.assertTrue(
 			getattr(packed_item_module, "_DyPOS_packed_item_keying_patched", False),
-			msg="DyPOS packed_item patch must be active (import DyPOS before Dycos saves).",
+			msg="DyPOS packed_item patch must be active (import DyPOS before DyPOS saves).",
 		)
 
 	def _unique_codes(self):

@@ -3,13 +3,13 @@ name = "DyPOS"
 authors = [
     { name = "BrainWise", email = "support@brainwise.me"}
 ]
-description = "“POS built on Dycos that brings together real-time billing, stock management, multi-user access, offline mode, and direct ERP integration. Run your store or restaurant with confidence and control, while staying 100% open source."
+description = "“POS built on DyPOS that brings together real-time billing, stock management, multi-user access, offline mode, and direct ERP integration. Run your store or restaurant with confidence and control, while staying 100% open source."
 requires-python = ">=3.10"
 readme = "README.md"
 dynamic = ["version"]
 dependencies = [
     # "frappe~=15.0.0" # Installed and managed by bench.
-    "Dycos",
+    "DyPOS",
     "pypdf>=6.12.0",
 ]
 

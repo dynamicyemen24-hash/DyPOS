@@ -1,17 +1,17 @@
 /**
- * Dycos platform auth — manages the offline-sync access token independently
+ * DyPOS platform auth — manages the offline-sync access token independently
  * from the UI session so a network disconnect never blocks the UX.
  */
 
 import db from "./db.js"
 import { SyncError, SyncErrorKind } from "./sync-error.js"
 
-const TOKEN_KEY = "dycos_access_token"
-const REFRESH_KEY = "dycos_refresh_token"
-const EXPIRY_KEY = "dycos_token_expiry"
+const TOKEN_KEY = "DyPOS_access_token"
+const REFRESH_KEY = "DyPOS_refresh_token"
+const EXPIRY_KEY = "DyPOS_token_expiry"
 
-const TENANT_KEY = "dycos_tenant_id"
-const EMPLOYEE_KEY = "dycos_employee_id"
+const TENANT_KEY = "DyPOS_tenant_id"
+const EMPLOYEE_KEY = "DyPOS_employee_id"
 
 /**
  * Platform API base URL. Configurable via VITE_PLATFORM_URL; defaults to the
@@ -48,11 +48,11 @@ export async function initAuth() {
 			indexedTenant,
 			indexedEmployee,
 		] = await Promise.all([
-			db.settings.get("dycos_token"),
-			db.settings.get("dycos_refresh_token"),
-			db.settings.get("dycos_token_expiry"),
-			db.settings.get("dycos_tenant_id"),
-			db.settings.get("dycos_employee_id"),
+			db.settings.get("DyPOS_token"),
+			db.settings.get("DyPOS_refresh_token"),
+			db.settings.get("DyPOS_token_expiry"),
+			db.settings.get("DyPOS_tenant_id"),
+			db.settings.get("DyPOS_employee_id"),
 		])
 
 		authState.token =
@@ -111,14 +111,14 @@ export async function saveAuth(
 
 	try {
 		await Promise.all([
-			db.settings.put({ key: "dycos_token", value: token }),
-			db.settings.put({ key: "dycos_refresh_token", value: refreshToken }),
+			db.settings.put({ key: "DyPOS_token", value: token }),
+			db.settings.put({ key: "DyPOS_refresh_token", value: refreshToken }),
 			db.settings.put({
-				key: "dycos_token_expiry",
+				key: "DyPOS_token_expiry",
 				value: expiry.toISOString(),
 			}),
-			db.settings.put({ key: "dycos_tenant_id", value: tenantId }),
-			db.settings.put({ key: "dycos_employee_id", value: employeeId }),
+			db.settings.put({ key: "DyPOS_tenant_id", value: tenantId }),
+			db.settings.put({ key: "DyPOS_employee_id", value: employeeId }),
 		])
 	} catch (error) {
 		/* IndexedDB may be unavailable — memory + localStorage still valid */
@@ -162,11 +162,11 @@ export async function revokeAuth() {
 
 	try {
 		await Promise.all([
-			db.settings.delete("dycos_token"),
-			db.settings.delete("dycos_refresh_token"),
-			db.settings.delete("dycos_token_expiry"),
-			db.settings.delete("dycos_tenant_id"),
-			db.settings.delete("dycos_employee_id"),
+			db.settings.delete("DyPOS_token"),
+			db.settings.delete("DyPOS_refresh_token"),
+			db.settings.delete("DyPOS_token_expiry"),
+			db.settings.delete("DyPOS_tenant_id"),
+			db.settings.delete("DyPOS_employee_id"),
 		])
 	} catch (error) {
 		/* IndexedDB unavailable */

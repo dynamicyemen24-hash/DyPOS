@@ -45,7 +45,7 @@ DyPOS supports fully offline operation, allowing cashiers to continue creating i
                                     │ HTTP API
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                           Backend (Frappe/Dycos)                       │
+│                           Backend (Frappe/DyPOS)                       │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
 │  ┌──────────────────┐    ┌──────────────────────────────────────────┐   │

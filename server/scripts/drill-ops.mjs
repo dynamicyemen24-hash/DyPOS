@@ -105,7 +105,6 @@ const seeded = {
 const tW = lap('seed: tenants + base data');
 
 const seedBase = db.transaction(() => {
-  let branchNo = 0;
   for (const [ti, t] of TENANTS.entries()) {
     insertTenant.run(t.code, t.name, t.code, t.plan);
     seeded.tenants++;
@@ -207,7 +206,6 @@ seedProducts();
 genT();
 
 let px = null;
-let bogusSvg = null;
 try { const imgRow = db.prepare(`SELECT image FROM products WHERE image IS NOT NULL LIMIT 1`).get(); px = imgRow ? String(imgRow.image) : null; } catch {}
 phase('seed: 1000 products + local SVG images', seeded.products === PRODUCT_TARGET && seeded.images === PRODUCT_TARGET, { summary: `${seeded.products} products, ${seeded.images} SVG files, sample="${px}"` });
 

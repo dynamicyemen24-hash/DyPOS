@@ -85,3 +85,21 @@ dist-deploy/
 
 # Drill/test data
 server/data/drill/
+ 
+# One-off probes / dumps (regenerable diagnostics, never source) 
+# -- removed 24 of these in the v1.27.0 release hygiene pass 
+_live-*.html 
+_pages.txt 
+_parity.txt 
+_sub-test.txt 
+_test-*.txt 
+_tmp_*.mjs 
+_whoami.txt 
+_deployments.txt 
+_probe*.bat 
+_orig.tmp 
+server-test-*.txt 
+POS/_build.bat 
+POS/_build.log 
+server/_install.bat 
+server/_install.log 

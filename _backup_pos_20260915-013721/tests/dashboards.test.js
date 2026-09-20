@@ -15,7 +15,7 @@ const invoice = (overrides = {}) => ({
 	posting_date: "2026-09-01",
 	customer: "CUST-1",
 	customer_name: "Customer One",
-	company: "Dycos",
+	company: "DyPOS",
 	status: "Paid",
 	is_return: 0,
 	base_grand_total: 1150,

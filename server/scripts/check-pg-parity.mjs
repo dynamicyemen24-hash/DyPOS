@@ -40,8 +40,7 @@ function pgObjects() {
   const indexes = new Set();
   // CREATE TABLE [IF NOT EXISTS] name ( ... ); — capture balanced parens naively
   const tableRe = /CREATE TABLE IF NOT EXISTS\s+([a-z_][a-z0-9_]*)\s*\(/gi;
-  let m;
-  while ((m = tableRe.exec(sql)) !== null) {
+  for (const m of sql.matchAll(tableRe)) {
     const name = norm(m[1]);
     // Find matching close paren from m.index
     let depth = 0, start = sql.indexOf('(', m.index), end = start;
@@ -71,13 +70,13 @@ function pgObjects() {
   }
   // ALTER TABLE x ADD COLUMN [IF NOT EXISTS] col
   const alterRe = /ALTER TABLE\s+([a-z_][a-z0-9_]*)\s+ADD COLUMN IF NOT EXISTS\s+([a-z_][a-z0-9_]*)/gi;
-  while ((m = alterRe.exec(sql)) !== null) {
+  for (const m of sql.matchAll(alterRe)) {
     const t = norm(m[1]);
     if (!tables[t]) tables[t] = new Set();
     tables[t].add(norm(m[2]));
   }
   const idxRe = /CREATE (?:UNIQUE )?INDEX IF NOT EXISTS\s+([a-z_][a-z0-9_]*)/gi;
-  while ((m = idxRe.exec(sql)) !== null) indexes.add(norm(m[1]));
+  for (const m of sql.matchAll(idxRe)) indexes.add(norm(m[1]));
   return { tables, indexes };
 }
 
@@ -95,8 +94,8 @@ try {
     if (IGNORED_TABLES.has(t) || isFtsTable(t)) continue;
     if (!pg.tables[t]) { missingTables.push(t); continue; }
     for (const c of cols) {
-      // SQLite-only bookkeeping / legacy columns
-      if (t === 'users' && c === 'must_change_password' && false) continue;
+      // No SQLite-only skip-list: every SQLite column must also exist in
+      // Postgres. (The previous `&& false` guard was dead code.)
       if (!pg.tables[t].has(c)) missingColumns.push(`${t}.${c}`);
     }
   }

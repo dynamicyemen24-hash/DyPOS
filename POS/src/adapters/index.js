@@ -40,5 +40,16 @@ export const {
 	syncPull,
 	syncPush,
 	getSyncCheckpoint,
+	getSubscriptionPlans,
+	createSubscriptionPlan,
+	updateSubscriptionPlan,
+	getSubscriptions,
+	subscribeCustomer,
+	pauseSubscription,
+	resumeSubscription,
+	cancelSubscription,
+	runBilling,
+	getSubscriptionReport,
+	getCustomerBillings,
 } = adapter
 export default adapter

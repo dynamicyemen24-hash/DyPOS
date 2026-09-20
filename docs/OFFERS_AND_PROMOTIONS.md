@@ -1,6 +1,6 @@
 # Offers and Promotions System
 
-This document explains how DyPOS integrates with Dycos's Pricing Rules and Promotional Schemes to automatically apply discounts.
+This document explains how DyPOS integrates with DyPOS's Pricing Rules and Promotional Schemes to automatically apply discounts.
 
 ## Overview
 
@@ -28,7 +28,7 @@ DyPOS supports automatic offer application based on cart contents. When items ar
 - **Brand**: All items from a brand
 - **Transaction**: Entire cart
 
-## Configuration in Dycos
+## Configuration in DyPOS
 
 ### Creating a Promotional Scheme
 
@@ -48,7 +48,7 @@ For offers that should apply when **different items from the same group** are co
 Mixed Conditions = Yes
 ```
 
-This allows Dycos to accumulate quantities across different items in the same Item Group.
+This allows DyPOS to accumulate quantities across different items in the same Item Group.
 
 **Example:**
 - Rule: "Buy 2 items from Demo Item Group, get 10% off"
@@ -64,7 +64,7 @@ This allows Dycos to accumulate quantities across different items in the same It
 
 ### Pricing Rule Generated
 
-When you save a Promotional Scheme, Dycos automatically creates underlying Pricing Rules (e.g., `PRLE-0003`). DyPOS works with these generated rules.
+When you save a Promotional Scheme, DyPOS automatically creates underlying Pricing Rules (e.g., `PRLE-0003`). DyPOS works with these generated rules.
 
 ## Frontend Architecture
 
@@ -112,7 +112,7 @@ Located in `DyPOS/api/invoices.py`
 ```python
 @frappe.whitelist()
 def apply_offers(invoice_data, selected_offers=None):
-    """Calculate and apply promotional offers using Dycos Pricing Rules."""
+    """Calculate and apply promotional offers using DyPOS Pricing Rules."""
 ```
 
 **Parameters:**
@@ -138,14 +138,14 @@ def apply_offers(invoice_data, selected_offers=None):
 
 ### Mixed Conditions Support
 
-The API passes the document to Dycos's pricing engine for mixed conditions:
+The API passes the document to DyPOS's pricing engine for mixed conditions:
 
 ```python
 # Why we pass pricing_args twice:
-# - 1st param (args): Dycos extracts and pops 'items' from this
+# - 1st param (args): DyPOS extracts and pops 'items' from this
 # - 2nd param (doc): Used by 'mixed_conditions' to access the FULL items list
 #                    for quantity accumulation across different items
-pricing_results = Dycos_apply_pricing_rule(pricing_args, doc=pricing_args)
+pricing_results = DyPOS_apply_pricing_rule(pricing_args, doc=pricing_args)
 ```
 
 ## UI Components
@@ -195,7 +195,7 @@ cartStore.forceRefreshOffers()
 If 1 Book + 1 Camera doesn't trigger an "Item Group" offer:
 
 1. Verify both items are in the same Item Group
-2. Enable `Mixed Conditions` on the Pricing Rule in Dycos
+2. Enable `Mixed Conditions` on the Pricing Rule in DyPOS
 3. Ensure the backend API is passing `doc` parameter (see code above)
 
 ### Offer Removed Unexpectedly
@@ -253,4 +253,4 @@ print(result)
 
 - Backend:
   - `DyPOS/api/invoices.py` - `apply_offers()` API
-  - Dycos: `Dycos/accounts/doctype/pricing_rule/` - Pricing engine
+  - DyPOS: `DyPOS/accounts/doctype/pricing_rule/` - Pricing engine

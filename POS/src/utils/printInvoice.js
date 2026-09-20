@@ -406,7 +406,7 @@ export async function printInvoice(
 		hydratedInvoice = await hydrateLocalOnlyInvoice(invoiceData)
 		if (!hydratedInvoice?.name) throw new Error("Invalid invoice data")
 
-		// Pending offline / local IDs are not in Dycos — use embedded receipt HTML.
+		// Pending offline / local IDs are not in DyPOS — use embedded receipt HTML.
 		if (isLocalOnlyInvoiceName(hydratedInvoice.name)) {
 			if (hydratedInvoice.items?.length > 0)
 				return printInvoiceCustom(hydratedInvoice)

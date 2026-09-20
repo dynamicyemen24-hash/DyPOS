@@ -111,3 +111,58 @@ export async function syncPull(checkpoint, limit) {
 export async function syncPush(changes) {
 	return call("dypos.api.sync.push", { changes })
 }
+
+// ── Unimplemented surface: explicit failure, never silent `undefined` ──
+// `src/adapters/index.js` re-exports ONE stable surface for both backends, so
+// every name it lists must exist here too. This bridge only implements the
+// endpoints the Frappe-side app actually exposes today; the rest are exported
+// as honest, loud failures.
+// Why: before this block the façade silently produced `undefined` for ~30
+// names, so switching VITE_DYPOS_BACKEND=frappe turned any call into
+// "undefined is not a function" in the middle of a sale. A precise, actionable
+// error is the correct behaviour until a real Frappe endpoint exists.
+function notSupported(name) {
+	return async () => {
+		throw new Error(
+			`محول Frappe لا يدعم ${name} — استخدم VITE_DYPOS_BACKEND=rest (الخادم الإنتاجي) أو أضف المسار المقابل في تطبيق Frappe`,
+		)
+	}
+}
+
+// Auth / catalog / customers
+export const register = notSupported("register")
+export const getProduct = notSupported("getProduct")
+export const createProduct = notSupported("createProduct")
+export const updateProduct = notSupported("updateProduct")
+export const deleteProduct = notSupported("deleteProduct")
+export const getCustomers = notSupported("getCustomers")
+export const getCustomer = notSupported("getCustomer")
+export const createCustomer = notSupported("createCustomer")
+export const updateCustomer = notSupported("updateCustomer")
+export const getCustomerBalance = notSupported("getCustomerBalance")
+
+// Invoices / shifts
+export const getInvoices = notSupported("getInvoices")
+export const getInvoice = notSupported("getInvoice")
+export const payInvoice = notSupported("payInvoice")
+export const getDailyReport = notSupported("getDailyReport")
+export const getOpenShift = notSupported("getOpenShift")
+export const getShiftReport = notSupported("getShiftReport")
+
+// Stock / sync
+export const getStockLevel = notSupported("getStockLevel")
+export const adjustStock = notSupported("adjustStock")
+export const getSyncCheckpoint = notSupported("getSyncCheckpoint")
+
+// Subscriptions (v1.27.0 engine lives in the REST backend only)
+export const getSubscriptionPlans = notSupported("getSubscriptionPlans")
+export const createSubscriptionPlan = notSupported("createSubscriptionPlan")
+export const updateSubscriptionPlan = notSupported("updateSubscriptionPlan")
+export const getSubscriptions = notSupported("getSubscriptions")
+export const subscribeCustomer = notSupported("subscribeCustomer")
+export const pauseSubscription = notSupported("pauseSubscription")
+export const resumeSubscription = notSupported("resumeSubscription")
+export const cancelSubscription = notSupported("cancelSubscription")
+export const runBilling = notSupported("runBilling")
+export const getSubscriptionReport = notSupported("getSubscriptionReport")
+export const getCustomerBillings = notSupported("getCustomerBillings")

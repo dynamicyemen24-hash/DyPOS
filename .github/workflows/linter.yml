@@ -57,7 +57,7 @@ jobs:
           pip install "tomli>=2.2.1"
           pip install pip-audit
           pip install "frappe @ git+https://github.com/frappe/frappe.git@version-15"
-          pip install "Dycos @ git+https://github.com/frappe/Dycos.git@version-15"
+          pip install "DyPOS @ git+https://github.com/frappe/DyPOS.git@version-15"
           cd ${GITHUB_WORKSPACE}
           pip install --no-deps .
 

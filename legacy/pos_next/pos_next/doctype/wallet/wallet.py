@@ -2,7 +2,7 @@
 # For license information, please see license.txt
 
 import frappe
-from Dycos.accounts.utils import get_balance_on
+from DyPOS.accounts.utils import get_balance_on
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt

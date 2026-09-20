@@ -2,8 +2,8 @@
 # For license information, please see license.txt
 
 import frappe
-from Dycos.accounts.general_ledger import make_gl_entries
-from Dycos.controllers.accounts_controller import AccountsController
+from DyPOS.accounts.general_ledger import make_gl_entries
+from DyPOS.controllers.accounts_controller import AccountsController
 from frappe import _
 from frappe.utils import flt, today
 

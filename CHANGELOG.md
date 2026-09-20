@@ -7,6 +7,98 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-09-20 — محرّك الاشتراكات + سلامة فوترة لا تتكرر (Recurring Commerce)
+
+### Added — Subscription engine (schema v18 → v19)
+- `server/routes/subscriptions.js` + `POST/GET /api/subscriptions/*`: باقات
+  (ADMIN/MANAGER)، اشتراك العملاء، pause/resume/cancel بحالات مُقيَّدة،
+  تشغيل فوترة، تقرير (byStatus/MRR/المستحقات)، وكشف فواتير لكل عميل.
+- الفوترة الحقيقية بلا استثناءات: كل تحصيل يكتب صفًا في
+  `subscription_billings` وقيدًا في دفتر المحفظة (`wallet_transactions`)
+  + `loyalty_transactions` داخل معاملة واحدة؛ الرصيد غير الكافي → `due`
+  للمتابعة اليدوية (لا تخطٍ صامت ولا تجديد وهمي).
+- `POS/src/adapters/rest/api.js` + `POS/src/adapters/index.js`: 11 دالة
+  اشتراكات في طبقة الـ Adapter (لا وصول شبكي مباشر من المكوّنات).
+
+### Added — Replay-safe billing (schema v19)
+- `subscription_billings.period_start` + `periods_consolidated` و
+  فهرس فريد جزئي `idx_sbill_period(subscription_id, period_start)`:
+  **يستحيل** تحصيل الفترة نفسها مرتين حتى مع إعادة الإرسال أو تزامن تشغيلين.
+- الجدولة تُدوَّر دائمًا إلى ما بعد تاريخ التشغيل، وتُدمج الفترات الفائتة في
+  تحصيل واحد (`amount = price × periods`, بحد أقصى 1200 فترة) — بلا انفجار
+  مبالغ ولا حذف صامت لاستحقاق. الاستجابة تعرض `periods` و`periodStart`
+  و`skipped` للتدقيق.
+- ترحيل v19 محصّن: يفشل الفهرس الفريد فقط (تحذير) ولا يمنع إقلاع الخادم أبدًا.
+
+### Fixed — Input validation & tenant isolation
+- `intervalDays: 0` كان يُستبدل صامتًا بـ 30 → الآن 400 صريح؛ القيم الفارغة
+  فقط ترجع للافتراضي.
+- عزل المستأجرين في مسارات الاشتراكات: كل قراءة (قائمة/تقرير/كشف/باقات)
+  مُفلترة بالمستأجر، وكل كتابة عبر الحدود → **404** لا تسريب وجود؛ وتشغيل
+  فوترة مُقيَّد بمستأجر لا يلمس عملاء مستأجر آخر (مُثبت باختبارات).
+
+### Fixed — سلامة طبقة المحوّلات (Adapter integrity)
+- `POS/src/adapters/rest/api.js`: صنف `ApiClient` كان بلا فعل `patch()` بينما
+  `updateSubscriptionPlan` ينادي `api.patch(...)` → انهيار `TypeError` عند أول
+  تعديل باقة (تعارض مع مسار الخادم `PATCH /plans/:id`). أُضيف الفعل ليكتمل العقد.
+- `POS/src/adapters/frappe/api.js`: كان يُصدِّر 9 أسماء فقط من 39 تُصدِّرها
+  الواجهة الموحّدة `adapters/index.js` → 30 اسمًا تصبح `undefined` **بصمت**
+  عند `VITE_DYPOS_BACKEND=frappe` (انهيار وسط البيع). الآن كل اسم إما منفَّذ
+  فعليًا أو **يفشل بصوت عالٍ** برسالة عربية صريحة — لا سلوك وهمي ولا
+  `undefined is not a function`.
+
+### Added — بوابات عقد تحرس الفجوات من الارتداد
+- `POS/tests/adapterContract.test.js` (8 اختبارات): تكافؤ الواجهة الموحّدة مع
+  المحوّلين، سلامة كل `api.<verb>()` مقابل أفعال `ApiClient`، وعقد مسارات
+  الاشتراكات (adapter ↔ `server/routes/subscriptions.js`) طريقةً ومسارًا.
+- `POS/tests/versionDrift.test.js` (4 اختبارات): مصدر الإصدار الواحد
+  (root ≡ server/package ≡ server/lib/version ≡ POS/package) + طابع البناء عند
+  وجوده؛ كان موثّقًا في `server/lib/version.js` بلا أي حارس ينفّذه.
+
+### Fixed — بوابة lint للخادم (كانت معطّلة تمامًا)
+- `server/package.json`: أُضيف `@biomejs/biome@1.9.4` كـ devDependency —
+  `npm run lint` كان يفشل بـ `'biome' is not recognized` فلم تُنفَّذ البوابة قط.
+- `server/biome.json`: كان **مخالفًا لمخطط Biome 1.9.4** (`useIgnoreFile` ككائن،
+  `includes`، `javascript.quoteStyle`) → أُعيد كتابته صحيحًا، مع **تعطيل
+  التنسيق صراحةً**: الأسلوب المضغوط في الخادم مقصود، وإعادة تنسيق 95 ملفًا دين
+  مؤجَّل موثّق في `docs/TECH_DEBT_PAYDOWN.md` (وكذلك تعطيل قواعد شكلية بحتة
+  مع بيان السبب، وحفظ `noDelete` في الاختبارات لأن `delete process.env.X`
+  تختلف دلاليًا عن الإسناد).
+- إصلاحات حقيقية كشفتها البوابة فور تفعيلها: `lib/device.js` (سلسلة اختيارية)،
+  `middleware/auth.js`، `middleware/metrics.js` (`const`)،
+  `scripts/check-pg-parity.mjs` (ثلاث حلقات `exec` → `matchAll` + إزالة فرع ميت
+  `&& false`)، `scripts/stress-campaign.mjs`، و`scripts/drill-ops.mjs`
+  (متغيران ميتان).
+
+### Removed — سكربتات تشخيص مكسورة + فوضى الجذر
+- 6 سكربتات `server/scripts/_*` من جلسة حفر سابقة، **اثنان منها لا يُحلَّلان
+  نحويًا** (`acabou` و`ой` داخل المصدر) + `drill-err.txt`.
+- 24 ملف تشخيص/لقطة في جذر المستودع (`_tmp_*.mjs`، `_live-*.html`،
+  `_test-*.txt`، `_probe*.bat`، `server-test-*.txt`…) — مُنعت بأنماط في
+  `.gitignore` فلا تعود.
+
+### CI — تحصين البوابة
+- `.github/workflows/ci.yml`: الفرع `main` صار مُبوَّبًا (كان `develop` فقط ⇒
+  إصدارات `main` بلا أي CI)، وأُضيفت خطوتا **lint** و**parity** لوظيفة الخادم.
+- وظيفة Frappe القديمة (`tests`) كانت مستحيلة النجاح (تثبيت من
+  `frappe/DyPOS@version-15` غير موجود + تثبيت مزدوج + وحدة تقع في
+  `legacy/pos_next`) → `if: false` بتوثيق السبب (سابقة موجودة في `linter.yml`).
+
+### Verified — Quality gates (إصدار إنتاجي)
+- Server node:test: **191/191** ✅ — Frontend vitest: **366/366** ✅ —
+  Biome: POS **334 ملفًا** نظيفًا ✅ + Server **89 ملفًا** نظيفًا ✅ —
+  parity SQLite↔Postgres: **ok:true (v19 — 43/38 جدولًا، صفر نواقص)** ✅.
+- بناء الإنتاج مثبّت على `DyPOS_BUILD_VERSION=1.27.0` (لا طوابع زمنية):
+  `dist-deploy/pos-package-1.27.0/` + zip (76 ملفًا، 3.2MB) — Jinja = 0،
+  كسر كاش `?v=1.27.0` على كل الأصول، SW بنطاق الجذر، `version.json` = 1.27.0.
+- الحزمة الرئيسية `assets/index-B45Lrdhs.js` (168 KB / gzip 53.75 KB) —
+  PWA precache: **73 مدخلًا (4295.90 KiB)**.
+
+### Fixed — Production delivery (dypos.smartportssoft.com)
+- النطاق الحيّ كان يخدم `pos.html` يشير إلى حزمة أصول **مفقودة** (`/assets/DyPOS/pos/**`
+  → 404 = شاشة بيضاء للعملاء). أُعيد نشر الحزمة الكاملة على مشروع Cloudflare Pages
+  `dypos-pos` (نفس مشروع النطاق) مع الحفاظ على صفحة الجذر التعريفية القائمة.
+
 ## [1.26.0] - 2026-09-19 — الإصدار الاحترافي (Performance & UX release)
 
 ### Added — Unified cached resource (SWR reads)
@@ -277,7 +369,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`invoice_items` Arabic name + free-item tracking** (schema v15):
   - Added `name_ar` column — Arabic product name for RTL receipts and APIs.
   - Added `free_qty` column — BOGO free count on the paid line.
-  - Added `is_free_item` column — flag for dedicated free rows (Dycos convention).
+  - Added `is_free_item` column — flag for dedicated free rows (DyPOS convention).
   - Added `version` column on `invoices` for optimistic concurrency.
 - **Server writes new columns**: `POST /api/invoices` now populates `name_ar`,
   `free_qty`, and `is_free_item` on each invoice item row. (`invoices.js`)
@@ -783,7 +875,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Previously all coupons calculated against subtotal regardless of configuration
 
 - **Partial Payments** (#216)
-  - Payment Entry creation now uses Dycos core `get_payment_entry()` instead of manual field construction
+  - Payment Entry creation now uses DyPOS core `get_payment_entry()` instead of manual field construction
   - Multi-currency support via core currency setup
   - Batch payment creation wrapped in database savepoint for atomic rollback on failure
 
@@ -792,8 +884,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Payment Amount Preservation** (#228)
-  - Dycos's `set_missing_values()` no longer wipes cashier-entered payment amounts during invoice creation
-  - Root cause: Dycos removed the `if not self.get("payments")` guard in `set_pos_fields()`, causing `update_multi_mode_option()` to run unconditionally
+  - DyPOS's `set_missing_values()` no longer wipes cashier-entered payment amounts during invoice creation
+  - Root cause: DyPOS removed the `if not self.get("payments")` guard in `set_pos_fields()`, causing `update_multi_mode_option()` to run unconditionally
   - Fix: use `set_missing_values(for_validate=True)` to skip the destructive payment rebuild
 
 - **Customer Credit Redemption** (#218)
@@ -909,7 +1001,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Handle absent barcode UOM price with proper conversion factor calculation
   - Cache calculated prices for consistency across barcode operations
 
-- **Dycos v15/v16 Compatibility**
+- **DyPOS v15/v16 Compatibility**
   - Support both `post_change_gl_entries` field locations (Accounts Settings vs Singles table)
   - Support both v15 `make_gle_for_change_amount()` and v16 `get_gle_for_change_amount()` methods
   - Convert `get_stock_availability` from SQL string to Query Builder for Frappe 16
@@ -984,7 +1076,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Prevented event propagation on quantity buttons and input fields
 
 - **Returns**
-  - Use Dycos make_sales_return for proper sales_team handling
+  - Use DyPOS make_sales_return for proper sales_team handling
   - Set update_outstanding_for_self=0 for proper credit note handling
 
 - **Batch Display**
@@ -994,7 +1086,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Expanded template items to include variants in eligibility check
 
 - **Permissions**
-  - Preserve standard Dycos role permissions in Custom DocPerm fixtures
+  - Preserve standard DyPOS role permissions in Custom DocPerm fixtures
 
 - **Payment**
   - Added mutex protection to prevent duplicate invoice submissions
@@ -1501,7 +1593,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Tax-Inclusive Calculation**
   - Fixed issue where tax amounts were incorrectly shown as discounts in tax-inclusive mode
-  - Frontend now sends correct gross amount (after discount, before tax extraction) to Dycos
+  - Frontend now sends correct gross amount (after discount, before tax extraction) to DyPOS
   - Proper tax calculation based on included_in_print_rate flag
   - Fixed both scenarios: items without discounts and items with discounts
 
@@ -1559,7 +1651,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added constants and Enum for configuration (PaymentSource, AMOUNT_TOLERANCE, limits)
   - Comprehensive documentation with docstrings for all functions
   - Full type hints throughout Python API (typing.Dict, List, Optional)
-  - Inline comments explaining business logic and Dycos concepts
+  - Inline comments explaining business logic and DyPOS concepts
   - Performance notes for critical operations
   - Usage examples in docstrings
 

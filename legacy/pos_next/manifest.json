@@ -32,7 +32,7 @@
   "ignored_apps": [],
   "required_apps": [
     "frappe>=15.0.0",
-    "Dycos>=15.0.0"
+    "DyPOS>=15.0.0"
   ],
   "jinja": {
     "methods": [

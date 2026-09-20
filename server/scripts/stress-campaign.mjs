@@ -103,7 +103,7 @@ const uname = `camp_${RUN}`;
 // If the DB already has users (e.g. load-test ran first), ADMIN self-register
 // is correctly refused → fall back to CASHIER so the campaign still runs;
 // phase D then fails closed with a clear message instead of silently testing -200.
-let reg = await req('POST', '/api/auth/register', { username: uname, password: 'Camp1234', fullName: 'Campaign', role: 'ADMIN' });
+const reg = await req('POST', '/api/auth/register', { username: uname, password: 'Camp1234', fullName: 'Campaign', role: 'ADMIN' });
 if (![200, 201].includes(reg.status)) {
   await req('POST', '/api/auth/register', { username: uname, password: 'Camp1234', fullName: 'Campaign' });
 }
@@ -206,7 +206,8 @@ const pidD = await mkProd('D', 10);    // stock-accuracy phase
     const [name, m, p] = endpoints[i % endpoints.length];
     const body = m === 'POST' ? { items: [{ productId: pidA, qty: 1 }], idempotencyKey: `campE-${RUN}-${i}` } : undefined;
     const r = await req(m, p, body, T);
-    (per[name] = per[name] || []).push(r.ms);
+    if (!per[name]) per[name] = [];
+    per[name].push(r.ms);
     return r;
   });
   const fails = rs.filter((r) => ![200, 201].includes(r.status));

@@ -12,13 +12,13 @@ The suite locks in two related fixes:
 
 1. Partial-paid regression — `DyPOS/api/invoices.py:_process_invoice` now
    clears `item.pricing_rules` before save when `ignore_pricing_rule=1`, to
-   avoid Dycos's `get_pricing_rule_for_item` removal branch silently
+   avoid DyPOS's `get_pricing_rule_for_item` removal branch silently
    zeroing `discount_percentage` / `discount_amount` / `rate` on the second
    save (the "submit" step). See `test_partial_paid_regression`.
 
 2. Transaction-level discount harvesting — `_evaluate_transaction_offers`
    now snapshots `additional_discount_percentage` / `discount_amount` /
-   `apply_discount_on` after running Dycos's transaction engine and
+   `apply_discount_on` after running DyPOS's transaction engine and
    surfaces them in the `apply_offers` response. See
    `test_transaction_level_discount`.
 
@@ -31,7 +31,7 @@ running site has configured.
 from types import SimpleNamespace
 
 import frappe
-from Dycos.stock.doctype.stock_entry.test_stock_entry import make_stock_entry
+from DyPOS.stock.doctype.stock_entry.test_stock_entry import make_stock_entry
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import add_days, flt, nowdate
 
@@ -48,7 +48,7 @@ CUSTOMER = "_PNXT_TEST_CUSTOMER"
 
 
 def _resolve_company():
-	"""Pick the test Company. Prefer Dycos test fixture, else the default."""
+	"""Pick the test Company. Prefer DyPOS test fixture, else the default."""
 	if frappe.db.exists("Company", "_Test Company"):
 		return "_Test Company"
 	default = frappe.defaults.get_global_default("company")
@@ -59,7 +59,7 @@ def _resolve_company():
 
 def _resolve_warehouse(company):
 	"""Pick a non-group, non-disabled warehouse for the company."""
-	# Prefer Dycos's test warehouse if it matches the company
+	# Prefer DyPOS's test warehouse if it matches the company
 	if company == "_Test Company" and frappe.db.exists("Warehouse", "_Test Warehouse - _TC"):
 		return "_Test Warehouse - _TC"
 	wh = frappe.db.get_value(
@@ -74,7 +74,7 @@ def _resolve_warehouse(company):
 
 
 def _resolve_price_list(company):
-	# Standard Selling exists on every Frappe/Dycos site
+	# Standard Selling exists on every Frappe/DyPOS site
 	if frappe.db.exists("Price List", "Standard Selling"):
 		return "Standard Selling"
 	return frappe.db.get_value("Price List", {"selling": 1, "enabled": 1}, "name")
@@ -232,9 +232,9 @@ def _ensure_test_items(company, warehouse, price_list):
 
 def _resolve_customer_group():
 	"""Pick a non-group Customer Group. 'All Customer Groups' is a group node
-	on stock Frappe/Dycos installs and Customer.validate rejects it.
+	on stock Frappe/DyPOS installs and Customer.validate rejects it.
 	"""
-	# Prefer Dycos's standard test fixture when present
+	# Prefer DyPOS's standard test fixture when present
 	if frappe.db.exists("Customer Group", "_Test Customer Group"):
 		return "_Test Customer Group"
 	leaf = frappe.db.get_value(
@@ -812,11 +812,11 @@ class TestPromotions(FrappeTestCase):
 	# -------------------------------------------------------------------
 
 	def test_partial_paid_regression(self):
-		"""Canary for the Dycos `remove_pricing_rule_for_item` interaction.
+		"""Canary for the DyPOS `remove_pricing_rule_for_item` interaction.
 
 		With `ignore_pricing_rule=1` set on the doc (as POS Next always does)
 		AND `item.pricing_rules` non-empty AND the doc already exists in DB,
-		Dycos's `get_pricing_rule_for_item` previously took a branch that
+		DyPOS's `get_pricing_rule_for_item` previously took a branch that
 		zeroed `discount_percentage` / `discount_amount` / `rate` on the next
 		save — silently turning paid invoices into Partly Paid ones.
 
@@ -841,7 +841,7 @@ class TestPromotions(FrappeTestCase):
 			final.status,
 			"Paid",
 			msg=(
-				"Invoice fell back to Partly Paid — the Dycos removal branch "
+				"Invoice fell back to Partly Paid — the DyPOS removal branch "
 				"likely re-fired and zeroed discount_percentage on submit."
 			),
 		)
@@ -849,7 +849,7 @@ class TestPromotions(FrappeTestCase):
 		self.assertAlmostEqual(flt(final.items[0].discount_percentage), 15, places=2)
 		self.assertAlmostEqual(flt(final.items[0].discount_amount), 7.5, places=2)
 		self.assertAlmostEqual(flt(final.items[0].rate), 42.5, places=2)
-		# POS Next clears item.pricing_rules pre-save to avoid the Dycos
+		# POS Next clears item.pricing_rules pre-save to avoid the DyPOS
 		# removal branch; the rule is still effectively applied via the
 		# discount fields.
 		self.assertFalse(final.items[0].pricing_rules)

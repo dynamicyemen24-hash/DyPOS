@@ -88,7 +88,7 @@ export function observeDb(operation, fn) {
 /** Normalize /api/invoices/<uuid> → /api/invoices/:id to bound cardinality */
 export function normalizeRoute(req) {
   const base = req.baseUrl || '';
-  let p = req.route?.path || req.path || '';
+  const p = req.route?.path || req.path || '';
   let full = `${base}${p}`;
   // Fallback when route not yet matched: scrub ids from raw path
   if (!req.route?.path) {

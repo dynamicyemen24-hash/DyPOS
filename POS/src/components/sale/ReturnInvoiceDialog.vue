@@ -1225,7 +1225,7 @@ const showDialog = computed({
 
 // State
 const originalInvoice = ref(null)
-// Stores the return document created by Dycos's make_sales_return().
+// Stores the return document created by DyPOS's make_sales_return().
 // Contains sales_team, taxes, and other child tables copied from the original invoice.
 const preparedReturnDoc = ref(null)
 const returnItems = ref([])
@@ -1339,7 +1339,7 @@ const loadPaymentMethodsResource = createResource({
 })
 
 // Resource for fetching a prepared return invoice.
-// Uses Dycos's make_sales_return() which creates a properly structured return document
+// Uses DyPOS's make_sales_return() which creates a properly structured return document
 // with all child tables (sales_team, taxes, etc.) copied from the original invoice.
 // This ensures sales commissions are correctly reversed when processing returns.
 const fetchInvoiceResource = createResource({
@@ -1448,7 +1448,7 @@ const createReturnResource = createResource({
 	url: "DyPOS.api.invoices.submit_invoice",
 	makeParams() {
 		// Use the prepared return document as the base.
-		// This document was created by Dycos's make_sales_return() and contains
+		// This document was created by DyPOS's make_sales_return() and contains
 		// the sales_team entries from the original invoice.
 		const baseDoc = preparedReturnDoc.value || {}
 
@@ -1481,7 +1481,7 @@ const createReturnResource = createResource({
 				warehouse: item.warehouse,
 				uom: item.uom,
 				conversion_factor: item.conversion_factor || 1,
-				// Link to original invoice item row for accurate return tracking in Dycos
+				// Link to original invoice item row for accurate return tracking in DyPOS
 				sales_invoice_item: item.name,
 			})),
 			// Flag to indicate return amount should be added to customer credit balance

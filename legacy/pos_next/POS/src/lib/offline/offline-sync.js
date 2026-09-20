@@ -277,7 +277,7 @@ const OfflineSync = (() => {
 
   async function processItem(item) {
     try {
-      const headers = { 'Content-Type': 'application/json', 'X-Device-Id': (window.DYCOS?.deviceRegistry?.getDeviceId?.()) || '', 'X-Offline-Queue-Id': String(item.id), 'X-Timestamp': String(item.timestamp) };
+      const headers = { 'Content-Type': 'application/json', 'X-Device-Id': (window.DyPOS?.deviceRegistry?.getDeviceId?.()) || '', 'X-Offline-Queue-Id': String(item.id), 'X-Timestamp': String(item.timestamp) };
       if (item.lat != null) { headers['X-Lat'] = String(item.lat); headers['X-Lng'] = String(item.lng); }
       else if (item.gps) { headers['X-Lat'] = String(item.gps.lat || ''); headers['X-Lng'] = String(item.gps.lng || ''); }
       const response = await fetch(item.endpoint || `/api/${item.domain}`, { method: item.method || 'POST', headers, body: JSON.stringify(item.data), signal: AbortSignal.timeout(30000) });
@@ -425,7 +425,7 @@ const OfflineSync = (() => {
 })();
 
 if (typeof window !== 'undefined') {
-  window.DYCOS = window.DYCOS || {};
-  window.DYCOS.offlineSync = OfflineSync;
+  window.DyPOS = window.DyPOS || {};
+  window.DyPOS.offlineSync = OfflineSync;
   OfflineSync.initDB().catch(console.error);
 }

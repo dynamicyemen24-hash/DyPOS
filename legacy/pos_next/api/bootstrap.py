@@ -129,7 +129,7 @@ def _get_precision_settings():
 	Get precision and formatting settings from System Settings.
 
 	Fetches all settings in a single query for performance.
-	These settings ensure frontend calculations match Dycos exactly.
+	These settings ensure frontend calculations match DyPOS exactly.
 
 	Returns:
 		dict: {

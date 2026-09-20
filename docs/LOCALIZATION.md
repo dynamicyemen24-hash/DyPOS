@@ -8,7 +8,7 @@ You can control which languages are available in the POS language switcher throu
 
 ### Steps to Configure
 
-1. Navigate to **POS Settings** in Dycos
+1. Navigate to **POS Settings** in DyPOS
 2. Open your POS Settings record (or create one for your POS Profile)
 3. Find the **Localization** section at the top
 4. Click on **Allowed Languages** field

@@ -4,7 +4,7 @@
 """
 Partial Payments API for POS Next
 
-Professional implementation following Dycos best practices:
+Professional implementation following DyPOS best practices:
 - Payment Ledger as single source of truth for accounting integrity
 - ORM-first approach with optimized SQL where needed
 - Comprehensive error handling and validation
@@ -12,7 +12,7 @@ Professional implementation following Dycos best practices:
 - Performance-optimized with minimal N+1 queries
 
 Architecture:
-    Payment tracking uses Dycos's Payment Ledger Entry system which provides:
+    Payment tracking uses DyPOS's Payment Ledger Entry system which provides:
     - Double-entry accounting compliance
     - Complete audit trail
     - Proper reconciliation support
@@ -63,7 +63,7 @@ def get_payment_history(invoice_name: str, include_metadata: bool = True) -> Dic
 	"""
 	Get complete payment history from Payment Ledger using optimized queries.
 
-	Payment Ledger is Dycos's single source of truth for all payments.
+	Payment Ledger is DyPOS's single source of truth for all payments.
 	This includes both POS payments and Payment Entries.
 
 	Performance: Uses batch queries to avoid N+1 problem.
@@ -334,7 +334,7 @@ def enrich_invoice_with_payment_history(invoice: Dict, include_metadata: bool = 
 
 
 # ==========================================
-# Payment Entry Creation - Proper Dycos Way
+# Payment Entry Creation - Proper DyPOS Way
 # ==========================================
 
 
@@ -421,8 +421,8 @@ def create_payment_entry(
 
 	# Save and submit with proper error handling
 	try:
-		from Dycos.accounts.doctype.payment_entry.payment_entry import get_payment_entry
-		from Dycos.accounts.doctype.sales_invoice.sales_invoice import get_bank_cash_account
+		from DyPOS.accounts.doctype.payment_entry.payment_entry import get_payment_entry
+		from DyPOS.accounts.doctype.sales_invoice.sales_invoice import get_bank_cash_account
 
 		if payment_account:
 			if not frappe.db.exists("Account", payment_account):

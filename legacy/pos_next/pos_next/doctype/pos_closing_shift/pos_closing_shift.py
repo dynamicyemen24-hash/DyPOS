@@ -5,7 +5,7 @@ import json
 from collections import defaultdict
 
 import frappe
-from Dycos.accounts.doctype.pos_invoice_merge_log.pos_invoice_merge_log import (
+from DyPOS.accounts.doctype.pos_invoice_merge_log.pos_invoice_merge_log import (
 	consolidate_pos_invoices,
 )
 from frappe import _
@@ -78,7 +78,7 @@ class POSClosingShift(Document):
 		opening_entry.set_status()
 		self.delete_draft_invoices()
 		opening_entry.save()
-		# link invoices with this closing shift so Dycos can block edits
+		# link invoices with this closing shift so DyPOS can block edits
 		self._set_closing_entry_invoices()
 
 	def on_cancel(self):

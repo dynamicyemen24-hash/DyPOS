@@ -17,7 +17,7 @@ def console(*data):
 # only works for @frappe.whitelist() HTTP endpoints, override_doctype_class only for DocType
 # classes). This is the standard Python module init approach — runs once at import.
 try:
-	from Dycos.accounts.doctype.pricing_rule import utils as pr_utils
+	from DyPOS.accounts.doctype.pricing_rule import utils as pr_utils
 
 	from DyPOS.overrides.pricing_rule import patch_get_other_conditions
 
@@ -27,20 +27,20 @@ except Exception:
 
 
 try:
-	from Dycos.accounts.doctype.pricing_rule import pricing_rule as _Dycos_pricing_rule
+	from DyPOS.accounts.doctype.pricing_rule import pricing_rule as _DyPOS_pricing_rule
 
 	from DyPOS.overrides.pricing_rule import (
 		apply_price_discount_rule as _DyPOS_apply_price_discount_rule,
 	)
 
-	_Dycos_pricing_rule.apply_price_discount_rule = _DyPOS_apply_price_discount_rule
+	_DyPOS_pricing_rule.apply_price_discount_rule = _DyPOS_apply_price_discount_rule
 except Exception:
 	if frappe:
 		frappe.log_error(frappe.get_traceback(), "Pricing Rule Override Error")
 
 
 try:
-	from Dycos.accounts.doctype.promotional_scheme import promotional_scheme as _promotional_scheme
+	from DyPOS.accounts.doctype.promotional_scheme import promotional_scheme as _promotional_scheme
 
 	for _min_max_field in ("apply_discount_on_price", "min_or_max_discount_qty_limit"):
 		if _min_max_field not in _promotional_scheme.price_discount_fields:
@@ -49,8 +49,8 @@ except Exception:
 	if frappe:
 		frappe.log_error(frappe.get_traceback(), "Promotional Scheme Field Patch Error")
 
-# Frappe/Dycos compatibility shim:
-# Dycos may pass do_not_round_fields to round_floats_in, but older Frappe
+# Frappe/DyPOS compatibility shim:
+# DyPOS may pass do_not_round_fields to round_floats_in, but older Frappe
 # versions don't accept that kwarg.
 try:
 	from frappe.model.document import Document
@@ -64,7 +64,7 @@ except Exception:
 # Patch packed item keying to avoid duplicate Product Bundle rows in Packed Items
 # during repeated save/submit cycles in POS flows.
 try:
-	from Dycos.stock.doctype.packed_item import packed_item as packed_item_module
+	from DyPOS.stock.doctype.packed_item import packed_item as packed_item_module
 
 	from DyPOS.overrides.packed_item import patch_packed_item_keying
 
@@ -72,8 +72,8 @@ try:
 except Exception:
 	pass
 
-# Patch Document.round_floats_in for Dycos/Frappe compatibility:
-# newer Dycos may pass do_not_round_fields, while older Frappe
+# Patch Document.round_floats_in for DyPOS/Frappe compatibility:
+# newer DyPOS may pass do_not_round_fields, while older Frappe
 # only supports fieldnames.
 try:
 	from frappe.model import document as document_module

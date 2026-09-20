@@ -109,7 +109,7 @@ docs/
 ## 🔗 External Resources
 
 - [DyPOS Repository](https://github.com/your-org/DyPOS)
-- [Dycos Documentation](https://docs.Dycos.com)
+- [DyPOS Documentation](https://docs.DyPOS.com)
 - [Frappe Framework Documentation](https://frappeframework.com/docs)
 - [Vite Documentation](https://vitejs.dev)
 

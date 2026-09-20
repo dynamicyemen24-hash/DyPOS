@@ -14,7 +14,7 @@ import { mkdirSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DYPOS_DB_PATH || join(__dirname, '..', 'data', 'dypos.db');
-const MIGRATION_VERSION = 17; // Increment when schema changes
+const MIGRATION_VERSION = 19; // Increment when schema changes
 
 function columnExists(table, column) {
 	try {
@@ -783,7 +783,7 @@ export function migrate() {
   // ── v15: invoice_items Arabic name + free-item tracking + version stamp ──
   // Adds `name_ar` (Arabic product name for RTL receipts), `free_qty` (BOGO
   // free count on the paid line), and `is_free_item` (flag for dedicated free
-  // rows — Dycos convention). These columns are written by the server when
+  // rows — DyPOS convention). These columns are written by the server when
   // creating invoices and echoed in GET /invoices/:id for the Arabic UI.
   if (currentVersion < 15) {
     addColumnIfMissing('invoice_items', 'name_ar', "TEXT NOT NULL DEFAULT ''");
@@ -849,6 +849,89 @@ export function migrate() {
       CREATE INDEX IF NOT EXISTS idx_alerts_fingerprint ON alert_notifications(fingerprint);`);
     db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
       .run(17, 'alert notifications inbox');
+  }
+
+  // ── v18: subscription engine (recurring plans + customer subscriptions) ──
+  // Real recurring commerce: plans are master data (ADMIN/MANAGER), customers
+  // subscribe to plans, and a billing run advances due subscriptions — paying
+  // from the customer wallet when auto_renew allows, otherwise recording a
+  // due billing for manual collection. No fake renewals: every charge writes
+  // a subscription_billings row (audit) and a canonical wallet ledger entry.
+  if (currentVersion < 18) {
+    db.exec(`CREATE TABLE IF NOT EXISTS subscription_plans (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL DEFAULT '',
+        name TEXT NOT NULL,
+        name_ar TEXT NOT NULL DEFAULT '',
+        price REAL NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'SAR',
+        interval_days INTEGER NOT NULL DEFAULT 30,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_by TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_plans_tenant ON subscription_plans(tenant_id, is_active);
+
+      CREATE TABLE IF NOT EXISTS customer_subscriptions (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL DEFAULT '',
+        customer_id TEXT NOT NULL REFERENCES customers(id),
+        plan_id TEXT NOT NULL REFERENCES subscription_plans(id),
+        status TEXT NOT NULL DEFAULT 'active',
+        start_date TEXT NOT NULL,
+        next_billing_date TEXT NOT NULL,
+        last_billed_at TEXT,
+        auto_renew INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_sub_customer ON customer_subscriptions(customer_id, status);
+      CREATE INDEX IF NOT EXISTS idx_sub_next ON customer_subscriptions(status, next_billing_date);
+      CREATE INDEX IF NOT EXISTS idx_sub_tenant ON customer_subscriptions(tenant_id, status);
+
+      CREATE TABLE IF NOT EXISTS subscription_billings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id TEXT NOT NULL DEFAULT '',
+        subscription_id TEXT NOT NULL,
+        customer_id TEXT NOT NULL,
+        amount REAL NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'SAR',
+        method TEXT NOT NULL DEFAULT 'due',
+        billed_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_sbill_sub ON subscription_billings(subscription_id, billed_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_sbill_customer ON subscription_billings(customer_id, billed_at DESC);`);
+    db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+      .run(18, 'subscription engine (plans + customer subscriptions + billings)');
+  }
+
+  // ── v19: subscription billing integrity (period-keyed, replay-safe) ──
+  // Every subscription charge records the PERIOD it settles (period_start) and
+  // how many missed periods were consolidated into it. A partial UNIQUE index
+  // makes "bill the same period twice" impossible at the database level even
+  // if two billing runs race or a client retries the same request.
+  if (currentVersion < 19) {
+    try {
+      addColumnIfMissing('subscription_billings', 'period_start', 'TEXT');
+      addColumnIfMissing('subscription_billings', 'periods_consolidated', 'INTEGER NOT NULL DEFAULT 1');
+      // Guard: never let an index build fail the boot. If a legacy database
+      // already holds duplicate periods, report it and keep serving.
+      const dupes = db.prepare(`SELECT subscription_id, period_start, COUNT(*) AS c
+          FROM subscription_billings WHERE period_start IS NOT NULL
+          GROUP BY subscription_id, period_start HAVING c > 1`).all();
+      if (dupes.length === 0) {
+        db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_sbill_period
+            ON subscription_billings(subscription_id, period_start)
+            WHERE period_start IS NOT NULL;`);
+      } else {
+        console.warn(`[DyPOS] v19: ${dupes.length} duplicated billing period(s) found — UNIQUE index skipped, review subscription_billings`);
+      }
+      db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+        .run(19, 'subscription billing periods (replay-safe charges)');
+    } catch (e) {
+      console.warn('[DyPOS] v19 migration deferred:', String(e.message).slice(0, 200));
+    }
   }
 
   console.log('[DyPOS] Database migrated (v' + MIGRATION_VERSION + ')');

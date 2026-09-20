@@ -89,7 +89,7 @@ def process_loyalty_to_wallet(doc, method=None):
 	if not loyalty_entry or loyalty_entry.loyalty_points <= 0:
 		return
 
-	# Get conversion rate from Loyalty Program (standard Dycos field)
+	# Get conversion rate from Loyalty Program (standard DyPOS field)
 	conversion_rate = flt(frappe.db.get_value("Loyalty Program", loyalty_program, "conversion_factor")) or 1.0
 
 	# Calculate wallet credit amount
@@ -173,7 +173,7 @@ def get_customer_wallet_balance(customer, company=None, exclude_invoice=None):
 		float: Available wallet balance
 	"""
 	try:
-		from Dycos.accounts.utils import get_balance_on
+		from DyPOS.accounts.utils import get_balance_on
 
 		filters = {"customer": customer, "status": "Active"}
 		if company:

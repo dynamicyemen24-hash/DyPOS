@@ -1,3 +1,3 @@
 /** DyPOS single source of truth for the server version (C3). */
-export const VERSION = '1.26.0';
+export const VERSION = '1.27.0';
 export default VERSION;

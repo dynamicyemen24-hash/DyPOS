@@ -265,6 +265,57 @@ CREATE TABLE IF NOT EXISTS alert_notifications (
 CREATE INDEX IF NOT EXISTS idx_alerts_status ON alert_notifications(status, severity, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_alerts_fingerprint ON alert_notifications(fingerprint);
 
+-- v18: subscription engine (parity with SQLite)
+CREATE TABLE IF NOT EXISTS subscription_plans (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id TEXT NOT NULL DEFAULT '',
+  name TEXT NOT NULL,
+  name_ar TEXT NOT NULL DEFAULT '',
+  price NUMERIC(12,2) NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'SAR',
+  interval_days INTEGER NOT NULL DEFAULT 30,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by TEXT NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_plans_tenant ON subscription_plans(tenant_id, is_active);
+
+CREATE TABLE IF NOT EXISTS customer_subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id TEXT NOT NULL DEFAULT '',
+  customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  plan_id UUID NOT NULL REFERENCES subscription_plans(id),
+  status TEXT NOT NULL DEFAULT 'active',
+  start_date date NOT NULL,
+  next_billing_date date NOT NULL,
+  last_billed_at timestamptz,
+  auto_renew BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_sub_customer ON customer_subscriptions(customer_id, status);
+CREATE INDEX IF NOT EXISTS idx_sub_next ON customer_subscriptions(status, next_billing_date);
+CREATE INDEX IF NOT EXISTS idx_sub_tenant ON customer_subscriptions(tenant_id, status);
+
+CREATE TABLE IF NOT EXISTS subscription_billings (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT '',
+  subscription_id UUID NOT NULL,
+  customer_id UUID NOT NULL,
+  amount NUMERIC(12,2) NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'SAR',
+  method TEXT NOT NULL DEFAULT 'due',
+  billed_at timestamptz NOT NULL DEFAULT now(),
+  period_start date,
+  periods_consolidated INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_sbill_sub ON subscription_billings(subscription_id, billed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sbill_customer ON subscription_billings(customer_id, billed_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sbill_period ON subscription_billings(subscription_id, period_start) WHERE period_start IS NOT NULL;
+INSERT INTO schema_version (version, description) VALUES (18, 'subscription engine') ON CONFLICT DO NOTHING;
+INSERT INTO schema_version (version, description) VALUES (19, 'subscription billing periods (replay-safe charges)') ON CONFLICT DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS user_sessions (
   id UUID PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,

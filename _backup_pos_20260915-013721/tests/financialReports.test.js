@@ -16,7 +16,7 @@ const invoice = (overrides = {}) => ({
 	due_date: "2026-09-15",
 	customer: "CUST-1",
 	customer_name: "Customer One",
-	company: "Dycos",
+	company: "DyPOS",
 	pos_profile: "POS-1",
 	status: "Paid",
 	is_return: 0,

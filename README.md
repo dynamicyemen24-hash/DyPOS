@@ -2,7 +2,7 @@
 
 **Version:** 1.21.0 | **Architecture:** Vue 3 + Pinia + Express + SQLite/PostgreSQL
 
-DyPOS is a standalone Point of Sale system that works independently or syncs with any ERP (Dycos, ERPNext, Odoo, etc.).
+DyPOS is a standalone Point of Sale system that works independently or syncs with any ERP (DyPOS, ERPNext, Odoo, etc.).
 
 ---
 
@@ -69,7 +69,7 @@ npm run dev              # Start on port 5173
 ┌─────────────────────────────────────────────────────┐
 │              External ERP Integration                │
 │                                                     │
-│  Dycos / ERPNext / Odoo / Custom                    │
+│  DyPOS / ERPNext / Odoo / Custom                    │
 │  via REST API or WebSocket sync                      │
 │                                                     │
 │  GET  /api/sync/pull?checkpoint=0   ← ERP reads     │
@@ -226,9 +226,9 @@ CMD ["node", "server/server.js"]
 
 ## ERP Sync Setup
 
-### With Dycos
-1. Dycos exposes `/api/pos/*` endpoints
-2. DyPOS sync adapter calls Dycos API
+### With DyPOS
+1. DyPOS exposes `/api/pos/*` endpoints
+2. DyPOS sync adapter calls DyPOS API
 3. Products, customers, invoices sync bidirectionally
 
 ### With Any ERP

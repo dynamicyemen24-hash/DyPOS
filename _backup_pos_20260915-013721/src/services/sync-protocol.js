@@ -1,5 +1,5 @@
 /**
- * SyncProtocol — the two-way sync transport between DyPOS and the Dycos
+ * SyncProtocol — the two-way sync transport between DyPOS and the DyPOS
  * platform. Handles auth headers, timeouts, retries and HTTP→SyncError
  * mapping so callers can reason about one error vocabulary.
  */

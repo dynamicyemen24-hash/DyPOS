@@ -29,9 +29,9 @@ When a cashier adds items to the cart and completes a sale, the system goes thro
 └──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
       │                    │                    │                     │
       ▼                    ▼                    ▼                     ▼
-  Store item          Apply taxes,         Convert data         Send to Dycos
+  Store item          Apply taxes,         Convert data         Send to DyPOS
   with original       discounts, and       to format that       for final
-  price               calculate totals     Dycos expects      processing
+  price               calculate totals     DyPOS expects      processing
 ```
 
 ### Key Principle
@@ -49,7 +49,7 @@ The system uses several price-related fields. Here's what each one means:
 | **price_list_rate** | Original price before any discount | $100.00 |
 | **discount_percentage** | Discount applied (as percentage) | 20% |
 | **discount_amount** | Discount in currency | $20.00 |
-| **rate** | Price sent to Dycos (after discount) | $80.00 |
+| **rate** | Price sent to DyPOS (after discount) | $80.00 |
 | **amount** | Total for this line (rate × quantity) | $160.00 (for qty 2) |
 | **tax_amount** | Tax calculated for this item | $12.00 |
 
@@ -61,7 +61,7 @@ Item: Premium Coffee
 │  Original Price (price_list_rate):     $100.00     │
 │  Discount (20%):                       -$20.00     │
 │  ─────────────────────────────────────────────     │
-│  Rate sent to Dycos:                  $80.00     │
+│  Rate sent to DyPOS:                  $80.00     │
 │  Quantity:                                  ×2     │
 │  ─────────────────────────────────────────────     │
 │  Line Total (amount):                  $160.00     │
@@ -106,7 +106,7 @@ Every time the cart changes (add, remove, quantity change, discount applied):
 
 ### Stage 3: Preparing for Submission
 
-Before sending to Dycos, the system:
+Before sending to DyPOS, the system:
 
 1. **Calculates the backend rate:**
    - Tax Exclusive: `rate = net amount ÷ quantity`
@@ -114,13 +114,13 @@ Before sending to Dycos, the system:
 
 2. **Formats pricing rules:**
    - Converts array `["RULE-001", "RULE-002"]` to string `"RULE-001,RULE-002"`
-   - Dycos requires this specific format
+   - DyPOS requires this specific format
 
 3. **Prepares the final payload** with all required fields
 
 ### Stage 4: Backend Processing
 
-When Dycos receives the invoice:
+When DyPOS receives the invoice:
 
 1. **Validates the data**
 2. **Reverse-calculates price_list_rate** (safety check):
@@ -233,7 +233,7 @@ New Subtotal: $450
 
 ```
 ┌─────────┐     ┌─────────┐     ┌─────────┐
-│   POS   │ ──► │   API   │ ──► │ Dycos │
+│   POS   │ ──► │   API   │ ──► │ DyPOS │
 │  Client │     │  Call   │     │ Server  │
 └─────────┘     └─────────┘     └─────────┘
      │                               │
@@ -250,7 +250,7 @@ New Subtotal: $450
 
 ```
 ┌─────────┐     ┌─────────┐            ┌─────────┐     ┌─────────┐
-│   POS   │ ──► │ IndexDB │   ~~~►     │  Sync   │ ──► │ Dycos │
+│   POS   │ ──► │ IndexDB │   ~~~►     │  Sync   │ ──► │ DyPOS │
 │  Client │     │ (Local) │  (Later)   │ Process │     │ Server  │
 └─────────┘     └─────────┘            └─────────┘     └─────────┘
 ```
@@ -280,7 +280,7 @@ This prevents the same sale from being submitted twice even if:
 
 ## Pricing Rules (Offers)
 
-Pricing Rules are Dycos's way of handling promotions. Here's how they flow:
+Pricing Rules are DyPOS's way of handling promotions. Here's how they flow:
 
 ### When Customer is Eligible
 
@@ -392,17 +392,17 @@ Press "Pay"                   →   Customer pays: $115.00
 
 **Symptoms:** Invoice shows double the expected discount.
 
-**Cause:** Both POS and Dycos applying the same pricing rule.
+**Cause:** Both POS and DyPOS applying the same pricing rule.
 
-**Solution:** The system sets `ignore_pricing_rule = 1` on invoices to prevent Dycos from re-applying. If this happens, check that this flag is being set correctly.
+**Solution:** The system sets `ignore_pricing_rule = 1` on invoices to prevent DyPOS from re-applying. If this happens, check that this flag is being set correctly.
 
 ### Problem: Tax Calculation Mismatch
 
 **Symptoms:** Tax on invoice doesn't match POS display.
 
-**Cause:** Tax mode (inclusive/exclusive) differs between POS and Dycos settings.
+**Cause:** Tax mode (inclusive/exclusive) differs between POS and DyPOS settings.
 
-**Solution:** Ensure POS Settings `tax_inclusive` matches your Dycos tax template configuration.
+**Solution:** Ensure POS Settings `tax_inclusive` matches your DyPOS tax template configuration.
 
 ### Problem: Offer Not Applied
 
@@ -414,7 +414,7 @@ Press "Pay"                   →   Customer pays: $115.00
 3. Quantity threshold not met
 4. Offline mode can't evaluate complex rules
 
-**Solution:** Check Pricing Rule conditions in Dycos. Try online mode to verify.
+**Solution:** Check Pricing Rule conditions in DyPOS. Try online mode to verify.
 
 ### Problem: Offline Invoice Created Twice
 
@@ -433,7 +433,7 @@ Press "Pay"                   →   Customer pays: $115.00
 2. Price list currency mismatch
 3. Item marked as "not for sale"
 
-**Solution:** Check Item Price in Dycos. Ensure the POS Profile's price list contains the item.
+**Solution:** Check Item Price in DyPOS. Ensure the POS Profile's price list contains the item.
 
 ---
 
@@ -443,11 +443,11 @@ Press "Pay"                   →   Customer pays: $115.00
 |-------|--------------|--------------|
 | Add to Cart | Store original price | `addItem()` |
 | Calculate | Apply discounts and tax | `recalculateItem()` |
-| Format | Prepare for Dycos | `formatItemsForSubmission()` |
+| Format | Prepare for DyPOS | `formatItemsForSubmission()` |
 | Submit (Online) | Send to server | `submitInvoice()` |
 | Save (Offline) | Store locally | `saveOfflineInvoice()` |
 | Sync | Send offline invoices | `syncInvoiceToServer()` |
-| Backend | Create Dycos invoice | `submit_invoice()` |
+| Backend | Create DyPOS invoice | `submit_invoice()` |
 
 ### Golden Rules
 
@@ -455,4 +455,4 @@ Press "Pay"                   →   Customer pays: $115.00
 2. **Calculate discounts separately** - never modify the original price
 3. **Use the same formatting** for online and offline submissions
 4. **Include `offline_id`** for all offline invoices
-5. **Convert pricing rules to strings** before sending to Dycos
+5. **Convert pricing rules to strings** before sending to DyPOS

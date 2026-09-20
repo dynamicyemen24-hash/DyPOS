@@ -3,5 +3,5 @@
 
 """
 POS Next Overrides
-Custom doctype class overrides for Dycos
+Custom doctype class overrides for DyPOS
 """

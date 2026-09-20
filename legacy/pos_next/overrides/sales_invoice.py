@@ -8,8 +8,8 @@ Handles wallet payments that require party information for Receivable accounts.
 """
 
 import frappe
-from Dycos.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
-from Dycos.accounts.utils import get_account_currency
+from DyPOS.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
+from DyPOS.accounts.utils import get_account_currency
 from frappe.utils import cint, flt
 
 
@@ -55,13 +55,13 @@ def _find_matching_packed_item_for_merge(si_doc, paid_row, component_item_code, 
 
 def _get_post_change_gl_entries_setting():
 	"""
-	Get post_change_gl_entries setting compatible with Dycos v15 and v16.
+	Get post_change_gl_entries setting compatible with DyPOS v15 and v16.
 
-	- Dycos v15: Field is in 'Accounts Settings'
-	- Dycos v16: Field moved to Dycos's 'POS Settings' (singleton)
+	- DyPOS v15: Field is in 'Accounts Settings'
+	- DyPOS v16: Field moved to DyPOS's 'POS Settings' (singleton)
 
 	Since DyPOS has its own 'POS Settings' doctype (non-singleton) that overrides
-	Dycos's, we read directly from the Singles table for v16 compatibility.
+	DyPOS's, we read directly from the Singles table for v16 compatibility.
 
 	Returns:
 		int: 1 if post_change_gl_entries is enabled, 0 otherwise (default: 0)
@@ -73,7 +73,7 @@ def _get_post_change_gl_entries_setting():
 		return cint(value) if value is not None else 0
 
 	# For v16, read directly from Singles table using Query Builder to avoid ORM issues
-	# Dycos's POS Settings is a singleton, data stored in Singles table
+	# DyPOS's POS Settings is a singleton, data stored in Singles table
 	Singles = frappe.qb.DocType("Singles")
 	result = (
 		frappe.qb.from_(Singles)
@@ -90,7 +90,7 @@ class CustomSalesInvoice(SalesInvoice):
 	"""
 	Custom Sales Invoice class that handles wallet payments correctly.
 
-	When a wallet payment is made using a Receivable account, Dycos requires
+	When a wallet payment is made using a Receivable account, DyPOS requires
 	party information in the GL entry. This override adds party_type and party
 	for wallet payment methods marked with is_wallet_payment.
 	"""
@@ -99,7 +99,7 @@ class CustomSalesInvoice(SalesInvoice):
 		"""
 		Override to add party information for wallet payment accounts.
 
-		The standard Dycos implementation doesn't set party_type/party for
+		The standard DyPOS implementation doesn't set party_type/party for
 		payment mode accounts, which causes validation errors for Receivable
 		accounts (like wallet accounts).
 		"""
@@ -163,11 +163,11 @@ class CustomSalesInvoice(SalesInvoice):
 
 			if not skip_change_gl_entries:
 				if hasattr(self, "get_gle_for_change_amount"):
-					# Dycos v16+: Method renamed and returns a list of GL entries
+					# DyPOS v16+: Method renamed and returns a list of GL entries
 					# that needs to be extended to the main gl_entries list
 					gl_entries.extend(self.get_gle_for_change_amount())
 				else:
-					# Dycos v15: Method takes gl_entries as parameter
+					# DyPOS v15: Method takes gl_entries as parameter
 					# and appends change amount entries directly to it
 					self.make_gle_for_change_amount(gl_entries)
 
@@ -220,7 +220,7 @@ class CustomSalesInvoice(SalesInvoice):
 		"""
 		Force packed_items for batch/serial-tracked Items to use legacy fields path.
 
-		Dycos's auto-SBB creation during SLE.on_submit fails to link the bundle
+		DyPOS's auto-SBB creation during SLE.on_submit fails to link the bundle
 		because SBB.voucher_detail_no gets remapped to the parent SI Item row name
 		(set_serial_and_batch_values) while validation expects either a matching SLE
 		or a Packed Item with that name. Routing through use_serial_batch_fields=1
@@ -246,7 +246,7 @@ class CustomSalesInvoice(SalesInvoice):
 		"""
 		Merge packed_items from free bundle lines into the matching paid bundle line.
 
-		Dycos builds packed rows per Sales Invoice Item row. For BOGO / pricing-rule
+		DyPOS builds packed rows per Sales Invoice Item row. For BOGO / pricing-rule
 		free rows, the same product bundle often appears twice (paid + is_free_item).
 		That duplicates component rows. Stock and picking should follow total bundle
 		qty on one set of packed lines tied to the paid row.

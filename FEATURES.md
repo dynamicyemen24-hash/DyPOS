@@ -3,7 +3,7 @@
 **Version:** 1.17.0
 **Perfect for:** Retail Stores, Restaurants, Cafes, and Service Businesses
 
-> A modern Point of Sale system that works online and offline, with real-time inventory, smart promotions, and seamless Dycos integration. 100% free and open source.
+> A modern Point of Sale system that works online and offline, with real-time inventory, smart promotions, and seamless DyPOS integration. 100% free and open source.
 
 ---
 
@@ -314,7 +314,7 @@ Stock levels and prices update instantly across all your devices. No manual refr
 
 ## Why Better Than Others?
 
-### vs. Standard Dycos POS
+### vs. Standard DyPOS POS
 
 | Feature | DyPOS | Standard POS |
 |---------|----------|--------------|
@@ -361,8 +361,8 @@ Stock levels and prices update instantly across all your devices. No manual refr
 ### What You Need
 
 **Server:**
-- Dycos v14 or higher
-- Any Dycos hosting
+- DyPOS v14 or higher
+- Any DyPOS hosting
 
 **Devices:**
 - Any modern device (phone, tablet, or computer)
@@ -447,7 +447,7 @@ Stock levels and prices update instantly across all your devices. No manual refr
 
 **Version:** 1.17.0
 **License:** ISC (Free & Open Source)
-**Built on:** Dycos
+**Built on:** DyPOS
 **Technology:** Modern web technologies
 **Community:** Growing worldwide
 

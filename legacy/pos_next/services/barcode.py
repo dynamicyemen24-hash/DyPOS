@@ -26,7 +26,7 @@ from functools import lru_cache
 from typing import TypedDict
 
 import frappe
-from Dycos.stock.get_item_details import get_conversion_factor
+from DyPOS.stock.get_item_details import get_conversion_factor
 
 logger = logging.getLogger(__name__)
 

@@ -5,7 +5,7 @@ const KEY_PREFIX = "DyPOS_offline_rcpt:"
 
 /**
  * Persist a full receipt payload for a synthetic offline invoice id (e.g.
- * pos_offline_<uuid>). Used so print / detail views never call Dycos for
+ * pos_offline_<uuid>). Used so print / detail views never call DyPOS for
  * names that are not in the DB yet.
  */
 export function cacheOfflineReceiptPayload(name, doc) {

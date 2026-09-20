@@ -19,8 +19,8 @@
   "disabled",
   "company",
   "campaign",
-  "Dycos_integration_section",
-  "Dycos_coupon_code",
+  "DyPOS_integration_section",
+  "DyPOS_coupon_code",
   "pricing_rule",
   "discount_section",
   "discount_type",
@@ -106,15 +106,15 @@
   },
   {
    "collapsible": 1,
-   "fieldname": "Dycos_integration_section",
+   "fieldname": "DyPOS_integration_section",
    "fieldtype": "Section Break",
-   "label": "Dycos Integration"
+   "label": "DyPOS Integration"
   },
   {
-   "description": "Linked Dycos Coupon Code for accounting integration",
-   "fieldname": "Dycos_coupon_code",
+   "description": "Linked DyPOS Coupon Code for accounting integration",
+   "fieldname": "DyPOS_coupon_code",
    "fieldtype": "Link",
-   "label": "Dycos Coupon Code",
+   "label": "DyPOS Coupon Code",
    "options": "Coupon Code",
    "read_only": 1
   },

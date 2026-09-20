@@ -132,7 +132,7 @@
   }
 
   function dispatchAddToCart(detail) {
-    const ev = new CustomEvent('dycos:voice-add-to-cart', { detail, bubbles: true, cancelable: true });
+    const ev = new CustomEvent('DyPOS:voice-add-to-cart', { detail, bubbles: true, cancelable: true });
     window.dispatchEvent(ev);
     document.dispatchEvent(ev);
     const ev2 = new CustomEvent('voice-pos:add', { detail, bubbles: true });
