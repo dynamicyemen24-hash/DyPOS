@@ -45,16 +45,45 @@ const CHUNK_RECOVERY_MAX_AGE = 15_000
  *
  * without modifying the central authentication contract.
  */
+/**
+ * Landing Routes
+ *
+ * عند فتح التطبيق لأول مرة (رابط أو سطح مكتب):
+ *   يجب أن تظهر شاشة الدخول فورًا.
+ *
+ * المسار الافتراضي يُعيد توجيه المستخدم غير المصادق عليه إلى login.
+ */
 const routes = [
+	/**
+	 * المسار الافتراضي — يُعيد التوجيه إلى login إذا لم تكن مصدّقًا.
+	 */
 	{
 		path: "/",
+		name: "landing",
+		redirect: (to) => {
+			if (isAuthenticated()) {
+				return { name: ROUTE_NAMES.POS }
+			}
+			return { name: ROUTE_NAMES.LOGIN, query: { redirect: to.fullPath } }
+		},
+	},
+
+	/**
+	 * POS Sales Workspace (requires authentication).
+	 */
+	{
+		path: "/pos",
 		name: ROUTE_NAMES.POS,
 		component: () => import("@/pages/POSSale.vue"),
 		meta: {
 			[ROUTE_META.requiresAuth]: true,
+			[ROUTE_META.requiresOpenShift]: true,
 		},
 	},
 
+	/**
+	 * تسجيل الدخول — الصفحة الأولى التي يراها المستخدم.
+	 */
 	{
 		path: "/account/login",
 		name: ROUTE_NAMES.LOGIN,

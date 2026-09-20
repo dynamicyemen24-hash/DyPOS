@@ -36,6 +36,7 @@ import { session } from "@/stores/session"
 import { goToForgotPassword } from "@/router"
 import { useSessionLock } from "@/composables/useSessionLock"
 import { useSessionTimeout } from "@/composables/useSessionTimeout"
+import { usePinAuth, isPinValid, pinLogin, savePin, clearPin, getLockRemainingSeconds } from "@/composables/usePinAuth"
 
 import { cleanupUserSession, normalizeAuthError } from "@/utils/auth"
 import { ensureCSRFToken } from "@/utils/csrf"
@@ -187,6 +188,16 @@ function installSessionSecurityMonitor() {
 
 const showPassword = ref(false)
 const showRuntimeDetails = ref(false)
+const showPinSetup = ref(false)
+const pinCode = ref("")
+const pinConfirm = ref("")
+
+// PIN Login state
+const pinLoginEnabled = ref(false)
+const pinLoginInProgress = ref(false)
+const pinError = ref("")
+const pinSetupError = ref("")
+const lockRemaining = ref(0)
 
 const isOnline = ref(typeof navigator === "undefined" ? true : navigator.onLine)
 
@@ -702,6 +713,89 @@ async function cleanup() {
 		await cleanupUserSession?.()
 	} catch (error) {
 		logger?.warn?.("DyPOS session cleanup failed", error)
+	}
+}
+
+/* ============================================================================
+ * PIN Authentication
+ * ============================================================================ */
+
+const { isPinValid: pinAvailable, pinLogin: attemptPinLogin, savePin: storePin, clearPin: wipePin, getLockRemainingSeconds } = usePinAuth()
+
+async function handlePinLogin() {
+	if (!pinAvailable.value) {
+		pinError.value = "لم يتم إعداد كود PIN بعد. يرجى تسجيل الدخول بكلمة المرور أولاً."
+		return
+	}
+
+	pinLoginInProgress.value = true
+	pinError.value = ""
+
+	try {
+		await attemptPinLogin(pinCode.value)
+		pinCode.value = ""
+		authenticationCompleted.value = true
+		sessionReady.value = true
+		sessionTimeout.start(30 * 60 * 1000)
+		installSessionSecurityMonitor()
+		logger?.info?.("DyPOS PIN authentication completed")
+		handleAuthSuccess({ stage: "pin_login" })
+		emit("authenticated")
+		await bootstrapAuthenticatedSession()
+	} catch (error) {
+		authenticationCompleted.value = false
+		pinError.value = error?.message || "كود PIN غير صحيح"
+		logger?.warn?.("DyPOS PIN authentication failed", error)
+		emit("error", error)
+	} finally {
+		pinLoginInProgress.value = false
+	}
+}
+
+/**
+ * إعداد PIN جديد بعد أول تسجيل دخول أو عند الطلب.
+ */
+async function handlePinSetup() {
+	if (pinCode.value.length < 4) {
+		pinSetupError.value = "كود PIN يجب أن يكون 4 خانات على الأقل"
+		return
+	}
+
+	if (pinCode.value !== pinConfirm.value) {
+		pinSetupError.value = "كودا PIN غير متطابقين"
+		return
+	}
+
+	try {
+		await storePin(email.value.trim(), pinCode.value, 60 * 60 * 1000)
+		pinSetupError.value = ""
+		showPinSetup.value = false
+		pinCode.value = ""
+		pinConfirm.value = ""
+		logger?.info?.("DyPOS PIN setup completed")
+	} catch (error) {
+		pinSetupError.value = error?.message || "فشل إعداد كود PIN"
+		logger?.error?.("DyPOS PIN setup failed", error)
+	}
+}
+
+function cancelPinSetup() {
+	showPinSetup.value = false
+	pinSetupError.value = ""
+	pinCode.value = ""
+	pinConfirm.value = ""
+}
+
+/**
+ * مسح PIN (للخروج الآمن).
+ */
+function handleClearPin() {
+	try {
+		wipePin()
+		pinError.value = ""
+		logger?.info?.("DyPOS PIN cleared")
+	} catch (error) {
+		logger?.warn?.("DyPOS PIN clear failed", error)
 	}
 }
 
