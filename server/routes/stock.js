@@ -2,6 +2,7 @@ import { Router } from 'express';
 import db from '../db/schema.js';
 import { cacheDel, sendCached } from '../lib/cache.js';
 import { ah } from '../lib/async.js';
+import { idempotency } from '../lib/idempotency.js';
 import { tenantContext, assertRecordTenant } from '../lib/tenant.js';
 import { recordTrail } from '../lib/trail.js';
 import { emit } from '../lib/webhooks.js';
@@ -9,7 +10,7 @@ import { emit } from '../lib/webhooks.js';
 const router = Router();
 
 // GET /api/stock — bulk stock levels (bounded IN list + offset pagination)
-router.get('/', (req, res) => {
+router.get('/', ah(async (req, res) => {
   const warehouse = String(req.query.warehouse || 'W-01').slice(0, 32);
   const itemsParam = req.query.items ? String(req.query.items) : '';
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 500, 1), 500);
@@ -44,14 +45,14 @@ router.get('/', (req, res) => {
   const payload = { stock: rows, limit, offset, hasMore: rows.length === limit };
   if (sendCached(req, res, payload, { maxAge: 5, swr: 30 })) return;
   return res.json(payload);
-});
+}));
 
 // GET /api/stock/:productId
-router.get('/:productId', (req, res) => {
+router.get('/:productId', ah(async (req, res) => {
   const warehouse = String(req.query.warehouse || 'W-01').slice(0, 32);
   const row = db.prepare('SELECT s.*, p.name, p.code FROM stock_levels s JOIN products p ON s.product_id=p.id WHERE s.product_id=? AND s.warehouse_id=?').get(String(req.params.productId).slice(0, 64), warehouse);
   return res.json(row || { qty: 0, reserved_qty: 0, allocated_qty: 0 });
-});
+}));
 
 // POST /api/stock/adjust — atomic UPSERT inside a transaction + audit (ADMIN/MANAGER only)
 router.post('/adjust', ah(async (req, res) => {
@@ -123,19 +124,28 @@ router.post('/reserve', ah(async (req, res) => {
 }));
 
 // POST /api/stock/release — free a prior reservation (any authenticated role)
+// Idempotent via Idempotency-Key header: concurrent double-release of the
+// same key executes once (MAX(0) floor keeps it monotonic anyway).
+// Runs inside a transaction so the read (existence) + write (decrement)
+// + read (after) are atomic under the single writer.
 router.post('/release', ah(async (req, res) => {
   const pid = String(req.body?.productId || '').trim().slice(0, 64);
   const wh = String(req.body?.warehouseId || 'W-01').trim().slice(0, 32) || 'W-01';
   const qty = Number(req.body?.qty);
   if (!pid) return res.status(400).json({ error: 'Product ID مطلوب' });
   if (!Number.isFinite(qty) || !(qty > 0) || qty > 1_000_000) return res.status(400).json({ error: 'الكمية أكبر من صفر' });
-  const upd = db.prepare(`UPDATE stock_levels SET reserved_qty=MAX(0,reserved_qty-?),updated_at=datetime('now') WHERE product_id=? AND warehouse_id=?`).run(qty, pid, wh);
-  if (!upd.changes) return res.status(404).json({ error: 'لا يوجد مخزون لهذا الصنف' });
-  const after = db.prepare('SELECT qty, reserved_qty FROM stock_levels WHERE product_id=? AND warehouse_id=?').get(pid, wh);
-  req.audit?.('stock.release', { productId: pid, warehouseId: wh, released: qty });
-  recordTrail(req, { entity: 'STOCK', entityId: `${pid}@${wh}`, action: 'RELEASE', after: { released: qty } });
-  await cacheDel('products');
-  return res.json({ productId: pid, warehouseId: wh, released: qty, reservedQty: Number(after?.reserved_qty) || 0, available: (Number(after?.qty) || 0) - (Number(after?.reserved_qty) || 0) });
+  return idempotency(req, res, 'stock:release', async () => {
+    const out = db.transaction(() => {
+      const upd = db.prepare(`UPDATE stock_levels SET reserved_qty=MAX(0,reserved_qty-?),updated_at=datetime('now') WHERE product_id=? AND warehouse_id=?`).run(qty, pid, wh);
+      if (!upd.changes) throw Object.assign(new Error('لا يوجد مخزون لهذا الصنف'), { statusCode: 404 });
+      const after = db.prepare('SELECT qty, reserved_qty FROM stock_levels WHERE product_id=? AND warehouse_id=?').get(pid, wh);
+      return { productId: pid, warehouseId: wh, released: qty, reservedQty: Number(after?.reserved_qty) || 0, available: (Number(after?.qty) || 0) - (Number(after?.reserved_qty) || 0) };
+    })();
+    req.audit?.('stock.release', { productId: pid, warehouseId: wh, released: qty });
+    recordTrail(req, { entity: 'STOCK', entityId: `${pid}@${wh}`, action: 'RELEASE', after: { released: qty } });
+    await cacheDel('products');
+    return out;
+  });
 }));
 
 // POST /api/stock/transfer — atomic move between warehouses (ADMIN/MANAGER)

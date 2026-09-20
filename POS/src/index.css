@@ -23,10 +23,10 @@
      ./styles/dypos/themes.css
      ./styles/dypos/accents.css
      ./styles/dypos/base.css
-     ./styles/dypos/components.css
-     ./styles/dypos/motion.css
-     ./styles/dypos/utilities.css
-     ./styles/dypos/density.css
+      ./styles/dypos/components.css
+      ./styles/dypos/animations.css
+      ./styles/dypos/utilities.css
+      ./styles/dypos/density.css
 
    This file MUST NOT become a second design system.
    ============================================================================= */

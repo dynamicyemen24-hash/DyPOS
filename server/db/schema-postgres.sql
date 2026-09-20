@@ -628,3 +628,16 @@ ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS free_qty INTEGER NOT NULL DEF
 ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS is_free_item INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1;
 INSERT INTO schema_version (version, description) VALUES (15, 'invoice_items Arabic name + free-item tracking + version stamp') ON CONFLICT DO NOTHING;
+
+-- ── v20: generic idempotency store (parity with SQLite) ──
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+  key TEXT PRIMARY KEY,
+  scope TEXT NOT NULL DEFAULT '',
+  status INTEGER NOT NULL DEFAULT 200,
+  body JSONB NOT NULL DEFAULT '{}',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz NOT NULL DEFAULT now() + INTERVAL '24 hours'
+);
+CREATE INDEX IF NOT EXISTS idx_idem_scope ON idempotency_keys(scope, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_idem_expires ON idempotency_keys(expires_at);
+INSERT INTO schema_version (version, description) VALUES (20, 'generic idempotency store') ON CONFLICT DO NOTHING;

@@ -1,3 +1,6 @@
+import { logger } from "./logger"
+
+const log = logger.create("DraftManager")
 // Draft Invoice Management with IndexedDB
 const DB_NAME = "DyPOS_drafts"
 const DB_VERSION = 1
@@ -15,7 +18,7 @@ function sanitizeDraftData(data) {
 		// Serializing through JSON removes reactivity while keeping data shallow.
 		return JSON.parse(JSON.stringify(data))
 	} catch (error) {
-		console.warn("Failed to sanitize draft data for IndexedDB storage", error)
+		log.warn("Failed to sanitize draft data for IndexedDB storage", error)
 		throw error
 	}
 }

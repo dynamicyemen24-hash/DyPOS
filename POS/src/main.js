@@ -145,7 +145,7 @@ try {
 	installGlobalErrorBoundary()
 } catch (error) {
 	// There is no safe application logger guarantee this early.
-	console.error("[DyPOS] Failed to install global error boundary", error)
+	log.error("[DyPOS] Failed to install global error boundary", error)
 }
 
 /* =============================================================================

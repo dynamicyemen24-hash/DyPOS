@@ -51,7 +51,6 @@ export default defineConfig({
 		{
 			name: "chromium",
 			use: { ...devices["Desktop Chrome"] },
-			testIgnore: ["e2e/offline.spec.ts"],
 		},
 		{
 			name: "firefox",
@@ -65,13 +64,6 @@ export default defineConfig({
 			name: "mobile-chromium",
 			use: { ...devices["iPhone 13"] },
 		},
-		{
-			name: "offline-mode",
-			testMatch: ["e2e/offline.spec.ts"],
-			use: {
-				...devices["Desktop Chrome"],
-			},
-		},
 	],
 	webServer: process.env.CI
 		? undefined
@@ -82,6 +74,7 @@ export default defineConfig({
 				timeout: 120000,
 			},
 	outputDir: "e2e-test-results",
-	globalSetup: "e2e/global-setup.ts",
-	globalTeardown: "e2e/global-teardown.ts",
+	// NOTE: no globalSetup/globalTeardown — the suite is fixture-free by
+	// design (guest shell contract needs no seeding). Add setup files here
+	// only together with the seed harness (see offline-tests.spec.ts).
 })

@@ -7,6 +7,10 @@
 				:aria-live="toastNotification.type === 'error' ? 'assertive' : 'polite'"
 				:aria-atomic="true"
 				class="fixed top-4 end-4 z-[9999] max-w-md"
+				@mouseenter="pauseToast"
+				@mouseleave="resumeToast"
+				@focusin="pauseToast"
+				@focusout="resumeToast"
 			>
 				<div
 					:class="[
@@ -45,9 +49,11 @@
 import { computed } from "vue"
 import { useToast } from "@/composables/useToast"
 import { useLocale } from "@/composables/useLocale"
+import { __ } from "@/utils/translation"
 import { FeatherIcon } from "frappe-ui"
 
-const { toastNotification, showToast, hideToast } = useToast()
+const { toastNotification, showToast, hideToast, pauseToast, resumeToast } =
+	useToast()
 const { isRTL } = useLocale()
 
 // Toast type to style mapping

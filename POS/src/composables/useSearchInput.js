@@ -1,6 +1,8 @@
 import { ref, watch, nextTick, onUnmounted } from "vue"
 import { QueuedMutex } from "@/utils/mutex"
+import { logger } from "@/utils/logger"
 
+const log = logger.create("SearchInput")
 /**
  * Composable for search input, barcode scanning, and auto-add logic.
  *
@@ -165,7 +167,7 @@ export function useSearchInput({
 					return
 				}
 			} catch (error) {
-				console.error("Barcode API error:", error)
+				log.error("Barcode API error:", error)
 			}
 
 			// Barcode not found — show clear "not found" message.

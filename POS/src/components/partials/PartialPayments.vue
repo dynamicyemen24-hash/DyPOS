@@ -345,12 +345,14 @@ import {
 } from "@/utils/currency"
 import { logger } from "@/utils/logger"
 import { getInvoiceStatusColor } from "@/utils/invoice"
-import PaymentDialog from "@/components/sale/PaymentDialog.vue"
 import { usePOSSettingsStore } from "@/stores/posSettings"
 import { useToast } from "@/composables/useToast"
 import { useFormatters } from "@/composables/useFormatters"
 import { Button, call } from "frappe-ui"
-import { onMounted, ref, watch } from "vue"
+import { defineAsyncComponent, onMounted, ref, watch } from "vue"
+
+// Lazy: PaymentDialog excluded from first-paint bundle.
+const PaymentDialog = defineAsyncComponent(() => import("@/components/sale/PaymentDialog.vue"))
 
 const log = logger.create("PartialPayments")
 

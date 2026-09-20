@@ -216,7 +216,7 @@ export function useLocale() {
 	 */
 	async function changeLocale(newLocale) {
 		if (!SUPPORTED_LOCALES[newLocale]) {
-			console.warn(`Locale ${newLocale} not supported`)
+			log.warn(`Locale ${newLocale} not supported`)
 			return
 		}
 
@@ -246,7 +246,7 @@ export function useLocale() {
 				locale: newLocale,
 			})
 		} catch (error) {
-			console.error("Failed to save language preference to Frappe:", error)
+			log.error("Failed to save language preference to Frappe:", error)
 		}
 
 		// Fetch new translations dynamically (no page reload needed)
@@ -255,7 +255,7 @@ export function useLocale() {
 			try {
 				await window.$changeLanguage(newLocale)
 			} catch (error) {
-				console.error("Failed to load translations:", error)
+				log.error("Failed to load translations:", error)
 			}
 		}
 	}

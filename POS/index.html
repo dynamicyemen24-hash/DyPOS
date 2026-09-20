@@ -61,8 +61,8 @@
 		/>
 		<link rel="apple-touch-icon" href="/assets/DyPOS/pos/apple-touch-icon.png" />
 		<link rel="manifest" href="/assets/DyPOS/pos/manifest.webmanifest" />
-		<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
-		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<!-- Cairo/Inter load locally via @fontsource (no Google Fonts round-trip).
+		     Only flagcdn (country flags) needs a preconnect. -->
 		<link rel="preconnect" href="https://flagcdn.com" crossorigin />
 
 		<!-- Company / Open Graph identity -->

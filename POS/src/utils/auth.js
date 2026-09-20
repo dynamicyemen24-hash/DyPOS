@@ -1,3 +1,6 @@
+import { logger } from "./logger"
+
+const log = logger.create("Auth")
 /**
  * Auth facade — the single entry point for the authentication layer.
  *
@@ -25,11 +28,11 @@ export async function terminateSession() {
 		const { session } = await import("@/data/session")
 		await session.logout.submit()
 	} catch (error) {
-		console.warn("DyPOS session logout failed", error)
+		log.warn("DyPOS session logout failed", error)
 		try {
 			await cleanupUserSession()
 		} catch (cleanupError) {
-			console.warn("DyPOS session cleanup failed", cleanupError)
+			log.warn("DyPOS session cleanup failed", cleanupError)
 		}
 	}
 }

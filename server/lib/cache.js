@@ -21,7 +21,10 @@ const MAX_ENTRIES = Number(process.env.DYPOS_CACHE_MAX || 2000);
 const DEFAULT_TTL = Number(process.env.DYPOS_CACHE_TTL || 5);
 
 const mem = new Map(); // key -> { value, expiresAt, hits }
-let stats = { hits: 0, misses: 0, sets: 0, evictions: 0, redis: false };
+const prefixIndex = new Map(); // prefix-segment -> Set<key> (O(1) invalidation)
+let stats = { hits: 0, misses: 0, sets: 0, evictions: 0, redis: false, singleflightHits: 0 };
+// Singleflight: concurrent getOrSet on the same key share ONE loader promise.
+const inflightLoads = new Map(); // key -> Promise
 
 // ── Optional Redis (lazy, no hard dependency) ──
 let redis = null;
@@ -42,6 +45,23 @@ async function redisClient() {
   }
 }
 if (process.env.DYPOS_REDIS_URL) redisClient().catch(() => null);
+
+function indexKey(key) {
+  // Index by first two pipe-segments (e.g. "products|list") for O(1) prefix invalidation.
+  const seg = String(key).split('|').slice(0, 2).join('|');
+  let set = prefixIndex.get(seg);
+  if (!set) { set = new Set(); prefixIndex.set(seg, set); }
+  set.add(key);
+}
+
+function unindexKey(key) {
+  const seg = String(key).split('|').slice(0, 2).join('|');
+  const set = prefixIndex.get(seg);
+  if (set) {
+    set.delete(key);
+    if (!set.size) prefixIndex.delete(seg);
+  }
+}
 
 function evictIfNeeded() {
   if (mem.size < MAX_ENTRIES) return;
@@ -79,6 +99,7 @@ export async function cacheSet(key, value, ttlSecs = DEFAULT_TTL) {
   stats.sets++;
   evictIfNeeded();
   mem.set(key, { value, expiresAt: Date.now() + ttlSecs * 1000, hits: 0 });
+  indexKey(key);
   const rc = process.env.DYPOS_REDIS_URL ? await redisClient().catch(() => null) : null;
   if (rc) {
     try { await rc.set(`dypos:${key}`, JSON.stringify(value), 'EX', Math.max(1, Math.round(ttlSecs))); }
@@ -87,7 +108,19 @@ export async function cacheSet(key, value, ttlSecs = DEFAULT_TTL) {
 }
 
 export async function cacheDel(prefix) {
-  for (const k of [...mem.keys()]) if (k.startsWith(prefix)) mem.delete(k);
+  // O(indexed) invalidation: drop whole segments when the prefix aligns,
+  // else fall back to a bounded scan (prefixes are short by construction).
+  let removed = 0;
+  const seg = String(prefix).split('|').slice(0, 2).join('|');
+  const set = prefixIndex.get(seg);
+  if (set && (prefix === seg || String(prefix).endsWith('|'))) {
+    for (const k of [...set]) { mem.delete(k); unindexKey(k); removed++; }
+  } else {
+    for (const k of [...mem.keys()]) {
+      if (k.startsWith(prefix)) { mem.delete(k); unindexKey(k); removed++; }
+      if (removed > 10000) break; // safety bound
+    }
+  }
   const rc = process.env.DYPOS_REDIS_URL ? await redisClient().catch(() => null) : null;
   if (rc) {
     try {
@@ -97,13 +130,28 @@ export async function cacheDel(prefix) {
   }
 }
 
-/** Read-through helper: cache stampede-safe enough for POS read workloads. */
+/** Read-through helper: singleflight stampede-proof for POS read workloads. */
 export async function getOrSet(key, ttlSecs, loader) {
   const hit = await cacheGet(key);
   if (hit !== null && hit !== undefined) return { value: hit, cached: true };
-  const value = await loader();
-  await cacheSet(key, value, ttlSecs);
-  return { value, cached: false };
+  // Singleflight: N concurrent misses share ONE loader execution.
+  if (inflightLoads.has(key)) {
+    stats.singleflightHits++;
+    const value = await inflightLoads.get(key);
+    return { value, cached: true };
+  }
+  const p = (async () => {
+    const value = await loader();
+    await cacheSet(key, value, ttlSecs);
+    return value;
+  })();
+  inflightLoads.set(key, p);
+  try {
+    const value = await p;
+    return { value, cached: false };
+  } finally {
+    inflightLoads.delete(key);
+  }
 }
 
 export function etagFor(obj) {
@@ -138,8 +186,10 @@ export function cacheStats() {
 }
 
 export function resetCacheStats() {
-  stats = { hits: 0, misses: 0, sets: 0, evictions: 0, redis: stats.redis };
+  stats = { hits: 0, misses: 0, sets: 0, evictions: 0, redis: stats.redis, singleflightHits: 0 };
   mem.clear();
+  prefixIndex.clear();
+  inflightLoads.clear();
 }
 
 export default { getOrSet, cacheGet, cacheSet, cacheDel, cacheKey, sendCached, etagFor, cacheStats, resetCacheStats };

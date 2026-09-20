@@ -1,3 +1,6 @@
+import { logger } from "./logger"
+
+const log = logger.create("ErrorHandler")
 /**
  * Common Error Handler for API Exceptions
  * Provides consistent error parsing and user-friendly messages
@@ -110,7 +113,7 @@ export function parseError(rawError) {
 				if (firstMessage.title) context.title = firstMessage.title
 			}
 		} catch (parseError) {
-			console.error("Error parsing _server_messages:", parseError)
+			log.error("Error parsing _server_messages:", parseError)
 		}
 	} else if (error.message) {
 		context.message = cleanErrorMessage(error.message)

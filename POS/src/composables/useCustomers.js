@@ -1,6 +1,8 @@
 import { ref, computed } from "vue"
 import { isOffline, searchCachedCustomers, isCacheReady } from "@/utils/offline"
+import { logger } from "@/utils/logger"
 
+const log = logger.create("Customers")
 export function useCustomers(posProfile) {
 	const allCustomers = ref([])
 	const searchTerm = ref("")
@@ -18,7 +20,7 @@ export function useCustomers(posProfile) {
 				allCustomers.value = []
 			}
 		} catch (error) {
-			console.error("Error loading customers:", error)
+			log.error("Error loading customers:", error)
 			allCustomers.value = []
 		} finally {
 			loading.value = false
@@ -30,7 +32,7 @@ export function useCustomers(posProfile) {
 			const results = await searchCachedCustomers(searchValue, 20)
 			return results || []
 		} catch (error) {
-			console.error("Error searching customers:", error)
+			log.error("Error searching customers:", error)
 			return []
 		}
 	}

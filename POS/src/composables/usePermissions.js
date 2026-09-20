@@ -1,6 +1,8 @@
 import { call } from "@/utils/apiWrapper"
 import { computed, ref } from "vue"
+import { logger } from "@/utils/logger"
 
+const log = logger.create("Permissions")
 /**
  * Composable for checking user permissions
  * Provides reactive permission checks for doctypes
@@ -39,10 +41,7 @@ export function usePermissions() {
 			permissionCache.value[cacheKey] = hasPermission
 			return hasPermission
 		} catch (error) {
-			console.error(
-				`Error checking permission for ${doctype}:${permType}`,
-				error,
-			)
+			log.error(`Error checking permission for ${doctype}:${permType}`, error)
 			// Default to false on error (safer)
 			return false
 		}

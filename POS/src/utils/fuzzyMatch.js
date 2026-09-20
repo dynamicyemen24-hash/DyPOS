@@ -1,73 +1,20 @@
 /**
- * Arabic-aware fuzzy searching.
+ * Arabic-aware fuzzy searching — BOOLEAN matcher role.
  *
- * Search in Arabic POS catalogs is brittle: users type "قلم" but the catalog
- * stores "قَلَم", or they misspell "شنطة"/"شطة", or type half-width digits.
- * This module normalizes both sides via normalizeArabic, then scores with a
- * bounded Levenshtein distance and exposes threshold helpers for
- * "did-you-mean" corrections and tolerant suggestion filters.
+ * Role split (canonical, no overlap):
+ * - `utils/fuzzy.js`      → RANKING engine: fuzzyScore/fuzzyMatch(query, candidates[]) + suggestCorrections.
+ * - `utils/fuzzyMatch.js` → BOOLEAN engine (this file): fuzzyMatch(query, candidate) + bestFuzzyMatch.
+ * - `utils/levenshtein.js`→ single distance implementation both import.
+ * - `utils/fuzzyPolicy.js`→ single edit-budget policy.
+ * - `utils/search.js`     → unified facade re-exporting both roles.
  *
  * Pure + fully unit-tested. No DOM, no I/O.
  */
 
 import { normalizeArabic } from "@/utils/arabic"
+import { levenshtein, similarity } from "@/utils/levenshtein"
 
-/**
- * Levenshtein edit distance with a bounded band.
- * Falls back to long strings quickly when the gap is unreconcilable.
- * @param {string} a
- * @param {string} b
- * @returns {number} Edit distance.
- */
-export function levenshtein(a, b) {
-	// null/undefined are treated as empty strings, never as the text "null".
-	const left = a == null ? "" : a
-	const right = b == null ? "" : b
-	if (!left || !right)
-		return Math.max(String(left).length, String(right).length)
-	if (left === right) return 0
-
-	const m = left.length
-	const n = right.length
-	// If lengths differ by more than this, the distance is at least the gap.
-	const gap = Math.abs(m - n)
-	if (gap >= n && gap >= m) return m || n
-
-	let prevRow = new Array(n + 1)
-	let currRow = new Array(n + 1)
-	for (let j = 0; j <= n; j++) prevRow[j] = j
-
-	for (let i = 1; i <= m; i++) {
-		currRow[0] = i
-		for (let j = 1; j <= n; j++) {
-			const cost = left[i - 1] === right[j - 1] ? 0 : 1
-			currRow[j] = Math.min(
-				prevRow[j] + 1, // deletion
-				currRow[j - 1] + 1, // insertion
-				prevRow[j - 1] + cost, // substitution
-			)
-		}
-		const swap = prevRow
-		prevRow = currRow
-		currRow = swap
-	}
-	return prevRow[n]
-}
-
-/**
- * Similarity in [0, 1]: 1 is an exact (normalized) match.
- * @param {string} a
- * @param {string} b
- * @returns {number}
- */
-export function similarity(a, b) {
-	if (!a && !b) return 1
-	if (!a || !b) return 0
-	const dist = levenshtein(a, b)
-	const maxLen = Math.max(a.length, b.length)
-	if (maxLen === 0) return 1
-	return 1 - dist / maxLen
-}
+export { levenshtein, similarity }
 
 /**
  * Fuzzy boolean match between a query and a candidate.

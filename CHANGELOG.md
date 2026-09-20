@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.28.0] - 2026-09-21 — الإصدار الاحترافي العربي الذكي الإنتاجي النهائي (UX + تنقية + عدم تكرار شامل)
+
+### Fixed — تجربة المستخدم العربية (حرجة)
+- `useToast.js`: إصلاح `ReferenceError` (استدعاء `__` دون استيراد) كان يُسكت كل
+  تنبيهات النجاح/الخطأ؛ مدد متدرجة حسب الخطورة (خطأ 6s/تحذير 5s/نجاح 4s) +
+  إيقاف العد عند `hover/focus` في `Toast.vue`.
+- `App.vue`: ربط `dir/lang` بمخزن `useLocale` التفاعلي (كان ثابت `ar/rtl`
+  ينكسر عند التبديل لـ `en/ltr`).
+- `POSSale.vue`: أسهم الشبكة معكوسة感知 RTL؛ `Ctrl+Enter` يعمل من داخل البحث؛
+  عودة الفوكس للبحث بعد إغلاق الدفع/الكمية؛ حقول المبالغ `text+inputmode`
+  (بلا سبينر/زوم iOS)؛ مساعدة اختصارات بلوحة `؟` (`POS_SHORTCUTS` + أنماط).
+- `Login.vue`: معالج `Enter` العام أصبح يُرسل النموذج فعليًا؛ `aria-describedby`
+  يربط الخطأ بالحقلين؛ شارة الفوتر `RTL` ← `عربي أولاً`.
+- `router.js`: عنوان عربي لكل مسار (`نقطة البيع | DyPOS`...)؛ `index.html`: حذف
+  `preconnect` الخطوط (محلية)؛ `SyncStatusIndicator`: وقت آخر مزامنة بـ `ar`.
+
+### Removed — تنظيف الكود الميت (آمن، بلا أثر على الحزمة)
+- حذف 7 أدوات ميتة بلا مستورد ولا اختبار: `auditTrail/csurfEnhanced/kioskCart/
+  pinCrypto/retryWithBackoff/securityHeaders/stockPolicy` (نسخة في `.lint-backup-deadcode`).
+- حذف السقالات الفارغة: `infrastructure/*` و`domain/usecases` و56 مجلد تقارير فارغًا.
+- توثيق `motion.css` ← `animations.css` (الملف الحقيقي).
+
+### Added (من 1.27.x، مُثبت هنا) — مكتبات وخوارزميات عالمية
+- `@vueuse/core/useDebounceFn` عبر `useDebouncedSearch`؛ `utils/money`
+  (هللات دقيقة)؛ `utils/idempotency` (مفاتيح UUID + retry + single-flight)؛
+  `useCheckout` (بيع آمن)؛ `usePaginatedQuery` (ترقيم موحد)؛ `PaymentDialog`
+  lazy؛ `vitest` → `jsdom` بتغطية موسعة.
+- الخادم: `lib/idempotency` + ترحيل v20 (`idempotency_keys`) مطبق على
+  `invoice:void/return` و`stock:release` و`customer:wallet/redeem/credit-pay`؛
+  `cache` singleflight + إبطال مفهرس؛ `services/invoice-totals`؛ `lib/logger`
+  (pino)؛ `stock/release` ذرية؛ `customers` ترقيم موحد + `ah()` شامل.
+
+### Verified
+- الواجهة: **391/391** (vitest) — الخادم: **203/203** (node:test).
+
+### Follow-up — إغلاق الثغرات المتبقية (نفس الإصدار)
+- `POSSale.vue`: خطافات `data-testid` مستقرة (`pos-root/search/product-grid/
+  product-item/cart/cart-item/proceed-to-payment/payment-amount/
+  complete-payment/receipt`) + إعادة كتابة `e2e/offline-tests.spec.ts`
+  لعقد الضيف (guards/RTL/login) مع `describe.fixme` مُعلل لمسارات المصادقة؛
+  إصلاح `playwright.config.ts` (حذف `globalSetup` وإعدادات ملفات غير موجودة).
+- توحيد `console.*` → `logger` في الملفات الحية: `posCart/posOffers/
+  invoiceFilters/itemSearch/draftManager/errorHandler/auth/usePermissions/
+  useSearchInput/useCustomers/main`.
+- مراجعة تغييرات `usePinAuth` (مسبقة): `savePin/pinLogin` (PBKDF2) متسقة مع
+  `Login.vue` والبناء والاختبارات خضراء.
+
 ## [1.27.0] - 2026-09-20 — محرّك الاشتراكات + سلامة فوترة لا تتكرر (Recurring Commerce)
 
 ### Added — Subscription engine (schema v18 → v19)

@@ -7,6 +7,10 @@ import { VitePWA } from "vite-plugin-pwa"
 import { viteStaticCopy } from "vite-plugin-static-copy"
 
 // Get build version from environment or use timestamp
+import { createRequire } from "node:module"
+
+const require = createRequire(import.meta.url)
+const appVersion = require("./package.json").version || "0.0.0"
 const buildVersion = process.env.DyPOS_BUILD_VERSION || Date.now().toString()
 const enableSourceMap = process.env.DyPOS_ENABLE_SOURCEMAP === "true"
 
@@ -86,9 +90,11 @@ function stripDeadFontFallbacks() {
 
 /**
  * Vite plugin to write build version to version.json file
- * This enables cache busting and version tracking
+ * This enables cache busting and version tracking.
+ * Contract (version single-source gate): `version` MUST be the app semver
+ * (package.json), `build` carries the unique build stamp for cache-busting.
  */
-function DyPOSBuildVersionPlugin(version) {
+function DyPOSBuildVersionPlugin(version, appVersion) {
 	return {
 		name: "pos-next-build-version",
 		apply: "build",
@@ -102,7 +108,8 @@ function DyPOSBuildVersionPlugin(version) {
 				versionFile,
 				JSON.stringify(
 					{
-						version,
+						version: appVersion,
+						build: version,
 						timestamp: new Date().toISOString(),
 						buildDate: new Date().toLocaleDateString("en-US", {
 							year: "numeric",
@@ -123,7 +130,7 @@ function DyPOSBuildVersionPlugin(version) {
 // https://vitejs.dev/config/
 export default defineConfig({
 	plugins: [
-		DyPOSBuildVersionPlugin(buildVersion),
+		DyPOSBuildVersionPlugin(buildVersion, appVersion),
 		frappeui({
 			frappeProxy: true,
 			jinjaBootData: true,
@@ -327,6 +334,9 @@ export default defineConfig({
 						/[\\/]node_modules[\\/](vue|@vue|vue-router|pinia)[\\/]/.test(id)
 					) {
 						return "vendor-vue"
+					}
+					if (/[\\/]node_modules[\\/](@vueuse)[\\/]/.test(id)) {
+						return "vendor-utils"
 					}
 					if (/[\\/]node_modules[\\/](dexie|idb|@vertexvis)[\\/]/.test(id)) {
 						return "vendor-offline"

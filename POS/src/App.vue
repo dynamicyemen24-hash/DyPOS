@@ -89,6 +89,7 @@ import {
 import Toast from "@/components/common/Toast.vue"
 import ServiceWorkerUpdateBanner from "@/components/reports/dashboards/core/ServiceWorkerUpdateBanner.vue"
 import { useAppTheme } from "@/composables/useAppTheme"
+import { useLocale } from "@/composables/useLocale"
 import { translationVersion, __ } from "@/utils/translation"
 
 /**
@@ -120,13 +121,13 @@ const appReady = ref(true)
  * Localization
  * --------------------------------------------------------------------------
  *
- * Keep this layer deliberately defensive.
- *
- * If the translation module later exposes reactive language/direction
- * state, it can be connected here without changing the template contract.
+ * Bound to the reactive locale store: switching language inside the app
+ * (e.g. ar/rtl → en/ltr) updates the shell dir/lang immediately.
+ * documentElement remains the source of truth (set by useLocale).
  */
-const language = ref("ar")
-const direction = ref("rtl")
+const { locale: activeLocale, dir: activeDir } = useLocale()
+const language = computed(() => activeLocale.value || "ar")
+const direction = computed(() => activeDir.value || "rtl")
 
 /**
  * Translation version is intentionally NOT used as the route component key.

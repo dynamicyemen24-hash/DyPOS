@@ -36,7 +36,14 @@ import { session } from "@/stores/session"
 import { goToForgotPassword } from "@/router"
 import { useSessionLock } from "@/composables/useSessionLock"
 import { useSessionTimeout } from "@/composables/useSessionTimeout"
-import { usePinAuth, isPinValid, pinLogin, savePin, clearPin, getLockRemainingSeconds } from "@/composables/usePinAuth"
+import {
+	usePinAuth,
+	isPinValid,
+	pinLogin,
+	savePin,
+	clearPin,
+	getLockRemainingSeconds,
+} from "@/composables/usePinAuth"
 
 import { cleanupUserSession, normalizeAuthError } from "@/utils/auth"
 import { ensureCSRFToken } from "@/utils/csrf"
@@ -720,11 +727,17 @@ async function cleanup() {
  * PIN Authentication
  * ============================================================================ */
 
-const { isPinValid: pinAvailable, pinLogin: attemptPinLogin, savePin: storePin, clearPin: wipePin } = usePinAuth()
+const {
+	isPinValid: pinAvailable,
+	pinLogin: attemptPinLogin,
+	savePin: storePin,
+	clearPin: wipePin,
+} = usePinAuth()
 
 async function handlePinLogin() {
 	if (!pinAvailable.value) {
-		pinError.value = "لم يتم إعداد كود PIN بعد. يرجى تسجيل الدخول بكلمة المرور أولاً."
+		pinError.value =
+			"لم يتم إعداد كود PIN بعد. يرجى تسجيل الدخول بكلمة المرور أولاً."
 		return
 	}
 
@@ -842,18 +855,20 @@ function persistRememberedEmail() {
  * ========================================================================== */
 
 function handleGlobalKeydown(event) {
+	// Enter submits from anywhere except multiline inputs (native form
+	// behavior already covers single-line inputs + the submit button).
 	if (
 		event.key === "Enter" &&
 		!event.shiftKey &&
 		!event.ctrlKey &&
-		!event.metaKey
+		!event.metaKey &&
+		!(event.target instanceof HTMLTextAreaElement) &&
+		!isSubmitting.value
 	) {
-		const target = event.target
-
-		if (
-			target instanceof HTMLInputElement ||
-			target instanceof HTMLTextAreaElement
-		) {
+		const form = document.querySelector(".dy-login__form")
+		if (form && !form.contains(event.target)) {
+			event.preventDefault()
+			handleLogin()
 			return
 		}
 	}
@@ -1040,7 +1055,7 @@ function goToRegister() {
                     />
 
                     <span>
-                        RTL
+                        عربي أولاً
                     </span>
                 </div>
             </div>
@@ -1163,6 +1178,7 @@ function goToRegister() {
 
                 <div
                     v-if="loginErrorMessage"
+                    id="dypos-login-error"
                     class="dy-login__error"
                     role="alert"
                     aria-live="assertive"
@@ -1242,6 +1258,7 @@ function goToRegister() {
                                 :disabled="isSubmitting"
                                 required
                                 spellcheck="false"
+                                aria-describedby="dypos-login-error"
                                 @input="clearLoginError"
                             />
                         </div>
@@ -1286,6 +1303,7 @@ function goToRegister() {
                                 placeholder="أدخل كلمة المرور"
                                 :disabled="isSubmitting"
                                 required
+                                aria-describedby="dypos-login-error"
                                 @input="clearLoginError"
                             />
 

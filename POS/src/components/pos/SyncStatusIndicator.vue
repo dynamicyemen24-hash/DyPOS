@@ -96,9 +96,16 @@ const accessibleLabel = computed(() => {
 		parts.push(`${status.pendingCount} عملية بانتظار المزامنة`)
 	}
 	if (status.lastSyncAt) {
-		parts.push(
-			`آخر مزامنة: ${new Date(status.lastSyncAt).toLocaleTimeString()}`,
-		)
+		let when = ""
+		try {
+			when = new Date(status.lastSyncAt).toLocaleTimeString("ar", {
+				hour: "2-digit",
+				minute: "2-digit",
+			})
+		} catch {
+			when = new Date(status.lastSyncAt).toLocaleTimeString()
+		}
+		parts.push(`آخر مزامنة: ${when}`)
 	}
 	return parts.join(" — ")
 })

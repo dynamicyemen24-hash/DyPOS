@@ -1,7 +1,9 @@
 import { defineStore } from "pinia"
 import { computed, ref } from "vue"
 import { DEFAULT_LOCALE } from "@/utils/currency"
+import { logger } from "@/utils/logger"
 
+const log = logger.create("InvoiceFilters")
 /**
  * Invoice Filters Store
  *
@@ -230,7 +232,7 @@ export const useInvoiceFiltersStore = defineStore("invoiceFilters", () => {
 				savedFilters.value = JSON.parse(saved)
 			}
 		} catch (error) {
-			console.error("Failed to load saved filters:", error)
+			log.error("Failed to load saved filters:", error)
 		}
 	}
 

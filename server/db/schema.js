@@ -14,7 +14,7 @@ import { mkdirSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DYPOS_DB_PATH || join(__dirname, '..', 'data', 'dypos.db');
-const MIGRATION_VERSION = 19; // Increment when schema changes
+const MIGRATION_VERSION = 20; // Increment when schema changes
 
 function columnExists(table, column) {
 	try {
@@ -931,6 +931,29 @@ export function migrate() {
         .run(19, 'subscription billing periods (replay-safe charges)');
     } catch (e) {
       console.warn('[DyPOS] v19 migration deferred:', String(e.message).slice(0, 200));
+    }
+  }
+
+  // ── v20: generic idempotency store (Stripe-style safe retry) ──
+  // Every mutating route stores (scope:key) → response for 24h.
+  // PRIMARY KEY makes double-execution impossible even across restarts.
+  if (currentVersion < 20) {
+    try {
+      db.exec(`CREATE TABLE IF NOT EXISTS idempotency_keys (
+        key TEXT PRIMARY KEY,
+        scope TEXT NOT NULL DEFAULT '',
+        status INTEGER NOT NULL DEFAULT 200,
+        body TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        expires_at TEXT NOT NULL DEFAULT (datetime('now', '+24 hours'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_idem_scope ON idempotency_keys(scope, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_idem_expires ON idempotency_keys(expires_at);`);
+      try { db.prepare(`DELETE FROM idempotency_keys WHERE expires_at < datetime('now')`).run(); } catch { /* fresh DB */ }
+      db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+        .run(20, 'generic idempotency store (safe retry)');
+    } catch (e) {
+      console.warn('[DyPOS] v20 migration deferred:', String(e.message).slice(0, 200));
     }
   }
 

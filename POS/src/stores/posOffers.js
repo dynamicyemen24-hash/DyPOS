@@ -9,7 +9,9 @@ import {
 	addOneTimeRedemptions,
 } from "@/utils/offline/db"
 import { usePOSShiftStore } from "@/stores/posShift"
+import { logger } from "@/utils/logger"
 
+const log = logger.create("POSOffers")
 const defaultSnapshot = () => ({
 	subtotal: 0,
 	itemCount: 0,
@@ -95,7 +97,7 @@ export const usePOSOffersStore = defineStore("posOffers", () => {
 				}
 			} catch (error) {
 				// Keep cached redemptions if the server fetch fails.
-				console.error("Error fetching one-time redemptions:", error)
+				log.error("Error fetching one-time redemptions:", error)
 			}
 		}
 
@@ -453,7 +455,7 @@ export const usePOSOffersStore = defineStore("posOffers", () => {
 
 				return true
 			} catch (error) {
-				console.error("Error fetching offers:", error)
+				log.error("Error fetching offers:", error)
 				hasFetched.value = true // Mark as fetched to prevent infinite retries
 				return false
 			} finally {

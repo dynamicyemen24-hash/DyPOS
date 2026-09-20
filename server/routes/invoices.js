@@ -13,6 +13,7 @@ import { assertTenantScope, resolveTenantFilter, assertRecordTenant } from '../l
 import { assertCurrency, assertUom } from '../lib/fx.js';
 import { recordTrail } from '../lib/trail.js';
 import { ah } from '../lib/async.js';
+import { idempotency } from '../lib/idempotency.js';
 import { emit } from '../lib/webhooks.js';
 import { ensureOpenFiscalYear, yearOf } from './fiscal.js';
 import { invoicePrefix, getSetting, defaultTaxRate } from '../lib/settings.js';
@@ -374,7 +375,7 @@ router.post('/', validate(invoiceSchema), (req, res) => {
 });
 
 // GET /api/invoices/reports/daily — MUST be before /:id so "reports" isn't treated as an id
-router.get('/reports/daily', (req, res) => {
+router.get('/reports/daily', ah(async (req, res) => {
   const raw = String(req.query.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return res.status(400).json({ error: 'صيغة التاريخ غير صالحة (YYYY-MM-DD)' });
   const terminalId = req.query.terminal ? String(req.query.terminal).slice(0, 32) : null;
@@ -386,12 +387,12 @@ router.get('/reports/daily', (req, res) => {
   const stats = db.prepare(sql).get(...params);
   const payMethods = db.prepare(`SELECT p.method, COALESCE(SUM(p.amount),0) as total FROM payments p JOIN invoices i ON p.invoice_id=i.id WHERE i.created_at>=? AND i.created_at<? ${terminalId ? 'AND i.terminal_id=?' : ''} GROUP BY p.method`).all(...(terminalId ? [from, to, terminalId] : [from, to]));
   return res.json({ date: raw, ...stats, payment_methods: Object.fromEntries(payMethods.map(p => [p.method, p.total])) });
-});
+}));
 
 // GET /api/invoices — capped pagination + بحث نصي q (رقم/عميل/حالة) + total/hasMore
 // Billions-scale access: ?after=<id> keyset cursor (stable, O(log n)) beats deep
 // OFFSET (O(n)); ?count=false skips the COUNT(*) scan for infinite scroll.
-router.get('/', (req, res) => {
+router.get('/', ah(async (req, res) => {
   const { status, shift_id, from, to, q } = req.query;
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
   const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
@@ -439,10 +440,10 @@ router.get('/', (req, res) => {
   const rows = db.prepare(`SELECT * ${base} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`).all(...params, limit, effOffset);
   res.set('Cache-Control', 'private, max-age=3, stale-while-revalidate=15');
   return res.json({ invoices: rows, total, limit, offset: effOffset, hasMore: rows.length === limit, nextCursor: rows.length === limit ? rows[rows.length - 1].id : null });
-});
+}));
 
 // GET /api/invoices/:id
-router.get('/:id', (req, res) => {
+router.get('/:id', ah(async (req, res) => {
   const id = String(req.params.id).slice(0, 64);
   const inv = db.prepare('SELECT * FROM invoices WHERE id=?').get(id);
   if (!inv) return res.status(404).json({ error: 'الفاتورة غير موجودة' });
@@ -454,10 +455,10 @@ router.get('/:id', (req, res) => {
   inv.items = db.prepare('SELECT * FROM invoice_items WHERE invoice_id=?').all(inv.id);
   inv.payments = db.prepare('SELECT * FROM payments WHERE invoice_id=?').all(inv.id);
   return res.json(inv);
-});
+}));
 
 // GET /api/invoices/:id/audit — hash-chained mutation trail (tamper-evident)
-router.get('/:id/audit', (req, res) => {
+router.get('/:id/audit', ah(async (req, res) => {
   const id = String(req.params.id).slice(0, 64);
   const inv = db.prepare('SELECT id,number,tenant_id FROM invoices WHERE id=?').get(id);
   if (!inv) return res.status(404).json({ error: 'الفاتورة غير موجودة' });
@@ -473,11 +474,11 @@ router.get('/:id/audit', (req, res) => {
     return res.json({ invoiceId: id, links: [], chained: false, note: 'migrate to v6 for chain' });
   }
   return res.json({ invoiceId: id, links, chained: links.length > 0 });
-});
+}));
 
 // POST /api/invoices/:id/pay — atomic: single transaction, no lost-update race
 // Optional { idempotencyKey }: retried webhooks/clients get { deduped:true } instead of double-charging.
-router.post('/:id/pay', (req, res) => {
+router.post('/:id/pay', ah(async (req, res) => {
   const id = String(req.params.id).slice(0, 64);
   const { method = 'CASH', amount = 0, reference = '' } = req.body || {};
   const amt = Number(amount);
@@ -557,14 +558,15 @@ router.post('/:id/pay', (req, res) => {
   } catch (e) {
     return res.status(e.statusCode || 400).json({ error: String(e.message || '').slice(0, 300) });
   }
-});
+}));
 
 // POST /api/invoices/:id/void — إيقاف/إلغاء فاتورة (ADMIN/MANAGER) — يعكس المخزون والنقاط
+// Idempotent عبر Idempotency-Key: إعادة نفس المفتاح تُرجع {deduped:true} بدل إعادة العكس.
 router.post('/:id/void', ah(async (req, res) => {
   if (!['ADMIN', 'MANAGER'].includes(req.user?.role)) return res.status(403).json({ error: 'صلاحية غير كافية' });
   const id = String(req.params.id).slice(0, 64);
   const reason = String(req.body?.reason || '').trim().slice(0, 200);
-  try {
+  return idempotency(req, res, 'invoice:void', async () => {
     const r = db.transaction(() => {
       const inv = db.prepare('SELECT * FROM invoices WHERE id=?').get(id);
       if (!inv) throw Object.assign(new Error('الفاتورة غير موجودة'), { statusCode: 404 });
@@ -601,17 +603,16 @@ router.post('/:id/void', ah(async (req, res) => {
     })();
     req.audit?.('invoice.void', { invoiceId: id, reason });
     recordTrail(req, { entity: 'INVOICE', entityId: id, action: 'VOID', after: { reason } });
-    return res.json(r);
-  } catch (e) {
-    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 300) });
-  }
+    return r;
+  });
 }));
 
 // POST /api/invoices/:id/return — إرجاع بضاعة (ADMIN/MANAGER/CASHIER) — يعكس المخزون ويوسم RETURNED
-router.post('/:id/return', (req, res) => {
+// Idempotent عبر Idempotency-Key: نفس المفتاح لا يعكس المخزون مرتين.
+router.post('/:id/return', ah(async (req, res) => {
   const id = String(req.params.id).slice(0, 64);
   const reason = String(req.body?.reason || '').trim().slice(0, 200) || 'إرجاع';
-  try {
+  return idempotency(req, res, 'invoice:return', async () => {
     const r = db.transaction(() => {
       const inv = db.prepare('SELECT * FROM invoices WHERE id=?').get(id);
       if (!inv) throw Object.assign(new Error('الفاتورة غير موجودة'), { statusCode: 404 });
@@ -648,10 +649,8 @@ router.post('/:id/return', (req, res) => {
     req.audit?.('invoice.return', { invoiceId: id, reason });
     recordTrail(req, { entity: 'INVOICE', entityId: id, action: 'RETURN', after: { reason } });
     emit('invoice.returned', 'INVOICE', id, { reason });
-    return res.json(r);
-  } catch (e) {
-    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 300) });
-  }
-});
+    return r;
+  });
+}));
 
 export default router;

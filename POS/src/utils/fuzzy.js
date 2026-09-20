@@ -9,45 +9,11 @@
  */
 
 import { normalizeSearchTokens, normalizeArabic } from "./arabic"
+import { levenshtein } from "./levenshtein"
 
-/** Classic Levenshtein distance (capped for long strings). */
-export function levenshtein(a, b) {
-	if (a === b) return 0
-	if (a.length === 0) return b.length
-	if (b.length === 0) return a.length
-
-	const MAX = Math.min(a.length, b.length)
-	if (Math.abs(a.length - b.length) > MAX) return Math.abs(a.length - b.length)
-
-	const costs = new Array(b.length + 1)
-	for (let j = 0; j <= b.length; j++) costs[j] = j
-	for (let i = 1; i <= a.length; i++) {
-		let prev = costs[0]
-		costs[0] = i
-		for (let j = 1; j <= b.length; j++) {
-			const cell = costs[j]
-			costs[j] = Math.min(
-				costs[j] + 1,
-				costs[j - 1] + 1,
-				prev + (a[i - 1] === b[j - 1] ? 0 : 1),
-			)
-			prev = cell
-		}
-	}
-	return costs[b.length]
-}
-
-/**
- * Maximum edits that still count as a "fuzzy hit" for a token.
- * Relative to token length: short tokens (esp. Arabic single words) get 1;
- * longer tokens allow up to 2.
- * @param {number} tokenLength
- */
-export function maxEditDistance(tokenLength) {
-	if (tokenLength <= 3) return 1
-	if (tokenLength <= 7) return 2
-	return 3
-}
+/** Re-export canonical distance so all engines share one implementation. */
+export { levenshtein }
+export { maxEditDistance } from "./fuzzyPolicy"
 
 /**
  * Score one text against a query, in [-1000, 1000].

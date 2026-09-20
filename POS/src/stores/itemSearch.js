@@ -333,7 +333,7 @@ export const useItemSearchStore = defineStore("itemSearch", () => {
 			// Last resort: Show user a message
 			// Emit a custom event for the global notification system to pick up
 			// (Toast, service worker banner, or any registered listener).
-			console.error(
+			log.error(
 				"Failed to update item cache. Please refresh the page manually.",
 				recoveryError,
 			)

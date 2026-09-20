@@ -46,7 +46,7 @@ function setGlobalToken(token, source) {
 			try {
 				callback(token)
 			} catch (error) {
-				console.error("Error in CSRF token refresh callback:", error)
+				log.error("Error in CSRF token refresh callback:", error)
 			}
 		})
 	}
@@ -90,7 +90,7 @@ async function fetchCSRFToken() {
 		try {
 			data = await response.json()
 		} catch (error) {
-			console.warn("Could not parse CSRF refresh response as JSON")
+			log.warn("Could not parse CSRF refresh response as JSON")
 		}
 	}
 
@@ -146,7 +146,7 @@ export async function ensureCSRFToken({
 
 			if (!response.ok) {
 				if (!silent) {
-					console.warn("Failed to refresh CSRF token, status:", response.status)
+					log.warn("Failed to refresh CSRF token, status:", response.status)
 				}
 				// For non-OK responses, don't try to extract token from potentially invalid data
 				return false
@@ -172,12 +172,12 @@ export async function ensureCSRFToken({
 			}
 
 			if (!silent) {
-				console.warn("CSRF token not found after refresh attempt")
+				log.warn("CSRF token not found after refresh attempt")
 			}
 			return false
 		} catch (error) {
 			if (!silent) {
-				console.error("Failed to refresh CSRF token:", error)
+				log.error("Failed to refresh CSRF token:", error)
 			}
 			return false
 		} finally {
@@ -228,7 +228,7 @@ export function createCSRFAwareRequest(
 		} catch (error) {
 			if (isCSRFApiError(error)) {
 				if (!silent) {
-					console.warn(
+					log.warn(
 						"CSRF token error detected, refreshing token and retrying...",
 					)
 				}
@@ -242,7 +242,7 @@ export function createCSRFAwareRequest(
 				}
 
 				if (!silent) {
-					console.warn(
+					log.warn(
 						"CSRF token refresh failed; request will reject with original error",
 					)
 				}

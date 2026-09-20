@@ -5,6 +5,8 @@ import { recalcTier, LOYALTY_RATE } from '../lib/loyalty.js';
 import { assertTenantScope, resolveTenantFilter, assertRecordTenant } from '../lib/tenant.js';
 import { recordTrail } from '../lib/trail.js';
 import { emit } from '../lib/webhooks.js';
+import { ah } from '../lib/async.js';
+import { idempotency } from '../lib/idempotency.js';
 
 const router = Router();
 
@@ -14,7 +16,7 @@ function clampInt(v, def, min, max) {
   return Math.min(Math.max(n, min), max);
 }
 
-router.get('/', (req, res) => {
+router.get('/', ah(async (req, res) => {
   const q = req.query.q ? String(req.query.q).trim().slice(0, 64) : '';
   const active = req.query.active != null ? String(req.query.active) : null;
   const limit = clampInt(req.query.limit, 50, 1, 200);
@@ -56,10 +58,11 @@ router.get('/', (req, res) => {
   const countRow = db.prepare(countSql.s).get(...countSql.p);
   sql += ' ORDER BY name LIMIT ? OFFSET ?';
   params.push(limit, offset);
-  return res.json({ customers: db.prepare(sql).all(...params), total: countRow?.c || 0, limit, offset });
-});
+  const rows = db.prepare(sql).all(...params);
+  return res.json({ customers: rows, total: countRow?.c || 0, limit, offset, hasMore: rows.length === limit, nextCursor: rows.length === limit ? rows[rows.length - 1].id : null });
+}));
 
-router.get('/:id/balance', (req, res) => {
+router.get('/:id/balance', ah(async (req, res) => {
   const row = db.prepare('SELECT id,name,loyalty_points,wallet_balance,credit_limit,credit_used,loyalty_tier,tenant_id FROM customers WHERE id=?').get(String(req.params.id).slice(0, 64));
   if (!row) return res.status(404).json({ error: 'العميل غير موجود' });
   try {
@@ -68,9 +71,9 @@ router.get('/:id/balance', (req, res) => {
     return res.status(404).json({ error: 'العميل غير موجود' });
   }
   return res.json({ ...row, credit_available: toNum(row.credit_limit) - toNum(row.credit_used) });
-});
+}));
 
-router.get('/:id', (req, res) => {
+router.get('/:id', ah(async (req, res) => {
   const row = db.prepare('SELECT * FROM customers WHERE id=?').get(String(req.params.id).slice(0, 64));
   if (!row) return res.status(404).json({ error: 'العميل غير موجود' });
   try {
@@ -79,7 +82,7 @@ router.get('/:id', (req, res) => {
     return res.status(404).json({ error: 'العميل غير موجود' });
   }
   return res.json(row);
-});
+}));
 
 function toNum(v) {
   const n = Number(v);
@@ -178,15 +181,16 @@ router.delete('/:id', (req, res) => {
 
 // POST /api/customers/:id/wallet — manual wallet adjust (ADMIN/MANAGER, audited)
 // Body: { amount (>0), direction: 'credit'|'debit', note? } — prevents negative balance.
-router.post('/:id/wallet', (req, res) => {
-  if (!['ADMIN', 'MANAGER'].includes(req.user?.role)) return res.status(403).json({ error: 'صلاحية غير كافية' });
-  const id = String(req.params.id).slice(0, 64);
-  const amount = Number(req.body?.amount);
-  const direction = String(req.body?.direction || 'credit').toLowerCase();
-  const note = String(req.body?.note || '').trim().slice(0, 200) || 'تعديل محفظة';
-  if (!Number.isFinite(amount) || !(amount > 0) || amount > 1_000_000) return res.status(400).json({ error: 'المبلغ أكبر من صفر وأقل من 1,000,000' });
-  if (!['credit', 'debit'].includes(direction)) return res.status(400).json({ error: 'direction يجب أن يكون credit أو debit' });
-  try {
+router.post('/:id/wallet', ah(async (req, res) => {
+  // Idempotent money movement: same key never double-credits/debits.
+  return idempotency(req, res, 'customer:wallet', async () => {
+    if (!['ADMIN', 'MANAGER'].includes(req.user?.role)) throw Object.assign(new Error('صلاحية غير كافية'), { statusCode: 403 });
+    const id = String(req.params.id).slice(0, 64);
+    const amount = Number(req.body?.amount);
+    const direction = String(req.body?.direction || 'credit').toLowerCase();
+    const note = String(req.body?.note || '').trim().slice(0, 200) || 'تعديل محفظة';
+    if (!Number.isFinite(amount) || !(amount > 0) || amount > 1_000_000) throw Object.assign(new Error('المبلغ أكبر من صفر وأقل من 1,000,000'), { statusCode: 400 });
+    if (!['credit', 'debit'].includes(direction)) throw Object.assign(new Error('direction يجب أن يكون credit أو debit'), { statusCode: 400 });
     const out = db.transaction(() => {
       const c = db.prepare('SELECT wallet_balance, tenant_id FROM customers WHERE id=?').get(id);
       if (!c) throw Object.assign(new Error('العميل غير موجود'), { statusCode: 404 });
@@ -210,19 +214,17 @@ router.post('/:id/wallet', (req, res) => {
     req.audit?.('customer.wallet', { customerId: id, direction, amount });
     recordTrail(req, { entity: 'CUSTOMER', entityId: id, action: 'WALLET', after: { direction, amount, ...out } });
     emit('customer.wallet_adjusted', 'CUSTOMER', id, { direction, amount, ...out });
-    return res.json(out);
-  } catch (e) {
-    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 300) });
-  }
-});
+    return out;
+  });
+}));
 
 // POST /api/customers/:id/loyalty/redeem — points → wallet (CASHIER+)
 // Body: { points (int >0) } — rate DYPOS_LOYALTY_RATE SAR/pt, auto-tier after.
-router.post('/:id/loyalty/redeem', (req, res) => {
-  const id = String(req.params.id).slice(0, 64);
-  const points = Math.floor(Number(req.body?.points));
-  if (!Number.isFinite(points) || !(points > 0) || points > 1_000_000) return res.status(400).json({ error: 'النقاط عدد صحيح أكبر من صفر' });
-  try {
+router.post('/:id/loyalty/redeem', ah(async (req, res) => {
+  return idempotency(req, res, 'customer:redeem', async () => {
+    const id = String(req.params.id).slice(0, 64);
+    const points = Math.floor(Number(req.body?.points));
+    if (!Number.isFinite(points) || !(points > 0) || points > 1_000_000) throw Object.assign(new Error('النقاط عدد صحيح أكبر من صفر'), { statusCode: 400 });
     const out = db.transaction(() => {
       const c = db.prepare('SELECT loyalty_points, wallet_balance, tenant_id FROM customers WHERE id=?').get(id);
       if (!c) throw Object.assign(new Error('العميل غير موجود'), { statusCode: 404 });
@@ -244,14 +246,12 @@ router.post('/:id/loyalty/redeem', (req, res) => {
     const tier = recalcTier(id);
     req.audit?.('customer.loyalty_redeem', { customerId: id, ...out, tier });
     recordTrail(req, { entity: 'CUSTOMER', entityId: id, action: 'REDEEM', after: { ...out, tier } });
-    return res.json({ ...out, tier, rate: LOYALTY_RATE });
-  } catch (e) {
-    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 300) });
-  }
-});
+    return { ...out, tier, rate: LOYALTY_RATE };
+  });
+}));
 
 // GET /api/customers/:id/loyalty — points ledger (paginated)
-router.get('/:id/loyalty', (req, res) => {
+router.get('/:id/loyalty', ah(async (req, res) => {
   const id = String(req.params.id).slice(0, 64);
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
   const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
@@ -266,10 +266,10 @@ router.get('/:id/loyalty', (req, res) => {
   const rows = db.prepare('SELECT * FROM loyalty_transactions WHERE customer_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(id, limit, offset);
   const total = totalRow?.c || 0;
   return res.json({ transactions: rows, total, limit, offset, hasMore: offset + rows.length < total, rate: LOYALTY_RATE });
-});
+}));
 
 // GET /api/customers/:id/wallet — canonical money ledger (v7, paginated)
-router.get('/:id/wallet', (req, res) => {
+router.get('/:id/wallet', ah(async (req, res) => {
   const id = String(req.params.id).slice(0, 64);
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
   const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
@@ -289,17 +289,17 @@ router.get('/:id/wallet', (req, res) => {
     return res.json({ transactions: [], total: 0, limit, offset, hasMore: false, balance: Number(exists.wallet_balance) || 0, chained: false, note: 'migrate to v7 for ledger' });
   }
   return res.json({ transactions: rows, total, limit, offset, hasMore: offset + rows.length < total, balance: Number(exists.wallet_balance) || 0 });
-});
+}));
 
 // POST /api/customers/:id/credit/pay — settle outstanding credit (any cashier role)
 // Body: { amount (>0), method?, reference? } — pays down credit_used, floor 0.
-router.post('/:id/credit/pay', (req, res) => {
-  const id = String(req.params.id).slice(0, 64);
-  const amount = Number(req.body?.amount);
-  const method = String(req.body?.method || 'CASH').toUpperCase().slice(0, 20);
-  const reference = String(req.body?.reference || '').trim().slice(0, 128);
-  if (!Number.isFinite(amount) || !(amount > 0) || amount > 10_000_000) return res.status(400).json({ error: 'المبلغ أكبر من صفر' });
-  try {
+router.post('/:id/credit/pay', ah(async (req, res) => {
+  return idempotency(req, res, 'customer:credit-pay', async () => {
+    const id = String(req.params.id).slice(0, 64);
+    const amount = Number(req.body?.amount);
+    const method = String(req.body?.method || 'CASH').toUpperCase().slice(0, 20);
+    const reference = String(req.body?.reference || '').trim().slice(0, 128);
+    if (!Number.isFinite(amount) || !(amount > 0) || amount > 10_000_000) throw Object.assign(new Error('المبلغ أكبر من صفر'), { statusCode: 400 });
     const out = db.transaction(() => {
       const c = db.prepare('SELECT credit_used, tenant_id FROM customers WHERE id=?').get(id);
       if (!c) throw Object.assign(new Error('العميل غير موجود'), { statusCode: 404 });
@@ -318,10 +318,8 @@ router.post('/:id/credit/pay', (req, res) => {
     })();
     req.audit?.('customer.credit_pay', { customerId: id, ...out });
     recordTrail(req, { entity: 'CUSTOMER', entityId: id, action: 'CREDIT_PAY', after: out });
-    return res.json(out);
-  } catch (e) {
-    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 300) });
-  }
-});
+    return out;
+  });
+}));
 
 export default router;

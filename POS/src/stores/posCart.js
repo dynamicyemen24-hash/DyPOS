@@ -11,7 +11,9 @@ import { offlineState } from "@/utils/offline/offlineState"
 import { useToast } from "@/composables/useToast"
 import { defineStore } from "pinia"
 import { computed, nextTick, ref, toRaw, watch } from "vue"
+import { logger } from "@/utils/logger"
 
+const log = logger.create("POSCart")
 /**
  * Creates an async task queue that ensures only one operation runs at a time.
  * Subsequent calls while processing will be queued and the latest one executed.
@@ -566,7 +568,7 @@ export const usePOSCartStore = defineStore("posCart", () => {
 
 	async function applyOffer(offer, currentProfile, offersDialogRef = null) {
 		if (!offer) {
-			console.error("No offer provided")
+			log.error("No offer provided")
 			offersDialogRef?.resetApplyingState()
 			return false
 		}
@@ -644,7 +646,7 @@ export const usePOSCartStore = defineStore("posCart", () => {
 							applyHeaderDiscountFromServer(rollbackHeaderDiscount)
 							filterActiveOffers(rollbackRules)
 						} catch (rollbackError) {
-							console.error("Error rolling back offers:", rollbackError)
+							log.error("Error rolling back offers:", rollbackError)
 						}
 					}
 
@@ -687,7 +689,7 @@ export const usePOSCartStore = defineStore("posCart", () => {
 				result = true
 			} catch (error) {
 				if (signal?.aborted) return
-				console.error("Error applying offer:", error)
+				log.error("Error applying offer:", error)
 				offerProcessingState.value.error = error.message
 				showError(__("Failed to apply offer. Please try again."))
 				offersDialogRef?.resetApplyingState()
@@ -784,7 +786,7 @@ export const usePOSCartStore = defineStore("posCart", () => {
 				result = true
 			} catch (error) {
 				if (signal?.aborted) return
-				console.error("Error removing offer:", error)
+				log.error("Error removing offer:", error)
 				offerProcessingState.value.error = error.message
 				showError(__("Failed to update cart after removing offer."))
 				offersDialogRef?.resetApplyingState()
@@ -909,7 +911,7 @@ export const usePOSCartStore = defineStore("posCart", () => {
 			return false
 		} catch (error) {
 			if (signal?.aborted) return false
-			console.error("Error validating offers:", error)
+			log.error("Error validating offers:", error)
 			offerProcessingState.value.error = error.message
 			return false
 		}
@@ -1031,7 +1033,7 @@ export const usePOSCartStore = defineStore("posCart", () => {
 				showSuccess(__("Offline: {0} applied", [newlyAppliedOffers.join(", ")]))
 			}
 		} catch (error) {
-			console.error("Error applying offers offline:", error)
+			log.error("Error applying offers offline:", error)
 		}
 	}
 
@@ -1372,7 +1374,7 @@ export const usePOSCartStore = defineStore("posCart", () => {
 			rebuildIncrementalCache()
 			showSuccess(__("Unit changed to {0}", [newUom]))
 		} catch (error) {
-			console.error("Error changing UOM:", error)
+			log.error("Error changing UOM:", error)
 			showError(__("Failed to update UOM. Please try again."))
 		}
 	}
@@ -1452,7 +1454,7 @@ export const usePOSCartStore = defineStore("posCart", () => {
 			showSuccess(__("{0} updated", [cartItem.item_name]))
 			return true
 		} catch (error) {
-			console.error("Error updating item:", error)
+			log.error("Error updating item:", error)
 			showError(parseError(error) || __("Failed to update item."))
 			return false
 		}
@@ -1767,7 +1769,7 @@ export const usePOSCartStore = defineStore("posCart", () => {
 			offerProcessingState.value.retryCount = 0
 		} catch (error) {
 			if (signal?.aborted) return
-			console.error("Error in offer synchronization:", error)
+			log.error("Error in offer synchronization:", error)
 			offerProcessingState.value.error = error.message
 		}
 	}
@@ -1790,7 +1792,7 @@ export const usePOSCartStore = defineStore("posCart", () => {
 				await processOffersInternal(signal, currentGen, force)
 			} catch (error) {
 				if (!signal?.aborted) {
-					console.error("Error in offer processing:", error)
+					log.error("Error in offer processing:", error)
 					offerProcessingState.value.error = error.message
 					offerProcessingState.value.retryCount++
 

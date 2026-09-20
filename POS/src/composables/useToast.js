@@ -1,7 +1,33 @@
 import { ref, computed } from "vue"
 
-// Toast timing constants
-const TOAST_DURATION = 4000 // Auto-hide after 4 seconds
+// NOTE: intentionally NO static import of "@/utils/translation" here.
+// translation.ts pulls frappe-ui (createResource → ~icons/*) which has no
+// resolver under vitest/jsdom. The translation plugin installs `__` on
+// window/globalProperties at runtime, so resolve it dynamically with an
+// identity fallback (Arabic source strings are already production-ready).
+function __(msg, replace) {
+	try {
+		const fn =
+			(typeof window !== "undefined" && window.__) ||
+			(typeof globalThis !== "undefined" && globalThis.__)
+		if (typeof fn === "function") return fn(msg, replace)
+	} catch {
+		/* fall through to identity */
+	}
+	if (replace) {
+		return String(msg).replace(/{(\d+)}/g, (_, n) => replace[n] ?? _)
+	}
+	return msg
+}
+
+// Toast timing — graded by severity (Arabic messages read slower):
+// error 6s / warning 5s / success+info 4s. Hover pauses the countdown.
+const TOAST_DURATIONS = Object.freeze({
+	error: 6000,
+	warning: 5000,
+	success: 4000,
+	info: 4000,
+})
 const TOAST_FADE_DURATION = 300 // Fade animation duration
 const TOAST_QUEUE_DELAY = 300 // Delay between queued toasts
 
@@ -29,7 +55,10 @@ function processQueue() {
 		clearTimeout(toastTimer)
 	}
 
-	// Auto-hide after duration
+	// Auto-hide after a severity-graded duration (hover pauses — see pauseToast/resumeToast)
+	const duration =
+		TOAST_DURATIONS[currentToast.value?.type] ?? TOAST_DURATIONS.info
+	pauseStartedAt = Date.now()
 	toastTimer = setTimeout(() => {
 		showToast.value = false
 		setTimeout(() => {
@@ -40,7 +69,36 @@ function processQueue() {
 				setTimeout(processQueue, TOAST_QUEUE_DELAY)
 			}
 		}, TOAST_FADE_DURATION)
-	}, TOAST_DURATION)
+	}, duration)
+}
+
+let pausedRemaining = null
+let pauseStartedAt = 0
+
+function pauseToast() {
+	if (!toastTimer || !currentToast.value) return
+	clearTimeout(toastTimer)
+	toastTimer = null
+	const duration =
+		TOAST_DURATIONS[currentToast.value?.type] ?? TOAST_DURATIONS.info
+	pausedRemaining = Math.max(500, duration - (Date.now() - pauseStartedAt))
+}
+
+function resumeToast() {
+	if (toastTimer || !currentToast.value || pausedRemaining == null) return
+	const remaining = pausedRemaining
+	pausedRemaining = null
+	pauseStartedAt = Date.now()
+	toastTimer = setTimeout(() => {
+		showToast.value = false
+		setTimeout(() => {
+			currentToast.value = null
+			isProcessing = false
+			if (toastQueue.value.length > 0) {
+				setTimeout(processQueue, TOAST_QUEUE_DELAY)
+			}
+		}, TOAST_FADE_DURATION)
+	}, remaining)
 }
 
 export function useToast() {
@@ -184,5 +242,7 @@ export function useToast() {
 		handleError,
 		hideToast,
 		clearAllToasts,
+		pauseToast,
+		resumeToast,
 	}
 }

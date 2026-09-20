@@ -1025,7 +1025,6 @@
 
 <script setup>
 import InvoiceFilters from "@/components/invoices/InvoiceFilters.vue"
-import PaymentDialog from "@/components/sale/PaymentDialog.vue"
 import { useInvoiceFilters } from "@/composables/useInvoiceFilters"
 import { useInvoiceFiltersStore } from "@/stores/invoiceFilters"
 import {
@@ -1036,7 +1035,7 @@ import { getInvoiceStatusColor } from "@/utils/invoice"
 import { useFormatters } from "@/composables/useFormatters"
 import { useToast } from "@/composables/useToast"
 import { Button, call, LoadingIndicator } from "frappe-ui"
-import { computed, onMounted, ref, watch } from "vue"
+import { computed, defineAsyncComponent, onMounted, ref, watch } from "vue"
 import { isOffline } from "@/utils/offline/offlineState"
 import {
 	cacheUnpaidInvoices,
@@ -1045,6 +1044,10 @@ import {
 	getCachedUnpaidSummary,
 } from "@/utils/offline/sync"
 import { logger } from "@/utils/logger"
+
+// Heavy dialogs load lazily — they are NOT in the first-paint bundle.
+// PaymentDialog (~large) splits into its own chunk and prefetches on hover/idle.
+const PaymentDialog = defineAsyncComponent(() => import("@/components/sale/PaymentDialog.vue"))
 
 const log = logger.create("InvoiceManagement")
 const { showSuccess, showError } = useToast()

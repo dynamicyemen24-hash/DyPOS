@@ -17,6 +17,29 @@ const ROUTE_NAMES = Object.freeze({
 	NOT_FOUND: "NotFound",
 })
 
+const ROUTE_TITLES = Object.freeze({
+	[ROUTE_NAMES.POS]: "نقطة البيع",
+	[ROUTE_NAMES.LOGIN]: "تسجيل الدخول",
+	[ROUTE_NAMES.REGISTER]: "حساب جديد",
+	[ROUTE_NAMES.FORGOT_PASSWORD]: "استعادة كلمة المرور",
+	[ROUTE_NAMES.RESET_PASSWORD]: "تعيين كلمة مرور جديدة",
+	Reports: "التقارير",
+	landing: "DyPOS",
+	[ROUTE_NAMES.NOT_FOUND]: "صفحة غير موجودة",
+})
+
+const APP_TITLE_SUFFIX = "DyPOS"
+
+function applyDocumentTitle(route) {
+	if (!isBrowser) return
+	try {
+		const title = ROUTE_TITLES[route?.name] || ROUTE_TITLES.landing
+		document.title = `${title} | ${APP_TITLE_SUFFIX}`
+	} catch {
+		/* title never breaks navigation */
+	}
+}
+
 const ROUTE_META = Object.freeze({
 	requiresAuth: "requiresAuth",
 	guestOnly: "guestOnly",
@@ -489,6 +512,8 @@ router.beforeResolve(async (to) => {
  */
 
 router.afterEach((to, from, failure) => {
+	// Arabic document title on every navigation (professional polish).
+	applyDocumentTitle(to)
 	/**
 	 * A successfully completed navigation proves that the current
 	 * deployment's route chunks are valid.

@@ -6,10 +6,12 @@ import {
 	updateDraft,
 } from "@/utils/draftManager"
 import { useToast } from "@/composables/useToast"
+import { logger } from "@/utils/logger"
 import { defineStore } from "pinia"
 import { ref } from "vue"
 
 export const usePOSDraftsStore = defineStore("posDrafts", () => {
+	const log = logger.create("POSDrafts")
 	// Use custom toast
 	const { showSuccess, showError, showWarning } = useToast()
 
@@ -22,7 +24,7 @@ export const usePOSDraftsStore = defineStore("posDrafts", () => {
 		try {
 			draftsCount.value = await getDraftsCount()
 		} catch (error) {
-			console.error("Error getting drafts count:", error)
+			log.error("Error getting drafts count:", error)
 		}
 	}
 
@@ -31,7 +33,7 @@ export const usePOSDraftsStore = defineStore("posDrafts", () => {
 			drafts.value = await getAllDrafts()
 			draftsCount.value = drafts.value.length
 		} catch (error) {
-			console.error("Error loading drafts:", error)
+			log.error("Error loading drafts:", error)
 		}
 	}
 
@@ -68,7 +70,7 @@ export const usePOSDraftsStore = defineStore("posDrafts", () => {
 
 			return savedDraft
 		} catch (error) {
-			console.error("Error saving draft:", error)
+			log.error("Error saving draft:", error)
 			showError(__("Failed to save draft"))
 			return null
 		}
@@ -84,7 +86,7 @@ export const usePOSDraftsStore = defineStore("posDrafts", () => {
 				applied_offers: draft.applied_offers || [], // Restore applied offers
 			}
 		} catch (error) {
-			console.error("Error loading draft:", error)
+			log.error("Error loading draft:", error)
 			showError(__("Failed to load draft"))
 			throw error
 		}
@@ -96,7 +98,7 @@ export const usePOSDraftsStore = defineStore("posDrafts", () => {
 			await loadDrafts() // Refresh drafts list and count
 			showSuccess(__("Draft deleted successfully"))
 		} catch (error) {
-			console.error("Error deleting draft:", error)
+			log.error("Error deleting draft:", error)
 			showError(__("Failed to delete draft"))
 		}
 	}

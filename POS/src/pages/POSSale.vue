@@ -183,6 +183,19 @@ const discountType = ref("amount")
 const showDiscountPanel = ref(false)
 const showCustomerPanel = ref(false)
 const showHeldSalesPanel = ref(false)
+const showShortcutsPanel = ref(false)
+
+const POS_SHORTCUTS = Object.freeze([
+	{ keys: "F2", action: "التركيز على البحث" },
+	{ keys: "Ctrl + Enter", action: "فتح الدفع" },
+	{ keys: "F4", action: "تعليق البيع" },
+	{ keys: "F8", action: "الكاشير الذكي" },
+	{ keys: "Delete", action: "حذف الصنف المحدد" },
+	{ keys: "↑ ↓ ← →", action: "التنقل في الشبكة" },
+	{ keys: "Enter", action: "إضافة الصنف" },
+	{ keys: "Esc", action: "إغلاق النوافذ" },
+	{ keys: "؟", action: "هذه المساعدة" },
+])
 
 const showClearCartDialog = ref(false)
 
@@ -758,6 +771,8 @@ function openQuantityEditor(item) {
 
 function closeQuantityEditor() {
 	quantityEditor.value = null
+	// Return focus to search so the cashier never loses keyboard flow.
+	nextTick(() => focusSearch())
 }
 
 function commitQuantity() {
@@ -975,6 +990,8 @@ function closePayment() {
 
 	showPaymentPanel.value = false
 	paymentError.value = ""
+	// Return focus to search for the next sale.
+	nextTick(() => focusSearch())
 }
 
 async function confirmPayment() {
@@ -1208,9 +1225,24 @@ function handleKeydown(event) {
 	}
 
 	/*
+	 * ? — مساعدة الاختصارات (يعمل مع Shift+؟ العربية)
+	 */
+	if ((event.key === "?" || event.key === "؟") && !isTyping) {
+		event.preventDefault()
+		showShortcutsPanel.value = !showShortcutsPanel.value
+		return
+	}
+
+	/*
 	 * Escape — إغلاق overlay
 	 */
 	if (event.key === "Escape") {
+		if (showShortcutsPanel.value) {
+			showShortcutsPanel.value = false
+
+			return
+		}
+
 		if (quantityEditor.value) {
 			closeQuantityEditor()
 
@@ -1245,10 +1277,10 @@ function handleKeydown(event) {
 	}
 
 	/*
-	 * Ctrl/Cmd + Enter — الدفع
+	 * Ctrl/Cmd + Enter — الدفع (يعمل حتى من داخل حقل البحث لسرعة الكاشير)
 	 */
 	if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-		if (!isTyping && canCheckout.value) {
+		if (canCheckout.value && !showPaymentPanel.value) {
 			event.preventDefault()
 
 			openPayment()
@@ -1305,21 +1337,28 @@ function handleProductGridKeydown(event) {
 
 	const columns = 4
 
+	// RTL-aware horizontal navigation: in RTL the visual "right" is the
+	// previous item. Read once per keypress (cheap) so mixed-dir sessions stay correct.
+	const isRTL =
+		typeof document !== "undefined" &&
+		(document.documentElement?.getAttribute?.("dir") || "rtl") === "rtl"
+
 	switch (event.key) {
 		case "ArrowRight":
 			event.preventDefault()
 
-			activeProductIndex.value = Math.min(
-				items.length - 1,
-				activeProductIndex.value + 1,
-			)
+			activeProductIndex.value = isRTL
+				? Math.max(0, activeProductIndex.value - 1)
+				: Math.min(items.length - 1, activeProductIndex.value + 1)
 
 			break
 
 		case "ArrowLeft":
 			event.preventDefault()
 
-			activeProductIndex.value = Math.max(0, activeProductIndex.value - 1)
+			activeProductIndex.value = isRTL
+				? Math.min(items.length - 1, activeProductIndex.value + 1)
+				: Math.max(0, activeProductIndex.value - 1)
 
 			break
 
@@ -1411,6 +1450,7 @@ watch(
     <div
         class="dy-pos-sale"
         dir="rtl"
+        data-testid="pos-root"
         :aria-busy="
             loadingProducts ||
             paymentProcessing
@@ -1543,6 +1583,7 @@ watch(
                             "
                             type="search"
                             class="dy-pos-sale__search-input"
+                            data-testid="pos-search"
                             placeholder="امسح الباركود أو اكتب اسم المنتج ثم Enter..."
                             autocomplete="off"
                             enterkeyhint="search"
@@ -1826,6 +1867,7 @@ watch(
                     ref="productGrid"
                     class="dy-pos-sale__product-grid"
                     tabindex="0"
+                    data-testid="pos-product-grid"
                     aria-label="شبكة المنتجات"
                     @keydown="
                         handleProductGridKeydown
@@ -1841,6 +1883,8 @@ watch(
                         "
                         type="button"
                         class="dy-pos-sale__product"
+                        data-testid="pos-product-item"
+                        :data-product-id="product.id"
                         :class="{
                             'is-active':
                                 activeProductIndex ===
@@ -1928,6 +1972,7 @@ watch(
 
             <aside
                 class="dy-pos-sale__cart"
+                data-testid="pos-cart"
                 aria-label="سلة البيع"
             >
                 <!-- Cart header -->
@@ -2083,6 +2128,7 @@ watch(
                                 item.id
                             "
                             class="dy-pos-sale__cart-item"
+                            data-testid="pos-cart-item"
                             :class="{
                                 'is-active':
                                     activeProductIndex ===
@@ -2323,7 +2369,9 @@ watch(
                             v-model.number="
                                 discountValue
                             "
-                            type="number"
+                            type="text"
+                            inputmode="decimal"
+                            autocomplete="off"
                             min="0"
                             :max="
                                 discountType ===
@@ -2381,6 +2429,7 @@ watch(
                             variant="primary"
                             size="xl"
                             class="dy-pos-sale__checkout"
+                            data-testid="pos-proceed-to-payment"
                             :disabled="
                                 !canCheckout
                             "
@@ -2489,10 +2538,11 @@ watch(
                             v-model.number="
                                 quantityEditor.quantity
                             "
-                            type="number"
+                            type="text"
                             min="1"
                             max="9999"
                             inputmode="numeric"
+                            autocomplete="off"
                             class="dy-pos-sale__quantity-input"
                             @keydown.enter="
                                 commitQuantity
@@ -2748,10 +2798,11 @@ watch(
 
                             <input
                                 id="dypos-payment-amount"
+                                data-testid="pos-payment-amount"
                                 v-model="
                                     paymentAmount
                                 "
-                                type="number"
+                                type="text"
                                 min="0"
                                 step="0.01"
                                 inputmode="decimal"
@@ -2936,6 +2987,7 @@ watch(
                         <DyButton
                             variant="primary"
                             size="lg"
+                            data-testid="pos-complete-payment"
                             :loading="
                                 paymentProcessing
                             "
@@ -2970,6 +3022,7 @@ watch(
             >
                 <section
                     class="dy-pos-sale__dialog dy-pos-sale__receipt"
+                    data-testid="pos-receipt"
                 >
                     <div
                         class="dy-pos-sale__receipt-success"
@@ -3198,6 +3251,68 @@ watch(
                             سيتم عرض العمليات المعلقة من طبقة إدارة المبيعات عند توفرها.
                         </p>
                     </div>
+                </section>
+            </div>
+        </Teleport>
+
+        <!-- =================================================================
+             Shortcuts Help (؟)
+             =============================================================== -->
+
+        <Teleport to="body">
+            <div
+                v-if="
+                    showShortcutsPanel
+                "
+                class="dy-pos-sale__overlay"
+                role="dialog"
+                aria-modal="true"
+                aria-label="اختصارات لوحة المفاتيح"
+                @click.self="
+                    showShortcutsPanel =
+                        false
+                "
+            >
+                <section
+                    class="dy-pos-sale__dialog dy-pos-sale__held-dialog"
+                >
+                    <header>
+                        <div>
+                            <span>
+                                مساعدة سريعة
+                            </span>
+
+                            <h2>
+                                اختصارات لوحة المفاتيح
+                            </h2>
+                        </div>
+
+                        <button
+                            type="button"
+                            aria-label="إغلاق"
+                            @click="
+                                showShortcutsPanel =
+                                    false
+                            "
+                        >
+                            <FeatherIcon
+                                name="x"
+                                :size="20"
+                            />
+                        </button>
+                    </header>
+
+                    <ul
+                        class="dy-pos-sale__shortcuts-list"
+                    >
+                        <li
+                            v-for="s in POS_SHORTCUTS"
+                            :key="s.keys"
+                        >
+                            <kbd>{{ s.keys }}</kbd>
+                            <span>{{ s.action }}</span>
+                        </li>
+                    </ul>
                 </section>
             </div>
         </Teleport>
@@ -5512,6 +5627,47 @@ watch(
 
     font-size: 0.75rem;
     line-height: 1.8;
+}
+
+.dy-pos-sale__shortcuts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    margin: 0;
+    padding: 4px 2px 8px;
+
+    list-style: none;
+}
+
+.dy-pos-sale__shortcuts-list li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    padding: 8px 10px;
+    border-radius: 10px;
+
+    background: var(--dy-surface-soft);
+
+    font-size: 0.8rem;
+}
+
+.dy-pos-sale__shortcuts-list kbd {
+    min-width: 110px;
+
+    padding: 4px 10px;
+    border: 1px solid var(--dy-border, #e2e8f0);
+    border-bottom-width: 2px;
+    border-radius: 8px;
+
+    background: var(--dy-bg, #fff);
+
+    font-family: inherit;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-align: center;
+    white-space: nowrap;
 }
 
 /* =============================================================================
