@@ -30,7 +30,7 @@ jobs:
         with:
           node-version: 22
 
-      - name: Resolve release version (single source: root package.json)
+      - name: Resolve release version (single source = root package.json)
         id: ver
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
