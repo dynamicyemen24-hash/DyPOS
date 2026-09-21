@@ -1,49 +1,47 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
-  "vcs": {
-    "enabled": true,
-    "clientKind": "git",
-    "useIgnoreFile": true
-  },
-  "files": {
-    "ignoreUnknown": true,
-    "include": ["**/*.js", "**/*.mjs", "**/*.cjs"]
-  },
-  "formatter": {
-    "enabled": false
-  },
-  "organizeImports": {
-    "enabled": false
-  },
-  "linter": {
-    "enabled": true,
-    "rules": {
-      "recommended": true,
-      "style": {
-        "useImportType": "error",
-        "useNodejsImportProtocol": "off",
-        "useTemplate": "off",
-        "useSingleVarDeclarator": "off",
-        "useNumberNamespace": "off",
-        "noUnusedTemplateLiteral": "off"
-      }
-    }
-  },
-  "overrides": [
-    {
-      "include": ["tests/**"],
-      "linter": {
-        "rules": {
-          "performance": {
-            "noDelete": "off"
-          }
-        }
-      }
-    }
-  ],
-  "javascript": {
-    "formatter": {
-      "quoteStyle": "single"
-    }
-  }
+	"$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": true
+	},
+	"files": {
+		"ignoreUnknown": true,
+		"includes": ["**/*.js", "**/*.mjs", "**/*.cjs"]
+	},
+	"formatter": {
+		"enabled": false
+	},
+	"assist": { "actions": { "source": { "organizeImports": "off" } } },
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"preset": "recommended",
+			"style": {
+				"useImportType": "error",
+				"useNodejsImportProtocol": "off",
+				"useTemplate": "off",
+				"useSingleVarDeclarator": "off",
+				"useNumberNamespace": "off",
+				"noUnusedTemplateLiteral": "off"
+			}
+		}
+	},
+	"overrides": [
+		{
+			"includes": ["**/tests/**"],
+			"linter": {
+				"rules": {
+					"performance": {
+						"noDelete": "off"
+					}
+				}
+			}
+		}
+	],
+	"javascript": {
+		"formatter": {
+			"quoteStyle": "single"
+		}
+	}
 }

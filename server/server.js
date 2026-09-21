@@ -54,6 +54,7 @@ import { cacheStats } from './lib/cache.js';
 import { ah } from './lib/async.js';
 import { createRateStore } from './lib/rate-store.js';
 import { VERSION } from './lib/version.js';
+import { logger } from './lib/logger.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.DYPOS_PORT) || 3001;
@@ -144,14 +145,16 @@ function requestLogger(req, res, next) {
     const duration = Date.now() - start;
     try { res.setHeader('X-Response-Time', `${duration}ms`); } catch { /* headers sent */ }
     if (req.path === '/api/health' || req.path === '/api/ready') return;
-    const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
-    console.log(JSON.stringify({
-      ts: new Date().toISOString(), level, req_id: req.id,
-      method: req.method, url: req.url, status: res.statusCode,
+    const logFields = {
+      req_id: req.id, method: req.method, url: req.url, status: res.statusCode,
       duration_ms: duration, ip: req.ip,
       user: req.user?.username,
       cache: res.getHeader?.('X-Cache') || undefined,
-    }));
+    };
+    // Structured via pino (JSON in prod, levels preserved) — same fields as before.
+    if (res.statusCode >= 500) logger.error(logFields, 'request');
+    else if (res.statusCode >= 400) logger.warn(logFields, 'request');
+    else logger.info(logFields, 'request');
   });
   next();
 }
@@ -375,11 +378,10 @@ if (existsSync(posDist)) {
 // Error handler
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-  console.error(JSON.stringify({
-    ts: new Date().toISOString(), level: 'error', req_id: req.id,
-    method: req.method, url: req.url, error: err.message,
+  logger.error({
+    req_id: req.id, method: req.method, url: req.url, error: err.message,
     stack: isProduction ? undefined : err.stack,
-  }));
+  }, 'unhandled error');
   if (res.headersSent) return next(err);
   const statusCode = err.statusCode && Number.isInteger(err.statusCode) ? err.statusCode : 500;
   const message = statusCode < 500 ? String(err.message || 'Bad Request').slice(0, 300)
@@ -426,8 +428,16 @@ export function start() {
   };
   process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
   process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+  // Fail-fast on corruption: an unhandled rejection means unknown state.
+  // Production exits (supervisor restarts clean); dev/test only log so the
+  // REPL and test runner survive. Never serve traffic on a possibly-poisoned
+  // event loop at millions-of-requests scale.
   process.on('unhandledRejection', (reason) => {
-    console.error('[DyPOS] Unhandled Rejection:', JSON.stringify({ reason: String(reason), stack: reason?.stack }));
+    logger.error({ reason: String(reason), stack: reason?.stack }, '[DyPOS] Unhandled Rejection');
+    if (isProduction && !process.argv.some((a) => a.includes('test'))) {
+      try { db.close(); } catch { /* already broken */ }
+      process.exit(1);
+    }
   });
   return _server;
 }

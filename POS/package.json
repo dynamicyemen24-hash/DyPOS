@@ -1,7 +1,7 @@
 {
   "name": "pos-next-frontend",
   "private": true,
-  "version": "1.28.0",
+  "version": "1.29.0",
   "type": "module",
   "scripts": {
     "postinstall": "node scripts/patch-frappe-ui-windows.js",
@@ -29,11 +29,11 @@
     "core-js-compat": "^3.48.0",
     "dexie": "^4.4.6",
     "feather-icons": "^4.29.2",
-    "frappe-ui": "^0.1.240",
+    "frappe-ui": "^0.1.278",
     "pinia": "^3.0.4",
     "qz-tray": "^2.2.5",
     "socket.io-client": "^4.7.2",
-    "vue": "3.5.13",
+    "vue": "3.5.43",
     "vue-chartjs": "^5.3.4",
     "vue-router": "^4.5.0"
   },

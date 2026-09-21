@@ -46,6 +46,7 @@ import IconButton from "@/components/ui/IconButton.vue"
 import DyButton from "@/components/ui/DyButton.vue"
 
 import { useSmartCashier } from "@/composables/useSmartCashier"
+import { useDebouncedSearch } from "@/composables/useDebouncedSearch"
 import { session } from "@/stores/session"
 import { logger } from "@/utils/logger"
 import { searchCachedCustomers } from "@/utils/offline/cache.js"
@@ -832,27 +833,42 @@ function selectCustomer(selectedValue) {
 }
 
 async function handleCustomerSearch(query) {
-	customerSearchLoading.value = true
-
-	try {
-		const results = await searchCachedCustomers(query, 100)
-
-		customerOptions.value = results.map((c) => ({
-			value: c.name ?? c.customer_name,
-			id: c.name,
-			label: c.customer_name || c.name,
-			name: c.customer_name || c.name,
-			customer_name: c.customer_name || c.name,
-			subtitle: c.mobile_no || "",
-		}))
-	} catch (error) {
-		logger?.error?.("DyPOS customer search failed", error)
-
-		customerOptions.value = []
-	} finally {
-		customerSearchLoading.value = false
+	// Debounced + stale-guarded via useDebouncedSearch: rapid keystrokes
+	// collapse into one IndexedDB lookup and late responses never overwrite
+	// newer ones. Empty query (panel open) runs immediately, no debounce lag.
+	if (!String(query || "").trim()) {
+		await customerSearch.runImmediate(query)
+		return
 	}
+	customerSearch.setQuery(query)
 }
+
+// Single professional search pipeline for the customer dialog.
+const customerSearch = useDebouncedSearch(
+	async (query) => searchCachedCustomers(query, 100),
+	{ delay: 250 },
+)
+
+watch(customerSearch.results, (rows) => {
+	customerOptions.value = (rows || []).map((c) => ({
+		value: c.name ?? c.customer_name,
+		id: c.name,
+		label: c.customer_name || c.name,
+		name: c.customer_name || c.name,
+		customer_name: c.customer_name || c.name,
+		subtitle: c.mobile_no || "",
+	}))
+})
+
+watch(customerSearch.isSearching, (searching) => {
+	customerSearchLoading.value = searching
+})
+
+watch(customerSearch.error, (error) => {
+	if (!error) return
+	logger?.error?.("DyPOS customer search failed", error)
+	customerOptions.value = []
+})
 
 watch(showCustomerPanel, (isOpen) => {
 	if (isOpen) {

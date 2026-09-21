@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.29.0] - 2026-09-21 — سداد الديون: ترقيات verified + إصلاح تجمد البناء + ديون وظيفية/عملياتية
+
+### Fixed — تجمد `vite build` على Windows (سبب جذري)
+- رقعة `patch-frappe-ui-windows.js` القديمة كانت تطابق نصًا حرفيًا ففشلت
+  بصمت أمام أي إعادة صياغة upstream → حلقة `while (currentDir !== '/')`
+  لا نهائية قبل أي مخرجات. أُعيدت كتابتها regex version-proof (أي guard
+  + حقن helper كشف الجذر) — تشخيص كامل بالتنصيف حتى `CALL-DONE`.
+- حارس CI جديد يفشل Pipeline إذا بقي guard هش بعد التثبيت.
+
+### Added — ترقيات verified (اختبارات + بناء أخضر لكل منها)
+- الواجهة: `vue 3.5.43` (pin دقيق) و`frappe-ui 0.1.278`.
+- الخادم: `dotenv 18` و`bcryptjs 3` و`pino 10` و`pino-http 11` و`uuid 14`
+  و`express-rate-limit 8` و`@biomejs/biome 2` (مع `biome migrate` +
+  `server/.gitignore` idiomatic).
+- المؤجل لنوافذ مستقلة: vite/tailwind/vue-router/pinia/vitest majors و
+  express 4→5 وzod 3→4.
+
+### Changed — ديون وظيفية وعملياتية
+- `POSSale` بحث العملاء عبر `useDebouncedSearch` (إلغاء ضغطات + إسقاط
+  stale + فوري عند الفتح) — أول توظيف حي للطبقة الاحترافية الجديدة.
+- حذف `goToResetPassword/isPOSRoute` الميتة من `router.js`.
+- الخادم: سجلات الطلبات والأخطاء عبر `pino` (بدل `console`)؛
+  `unhandledRejection` تُسقط العملية في الإنتاج (fail-fast للمشرف).
+
+### Verified
+- الواجهة: **391/391** (vitest) — الخادم: **203/203** (node:test) — بناء إنتاجي أخضر.
+
 ## [1.28.0] - 2026-09-21 — الإصدار الاحترافي العربي الذكي الإنتاجي النهائي (UX + تنقية + عدم تكرار شامل)
 
 ### Fixed — تجربة المستخدم العربية (حرجة)

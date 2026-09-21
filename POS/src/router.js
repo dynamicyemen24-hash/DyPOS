@@ -616,24 +616,6 @@ export function goToForgotPassword() {
 	})
 }
 
-/**
- * Navigate to the reset-password page (set new password with token).
- * @param {string} [token] - Reset token from the email link
- * @returns {Promise}
- */
-export function goToResetPassword(token = null) {
-	const query = token ? { token } : undefined
-
-	return router.replace({
-		name: ROUTE_NAMES.RESET_PASSWORD,
-		query,
-	})
-}
-
-export function isPOSRoute(route = router.currentRoute.value) {
-	return route?.name === ROUTE_NAMES.POS
-}
-
 export { ROUTE_NAMES }
 
 export default router

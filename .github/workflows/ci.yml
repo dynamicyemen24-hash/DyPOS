@@ -33,6 +33,18 @@ jobs:
       - name: Install dependencies
         run: yarn install
 
+      - name: Windows bench-walk guard (frappe-ui/vite)
+        # Regression gate: upstream utils.js walks to "/" which never matches
+        # a Windows drive root and hangs vite before any output. The postinstall
+        # patch hardens it; this fails the pipeline if a vulnerable guard
+        # survives (e.g. lifecycle scripts skipped or upstream reworded).
+        run: |
+          if grep -rn "while (currentDir !== '/')" node_modules/frappe-ui/vite/ 2>/dev/null; then
+            echo "::error::Unpatched bench-walk loop in frappe-ui/vite — vite would hang on Windows. Re-run: node scripts/patch-frappe-ui-windows.js"
+            exit 1
+          fi
+          echo "bench-walk guard: clean"
+
       - name: Quality Gate (tests + noConsole lint)
         run: npm run verify
 

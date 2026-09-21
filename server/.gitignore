@@ -1,0 +1,5 @@
+# Biome VCS ignore (server workspace) — mirrors repo .gitignore for lint scope.
+node_modules/
+coverage/
+data/
+*.log
