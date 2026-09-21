@@ -89,6 +89,10 @@ export const isOffline = () => {
  * Save invoice to offline queue with unique offline_id for deduplication
  * @param {Object} invoiceData - Invoice data to save
  * @returns {Promise<{success: boolean, id: number, offline_id: string}>}
+ * @deprecated Dead write path — zero live importers. The canonical sale path
+ *   is `session.submitSale → services/sync-manager.pushLocalChange → syncQueue`
+ *   (Dexie "DyPOS-Offline-v1"). Do not add new callers; removal scheduled
+ *   after one release with zero `invoice_queue` writes.
  */
 export const saveOfflineInvoice = async (invoiceData) => {
 	if (!invoiceData.items?.length) {
@@ -389,6 +393,8 @@ const syncInvoiceToServer = async (invoice, retryCount = 0) => {
  * Concurrent callers will wait for the ongoing sync and receive its result.
  *
  * @returns {Promise<{success: number, failed: number, skipped: number, errors: Array}>}
+ * @deprecated Dead write path — zero live importers. Live sync runs in
+ *   `services/sync-core.runSyncCycle` over `syncQueue`. Do not add new callers.
  */
 export const syncOfflineInvoices = async () => {
 	if (isOffline()) {
@@ -533,6 +539,8 @@ export const getLocalStock = async (itemCode, warehouse) => {
  * Save payment to offline queue
  * @param {Object} paymentData - Payment data
  * @returns {Promise<boolean>}
+ * @deprecated Dead write path — zero live importers (barrel re-export only).
+ *   Payments travel inside the canonical invoice payload via `pushLocalChange`.
  */
 export const saveOfflinePayment = async (paymentData) => {
 	const cleanData = JSON.parse(JSON.stringify(paymentData))

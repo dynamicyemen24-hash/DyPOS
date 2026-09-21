@@ -170,6 +170,12 @@ export async function runSyncCycleSilently() {
 
 /**
  * دفع عملية للمزامنة فورًا (يتم إضافتها للـ queue ثم تُعالج بالدورة)
+ *
+ * CANONICAL WRITE PATH (v1.28+): every local mutation on the sale path
+ * (`session.submitSale`, delivery orders, drivers) funnels through here into
+ * `syncQueue` (Dexie "DyPOS-Offline-v1"). The legacy `invoice_queue`
+ * (`utils/offline/*`) is read/cache-only plus retired writers — see their
+ * `@deprecated` notes. Do not introduce a third queue.
  */
 export async function pushLocalChange(
 	entityType,

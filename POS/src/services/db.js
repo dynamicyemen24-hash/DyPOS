@@ -116,6 +116,11 @@ export async function markSyncQueueItemStatus(id, status, errorMsg) {
 	})
 }
 
+/**
+ * @deprecated Dead helper — zero live importers. Enqueue exclusively via
+ *   `services/sync-manager.pushLocalChange` (adds `_localRev` stamps and
+ *   triggers an immediate cycle when online).
+ */
 export async function enqueueSync(entityType, entityId, operation, payload) {
 	return db.syncQueue.add({
 		entityType,

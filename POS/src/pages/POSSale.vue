@@ -47,6 +47,24 @@ import DyButton from "@/components/ui/DyButton.vue"
 
 import { useSmartCashier } from "@/composables/useSmartCashier"
 import { useDebouncedSearch } from "@/composables/useDebouncedSearch"
+import {
+	buildPaymentBlock,
+	buildSalePayloadPure,
+	calcAmountReceived,
+	calcChange,
+	calcGlobalDiscount,
+	calcLineDiscount,
+	calcRemaining,
+	calcSubtotal,
+	calcTax,
+	calcTaxable,
+	calcTotal,
+	formatMoneyValue,
+	formatNumber,
+	getPopularityBoost,
+	normalizePaymentErrorPure,
+	normalizeProduct,
+} from "@/utils/posSalePure"
 import { session } from "@/stores/session"
 import { logger } from "@/utils/logger"
 import { searchCachedCustomers } from "@/utils/offline/cache.js"
@@ -240,50 +258,10 @@ const paymentMethods = [
 ]
 
 /* ============================================================================
- * Product Normalization
+ * Product Normalization — canonical pure implementation in
+ * `@/utils/posSalePure` (imported above). Kept out of the SFC so the
+ * 6k-line workspace stays a thin reactive shell over tested functions.
  * ========================================================================== */
-
-function normalizeProduct(product) {
-	if (!product) {
-		return null
-	}
-
-	const id = product.id ?? product.name ?? product.item_code ?? product.code
-
-	if (!id) {
-		return null
-	}
-
-	const price = Number(
-		product.price ?? product.rate ?? product.standard_rate ?? 0,
-	)
-
-	return {
-		id,
-		code: product.code ?? product.item_code ?? id,
-
-		name:
-			product.name_ar ??
-			product.item_name_ar ??
-			product.item_name ??
-			product.name ??
-			"منتج",
-
-		description: product.description_ar ?? product.description ?? "",
-
-		price: Number.isFinite(price) ? price : 0,
-
-		image: product.image ?? product.image_url ?? null,
-
-		barcode: product.barcode ?? product.bar_code ?? "",
-
-		stock: product.stock ?? product.actual_qty ?? null,
-
-		unit: product.unit ?? product.stock_uom ?? "قطعة",
-
-		disabled: product.disabled === true,
-	}
-}
 
 /* ============================================================================
  * Computed — Products
@@ -317,81 +295,48 @@ const cartLineCount = computed(() => {
 })
 
 const subtotal = computed(() => {
-	return roundMoney(
-		cart.value.reduce(
-			(total, item) =>
-				total + Number(item.quantity || 0) * Number(item.unitPrice || 0),
-			0,
-		),
-	)
+	return calcSubtotal(cart.value)
 })
 
 const lineDiscountTotal = computed(() => {
-	return roundMoney(
-		cart.value.reduce((total, item) => total + Number(item.discount || 0), 0),
-	)
+	return calcLineDiscount(cart.value)
 })
 
 const globalDiscount = computed(() => {
-	const value = Number(discountValue.value || 0)
-
-	if (value <= 0) {
-		return 0
-	}
-
-	if (discountType.value === "percent") {
-		return roundMoney(
-			Math.min(
-				subtotal.value - lineDiscountTotal.value,
-				(subtotal.value * Math.min(value, 100)) / 100,
-			),
-		)
-	}
-
-	return roundMoney(Math.min(subtotal.value - lineDiscountTotal.value, value))
+	return calcGlobalDiscount({
+		subtotal: subtotal.value,
+		lineDiscount: lineDiscountTotal.value,
+		discountType: discountType.value,
+		discountValue: discountValue.value,
+	})
 })
 
 const taxableAmount = computed(() => {
-	return Math.max(
-		0,
-		roundMoney(subtotal.value - lineDiscountTotal.value - globalDiscount.value),
+	return calcTaxable(
+		subtotal.value,
+		lineDiscountTotal.value,
+		globalDiscount.value,
 	)
 })
 
 const taxAmount = computed(() => {
-	return roundMoney(
-		cart.value.reduce((total, item) => {
-			const quantity = Number(item.quantity || 0)
-
-			const unitPrice = Number(item.unitPrice || 0)
-
-			const itemDiscount = Number(item.discount || 0)
-
-			const itemBase = Math.max(0, quantity * unitPrice - itemDiscount)
-
-			const rate = Number(item.taxRate || 0)
-
-			return total + (itemBase * rate) / 100
-		}, 0),
-	)
+	return calcTax(cart.value)
 })
 
 const total = computed(() => {
-	return roundMoney(taxableAmount.value + taxAmount.value)
+	return calcTotal(taxableAmount.value, taxAmount.value)
 })
 
 const amountReceived = computed(() => {
-	const amount = Number(paymentAmount.value || 0)
-
-	return Number.isFinite(amount) ? roundMoney(amount) : 0
+	return calcAmountReceived(paymentAmount.value)
 })
 
 const changeAmount = computed(() => {
-	return roundMoney(Math.max(0, amountReceived.value - total.value))
+	return calcChange(amountReceived.value, total.value)
 })
 
 const remainingAmount = computed(() => {
-	return roundMoney(Math.max(0, total.value - amountReceived.value))
+	return calcRemaining(total.value, amountReceived.value)
 })
 
 const canCheckout = computed(() => {
@@ -497,11 +442,8 @@ const smartSearchResult = computed(() => {
 	return searchProductIndex(productSearchIndex.value, searchQuery.value, {
 		limit: 160,
 		fuzzyScanLimit: DEFAULT_FUZZY_SCAN_LIMIT,
-		popularity: (product) => {
-			const boost = productUsageBoosts.value.get(String(product?.id))
-
-			return Number.isFinite(boost) ? boost : 0
-		},
+		popularity: (product) =>
+			getPopularityBoost(productUsageBoosts.value, product),
 	})
 })
 
@@ -540,24 +482,11 @@ function applyDidYouMean() {
  * Utilities
  * ========================================================================== */
 
-function roundMoney(value) {
-	const number = Number(value)
-
-	if (!Number.isFinite(number)) {
-		return 0
-	}
-
-	return Math.round((number + Number.EPSILON) * 100) / 100
-}
+/* Utilities — pure sale math lives in `@/utils/posSalePure`; the screen
+ * keeps one thin wrapper binding `props.currency` for template calls. */
 
 function formatMoney(value) {
-	return `${formatNumber(value)} ${props.currency}`
-}
-
-function formatNumber(value) {
-	return new Intl.NumberFormat("ar-SA", {
-		maximumFractionDigits: 2,
-	}).format(Number(value || 0))
+	return formatMoneyValue(value, props.currency)
 }
 
 function showNotification(message, type = "info") {
@@ -605,11 +534,8 @@ function handleScanSubmit() {
 		searchQuery.value,
 		{
 			minLength: 3,
-			popularity: (product) => {
-				const boost = productUsageBoosts.value.get(String(product?.id))
-
-				return Number.isFinite(boost) ? boost : 0
-			},
+			popularity: (product) =>
+				getPopularityBoost(productUsageBoosts.value, product),
 		},
 	)
 
@@ -923,52 +849,21 @@ async function holdSale() {
  * ========================================================================== */
 
 function buildSalePayload() {
-	return {
+	return buildSalePayloadPure({
 		clientSequence: saleSequence.value,
-
-		customer: customer.value
-			? {
-					id: customer.value.id ?? customer.value.name,
-					name: customer.value.name ?? customer.value.customer_name,
-				}
-			: null,
-
-		items: cart.value.map((item) => ({
-			productId: item.productId,
-
-			code: item.code,
-
-			name: item.name,
-
-			quantity: Number(item.quantity),
-
-			unitPrice: Number(item.unitPrice),
-
-			discount: Number(item.discount),
-
-			taxRate: Number(item.taxRate),
-
-			notes: item.notes || "",
-		})),
-
+		customer: customer.value,
+		cart: cart.value,
 		pricing: {
 			subtotal: subtotal.value,
-
 			lineDiscount: lineDiscountTotal.value,
-
 			globalDiscount: globalDiscount.value,
-
 			taxableAmount: taxableAmount.value,
-
 			tax: taxAmount.value,
-
 			total: total.value,
 		},
-
 		currency: props.currency,
-
 		createdAt: new Date().toISOString(),
-	}
+	})
 }
 
 /* ============================================================================
@@ -1023,15 +918,12 @@ async function confirmPayment() {
 		const payload = {
 			...buildSalePayload(),
 
-			payment: {
+			payment: buildPaymentBlock({
 				method: paymentMethod.value,
-
 				received: amountReceived.value,
-
 				change: changeAmount.value,
-
 				remaining: remainingAmount.value,
-			},
+			}),
 		}
 
 		/*
@@ -1108,25 +1000,7 @@ async function submitSale(payload) {
 }
 
 function normalizePaymentError(error) {
-	const status = error?.status || error?.response?.status
-
-	if (status === 409) {
-		return "تمت معالجة عملية البيع مسبقًا أو تغيرت حالتها."
-	}
-
-	if (status === 422) {
-		return "تعذر اعتماد بيانات عملية البيع."
-	}
-
-	if (!isOnline.value) {
-		return "الاتصال غير متاح. لم يتم اعتماد العملية."
-	}
-
-	return (
-		error?.response?.data?.message ||
-		error?.message ||
-		"تعذر إتمام عملية الدفع."
-	)
+	return normalizePaymentErrorPure(error, isOnline.value)
 }
 
 /* ============================================================================

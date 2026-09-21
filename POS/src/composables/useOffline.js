@@ -10,6 +10,12 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue"
 
 const log = logger.create("Offline")
 
+/**
+ * @deprecated Legacy offline facade — zero live importers. Status reads moved
+ *   to `useOfflineStatus`; sale writes move through `session.submitSale →
+ *   services/sync-manager.pushLocalChange → syncQueue`. Kept frozen for
+ *   reference; do not add callers.
+ */
 export function useOffline() {
 	// Reactive state that syncs with centralized offlineState
 	const isOffline = ref(offlineState.isOffline)
@@ -32,18 +38,19 @@ export function useOffline() {
 		try {
 			pendingInvoicesCount.value = await offlineWorker.getOfflineInvoiceCount()
 		} catch (error) {
-			console.error("[useOffline] Error getting pending count:", error)
+			log.error("[useOffline] Error getting pending count:", error)
 		}
 	}
 
 	// Save invoice offline using worker
+	/** @deprecated Dead write path — see `useOffline` note above. */
 	const saveInvoiceOffline = async (invoiceData) => {
 		try {
 			await offlineWorker.saveOfflineInvoice(invoiceData)
 			await updatePendingCount()
 			return true
 		} catch (error) {
-			console.error("[useOffline] Error saving invoice offline:", error)
+			log.error("[useOffline] Error saving invoice offline:", error)
 			throw error
 		}
 	}
@@ -60,7 +67,7 @@ export function useOffline() {
 			await updatePendingCount()
 			return result
 		} catch (error) {
-			console.error("[useOffline] Error syncing invoices:", error)
+			log.error("[useOffline] Error syncing invoices:", error)
 			throw error
 		} finally {
 			isSyncing.value = false
@@ -89,7 +96,7 @@ export function useOffline() {
 			}
 			return true
 		} catch (error) {
-			console.error("[useOffline] Error caching data:", error)
+			log.error("[useOffline] Error caching data:", error)
 			return false
 		}
 	}
@@ -137,7 +144,7 @@ export function useOffline() {
 					await cacheCustomersFromServer(shiftStore.profileName)
 				}
 			} catch (error) {
-				console.error("[useOffline] Auto-sync failed:", error)
+				log.error("[useOffline] Auto-sync failed:", error)
 			}
 		}
 

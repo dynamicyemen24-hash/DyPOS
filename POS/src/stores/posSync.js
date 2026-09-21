@@ -33,6 +33,13 @@ import { computed, ref } from "vue"
 
 const log = logger.create("POSSync")
 
+/**
+ * @deprecated Legacy sync store — zero live importers (barrel re-export only).
+ *   Live sync runs in `services/sync-manager` (reads via `SyncStatusIndicator`,
+ *   writes via `session.submitSale → pushLocalChange → syncQueue`). The write
+ *   actions below (`saveInvoiceOffline`, `syncAllPending`) target the retired
+ *   `invoice_queue` path. Kept frozen; do not add callers.
+ */
 export const usePOSSyncStore = defineStore("posSync", () => {
 	// =========================================================================
 	// STATE
@@ -222,6 +229,7 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 	/**
 	 * Sync all pending invoices with user feedback
 	 * @returns {Object} Sync result with success/failed counts
+	 * @deprecated Dead write path — see store note above.
 	 */
 	async function syncAllPending() {
 		if (isOffline.value) {

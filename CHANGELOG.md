@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.30.0] - 2026-09-21 — الإصدار الإنتاجي النهائي: حسم الثنائية + نواة بيع نقية
+
+### Changed — حسم ثنائية الأوفلاين (بالأدلة، صفر سلوك)
+- التحقيق أثبت: الكتابة الحية `session.submitSale → pushLocalChange →
+  syncQueue` (services)؛ القراءة/الكاش حية في `utils/offline/*`؛ الكتّاب
+  القدامى (`saveOfflineInvoice/syncOfflineInvoices/saveOfflinePayment` +
+  `posSync.syncAllPending` + `useOffline.saveInvoiceOffline` + `enqueueSync`)
+  بلا مستوردين أحياء. وُسموا `@deprecated` وأُعلن المسار القانوني في
+  `sync-manager.pushLocalChange` (مصدر كتابة وحيد — ممنوع طابور ثالث).
+- دمج قواعد Dexie مؤجل عمدًا (ترحيل بيانات الأجهزة الميدانية مخاطرة).
+
+### Added — استخراج `utils/posSalePure.js` من `POSSale.vue` (~120 سطرًا)
+- نقل حرفي مُجمّد السلوك: `normalizeProduct` + ثلاثي التنسيق + نواة المجاميع
+  (8 computeds) + بناة الـ payload/الدفع + `normalizePaymentError` + إزالة
+  التكرار الوحيد (`getPopularityBoost`) — عمدًا **دون** توحيد التقريب مع
+  `money.js` (سياسة مختلفة، تتطلب هجرة مدققة مستقلة).
+- `tests/posSalePure.test.js` (15 اختبارًا) يجمّد المراوغات العائمة.
+
+### Verified
+- الواجهة: **406/406** (vitest) — الخادم: **203/203** (node:test) — بناء إنتاجي
+  أخضر — صفر `console.*` في الكود الحي.
+
 ## [1.29.0] - 2026-09-21 — سداد الديون: ترقيات verified + إصلاح تجمد البناء + ديون وظيفية/عملياتية
 
 ### Fixed — تجمد `vite build` على Windows (سبب جذري)
