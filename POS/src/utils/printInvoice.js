@@ -632,3 +632,74 @@ export function printInvoiceCustom(invoiceData) {
 	flagOfflineInvoicePrinted(invoiceData?.name)
 	return true
 }
+
+// ============================================================================
+// Spool passthrough (new callers go through the Print Job queue)
+// ============================================================================
+
+/**
+ * Route an invoice through the spool with the frozen payload, so reprints and
+ * the queue history can rebuild the exact original receipt. Falls back to
+ * `printWithSilentFallback` when the spool system is unavailable.
+ * @returns {Promise<PrintJob|{method:string,success:boolean}>}
+ */
+export async function spoolPrintInvoice(invoiceData, options = {}) {
+	const {
+		printFormat,
+		letterhead,
+		copies,
+		requestedBy,
+		terminalId,
+		docType = "invoice",
+		title,
+	} = options
+
+	try {
+		const { submitPrintJob } = await import("@/print/index")
+		const hydrated = await hydrateLocalOnlyInvoice(invoiceData)
+		const job = await submitPrintJob({
+			docType,
+			docId: hydrated?.name || invoiceData?.name,
+			title: title || hydrated?.name || invoiceData?.name || "Invoice",
+			payload: hydrated,
+			formId: printFormat || "",
+			copies: copies || 1,
+			requestedBy,
+			terminalId,
+			posProfile: hydrated?.pos_profile || null,
+		})
+		return job
+	} catch (error) {
+		log.warn("Spool unavailable; using legacy print", error?.message)
+		return printWithSilentFallback(invoiceData, printFormat)
+	}
+}
+
+/**
+ * Submit and wait for an invoice print to reach a terminal state.
+ * Used by dialogs that hold their spinner until paper is (or is not) out.
+ */
+export async function spoolPrintInvoiceAndWait(invoiceData, options = {}) {
+	try {
+		const { submitAndWait } = await import("@/print/index")
+		const hydrated = await hydrateLocalOnlyInvoice(invoiceData)
+		return await submitAndWait(
+			{
+				docType: "invoice",
+				docId: hydrated?.name || invoiceData?.name,
+				title: hydrated?.name || invoiceData?.name || "Invoice",
+				payload: hydrated,
+				formId: options.printFormat || "",
+				copies: options.copies || 1,
+				requestedBy: options.requestedBy,
+				terminalId: options.terminalId,
+				posProfile: hydrated?.pos_profile || null,
+			},
+			{ timeoutMs: options.timeoutMs || 30000 },
+		)
+	} catch (error) {
+		if (error?.job) throw error
+		log.warn("Spool wait failed; using legacy print", error?.message)
+		return printWithSilentFallback(invoiceData, options.printFormat)
+	}
+}

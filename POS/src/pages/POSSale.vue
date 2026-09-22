@@ -1055,8 +1055,92 @@ function closeReceipt() {
 	receiptVisible.value = false
 }
 
-function printReceipt() {
-	window.print()
+async function printReceipt() {
+	const sale = completedSale.value
+	const invoiceId = sale?.invoice_id || sale?.offline_id || sale?.name
+	if (!invoiceId) {
+		window.print()
+		return
+	}
+
+	try {
+		const settings = usePOSSettingsStore().settings
+
+		// Registered / offline invoice → route through the spool (SAP-style).
+		const { submitAndWait } = await import("@/print/index")
+		const job = await submitAndWait(
+			{
+				docType: "invoice",
+				docId: invoiceId,
+				title: `Invoice ${invoiceId}`,
+				payload: null,
+				formId: settings.value?.print_format || "",
+				requestedBy: null,
+				posProfile: settings.value?.pos_profile || null,
+			},
+			{ timeoutMs: 25000 },
+		)
+		if (job?.status === "COMPLETED") return
+		throw new Error(job?.lastError || "Receipt did not print")
+	} catch (error) {
+		// Spool unavailable or failed — never block the cashier; keep the
+		// historical browser-print behaviour as a safe fallback.
+		logger?.warn?.("Receipt spool print failed; browser fallback", error?.message)
+		try {
+			const { printInvoiceByName } = await import("@/utils/printInvoice")
+			await printInvoiceByName(invoiceId, usePOSSettingsStore().settings.value?.print_format || null)
+		} catch {
+			window.print()
+		}
+	}
+}
+
+/* ============================================================================
+ * Spool wiring — route manual/after-sale prints through the print queue.
+ * ========================================================================== */
+
+/**
+ * Handle a `print-invoice` / `printer-click` event: hydrate the invoice and
+ * enqueue it on the print spool (never blocks the sale). Falls back to the
+ * legacy direct print when the spool is unavailable.
+ * @param {Object|string} invoice
+ */
+async function handlePrintInvoice(invoice) {
+	const invoiceName =
+		typeof invoice === "string" ? invoice : invoice?.name || invoice?.offline_id
+	if (!invoiceName) return
+
+	try {
+		const { printInvoiceByName, isLocalOnlyInvoiceName } = await import(
+			"@/utils/printInvoice"
+		)
+		let invoiceData = null
+		if (isLocalOnlyInvoiceName(invoiceName)) {
+			const { hydrateLocalOnlyInvoice } = await import("@/utils/printInvoice")
+			invoiceData = await hydrateLocalOnlyInvoice({ name: invoiceName })
+		}
+
+		const { submitPrintJob } = await import("@/print/index")
+		const settings = usePOSSettingsStore().settings
+		const job = await submitPrintJob({
+			docType: "invoice",
+			docId: invoiceName,
+			title: invoiceName,
+			payload: invoiceData || null,
+			formId: settings.value?.print_format || "",
+			requestedBy: invoice?.requestedBy,
+			posProfile: settings.value?.pos_profile || null,
+		})
+		logger?.info?.("Invoice queued for print", { spoolNo: job?.spoolNo })
+	} catch (error) {
+		logger?.warn?.("Spool unavailable; direct print fallback", error?.message)
+		try {
+			const { printInvoiceByName } = await import("@/utils/printInvoice")
+			await printInvoiceByName(invoiceName)
+		} catch (printError) {
+			logger?.error?.("Direct print failed", printError?.message)
+		}
+	}
 }
 
 /* ============================================================================

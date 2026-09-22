@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.0] - 2026-09-22 — طباعة إنتاجية عالمية على طراز SAP: طابور مركزي، Output Determination، إعادة طباعة بعلامة COPY
+### Added — نواة الطباعة (نظام طابور SAP الكامل في `POS/src/print/`)
+- `print/spool/printJobFactory.js`: بناء الوظائف المعياري، أرقام الطابور `SPR-000001`، مفاتيح idempotency (3s لدمج النقرات المزدوجة)، ضبط النسخ `1..20`، backoff أسي `1s→2s→4s…60s`.
+- `print/spool/printJobStore.js`: مخزن Pinia فوق Dexie مخصص `DyPOS_print` (مستقل عن `DyPOS_offline` حمايةً لمزامنة الفواتير) — الجدول + سجل التدقيق + عداد SPR ذري عبر `dexie.transaction` (لا تكرار عبر تبويبين)، نافذة ذاكرة محدودة لصفوف الحالة النهائية مع بقاء الصف على القرص لإعادة الطباعة.
+- `print/spool/printDispatcher.js`: آلة حالة `QUEUED→PROCESSING→COMPLETED/PARTIAL/FAILED/CANCELLED`، حارة لكل جهاز (وظيفة واحدة لكل طابعة)، حلقة النسخ لكل نسخة مع `copy_no` ونقطة تفتيش (فشل منتصف الحلقة لا يكرّر الطباعة — checkpoint محفوظ)، dead-letter عند `maxAttempts`.
+- `print/rules/outputDetermination.js`: قواعد توجيه صافية للمخرجات (docType + posProfile + silentPrint + QZ) → جهاز/قالب/نسخ/ورق/أولوية/سلسلة التراجع، أولوية: productCard → profile → docType → default، مع طبقة localStorage لفروع الاختبار.
+- `print/forms/formRenderer.js`: محرك القوالب (متغيرات `{{var}}` مع escape، كتل مدمجة، رمز ZATCA QR احتياطي، علامة COPY) — لا يطبع الجهاز أبداً؛ والأوراق المسجلة تُقدّم HTML من `/printview`.
+- `print/history/printHistory.js`: سجل تدقيق دائم، إعادة الطباعة كوظيفة جديدة `reprintOf` مع علامة COPY وعدّاد `printedCount`، قراءة الحمولة من القرص حتى بعد غادر الوظيفة الذاكرة، مرآة اختيارية للسيرفر لا ترمي أبداً.
+- `print/index.js`: الواجهة العامة `submitPrintJob` / `submitAndWait` (يحل waiter لكل حالة نهائية عبر `onTerminal`) / `reprintPrintJob` / `getPrintStatus` / `cancelPrintJob` / `retryPrintJob` مع تنازل آمن للحالة التاريخية للطباعة في أي عطل.
+- `components/printing/PrintMonitor.vue`: مونيتور حي (عدّادات + فلاتر + جدول + Retry/Cancel/Reprint مع إعادة طباعة `PARTIAL`) يحدّث نفسه كل 2s أثناء الفتح.
+- `POSSettings.vue` + `main.js`: زر Print Monitor في قسم QZ مع عدّاد فشل، تهيئة النظام عبر `initializePrintSpool()` بعد تحميل التطبيق.
+### Changed — ربط نقاط النداء (لا يعاد شيء من السلوك التاريخي)
+- `POSSale.vue`: `handlePrintInvoice` للمناولة اليدوية عبر الطابور، و`printReceipt` للبيع المكتمل عبر `submitAndWait` مع fallback `printInvoiceByName` ثم `window.print()` — الكاشير لا يُحصَر أبداً في الحادثة.
+- `DraftInvoicesDialog.vue`: طباعة المسودة عبر `spoolPrintInvoice({docType:"draft"})` بدل `printInvoiceCustom` المباشر.
+- `printEod.js`: `printEODReport` يشحن عبر `submitAndWait({docType:"eod", priority:1})` ويحافظ على رفع خطأ `.job` لزر إعادة المحاولة في `ShiftClosingDialog` مع تراجع `silentPrintDoc`.
+- `printInvoice.js`: `spoolPrintInvoice/spoolPrintInvoiceAndWait` مع `hydrateLocalOnlyInvoice` ومسار تراجع كامل.
+### Fixed — أخطاء وجدتها أثناء التدقيق على مستوى الإنتاج
+- الحلقة لكل نسخة كانت تفقد نقطة التفتيش عند فشل النسخة الوسطى (كانت ستكرّر الطباعة) — الآن `printedCopies` معلنة خارج `try`.
+- `submitAndWait` كان يعلّق حتى المهلة عند فشل نهائي (`FAILED/PARTIAL/CANCELLED`) لأن الإخطار كان لـ `COMPLETED` فقط — الآن `onTerminal` يقرّ كل حالة نهائية ويرفض بسرعة مع `err.job`.
+- سباق في `waitForTerminal`: التسجيل قبل الفحص يمنع تعليق waiter عند انتهاء سريع بين الفحص والتسجيل.
+- عدّاد SPR كان قراءة-ثم-كتابة غير ذرية (تصادم عبر التبويبين) — الآن معاملة `dexie.transaction`.
+- `execute` يعيد الآن `printedCopies:1` الصادق (وظيفة واحدة لكل استدعاء) بدل ادعاء كل النسخ.
+- `findJobForReprint` يقرأ الصف من القرص عندما يغادر الذاكرة — لم تعد إعادة طباعة الوظائف القديمة تفشل.
+- `resolveOutput` كان أحياناً يختار أول قاعدة QZ متجاهلاً سياق `silentPrint` — الآن يقرن قاعدة المطابقة بالسياق (اكتشفه الاختبار).
+### Verified
+- الواجهة: **457/457** (37 ملف اختبار؛ من بينها 51 اختبار طباعة جديد) — `npm run verify` أخضر (8 تحذيرات biome قبلية في `utils/logger.js`).
+- `npm run build` نظيف: vite build + PWA generateSW (79 مدخلات precache).
+- خطوات القبول الآلية (قسم 14): idempotency، نسخ متعددة مع `copy_no`، إعادة طباعة بعلامة COPY، استئناف `PARTIAL`، إخطار كل الحالات النهائية، القراءة من الكتاب للطباعة — مغطاة باختبارات. الخطوات التي تتطلب جهازاً حقيقياً/QZ (غلق QZ، EOD على أولوية، طباعة فعلية) تبقى فحصاً يدوياً.
+
 ## [1.33.0] - 2026-09-22 — حملة الكاشير الإنتاجية النهائية: نشر https://dypos.smartportssoft.com/
 ### Fixed — بوابة الجودة كانت حمراء (الكاشير أولاً)
 - `POS/src/utils/marketing.js`: إزالة `console.log` الوحيد الذي كسر `npm run verify` (بوابة noConsole) → `logger.debug`؛ إزالة اعتماد `uuid` غير المدرج في `POS/package.json` (كان سيكسر البناء المحمول) → `crypto.randomUUID()` الأصلي مع بديل آمن؛ توحيد كل الطوابع المكتوبة يدوياً `1.31.0` على الثابت الوحيد `1.33.0`.

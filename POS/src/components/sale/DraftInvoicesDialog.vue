@@ -200,7 +200,6 @@ import {
 	roundCurrency,
 } from "@/utils/currency"
 import { clearAllDrafts, deleteDraft, getAllDrafts } from "@/utils/draftManager"
-import { printInvoiceCustom } from "@/utils/printInvoice"
 import { logger } from "@/utils/logger"
 
 const log = logger.create("DraftInvoices")
@@ -255,27 +254,30 @@ async function loadDrafts() {
 	}
 }
 
-function handlePrintDraft(draft) {
+async function handlePrintDraft(draft) {
 	if (!props.allowPrintDraftInvoices) {
 		return
 	}
 
+	const invoiceData = {
+		name: draft.draft_id,
+		company: shiftStore.profileCompany,
+		items: draft.items,
+		payments: [],
+		grand_total: calculateTotal(draft.items),
+		posting_date: draft.created_at,
+		customer_name:
+			draft.customer?.customer_name || draft.customer?.name || draft.customer,
+		status: "Draft",
+		header: "Draft",
+		footer:
+			"الفاتورة لم يتم تسجيلها في حسابات الجهة، وبالتالي لا يُعتد بها، ولا تتحمل الجهة أي مسؤولية عن أي أضرار قد تنتج عنها.",
+	}
+
 	try {
-		const invoiceData = {
-			name: draft.draft_id,
-			company: shiftStore.profileCompany,
-			items: draft.items,
-			payments: [],
-			grand_total: calculateTotal(draft.items),
-			posting_date: draft.created_at,
-			customer_name:
-				draft.customer?.customer_name || draft.customer?.name || draft.customer,
-			status: "Draft",
-			header: "Draft",
-			footer:
-				"الفاتورة لم يتم تسجيلها في حسابات الجهة، وبالتالي لا يُعتد بها، ولا تتحمل الجهة أي مسؤولية عن أي أضرار قد تنتج عنها.",
-		}
-		printInvoiceCustom(invoiceData)
+		// Route through the spool (SAP-style); legacy popup is the fallback.
+		const { spoolPrintInvoice } = await import("@/utils/printInvoice")
+		await spoolPrintInvoice(invoiceData, { docType: "draft" })
 	} catch (error) {
 		log.error("Error printing draft:", error)
 		showError(__("Failed to print draft"))

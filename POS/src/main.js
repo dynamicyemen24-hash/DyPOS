@@ -798,6 +798,24 @@ function initializeScheduledCSRFRefresh() {
    ============================================================================= */
 
 /**
+ * Print Spool — initialize the SAP-style print job queue after mount.
+ * Fail-soft: a spool problem must never block the POS shell.
+ */
+function initializePrintSpool() {
+	if (!isBrowser) {
+		return
+	}
+
+	try {
+		void import("./print/index").then(({ initPrintSystem }) =>
+			initPrintSystem(),
+		)
+	} catch (error) {
+		log.debug("Print spool initialization skipped", error)
+	}
+}
+
+/**
  * Initialize the offline sync engine for a returning authenticated user
  * (valid session cookie → no Login screen → session store never bootstraps).
  *
@@ -955,6 +973,7 @@ async function initializeApp() {
 		initializeDeviceAdaptation()
 		initializeScheduledCSRFRefresh()
 		initPrintStyles()
+		initializePrintSpool()
 
 		const finishedAt =
 			typeof performance !== "undefined" ? performance.now() : Date.now()

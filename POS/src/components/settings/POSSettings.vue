@@ -824,6 +824,32 @@
 												v-if="settings.silent_print"
 												class="ps-6 flex flex-col gap-3 border-s-2 border-teal-200"
 											>
+												<!-- Print Monitor -->
+												<div class="flex items-center justify-between gap-2">
+													<button
+														@click="openPrintMonitor"
+														class="text-xs px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded transition-colors flex items-center gap-2"
+													>
+														<svg
+															class="w-4 h-4"
+															fill="none"
+															stroke="currentColor"
+															viewBox="0 0 24 24"
+														>
+															<path
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																stroke-width="2"
+																d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2m-12 0v6h12v-6m-12 0H4m12 0h4"
+															/>
+														</svg>
+														{{ __("Print Monitor") }}
+													</button>
+													<span v-if="failedPrintJobs" class="text-xs text-red-600 font-medium">
+														{{ __("{0} failed", [failedPrintJobs]) }}
+													</span>
+												</div>
+
 												<!-- Connection Status -->
 												<div class="flex items-center gap-2">
 													<div
@@ -1499,6 +1525,7 @@
 				</div>
 			</div>
 		</div>
+		<PrintMonitor ref="printMonitorRef" />
 	</Transition>
 </template>
 
@@ -1520,6 +1547,7 @@ import { usePOSEvents } from "@/composables/usePOSEvents"
 import TranslatedHTML from "../common/TranslatedHTML.vue"
 import { useQzTray } from "@/composables/useQzTray"
 import { useAppTheme } from "@/composables/useAppTheme"
+import PrintMonitor from "@/components/printing/PrintMonitor.vue"
 
 const log = logger.create("POSSettings")
 const {
@@ -1599,6 +1627,21 @@ const {
 	generateCertificate: handleSetupQzCertificate,
 	downloadCertificate: handleDownloadQzCertificate,
 } = useQzTray()
+
+// Print Monitor
+const printMonitorRef = ref(null)
+const failedPrintJobs = ref(0)
+
+async function openPrintMonitor() {
+	try {
+		const { getPrintStatus, listPrintJobs } = await import("@/print/index")
+		const status = getPrintStatus()
+		failedPrintJobs.value = status?.counts?.FAILED || listPrintJobs?.().filter((j) => j.status === "FAILED").length || 0
+		printMonitorRef.value?.open()
+	} catch (error) {
+		log.warn("Print Monitor unavailable", error?.message)
+	}
+}
 
 // Warehouse options
 const warehouseOptions = computed(() => {
