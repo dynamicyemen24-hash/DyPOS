@@ -32,11 +32,28 @@ router.get('/pull', (req, res) => {
 
 // POST /api/sync/push — bounded batch, per-item isolation (one bad row ≠ failed batch)
 // ADMIN/MANAGER only — cashiers pull, never push authoritative catalog/stock.
+//
+// Envelope compatibility: offline clients send EITHER the server batch shape
+//   { changes: [{ id, entity_type, action, payload, idempotencyKey }] }
+// OR the per-operation shape
+//   { operations: [{ entity_id, entity_type, operation, payload, idempotency_key }] }.
+// Both are normalized to one pipeline below. INVOICE operations stay
+// fail-closed (never silently SYNCED) until the sale-creation core is
+// factored for reuse — see the partial-return work in invoices.js.
 router.post('/push', (req, res) => {
   if (!['ADMIN', 'MANAGER'].includes(req.user?.role)) return res.status(403).json({ error: 'صلاحية غير كافية — الدفع للإدارة فقط' });
-  const { changes = [] } = req.body || {};
+  const { changes = [], operations = [] } = req.body || {};
   if (!Array.isArray(changes)) return res.status(400).json({ error: 'changes يجب أن تكون مصفوفة' });
-  if (changes.length > 1000) return res.status(400).json({ error: 'الدفعة تتجاوز 1000 عنصر' });
+  if (!Array.isArray(operations)) return res.status(400).json({ error: 'operations يجب أن تكون مصفوفة' });
+  const normalized = operations.map((o, i) => ({
+    id: o?.id ?? o?.entity_id ?? `op-${i}`,
+    entity_type: o?.entity_type,
+    action: o?.action ?? o?.operation,
+    payload: typeof o?.payload === 'string' ? o.payload : JSON.stringify(o?.payload ?? {}),
+    idempotencyKey: o?.idempotencyKey ?? o?.idempotency_key,
+  }));
+  const all = [...changes, ...normalized];
+  if (all.length > 1000) return res.status(400).json({ error: 'الدفعة تتجاوز 1000 عنصر' });
   let pushTenant = null;
   try {
     pushTenant = assertTenantScope(req).tenantId;
@@ -45,8 +62,8 @@ router.post('/push', (req, res) => {
   }
   const results = [];
   const upsert = db.transaction(() => {
-    for (const ch of changes) {
-      const savepoint = `sp_${String(ch.id || Math.random()).replace(/[^a-zA-Z0-9]/g, '').slice(0, 16)}`;
+    for (const ch of all) {
+      const _savepoint = `sp_${String(ch.id || Math.random()).replace(/[^a-zA-Z0-9]/g, '').slice(0, 16)}`;
       // Declared outside try: the catch handler below (UNIQUE-race dedupe)
       // must see the same key. Declaring it inside try would scope it away.
       let idemKey = '';
@@ -76,6 +93,11 @@ router.post('/push', (req, res) => {
             .run(String(s.productId).slice(0, 64), String(s.warehouseId).slice(0, 32), Number(s.qty) || 0);
         } else if (ch.id == null) {
           throw new Error('معرف المزامنة مفقود');
+        } else if (String(ch.entity_type || '').toUpperCase() === 'INVOICE') {
+          // Offline sales stay fail-closed (never silently SYNCED): applying
+          // them requires the sale-creation core factored for reuse, so the
+          // money/stock/loyalty math cannot drift between online and sync.
+          throw new Error('مزامنة الفواتير غير مدعومة بعد — أعد إرسال البيع عبر POST /api/invoices');
         } else {
           // Unknown entity/action: fail closed — never silently mark SYNCED (prevents data loss).
           throw new Error(`نوع مزامنة غير مدعوم: ${String(ch.entity_type || '?').slice(0, 32)}/${String(ch.action || '?').slice(0, 32)}`);
@@ -107,12 +129,12 @@ router.post('/push', (req, res) => {
     }
   });
   upsert();
-  req.audit?.('sync.push', { total: changes.length });
+  req.audit?.('sync.push', { total: all.length });
   return res.json({ results, synced: results.filter(r => r.status === 'SYNCED').length, failed: results.filter(r => r.status === 'FAILED').length });
 });
 
 // GET /api/sync/checkpoint
-router.get('/checkpoint', (req, res) => {
+router.get('/checkpoint', (_req, res) => {
   const last = db.prepare('SELECT MAX(id) as checkpoint FROM sync_log').get();
   return res.json({ checkpoint: last?.checkpoint || 0 });
 });

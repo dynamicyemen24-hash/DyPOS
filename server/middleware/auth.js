@@ -1,8 +1,9 @@
 ﻿/**
- * DyPOS Auth — JWT middleware (production-hardened for scale)
+ * DyPOS Auth — JWT middleware v1.31.0 (production-hardened for scale)
  * - Non-blocking bcrypt (async) so login storms don't stall the event loop
  * - jti-based sessions with revocation check (logout / forced rotation)
  * - No insecure fallback in production
+ * - Version: 1.31.0 — single source: server/lib/version.js
  */
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -153,7 +154,7 @@ export function authMiddleware(req, res, next) {
     req.user = decoded;
     req.token = token;
     next();
-  } catch (e) {
+  } catch (_e) {
     return res.status(401).json({ error: 'رمز غير صالح أو منتهي الصلاحية' });
   }
 }

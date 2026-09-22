@@ -113,7 +113,7 @@ export function metricsMiddleware(req, res, next) {
   next();
 }
 
-export async function metricsHandler(req, res) {
+export async function metricsHandler(_req, res) {
   res.set('Content-Type', register.contentType);
   res.end(await register.metrics());
 }

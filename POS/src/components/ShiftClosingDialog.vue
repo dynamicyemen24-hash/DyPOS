@@ -1058,6 +1058,9 @@ import { usePOSSettingsStore } from "../stores/posSettings"
 import { usePOSShiftStore } from "../stores/posShift"
 import { printEODReport } from "../utils/printEod"
 import TranslatedHTML from "./common/TranslatedHTML.vue"
+import { logger } from "@/utils/logger"
+
+const log = logger.create("ShiftClosing")
 
 const props = defineProps({
 	modelValue: {
@@ -1165,7 +1168,7 @@ async function loadClosingData() {
 			showInvoiceDetails.value = true
 		}
 	} catch (error) {
-		console.error("Error loading closing data:", error)
+		log.error("Error loading closing data:", error)
 		errorMessage.value =
 			"Unable to load shift data. Please check your connection and try again."
 	}
@@ -1221,7 +1224,7 @@ async function submitClosing() {
 				await printEODReport(closingShiftName)
 				eodPrintFailed.value = null
 			} catch (err) {
-				console.warn("[eod] print failed", err)
+				log.warn("[eod] print failed", err)
 				showWarning(
 					__("EOD report did not print. Use the Reprint button to retry."),
 				)
@@ -1244,7 +1247,7 @@ async function submitClosing() {
 			closeDialog()
 		}
 	} catch (error) {
-		console.error("Error submitting closing shift:", error)
+		log.error("Error submitting closing shift:", error)
 		errorMessage.value =
 			"Failed to close shift. Please verify all amounts and try again."
 	}
@@ -1261,7 +1264,7 @@ async function retryEodPrint() {
 		showSuccess(__("EOD report printed successfully"))
 		closeDialog()
 	} catch (err) {
-		console.warn("[eod] retry print failed", err)
+		log.warn("[eod] retry print failed", err)
 		showWarning(__("EOD report did not print. Please check QZ Tray and retry."))
 	} finally {
 		retryPrintLoading.value = false

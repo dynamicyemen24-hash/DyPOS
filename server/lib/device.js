@@ -57,7 +57,7 @@ function browserOf(s) {
     return { name: 'edge', major: majorOf(m) };
   }
   if (/opr\/|opera/i.test(s)) {
-    m = s.match(/(?:opr|opera)[\/ ](\d+)/i);
+    m = s.match(/(?:opr|opera)[/ ](\d+)/i);
     return { name: 'opera', major: majorOf(m) };
   }
   if (/firefox|fxios/i.test(s)) {

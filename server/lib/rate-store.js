@@ -114,9 +114,3 @@ export function createRateStore(windowMs, ns = 'global') {
     },
   };
 }
-
-export function rateStoreStats() {
-  return { redisConfigured: !!process.env.DYPOS_REDIS_URL };
-}
-
-export default { createRateStore, rateStoreStats };

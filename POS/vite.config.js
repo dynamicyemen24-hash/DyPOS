@@ -315,7 +315,9 @@ export default defineConfig({
 		chunkSizeWarningLimit: 500,
 		outDir: path.resolve(import.meta.dirname, "..", "DyPOS", "public", "pos"),
 		emptyOutDir: true,
-		target: "es2020",
+		// es2022: top-level await in src/adapters/index.js (backend selector).
+		// Baseline 2026: Chrome/Edge 89+, Firefox 89+, Safari 15+ — كل أجهزة الكاشير الحديثة.
+		target: "es2022",
 		sourcemap: enableSourceMap,
 		rollupOptions: {
 			output: {

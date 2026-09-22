@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: dypos-server:1.26.0
+    image: dypos-server:1.33.0
     container_name: dypos-server
     restart: unless-stopped
     ports:
@@ -14,8 +14,8 @@ services:
       - NODE_ENV=production
       - DYPOS_PORT=3001
       - DYPOS_HOST=0.0.0.0
-      - DYPOS_CLUSTER=1
-      - DYPOS_CORS_ORIGIN=https://pos.example.com
+      - DYPOS_CLUSTER=0
+      - DYPOS_CORS_ORIGIN=https://dypos.smartportssoft.com
       - DYPOS_DB_PATH=/app/data/dypos.db
       - DYPOS_JWT_SECRET=${DYPOS_JWT_SECRET:?Set DYPOS_JWT_SECRET in .env}
       - DYPOS_JWT_EXPIRES=24h
@@ -61,8 +61,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: dypos-server:1.26.0
-    container_name: dypos-server ["sh", "-c", "while true; do node scripts/backup.mjs; sleep 86400; done"]
+    image: dypos-server:1.33.0
+    container_name: dypos-backup
+    command: ["sh", "-c", "while true; do node scripts/backup.mjs; sleep 86400; done"]
     environment:
       - DYPOS_DB_PATH=/app/data/dypos.db
       - DYPOS_BACKUP_DIR=/app/data/backups

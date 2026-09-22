@@ -855,6 +855,9 @@
 import { ref, computed, watch, nextTick } from "vue"
 import { call, Dialog } from "frappe-ui"
 import { __ } from "@/utils/translation"
+import { logger } from "@/utils/logger"
+
+const log = logger.create("WarehouseAvailability")
 
 const props = defineProps({
 	modelValue: Boolean,
@@ -1015,7 +1018,7 @@ watch(
 						await loadAvailability()
 					}
 				} catch (err) {
-					console.error("Error checking item variants:", err)
+					log.error("Error checking item variants:", err)
 					// Fallback to direct load
 					isReady.value = true
 					await loadAvailability()
@@ -1106,7 +1109,7 @@ async function performSearch() {
 			selectedResultIndex.value = 0
 		}
 	} catch (err) {
-		console.error("Error searching items:", err)
+		log.error("Error searching items:", err)
 		searchResults.value = []
 	} finally {
 		searching.value = false
@@ -1258,7 +1261,7 @@ async function loadVariants() {
 			loadAvailability()
 		}
 	} catch (err) {
-		console.error("Error loading variants:", err)
+		log.error("Error loading variants:", err)
 		error.value = err.message || __("Failed to load variants")
 		showVariantSelection.value = false
 	} finally {
@@ -1333,7 +1336,7 @@ async function loadAvailability() {
 			warehouses.value = response || []
 		}
 	} catch (err) {
-		console.error("Error loading warehouse availability:", err)
+		log.error("Error loading warehouse availability:", err)
 		error.value = err.message || __("Failed to load warehouse availability")
 	} finally {
 		loading.value = false

@@ -163,7 +163,7 @@ const pidD = await mkProd('D', 10);    // stock-accuracy phase
     const rs = await pool(10, 10, () => req('POST', `/api/invoices/${id}/pay`, { method: 'CASH', amount: 115 }, T));
     const wins = rs.filter((r) => r.status === 200).length;
     const fin = await readJson('GET', `/api/invoices/${id}`, T);
-    if (!fin.body || !fin.body.payments) {
+    if (!fin.body?.payments) {
       phase('C pay race', false, { summary: `final read failed: status=${fin.status}` });
     } else {
       const paySum = fin.body.payments.reduce((a, p) => a + Number(p.amount), 0);

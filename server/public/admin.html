@@ -127,6 +127,12 @@ async function vSettings() {
     <tr><td>الضريبة الافتراضية %</td><td>${num('tax_rate_default')}</td></tr>
     <tr><td>الأسعار شاملة الضريبة</td><td><select data-k="tax_inclusive"><option value="0"${s.tax_inclusive === '1' ? '' : ' selected'}>لا (0)</option><option value="1"${s.tax_inclusive === '1' ? ' selected' : ''}>نعم (1)</option></select></td></tr>
     <tr><td>بادئة الفواتير</td><td>${txt('invoice_prefix', 120)}</td></tr>
+    <tr><td>إلزام العميل عند البيع</td><td><select data-k="require_customer_on_sale"><option value="1"${s.require_customer_on_sale === '0' ? '' : ' selected'}>نعم (1)</option><option value="0"${s.require_customer_on_sale === '0' ? ' selected' : ''}>لا (0)</option></select></td></tr>
+    <tr><td>الحفظ التلقائي للفاتورة المفتوحة</td><td><select data-k="auto_save_open_invoice"><option value="1"${s.auto_save_open_invoice === '0' ? '' : ' selected'}>نعم (1)</option><option value="0"${s.auto_save_open_invoice === '0' ? ' selected' : ''}>لا (0)</option></select></td></tr>
+    <tr><td>فترة الحفظ التلقائي (ثانية)</td><td>${num('autosave_interval_seconds')}</td></tr>
+    <tr><td>عدد آخر الفواتير في سطح المكتب</td><td>${num('desktop_recent_invoices_count')}</td></tr>
+    <tr><td>طريقة الدفع الافتراضية</td><td>${txt('default_payment_method', 140)}</td></tr>
+    <tr><td>عتبة اعتماد المرتجع (0 = بدون قيد)</td><td>${num('return_approval_threshold')}</td></tr>
     </table><button class="act" onclick="svSave()">حفظ (ADMIN)</button>
     <div class="muted">يُحفظ الكل أو لا شيء — أي قيمة مرفوضة تلغي العملية كاملة.</div></div>`;
 }

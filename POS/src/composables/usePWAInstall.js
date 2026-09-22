@@ -1,4 +1,7 @@
 import { onMounted, onUnmounted, ref } from "vue"
+import { logger } from "@/utils/logger"
+
+const log = logger.create("PWAInstall")
 
 const DISMISS_KEY = "pwa-install-dismissed"
 const DISMISS_WINDOW_DAYS = 7
@@ -32,7 +35,7 @@ const hasActiveDismissal = () => {
 		localStorage.removeItem(DISMISS_KEY)
 		return false
 	} catch (error) {
-		console.warn("[PWA] Failed to read dismissal state", error)
+		log.warn("[PWA] Failed to read dismissal state", error)
 		return false
 	}
 }
@@ -53,7 +56,7 @@ export function usePWAInstall() {
 				try {
 					localStorage.removeItem(DISMISS_KEY)
 				} catch (error) {
-					console.warn("[PWA] Failed to clear dismissal state", error)
+					log.warn("[PWA] Failed to clear dismissal state", error)
 				}
 			}
 		}
@@ -129,7 +132,7 @@ export function usePWAInstall() {
 		try {
 			localStorage.setItem(DISMISS_KEY, new Date().toISOString())
 		} catch (error) {
-			console.warn("[PWA] Failed to snooze install badge", error)
+			log.warn("[PWA] Failed to snooze install badge", error)
 		}
 	}
 

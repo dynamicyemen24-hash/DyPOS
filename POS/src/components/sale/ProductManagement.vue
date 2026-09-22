@@ -756,6 +756,9 @@ import { formatCurrency as formatCurrencyUtil } from "@/utils/currency"
 import { useToast } from "@/composables/useToast"
 import { call } from "@/utils/apiWrapper"
 import { useItemSearchStore } from "@/stores/itemSearch"
+import { logger } from "@/utils/logger"
+
+const log = logger.create("ProductManagement")
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 300
@@ -1349,7 +1352,7 @@ async function loadImageSettings() {
 	} catch (error) {
 		// Non-fatal: fall back to defaults so the screen still works. The server
 		// validates on upload regardless.
-		console.warn("Failed to load image settings, using defaults", error)
+		log.warn("Failed to load image settings, using defaults", error)
 	}
 }
 

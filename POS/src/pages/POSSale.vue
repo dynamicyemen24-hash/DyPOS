@@ -66,6 +66,7 @@ import {
 	normalizeProduct,
 } from "@/utils/posSalePure"
 import { session } from "@/stores/session"
+import { usePOSSettingsStore } from "@/stores/posSettings"
 import { logger } from "@/utils/logger"
 import { searchCachedCustomers } from "@/utils/offline/cache.js"
 import {
@@ -969,6 +970,19 @@ async function confirmPayment() {
 		emit("sale-completed", completedSale.value)
 
 		showNotification("تم إتمام عملية البيع بنجاح", "success")
+
+		// درج النقود: يُفتح تلقائياً عند البيع النقدي (حسب الإعدادات).
+		// أفضل جهد ولا يحجب البيع أبداً — يعمل online وoffline.
+		try {
+			const isCashSale =
+				String(paymentMethod.value || "").toLowerCase() === "cash"
+			if (isCashSale && usePOSSettingsStore().autoKickDrawerOnCash !== false) {
+				const { kickCashDrawer } = await import("@/utils/qzTray")
+				kickCashDrawer().catch(() => {})
+			}
+		} catch {
+			// Drawer kick never breaks sales.
+		}
 	} catch (error) {
 		syncState.value = "error"
 

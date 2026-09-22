@@ -2122,6 +2122,29 @@ const show = computed({
 const paymentMethods = ref([])
 const loadingPaymentMethods = ref(false)
 const lastSelectedMethod = ref(null)
+// Merchant default payment method (general settings → default_payment_method):
+// matched by method name first, then the POS Profile default flag, then first.
+// Empty setting preserves the legacy profile-default behavior exactly.
+function pickDefaultPaymentMethod() {
+	const preferred = String(
+		settingsStore.defaultPaymentMethod || "",
+	)
+		.trim()
+		.toLowerCase()
+	const settingsMatch = preferred
+		? paymentMethods.value.find(
+				(m) =>
+					String(m.mode_of_payment || "").trim().toLowerCase() ===
+					preferred,
+			)
+		: null
+	return (
+		settingsMatch ||
+		paymentMethods.value.find((m) => m.default) ||
+		paymentMethods.value[0] ||
+		null
+	)
+}
 // "Pay on Receivable Account": AR accounts offered as payment options. Selecting one makes
 // it the single active payment way (like Cash); the amount allocated to it becomes the
 // invoice outstanding on that account (its debit_to).
@@ -2259,8 +2282,7 @@ const paymentMethodsResource = createResource({
 		paymentMethods.value = data?.message || data || []
 		// Set first method as last selected for quick amounts
 		if (paymentMethods.value.length > 0) {
-			const defaultMethod = paymentMethods.value.find((m) => m.default)
-			lastSelectedMethod.value = defaultMethod || paymentMethods.value[0]
+			lastSelectedMethod.value = pickDefaultPaymentMethod()
 		}
 		// Identify wallet payment methods
 		identifyWalletPaymentMethods()
@@ -2658,8 +2680,7 @@ async function loadPaymentMethods() {
 			if (cached && cached.length > 0) {
 				paymentMethods.value = cached
 				if (paymentMethods.value.length > 0) {
-					const defaultMethod = paymentMethods.value.find((m) => m.default)
-					lastSelectedMethod.value = defaultMethod || paymentMethods.value[0]
+					lastSelectedMethod.value = pickDefaultPaymentMethod()
 				}
 			}
 		} else {
@@ -3053,8 +3074,7 @@ watch(show, (newVal) => {
 
 		// Set default payment method if already loaded
 		if (paymentMethods.value.length > 0 && !lastSelectedMethod.value) {
-			const defaultMethod = paymentMethods.value.find((m) => m.default)
-			lastSelectedMethod.value = defaultMethod || paymentMethods.value[0]
+			lastSelectedMethod.value = pickDefaultPaymentMethod()
 		}
 
 		if (creditEnabled) {

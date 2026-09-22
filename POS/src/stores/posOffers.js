@@ -1,14 +1,10 @@
+/** DyPOS offers store v1.33.0 — single source: server/lib/version.js */
 import { defineStore } from "pinia"
 import { computed, ref } from "vue"
 import { call } from "@/utils/apiWrapper"
 import { isOffline } from "@/utils/offline"
 import { offlineWorker } from "@/utils/offline/workerClient"
-import {
-	getOneTimeRedemptions,
-	setOneTimeRedemptions,
-	addOneTimeRedemptions,
-} from "@/utils/offline/db"
-import { usePOSShiftStore } from "@/stores/posShift"
+import { toMajor } from "@/utils/money"
 import { logger } from "@/utils/logger"
 
 const log = logger.create("POSOffers")
@@ -25,12 +21,12 @@ const defaultSnapshot = () => ({
 })
 
 function getDiscountSortValue(offer) {
-	const percentage = Number.parseFloat(offer?.discount_percentage) || 0
+	const percentage = Number(offer?.discount_percentage) || 0
 	if (percentage) {
 		return percentage
 	}
 
-	return Number.parseFloat(offer?.discount_amount) || 0
+	return Number(offer?.discount_amount) || 0
 }
 
 export const usePOSOffersStore = defineStore("posOffers", () => {
@@ -120,7 +116,7 @@ export const usePOSOffersStore = defineStore("posOffers", () => {
 	}
 
 	function updateCartSnapshot(snapshot = {}) {
-		const subtotal = Number.parseFloat(snapshot.subtotal) || 0
+		const subtotal = Number(snapshot.subtotal) || 0
 		const itemCount = Number.isFinite(snapshot.itemCount)
 			? snapshot.itemCount
 			: 0
@@ -443,12 +439,11 @@ export const usePOSOffersStore = defineStore("posOffers", () => {
 					pos_profile: posProfile,
 				})
 
-				const offers = response?.message || response || []
-				setAvailableOffers(offers)
+				setAvailableOffers(response?.message || response || [])
 
 				// Cache offers for offline use
-				if (offers.length > 0) {
-					offlineWorker.cacheOffers(offers, posProfile).catch(() => {
+				if (response?.message?.length > 0 || (Array.isArray(response) && response.length > 0)) {
+					offlineWorker.cacheOffers(response?.message || response, posProfile).catch(() => {
 						// Silently ignore cache errors
 					})
 				}

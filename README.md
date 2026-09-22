@@ -1,8 +1,8 @@
 # DyPOS — Independent POS System
 
-**Version:** 1.21.0 | **Architecture:** Vue 3 + Pinia + Express + SQLite/PostgreSQL
+**Version:** 1.33.0 | **Architecture:** Vue 3 + Pinia + Express + SQLite/PostgreSQL | **Production:** https://dypos.smartportssoft.com/
 
-DyPOS is a standalone Point of Sale system that works independently or syncs with any ERP (DyPOS, ERPNext, Odoo, etc.).
+DyPOS is a standalone smart professional Point of Sale system. It runs independently and connects to any external ERP, accounting, or payment app only through the dedicated integration unit (`/api/integrations` + `server/lib/integrations/`).
 
 ---
 

@@ -41,7 +41,7 @@ export function audit(event, req, details = {}) {
   } catch { /* buffer never breaks requests */ }
 }
 
-export function auditMiddleware(req, res, next) {
+export function auditMiddleware(req, _res, next) {
   // Attach audit helper to request for routes to use
   req.audit = (event, details) => audit(event, req, details);
   next();

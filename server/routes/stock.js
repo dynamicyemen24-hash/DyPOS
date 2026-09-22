@@ -1,3 +1,4 @@
+/** DyPOS stock routes v1.31.0 — single source: server/lib/version.js */
 import { Router } from 'express';
 import db from '../db/schema.js';
 import { cacheDel, sendCached } from '../lib/cache.js';

@@ -1,3 +1,4 @@
+/** DyPOS products routes v1.31.0 — single source: server/lib/version.js */
 import { Router } from 'express';
 import db from '../db/schema.js';
 import { v4 as uuid } from 'uuid';
@@ -28,7 +29,7 @@ function clampInt(v, def, min, max) {
  */
 export function toFtsQuery(q) {
   const toks = String(q || '')
-    .split(/[\s_.,;:!?(){}\[\]<>/\\|+=~`'’"“”@#$%^&*-]+/u)
+    .split(/[\s_.,;:!?(){}[\]<>/\\|+=~`'’"“”@#$%^&*-]+/u)
     .map((t) => t.trim().slice(0, 32))
     .filter((t) => /[\p{L}\p{N}]/u.test(t));
   if (!toks.length) return null;
@@ -131,7 +132,7 @@ router.get('/:id', (req, res) => {
   if (!row) return res.status(404).json({ error: 'الصنف غير موجود' });
   try {
     assertRecordTenant(req, row);
-  } catch (e) {
+  } catch (_e) {
     return res.status(404).json({ error: 'الصنف غير موجود' });
   }
   return res.json(row);

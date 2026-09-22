@@ -1,3 +1,4 @@
+/** DyPOS settings store v1.33.0 — single source: server/lib/version.js */
 import { createResource } from "frappe-ui"
 import { defineStore } from "pinia"
 import { computed, ref } from "vue"
@@ -40,6 +41,7 @@ export const SETTINGS_FIELDS = {
 	allow_partial_payment: CHECKBOX("allowPartialPayment"),
 	use_exact_amount: CHECKBOX("useExactAmount"),
 	disable_rounded_total: CHECKBOX("disableRoundedTotal"),
+	default_payment_method: TEXT("defaultPaymentMethod"),
 
 	// Operations & Returns
 	allow_sales_order: CHECKBOX("allowSalesOrder"),
@@ -111,6 +113,7 @@ export const SETTINGS_FIELDS = {
 	// Customers
 	allow_customer_purchase_order: CHECKBOX("allowCustomerPurchaseOrder"),
 	allow_duplicate_customer_names: CHECKBOX("allowDuplicateCustomerNames"),
+	require_customer_on_sale: CHECKBOX("requireCustomerOnSale"),
 
 	// Loyalty & Wallet
 	enable_loyalty_program: CHECKBOX("enableLoyaltyProgram"),
@@ -131,6 +134,20 @@ export const SETTINGS_FIELDS = {
 	allow_print_last_invoice: CHECKBOX("allowPrintLastInvoice"),
 	allow_print_draft_invoices: CHECKBOX("allowPrintDraftInvoices"),
 	silent_print: CHECKBOX("silentPrint"),
+	auto_kick_drawer_on_cash: CHECKBOX("autoKickDrawerOnCash"),
+
+	// Desktop, Recovery & Recent Invoices
+	auto_save_open_invoice: CHECKBOX("autoSaveOpenInvoice"),
+	autosave_interval_seconds: NUMBER("autosaveIntervalSeconds", {
+		min: 1,
+		max: 60,
+		step: 1,
+	}),
+	desktop_recent_invoices_count: NUMBER("desktopRecentInvoicesCount", {
+		min: 0,
+		max: 50,
+		step: 1,
+	}),
 
 	// Localization (country-agnostic; empty = auto-detect)
 	locale: SELECT("locale", ["", "ar", "en", "id", "pt-br"]),
@@ -231,6 +248,7 @@ export const SETTINGS_MODULES = [
 			"allow_partial_payment",
 			"use_exact_amount",
 			"disable_rounded_total",
+			"default_payment_method",
 		],
 	},
 	{
@@ -309,7 +327,11 @@ export const SETTINGS_MODULES = [
 		label: "Customers",
 		labelKey: "customers",
 		icon: "users",
-		fields: ["allow_customer_purchase_order", "allow_duplicate_customer_names"],
+		fields: [
+			"allow_customer_purchase_order",
+			"allow_duplicate_customer_names",
+			"require_customer_on_sale",
+		],
 	},
 	{
 		key: "loyalty",
@@ -340,6 +362,18 @@ export const SETTINGS_MODULES = [
 			"allow_print_last_invoice",
 			"allow_print_draft_invoices",
 			"silent_print",
+			"auto_kick_drawer_on_cash",
+		],
+	},
+	{
+		key: "desktop",
+		label: "Desktop & Recovery",
+		labelKey: "desktop",
+		icon: "monitor",
+		fields: [
+			"auto_save_open_invoice",
+			"autosave_interval_seconds",
+			"desktop_recent_invoices_count",
 		],
 	},
 	{
@@ -479,6 +513,7 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		allow_partial_payment: 0,
 		use_exact_amount: 0,
 		disable_rounded_total: 1,
+		default_payment_method: "",
 
 		// ---- Module: Operations & Returns ----
 		allow_sales_order: 0,
@@ -524,6 +559,7 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		// ---- Module: Customers ----
 		allow_customer_purchase_order: 0,
 		allow_duplicate_customer_names: 0,
+		require_customer_on_sale: 1,
 
 		// ---- Module: Loyalty & Wallet ----
 		enable_loyalty_program: 0,
@@ -539,6 +575,12 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		allow_print_last_invoice: 0,
 		allow_print_draft_invoices: 0,
 		silent_print: 0,
+		auto_kick_drawer_on_cash: 1,
+
+		// ---- Module: Desktop & Recovery ----
+		auto_save_open_invoice: 1,
+		autosave_interval_seconds: 2,
+		desktop_recent_invoices_count: 10,
 
 		// ---- Module: Localization (country-agnostic, empty = auto/system) ----
 		locale: "", // UI locale; "" = detect (browser -> server -> app default)
@@ -621,6 +663,9 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 	)
 	const disableRoundedTotal = computed(() =>
 		Boolean(settings.value.disable_rounded_total),
+	)
+	const defaultPaymentMethod = computed(
+		() => String(settings.value.default_payment_method || "").trim(),
 	)
 
 	// ================================================================
@@ -734,6 +779,9 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 	const allowDuplicateCustomerNames = computed(() =>
 		Boolean(settings.value.allow_duplicate_customer_names),
 	)
+	const requireCustomerOnSale = computed(
+		() => settings.value.require_customer_on_sale !== 0,
+	)
 
 	// ================================================================
 	// Computed — Loyalty & Wallet
@@ -769,6 +817,26 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		Boolean(settings.value.allow_print_draft_invoices),
 	)
 	const silentPrint = computed(() => Boolean(settings.value.silent_print))
+	const autoKickDrawerOnCash = computed(
+		() => settings.value.auto_kick_drawer_on_cash !== 0,
+	)
+
+	// ================================================================
+	// Computed — Desktop & Recovery
+	// ================================================================
+	const autoSaveOpenInvoice = computed(() =>
+		Boolean(settings.value.auto_save_open_invoice),
+	)
+	const autosaveIntervalSeconds = computed(() => {
+		const n = Number.parseInt(settings.value.autosave_interval_seconds)
+		if (!Number.isFinite(n)) return 2
+		return Math.max(1, Math.min(n, 60))
+	})
+	const desktopRecentInvoicesCount = computed(() => {
+		const n = Number.parseInt(settings.value.desktop_recent_invoices_count)
+		if (!Number.isFinite(n)) return 10
+		return Math.max(0, Math.min(n, 50))
+	})
 
 	// ================================================================
 	// Computed — Localization (country-agnostic)
@@ -986,6 +1054,7 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 			allow_partial_payment: 0,
 			use_exact_amount: 0,
 			disable_rounded_total: 1,
+			default_payment_method: "",
 
 			// ---- Module: Operations & Returns ----
 			allow_sales_order: 0,
@@ -1031,6 +1100,7 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 			// ---- Module: Customers ----
 			allow_customer_purchase_order: 0,
 			allow_duplicate_customer_names: 0,
+			require_customer_on_sale: 1,
 
 			// ---- Module: Loyalty & Wallet ----
 			enable_loyalty_program: 0,
@@ -1046,6 +1116,12 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 			allow_print_last_invoice: 0,
 			allow_print_draft_invoices: 0,
 			silent_print: 0,
+			auto_kick_drawer_on_cash: 1,
+
+			// ---- Module: Desktop & Recovery ----
+			auto_save_open_invoice: 1,
+			autosave_interval_seconds: 2,
+			desktop_recent_invoices_count: 10,
 
 			// ---- Module: Localization (country-agnostic, empty = auto/system) ----
 			locale: "",
@@ -1219,6 +1295,7 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		allowPartialPayment,
 		useExactAmount,
 		disableRoundedTotal,
+		defaultPaymentMethod,
 
 		// Computed — Operations & Returns
 		allowSalesOrder,
@@ -1265,6 +1342,7 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		// Computed — Customers
 		allowCustomerPurchaseOrder,
 		allowDuplicateCustomerNames,
+		requireCustomerOnSale,
 
 		// Computed — Loyalty & Wallet
 		enableLoyaltyProgram,
@@ -1280,6 +1358,12 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		allowPrintLastInvoice,
 		allowPrintDraftInvoices,
 		silentPrint,
+		autoKickDrawerOnCash,
+
+		// Computed — Desktop & Recovery
+		autoSaveOpenInvoice,
+		autosaveIntervalSeconds,
+		desktopRecentInvoicesCount,
 
 		// Computed — Localization
 		locale,

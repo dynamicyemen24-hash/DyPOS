@@ -46,6 +46,8 @@
 				:dashboard-id="dashboardId"
 				:on-retry="handleRetry"
 			>
+				<!-- Desktop: latest invoices per general settings. -->
+				<RecentInvoicesWidget :key="`recent-${refreshKey}`" />
 				<ReportsRouter
 					:key="refreshKey"
 					:initial-tab="dashboardId"
@@ -67,6 +69,7 @@ import DashboardErrorBoundary from "./dashboards/core/DashboardErrorBoundary.vue
 import SkipLinks from "./dashboards/core/SkipLinks.vue"
 import NetworkIndicator from "./dashboards/core/NetworkIndicator.vue"
 import LoadingSkeleton from "./dashboards/core/LoadingSkeleton.vue"
+import RecentInvoicesWidget from "./dashboards/core/RecentInvoicesWidget.vue"
 import { goToPOS } from "@/router"
 import { logger } from "@/utils/logger"
 

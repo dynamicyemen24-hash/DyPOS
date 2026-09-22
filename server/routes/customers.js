@@ -42,7 +42,7 @@ router.get('/', ah(async (req, res) => {
   }
   if (active === '1' || active === '0') { sql += ' AND is_active=?'; params.push(Number(active)); }
   // Count with same filters
-  const whereOnly = sql.replace('SELECT *', 'SELECT COUNT(*) as c').replace(' ORDER BY name LIMIT ? OFFSET ?', '');
+  const _whereOnly = sql.replace('SELECT *', 'SELECT COUNT(*) as c').replace(' ORDER BY name LIMIT ? OFFSET ?', '');
   // Rebuild count from flags to avoid string-munging fragility
   const countSql = (() => {
     let s = 'SELECT COUNT(*) as c FROM customers WHERE 1=1';

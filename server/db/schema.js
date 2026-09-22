@@ -14,7 +14,9 @@ import { mkdirSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DYPOS_DB_PATH || join(__dirname, '..', 'data', 'dypos.db');
-const MIGRATION_VERSION = 20; // Increment when schema changes
+import { initGrowthEngineTables } from '../lib/growthEngine.js';
+
+const MIGRATION_VERSION = 22; // Increment when schema changes
 
 function columnExists(table, column) {
 	try {
@@ -954,6 +956,30 @@ export function migrate() {
         .run(20, 'generic idempotency store (safe retry)');
     } catch (e) {
       console.warn('[DyPOS] v20 migration deferred:', String(e.message).slice(0, 200));
+    }
+  }
+
+  // ── v21: growth & organic marketing engine (smart receipts, local synergies, insights) ──
+  if (currentVersion < 21) {
+    try {
+      initGrowthEngineTables();
+      db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+        .run(21, 'growth & organic marketing engine (smart receipts, synergies, merchant insights)');
+    } catch (e) {
+      console.warn('[DyPOS] v21 migration deferred:', String(e.message).slice(0, 200));
+    }
+  }
+
+  // ── v22: partial returns — cumulative returned qty per invoice line ──
+  // Without this, a second (partial or full) return would restock more than
+  // was sold. Guarded add-column: pre-v22 DBs gain the column with 0 default.
+  if (currentVersion < 22) {
+    try {
+      addColumnIfMissing('invoice_items', 'returned_qty', 'REAL NOT NULL DEFAULT 0');
+      db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+        .run(22, 'partial returns: returned_qty per invoice line');
+    } catch (e) {
+      console.warn('[DyPOS] v22 migration deferred:', String(e.message).slice(0, 200));
     }
   }
 

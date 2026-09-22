@@ -1,6 +1,9 @@
 import { isOffline } from "@/utils/offline"
 import { offlineWorker } from "@/utils/offline/workerClient"
 import { createResource } from "frappe-ui"
+import { logger } from "@/utils/logger"
+
+const log = logger.create("useItems")
 import { computed, ref, toValue, watch } from "vue"
 
 export function useItems(posProfile, cartItems = ref([])) {
@@ -27,7 +30,7 @@ export function useItems(posProfile, cartItems = ref([])) {
 			items.value = data?.message || data || []
 		},
 		onError(error) {
-			console.error("Error fetching items:", error)
+			log.error("Error fetching items:", error)
 			items.value = []
 		},
 	})
@@ -44,7 +47,7 @@ export function useItems(posProfile, cartItems = ref([])) {
 			itemGroups.value = data?.message || data || []
 		},
 		onError(error) {
-			console.error("Error fetching item groups:", error)
+			log.error("Error fetching item groups:", error)
 			itemGroups.value = []
 		},
 	})
@@ -129,7 +132,7 @@ export function useItems(posProfile, cartItems = ref([])) {
 			})
 			return result?.message || result
 		} catch (error) {
-			console.error("Error searching by barcode:", error)
+			log.error("Error searching by barcode:", error)
 			return null
 		}
 	}
@@ -157,7 +160,7 @@ export function useItems(posProfile, cartItems = ref([])) {
 				)
 				items.value = cached || []
 			} catch (error) {
-				console.error("Error loading from cache:", error)
+				log.error("Error loading from cache:", error)
 				items.value = []
 			} finally {
 				loading.value = false
@@ -180,7 +183,7 @@ export function useItems(posProfile, cartItems = ref([])) {
 				return null
 			}
 		} catch (error) {
-			console.error("Error getting item:", error)
+			log.error("Error getting item:", error)
 			return null
 		}
 	}

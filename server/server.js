@@ -1,9 +1,10 @@
 ﻿/**
- * DyPOS Server — Standalone REST API
+ * DyPOS Server — Standalone REST API v1.33.0
  * Production-hardened for millions of subscribers:
  * dotenv, JWT validation, CSP, CORS lock-down, request-id tracing,
  * structured logging, graceful shutdown, deep health check, auth rate limit,
  * cardinality-safe metrics, optional multi-core clustering.
+ * Single source of truth: server/lib/version.js
  */
 import dotenv from 'dotenv';
 import express from 'express';
@@ -21,7 +22,7 @@ import { existsSync, mkdirSync } from 'fs';
 // Load environment variables FIRST
 dotenv.config();
 
-import { migrate, db, checkDbHealth, checkIntegrity } from './db/schema.js';
+import { migrate, db, checkDbHealth, } from './db/schema.js';
 import { assertDbModeSupported, describeDbMode } from './db/mode.js';
 import { authMiddleware, isProduction } from './middleware/auth.js';
 import requirePrimary from './middleware/requirePrimary.js';
@@ -42,6 +43,16 @@ import tenantsRoutes from './routes/tenants.js';
 import mastersRoutes from './routes/masters.js';
 import settingsRoutes from './routes/settings.js';
 import fiscalRoutes from './routes/fiscal.js';
+import marketingRoutes from './routes/marketing.js';
+import growthRoutes from './routes/growth.js';
+import printConfigsRoutes from './routes/printConfigs.js';
+import hardwareRoutes from './routes/hardware.js';
+import advancedRoutes from './routes/advanced.js';
+import integrationsRoutes from './routes/integrations.js';
+import updatesRoutes from './routes/updates.js';
+import expensesRoutes from './routes/expenses.js';
+import { resolveTechnicalDebtAndOptimize } from './lib/productionRelease.js';
+
 import reportsRoutes from './routes/reports.js';
 import subscriptionsRoutes from './routes/subscriptions.js';
 import openapiRoutes from './routes/openapi.js';
@@ -114,6 +125,7 @@ console.log('[DyPOS] DB mode:', JSON.stringify(describeDbMode()));
 
 mkdirSync(join(__dirname, '..', 'data'), { recursive: true });
 migrate();
+resolveTechnicalDebtAndOptimize();
 
 // Production startup guards — loud, actionable, never silent (SRE best practice)
 if (isProduction) {
@@ -164,13 +176,13 @@ app.disable('x-powered-by');
 // Behind nginx/LB: needed for correct req.ip → correct per-IP rate limiting
 app.set('trust proxy', Number(process.env.DYPOS_TRUST_PROXY) || 1);
 
-// Security headers (CSP enabled)
+// Security headers (CSP hardened)
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "blob:"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "blob:"],
+      styleSrc: ["'self'", "'unsafe-inline'"], // TODO: replace with nonce/hash when Vue build supports it
       imgSrc: ["'self'", "data:", "blob:", "https:"],
       fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
       connectSrc: ["'self'", "https:", "wss:"],
@@ -248,7 +260,7 @@ app.use((req, _res, next) => {
 });
 
 // Deep health check + readiness (DB + cache + outbox + memory — SRE standard)
-app.get('/api/health', ah(async (req, res) => {
+app.get('/api/health', ah(async (_req, res) => {
   const dbHealth = await checkDbHealth();
   let outbox = null;
   try {
@@ -294,6 +306,14 @@ app.get('/api/health', ah(async (req, res) => {
     node_version: process.version, env: isProduction ? 'production' : 'development',
   });
 }));
+// Fleet version visibility: every API response carries the running build
+// so any terminal can detect drift without a separate version call.
+app.use('/api', (_req, res, next) => {
+  try {
+    res.setHeader('X-DyPOS-Version', VERSION);
+  } catch { /* headers best-effort */ }
+  next();
+});
 // Public contract (no auth — describes auth itself)
 app.use('/api', openapiRoutes);
 // Device intelligence (no auth — the login shell adapts before sign-in)
@@ -346,6 +366,14 @@ app.use('/api/fiscal-years', authMiddleware, fiscalRoutes);
 app.use('/api/reports', authMiddleware, reportsRoutes);
 app.use('/api/devices', authMiddleware, devicesRoutes);
 app.use('/api/subscriptions', authMiddleware, subscriptionsRoutes);
+app.use('/api/marketing', marketingRoutes);
+app.use('/api/growth', growthRoutes);
+app.use('/api/print-configs', printConfigsRoutes);
+app.use('/api/hardware', hardwareRoutes);
+app.use('/api/advanced', advancedRoutes);
+app.use('/api/integrations', authMiddleware, integrationsRoutes);
+app.use('/api/updates', updatesRoutes);
+app.use('/api/expenses', expensesRoutes);
 
 // Webhook dispatcher (outbox → subscriber systems). No-op in tests / when DYPOS_WEBHOOKS=0.
 startDispatcher();

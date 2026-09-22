@@ -8,6 +8,12 @@
  *   tax_rate_default 0–100 (inherited by products created without a taxRate)
  *   tax_inclusive    0 | 1
  *   invoice_prefix   ≤10 chars [A-Z0-9-] (used by gapless invoice_sequences)
+ *   require_customer_on_sale  0 | 1 (block submit without a customer)
+ *   auto_save_open_invoice    0 | 1 (crash-proof autosave of the open cart)
+ *   autosave_interval_seconds 1–60 (open-cart autosave cadence)
+ *   desktop_recent_invoices_count 0–50 (desktop widget size, 0 hides)
+ *   default_payment_method    free text ≤64 (preselect at checkout, "" = profile default)
+ *   return_approval_threshold 0–10M (CASHIER returns above this need MANAGER+, 0 = disabled)
  *
  * Reads are single indexed SELECTs (no cache layer to invalidate — writes
  * are rare admin ops, reads are per-request-cheap).
@@ -53,6 +59,52 @@ export const SETTING_DEFS = {
       const p = String(v ?? 'INV').trim().toUpperCase();
       if (!/^[A-Z0-9-]{1,10}$/.test(p)) throw Object.assign(new Error('بادئة الفواتير 1-10 أحرف/أرقام/-'), { statusCode: 400 });
       return p;
+    },
+  },
+  require_customer_on_sale: {
+    validate: (v) => {
+      const s = String(v ?? '1').trim();
+      if (s === '') return '1';
+      if (s !== '0' && s !== '1') throw Object.assign(new Error('إلزام العميل 0 أو 1'), { statusCode: 400 });
+      return s;
+    },
+  },
+  auto_save_open_invoice: {
+    validate: (v) => {
+      const s = String(v ?? '1').trim();
+      if (s === '') return '1';
+      if (s !== '0' && s !== '1') throw Object.assign(new Error('الحفظ التلقائي 0 أو 1'), { statusCode: 400 });
+      return s;
+    },
+  },
+  autosave_interval_seconds: {
+    validate: (v) => {
+      const t = String(v ?? '2').trim();
+      if (t === '') return '2';
+      const n = Number(t);
+      if (!Number.isFinite(n) || n < 1 || n > 60) throw Object.assign(new Error('فترة الحفظ بين 1 و 60 ثانية'), { statusCode: 400 });
+      return String(Math.round(n));
+    },
+  },
+  desktop_recent_invoices_count: {
+    validate: (v) => {
+      const t = String(v ?? '10').trim();
+      if (t === '') return '10';
+      const n = Number(t);
+      if (!Number.isFinite(n) || n < 0 || n > 50) throw Object.assign(new Error('عدد الفواتير بين 0 و 50'), { statusCode: 400 });
+      return String(Math.round(n));
+    },
+  },
+  default_payment_method: {
+    validate: (v) => String(v ?? '').trim().slice(0, 64),
+  },
+  return_approval_threshold: {
+    validate: (v) => {
+      const t = String(v ?? '0').trim();
+      if (t === '') return '0';
+      const n = Number(t);
+      if (!Number.isFinite(n) || n < 0 || n > 10000000) throw Object.assign(new Error('عتبة اعتماد المرتجع بين 0 و 10,000,000 (0 = بدون قيد)'), { statusCode: 400 });
+      return String(Math.round(n * 100) / 100);
     },
   },
 };

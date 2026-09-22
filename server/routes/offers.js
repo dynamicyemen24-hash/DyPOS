@@ -9,7 +9,6 @@
 import { Router } from 'express';
 import db from '../db/schema.js';
 import { v4 as uuid } from 'uuid';
-import { emit } from '../lib/webhooks.js';
 
 const router = Router();
 
@@ -149,7 +148,7 @@ router.post('/coupons/validate', (req, res) => {
 // amounts, plus BXGY free lines. The POS applies the chosen ones at submit.
 router.post('/evaluate', (req, res) => {
   const items = Array.isArray(req.body?.items) ? req.body.items : null;
-  if (!items || !items.length || items.length > 500) return res.status(400).json({ error: 'items مصفوفة 1..500' });
+  if (!items?.length || items.length > 500) return res.status(400).json({ error: 'items مصفوفة 1..500' });
   const customerId = String(req.body?.customerId || '').trim().slice(0, 64) || null;
   const today = new Date().toISOString().slice(0, 10);
   // Resolve prices: explicit unitPrice wins, else catalog price.

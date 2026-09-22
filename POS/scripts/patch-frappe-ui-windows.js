@@ -51,7 +51,10 @@ if (occurrences.length > 0) {
 		VULNERABLE_GUARD,
 		`while (!${HELPER_ANCHOR}(currentDir)) {`,
 	)
-	if (!next.includes(HELPER_ANCHOR + "(") || !next.includes("function " + HELPER_ANCHOR)) {
+	if (
+		!next.includes(`${HELPER_ANCHOR}(`) ||
+		!next.includes(`function ${HELPER_ANCHOR}`)
+	) {
 		// Insert the helper right after the last import statement.
 		const lines = next.split("\n")
 		let lastImport = -1
@@ -63,7 +66,7 @@ if (occurrences.length > 0) {
 	}
 	// Ensure the helper definition itself is present (replace-guard above
 	// already references it; this covers files where only the helper was lost).
-	if (!next.includes("function " + HELPER_ANCHOR)) {
+	if (!next.includes(`function ${HELPER_ANCHOR}`)) {
 		const lines = next.split("\n")
 		let lastImport = -1
 		lines.forEach((line, index) => {

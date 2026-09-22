@@ -745,6 +745,79 @@
 													)
 												"
 											/>
+											<CheckboxField
+												v-model="settings.auto_kick_drawer_on_cash"
+												:label="__('Auto-open cash drawer on cash sale')"
+												:description="
+													__(
+														'Kick the cash drawer automatically after every cash sale (QZ Tray)',
+													)
+												"
+											/>
+											<CheckboxField
+												v-model="settings.auto_save_open_invoice"
+												:label="__('Auto-save open invoice')"
+												:description="
+													__(
+														'Keep the unsent invoice safe automatically across restarts, power cuts, or logout',
+													)
+												"
+											/>
+											<NumberField
+												v-model="settings.desktop_recent_invoices_count"
+												:label="__('Desktop recent invoices count')"
+												:description="
+													__(
+														'How many latest invoices the desktop shows (0 hides the list, max 50)',
+													)
+												"
+												:min="0"
+												:max="50"
+												:step="1"
+											/>
+											<NumberField
+												v-model="settings.autosave_interval_seconds"
+												:label="__('Autosave interval (seconds)')"
+												:description="
+													__(
+														'How often the open invoice is auto-saved for crash recovery (1 to 60 seconds)',
+													)
+												"
+												:min="1"
+												:max="60"
+												:step="1"
+											/>
+											<CheckboxField
+												v-model="settings.require_customer_on_sale"
+												:label="__('Require customer on sale')"
+												:description="
+													__(
+														'Block submitting a sale without a customer (turn off to allow quick walk-in sales)',
+													)
+												"
+											/>
+											<div class="p-2 rounded hover:bg-gray-50 transition-colors">
+												<label
+													for="dypos-default-payment-method"
+													class="block text-sm font-medium text-gray-900 mb-1"
+												>
+													{{ __("Default payment method") }}
+												</label>
+												<input
+													id="dypos-default-payment-method"
+													v-model="settings.default_payment_method"
+													type="text"
+													:placeholder="__('Cash')"
+													class="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 focus:border-transparent bg-white"
+												/>
+												<p class="text-xs text-gray-500 mt-0.5 leading-tight">
+													{{
+														__(
+															"Preselect this payment method name at checkout (must match exactly; empty uses the profile default)",
+														)
+													}}
+												</p>
+											</div>
 
 											<!-- QZ Tray Printer Settings (shown when silent print is enabled) -->
 											<div
@@ -1487,6 +1560,12 @@ const settings = ref({
 	allow_write_off_change: 0,
 	allow_partial_payment: 0,
 	silent_print: 0,
+	auto_kick_drawer_on_cash: 1,
+	auto_save_open_invoice: 1,
+	autosave_interval_seconds: 2,
+	desktop_recent_invoices_count: 10,
+	require_customer_on_sale: 1,
+	default_payment_method: "",
 	allow_negative_stock: 0,
 	tax_inclusive: 0,
 	cart_lifo: 0,

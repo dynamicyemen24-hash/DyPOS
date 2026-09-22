@@ -1,6 +1,9 @@
 import router from "@/router"
 import { createResource } from "frappe-ui"
 import { computed, reactive } from "vue"
+import { logger } from "@/utils/logger"
+
+const log = logger.create("Session")
 
 import { ensureCSRFToken } from "@/utils/csrf"
 import { cleanupUserSession } from "@/utils/sessionCleanup"
@@ -40,7 +43,7 @@ export const session = reactive({
 			// This prevents conflicts with the shift opening dialog flow
 		},
 		onError(error) {
-			console.error("Login error:", error)
+			log.error("Login error:", error)
 		},
 	}),
 	logout: createResource({
@@ -52,7 +55,7 @@ export const session = reactive({
 			router.replace({ name: "Login" })
 		},
 		async onError(error) {
-			console.error("Logout error:", error)
+			log.error("Logout error:", error)
 			// Even if logout fails on server, clear local session
 			await cleanupUserSession()
 			userResource.reset()

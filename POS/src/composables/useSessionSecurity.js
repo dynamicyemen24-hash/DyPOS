@@ -41,10 +41,17 @@ function resetTimers() {
 	if (warningTimer) clearTimeout(warningTimer)
 	if (absoluteTimer) clearTimeout(absoluteTimer)
 
-	const idleRemaining = Math.max(0, config.value.idleTimeoutMs - (Date.now() - lastActivityAt.value))
+	const idleRemaining = Math.max(
+		0,
+		config.value.idleTimeoutMs - (Date.now() - lastActivityAt.value),
+	)
 	idleTimeRemaining.value = idleRemaining
 
-	const absoluteRemaining = Math.max(0, config.value.absoluteTimeoutMs - (Date.now() - (sessionStartedAt.value || Date.now())))
+	const absoluteRemaining = Math.max(
+		0,
+		config.value.absoluteTimeoutMs -
+			(Date.now() - (sessionStartedAt.value || Date.now())),
+	)
 	absoluteTimeRemaining.value = absoluteRemaining
 
 	if (idleRemaining > 0) {
@@ -54,7 +61,10 @@ function resetTimers() {
 		}, idleRemaining)
 	}
 
-	if (idleRemaining > config.value.warningBeforeMs && idleRemaining - config.value.warningBeforeMs > 0) {
+	if (
+		idleRemaining > config.value.warningBeforeMs &&
+		idleRemaining - config.value.warningBeforeMs > 0
+	) {
 		const warningDelay = idleRemaining - config.value.warningBeforeMs
 		warningTimer = setTimeout(() => {
 			sessionWarnings.value.push({
@@ -119,9 +129,11 @@ function checkSessionHealth() {
 	const issues = []
 	if (!sessionStartedAt.value) issues.push("세션 غير مبدءة")
 	const idleDuration = Date.now() - lastActivityAt.value
-	if (idleDuration > config.value.idleTimeoutMs) issues.push("الجلسة منتهية بسبب عدم النشاط")
+	if (idleDuration > config.value.idleTimeoutMs)
+		issues.push("الجلسة منتهية بسبب عدم النشاط")
 	const absoluteDuration = Date.now() - (sessionStartedAt.value || Date.now())
-	if (absoluteDuration > config.value.absoluteTimeoutMs) issues.push("الجلسة تجاوزت الحد الأقصى")
+	if (absoluteDuration > config.value.absoluteTimeoutMs)
+		issues.push("الجلسة تجاوزت الحد الأقصى")
 	if (typeof window !== "undefined" && document.visibilityState === "hidden") {
 		issues.push("الصفحة غير مرئية (قد يكون مستخدم آخر)")
 	}
@@ -140,7 +152,9 @@ function updateConfig(partialConfig) {
 	logSecurityEvent("CONFIG_UPDATE", partialConfig)
 }
 
-onMounted(() => { logSecurityEvent("MODULE_MOUNT") })
+onMounted(() => {
+	logSecurityEvent("MODULE_MOUNT")
+})
 onBeforeUnmount(() => {
 	if (inactivityTimer) clearTimeout(inactivityTimer)
 	if (warningTimer) clearTimeout(warningTimer)
@@ -149,9 +163,19 @@ onBeforeUnmount(() => {
 })
 
 export {
-	config, isSessionSecure, lastActivityAt, idleTimeRemaining, absoluteTimeRemaining,
-	sessionWarnings, sessionStartedAt,
-	touch, startSessionMonitoring, stopSessionMonitoring, shouldRotateSession,
-	checkSessionHealth, updateConfig, logSecurityEvent,
+	config,
+	isSessionSecure,
+	lastActivityAt,
+	idleTimeRemaining,
+	absoluteTimeRemaining,
+	sessionWarnings,
+	sessionStartedAt,
+	touch,
+	startSessionMonitoring,
+	stopSessionMonitoring,
+	shouldRotateSession,
+	checkSessionHealth,
+	updateConfig,
+	logSecurityEvent,
 	DEFAULT_CONFIG,
 }

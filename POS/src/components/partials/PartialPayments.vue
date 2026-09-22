@@ -352,7 +352,9 @@ import { Button, call } from "frappe-ui"
 import { defineAsyncComponent, onMounted, ref, watch } from "vue"
 
 // Lazy: PaymentDialog excluded from first-paint bundle.
-const PaymentDialog = defineAsyncComponent(() => import("@/components/sale/PaymentDialog.vue"))
+const PaymentDialog = defineAsyncComponent(
+	() => import("@/components/sale/PaymentDialog.vue"),
+)
 
 const log = logger.create("PartialPayments")
 
@@ -460,7 +462,7 @@ async function handlePaymentCompleted(paymentData) {
 	})
 
 	if (!selectedInvoice.value) {
-		console.warn("[PartialPayments] No invoice selected")
+		log.warn("[PartialPayments] No invoice selected")
 		return
 	}
 

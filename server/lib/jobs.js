@@ -77,11 +77,3 @@ export function runInBackground(job, fn) {
   });
   return job;
 }
-
-export function jobStats() {
-  const by = { QUEUED: 0, RUNNING: 0, DONE: 0, FAILED: 0 };
-  for (const j of jobs.values()) if (by[j.status] !== undefined) by[j.status]++;
-  return { ...by, total: jobs.size, maxJobs: MAX_JOBS };
-}
-
-export default { createJob, getJob, listJobs, runInBackground, jobStats };

@@ -36,7 +36,9 @@ ENV NODE_ENV=production
 ENV DYPOS_PORT=3001
 ENV DYPOS_HOST=0.0.0.0
 ENV DYPOS_DB_PATH=/app/data/dypos.db
-ENV DYPOS_CLUSTER=1
+# Cluster mode requires PostgreSQL Tier-2 (server refuses SQLite+cluster).
+# Default 0 so the standard SQLite deploy boots; set 1 only with DYPOS_DATABASE_URL.
+ENV DYPOS_CLUSTER=0
 
 WORKDIR /app/server
 USER dypos

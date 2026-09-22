@@ -1,12 +1,11 @@
+/** DyPOS cart store v1.33.0 — single source: server/lib/version.js */
 import { useInvoice } from "@/composables/useInvoice"
 import { usePOSOffersStore } from "@/stores/posOffers"
 import { usePOSSettingsStore } from "@/stores/posSettings"
 import { usePOSShiftStore } from "@/stores/posShift"
 import { parseError } from "@/utils/errorHandler"
-import {
-	shouldValidateItemStock,
-	checkStockAvailability,
-} from "@/utils/stockValidator"
+import { toMinor, toMajor, pctOf, clampMinor } from "@/utils/money"
+import { clearLiveSnapshot } from "@/utils/liveCartAutosave"
 import { offlineState } from "@/utils/offline/offlineState"
 import { useToast } from "@/composables/useToast"
 import { defineStore } from "pinia"
@@ -163,8 +162,8 @@ export const usePOSCartStore = defineStore("posCart", () => {
 				.join("|"),
 			// Total item count
 			items.length.toString(),
-			// Subtotal (rounded to avoid floating point issues)
-			Math.round((subtotal.value || 0) * 100).toString(),
+			// Subtotal in minor units (integer, no floating point drift)
+			toMinor(subtotal.value).toString(),
 			// Customer
 			customer.value?.name || customer.value || "none",
 			// Applied offers count
@@ -249,6 +248,8 @@ export const usePOSCartStore = defineStore("posCart", () => {
 		appliedCoupon.value = null
 		currentDraftId.value = null
 		targetDoctype.value = "Sales Invoice"
+		// Explicit clear by the cashier: no surviving open invoice remains.
+		void clearLiveSnapshot()
 
 		// Reset offer processing state
 		offerProcessingState.value.lastCartHash = ""
@@ -279,7 +280,7 @@ export const usePOSCartStore = defineStore("posCart", () => {
 			showWarning(__("Cart is empty"))
 			return
 		}
-		if (!customer.value) {
+		if (!customer.value && settingsStore.requireCustomerOnSale !== false) {
 			showWarning(__("Please select a customer"))
 			return
 		}
@@ -302,6 +303,9 @@ export const usePOSCartStore = defineStore("posCart", () => {
 		// Reset write-off amount after successful submission
 		if (result) {
 			writeOffAmount.value = 0
+			// The open invoice is now a real invoice: drop the autosaved
+			// live snapshot so the next boot shows nothing to recover.
+			void clearLiveSnapshot()
 		}
 		return result
 	}
@@ -404,8 +408,9 @@ export const usePOSCartStore = defineStore("posCart", () => {
 
 		invoiceItems.value.forEach((item, index) => {
 			const serverItem = serverItems[index] || {}
-			const discountPct = Number.parseFloat(serverItem.discount_percentage) || 0
-			const discountAmt = Number.parseFloat(serverItem.discount_amount) || 0
+			// Use money integer arithmetic for discount amount (minor units)
+			const discountPct = Number(serverItem.discount_percentage) || 0
+			const discountAmt = toMajor(Number(serverItem.discount_amount) || 0)
 
 			// Only update if server applied a pricing rule or discount
 			if (
@@ -523,7 +528,7 @@ export const usePOSCartStore = defineStore("posCart", () => {
 			// SAR amount (already computed from % if the rule is percentage-based).
 			// Zero/empty when no such rule applies.
 			headerDiscount: {
-				discountAmount: Number.parseFloat(payload.discount_amount) || 0,
+				discountAmount: toMajor(Number(payload.discount_amount) || 0),
 				applyDiscountOn: payload.apply_discount_on || null,
 			},
 		}
@@ -1045,9 +1050,9 @@ export const usePOSCartStore = defineStore("posCart", () => {
 	 */
 	function applyOfflinePriceDiscount(offer, eligibleItems) {
 		const discountType = offer.discount_type || offer.rate_or_discount
-		const discountPercentage = Number.parseFloat(offer.discount_percentage) || 0
-		const discountAmount = Number.parseFloat(offer.discount_amount) || 0
-		const rate = Number.parseFloat(offer.rate) || 0
+		const discountPercentage = Number(offer.discount_percentage) || 0
+		const discountAmount = toMajor(Number(offer.discount_amount) || 0)
+		const rate = toMajor(Number(offer.rate) || 0)
 
 		let applied = false
 

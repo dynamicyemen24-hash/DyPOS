@@ -85,6 +85,27 @@ function deductWallet(customerId, amt, invoiceId, actor) {
   return next;
 }
 
+/**
+ * Refund WALLET payments back to the customer's balance (atomic — caller MUST
+ * be inside a transaction). Exact inverse of deductWallet: same rounding,
+ * mirrored ledger rows, bank-statement style balance_after.
+ * Missing/deleted customer → no-op (never breaks void/return).
+ */
+function refundWallet(customerId, amt, invoiceId, actor) {
+  if (!customerId || !(amt > 0)) return 0;
+  const c = db.prepare('SELECT wallet_balance FROM customers WHERE id=?').get(customerId);
+  if (!c) return 0;
+  const next = Math.round(((Number(c.wallet_balance) || 0) + amt) * 100) / 100;
+  db.prepare(`UPDATE customers SET wallet_balance=?,updated_at=datetime('now') WHERE id=?`).run(next, customerId);
+  db.prepare(`INSERT INTO loyalty_transactions (id,customer_id,points,amount,type,reference_type,reference_id,note) VALUES (?,?,?,?,?,?,?,?)`)
+    .run(uuid(), customerId, 0, amt, 'WALLET_REFUND', 'INVOICE', invoiceId, 'استرداد محفظة (إلغاء/إرجاع)');
+  try {
+    db.prepare(`INSERT INTO wallet_transactions (id,customer_id,amount,direction,balance_after,reference_type,reference_id,note,created_by) VALUES (?,?,?,?,?,?,?,?,?)`)
+      .run(uuid(), customerId, Math.round(amt * 100) / 100, 'credit', next, 'INVOICE', invoiceId, 'استرداد محفظة (إلغاء/إرجاع)', actor || 'system');
+  } catch { /* pre-v7 DBs: ledger missing, mirror suffices */ }
+  return next;
+}
+
 // POST /api/invoices — create sale (idempotent via idempotencyKey)
 router.post('/', validate(invoiceSchema), (req, res) => {
   const b = req.body;
@@ -507,7 +528,7 @@ router.post('/:id/pay', ah(async (req, res) => {
           return { invoiceId: inv.id, paidAmount: inv.paid_amount, remainingAmount: inv.remaining_amount, status: inv.status, deduped: true, paymentId: dup.id };
         }
       }
-      if (inv.status === 'PAID') throw Object.assign(new Error('الفاتورة مدفوعة بالفعل'), { statusCode: 400 });
+      if (['PAID', 'VOIDED', 'RETURNED'].includes(inv.status)) throw Object.assign(new Error(inv.status === 'PAID' ? 'الفاتورة مدفوعة بالفعل' : 'لا يمكن الدفع على فاتورة ملغاة/مرتجعة'), { statusCode: inv.status === 'PAID' ? 400 : 409 });
       // Period immutability: real money movement only — deduped retries above
       // return before this line, so at-least-once webhooks never 409.
       ensureOpenFiscalYear(invoiceFiscalYear(inv));
@@ -543,10 +564,17 @@ router.post('/:id/pay', ah(async (req, res) => {
       const change = toMajor(overMinor);
       const newStatus = newRemainingMinor <= 1 ? 'PAID' : 'PARTIAL';
       // Conditional write guards against concurrent double-pay overwriting each other
-      const upd = db.prepare("UPDATE invoices SET paid_amount=?,remaining_amount=?,status=?,paid_at=COALESCE(paid_at,?) WHERE id=? AND status != 'PAID'").run(newPaid, newRemaining, newStatus, newStatus === 'PAID' ? new Date().toISOString() : null, inv.id);
+      // (and can never resurrect a VOIDED/RETURNED invoice).
+      const upd = db.prepare("UPDATE invoices SET paid_amount=?,remaining_amount=?,status=?,paid_at=COALESCE(paid_at,?) WHERE id=? AND status NOT IN ('PAID','VOIDED','RETURNED')").run(newPaid, newRemaining, newStatus, newStatus === 'PAID' ? new Date().toISOString() : null, inv.id);
       if (upd.changes === 0) throw Object.assign(new Error('الفاتورة مدفوعة بالفعل (تعارض تزامن)'), { statusCode: 409 });
-      if (newStatus === 'PAID' && inv.customer_id) {
-        db.prepare("UPDATE customers SET credit_used=MAX(0,credit_used-?),updated_at=datetime('now') WHERE id=?").run(inv.remaining_amount, inv.customer_id);
+      // Release exactly what this payment settled: old outstanding minus new
+      // outstanding. Partial pays release their share immediately, so
+      // credit_used always equals the live outstanding (no stranded leakage).
+      if (inv.customer_id) {
+        const releasedMinor = Math.max(0, toMinor(inv.remaining_amount) - newRemainingMinor);
+        if (releasedMinor > 0) {
+          db.prepare("UPDATE customers SET credit_used=MAX(0,credit_used-?),updated_at=datetime('now') WHERE id=?").run(toMajor(releasedMinor), inv.customer_id);
+        }
       }
       try { appendChain(inv.id, { number: inv.number, total: inv.total, status: newStatus, action: 'PAY' }); } catch { /* ignore */ }
       return { invoiceId: inv.id, paidAmount: newPaid, remainingAmount: newRemaining, change, status: newStatus };
@@ -579,14 +607,22 @@ router.post('/:id/void', ah(async (req, res) => {
       ensureOpenFiscalYear(invoiceFiscalYear(inv));
       if (inv.status === 'VOIDED') throw Object.assign(new Error('الفاتورة ملغاة مسبقًا'), { statusCode: 400 });
       const items = db.prepare('SELECT * FROM invoice_items WHERE invoice_id=?').all(id);
-      // Restore stock atomically
+      // Restore stock atomically. Partial returns shrink line qty in place
+      // (and restock their own share immediately), so the current qty is
+      // exactly what remains to restore — no double counting possible.
       for (const it of items) {
+        const restore = Number(it.qty);
+        if (!(restore > 0)) continue;
         const wh = String(it.warehouse_id || 'W-01').slice(0, 32);
-        db.prepare(`INSERT INTO stock_levels (product_id,warehouse_id,qty,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(product_id,warehouse_id) DO UPDATE SET qty=qty+?,updated_at=datetime('now')`).run(it.product_id, wh, Number(it.qty), Number(it.qty));
+        db.prepare(`INSERT INTO stock_levels (product_id,warehouse_id,qty,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(product_id,warehouse_id) DO UPDATE SET qty=qty+?,updated_at=datetime('now')`).run(it.product_id, wh, restore, restore);
       }
-      // Reverse loyalty if earned
-      if (inv.customer_id && inv.status === 'PAID') {
-        const pts = Math.floor(Number(inv.total) / 10);
+      // Reverse exactly what was earned (net EARN ledger sum), not floor of the
+      // current total: a prior partial return shrank the total and already
+      // reversed its share via RETURN_PARTIAL rows; PARTIAL invoices that
+      // never earned sum to 0 and reverse nothing.
+      if (inv.customer_id) {
+        const earned = db.prepare(`SELECT COALESCE(SUM(points),0) as s FROM loyalty_transactions WHERE reference_type='INVOICE' AND reference_id=? AND type IN ('EARN','RETURN_PARTIAL')`).get(id)?.s || 0;
+        const pts = Math.max(0, Math.floor(Number(earned)));
         if (pts > 0) {
           db.prepare('UPDATE customers SET loyalty_points=MAX(0,loyalty_points-?) WHERE id=?').run(pts, inv.customer_id);
           db.prepare(`INSERT INTO loyalty_transactions (id,customer_id,points,amount,type,reference_type,reference_id,note) VALUES (?,?,?,?,?,?,?,?)`).run(cryptoId(), inv.customer_id, -pts, Number(inv.total), 'VOID', 'INVOICE', id, reason || 'إلغاء فاتورة');
@@ -596,6 +632,12 @@ router.post('/:id/void', ah(async (req, res) => {
       // Reverse credit if was unpaid/partial
       if (inv.customer_id && Number(inv.remaining_amount) > 0) {
         db.prepare('UPDATE customers SET credit_used=MAX(0,credit_used-?) WHERE id=?').run(Number(inv.remaining_amount), inv.customer_id);
+      }
+      // Refund wallet-paid money (deductWallet's missing inverse): sum every
+      // recorded WALLET payment — the capped effective amounts, not the request.
+      if (inv.customer_id) {
+        const walletPaid = db.prepare(`SELECT COALESCE(SUM(amount),0) as s FROM payments WHERE invoice_id=? AND method='WALLET'`).get(id)?.s || 0;
+        if (Number(walletPaid) > 0) refundWallet(inv.customer_id, Number(walletPaid), id, req.user?.username);
       }
       db.prepare(`UPDATE invoices SET status='VOIDED',voided_at=datetime('now'),voided_by=?,notes=COALESCE(notes,'') || ? WHERE id=?`).run(req.user.username, ` | إلغاء: ${reason}`, id);
       try { appendChain(id, { number: inv.number, total: inv.total, status: 'VOIDED', action: 'VOID' }); } catch { /* ignore */ }
@@ -625,13 +667,133 @@ router.post('/:id/return', ah(async (req, res) => {
       ensureOpenFiscalYear(invoiceFiscalYear(inv));
       if (inv.status === 'VOIDED' || inv.status === 'RETURNED') throw Object.assign(new Error('الفاتورة ملغاة/مرتجعة مسبقًا'), { statusCode: 400 });
       if (inv.status === 'UNPAID') throw Object.assign(new Error('لا يمكن إرجاع فاتورة غير مدفوعة — ألغها (void) بدلًا من ذلك'), { statusCode: 400 });
+      // Accountant control: a CASHIER returning above the approval threshold
+      // needs a MANAGER/ADMIN (0 = disabled, preserves legacy behavior).
+      const approvalThreshold = Number(getSetting('return_approval_threshold', '0')) || 0;
+      if (approvalThreshold > 0 && req.user?.role === 'CASHIER' && Number(inv.total) > approvalThreshold) {
+        throw Object.assign(new Error(`المرتجع فوق ${approvalThreshold} يتطلب اعتماد مدير`), { statusCode: 403 });
+      }
+      // ── Partial return: subset of lines by qty ──
+      // Body: { reason?, items: [{ productId, qty, warehouseId? }] }.
+      // Recomputes the invoice as if the returned qty never existed (same
+      // halala-integer math as create), restocks only the returned share,
+      // refunds overpay (wallet share first, remainder as an explicit
+      // negative REFUND payment row so shift/report sums net correctly),
+      // and reverses only the loyalty share attributable to the return.
+      // Each partial batch needs its own Idempotency-Key; replays dedupe.
+      const retReq = Array.isArray(req.body?.items) ? req.body.items : null;
+      if (retReq) {
+        if (retReq.length === 0 || retReq.length > 100) throw Object.assign(new Error('قائمة المرتجع يجب أن تكون بين 1 و 100 بند'), { statusCode: 400 });
+        const want = new Map();
+        for (const r of retReq) {
+          const pid = String(r.productId ?? r.product_id ?? '').trim().slice(0, 64);
+          const q = Number(r.qty ?? r.quantity);
+          if (!pid) throw Object.assign(new Error('صنف غير محدد في بنود المرتجع'), { statusCode: 400 });
+          if (!(q > 0) || q > 100000) throw Object.assign(new Error(`كمية إرجاع غير صالحة للصنف ${pid}`), { statusCode: 400 });
+          const wh = String(r.warehouseId ?? r.warehouse_id ?? 'W-01').trim().slice(0, 32) || 'W-01';
+          const k = `${pid}|${wh}`;
+          want.set(k, (want.get(k) || 0) + q);
+        }
+        const allLines = db.prepare('SELECT * FROM invoice_items WHERE invoice_id=?').all(id);
+        const plan = [];
+        for (const [k, q] of want) {
+          const sep = k.lastIndexOf('|');
+          const pid = k.slice(0, sep);
+          const wh = k.slice(sep + 1);
+          const row = allLines.find((l) => String(l.product_id) === pid && String(l.warehouse_id || 'W-01') === wh && Number(l.is_free_item ?? 0) !== 1);
+          if (!row) throw Object.assign(new Error(`البند غير موجود في الفاتورة: ${pid}`), { statusCode: 404 });
+          // qty already shrinks with each partial return (returned_qty is the
+          // audit trail), so the live available quantity IS the current qty.
+          const avail = Math.max(0, Number(row.qty));
+          if (q > avail + 1e-9) throw Object.assign(new Error(`الكمية المطلوب إرجاعها تتجاوز المتاح (${avail}) للصنف ${pid}`), { statusCode: 409 });
+          plan.push({ row, retQty: q });
+        }
+        if (plan.length === 0) throw Object.assign(new Error('لا بنود قابلة للإرجاع'), { statusCode: 400 });
+        const taxInclusive = getSetting('tax_inclusive', '0') === '1';
+        const upsertStock = db.prepare(`INSERT INTO stock_levels (product_id,warehouse_id,qty,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(product_id,warehouse_id) DO UPDATE SET qty=qty+?,updated_at=datetime('now')`);
+        const updateLine = db.prepare(`UPDATE invoice_items SET qty=?,discount=?,tax_amount=?,total=?,returned_qty=? WHERE id=?`);
+        const retByRowId = new Map(plan.map((p) => [p.row.id, p.retQty]));
+        let newSubMinor = 0, newTaxMinor = 0;
+        for (const l of allLines) {
+          const ret = retByRowId.get(l.id) || 0;
+          if (ret > 0 && Number(l.qty) > 0) {
+            const newQty = Math.max(0, Number(l.qty) - ret);
+            const discMinor = Math.round(toMinor(l.discount) * newQty / Number(l.qty));
+            const grossMinor = toMinor(newQty * Number(l.unit_price)) - discMinor;
+            const rate = Math.max(0, Math.min(Number(l.tax_rate) || 0, 100));
+            let netMinor = grossMinor, taxMinor = pctOf(grossMinor, rate);
+            if (taxInclusive && rate > 0) {
+              netMinor = Math.round((grossMinor * 100) / (100 + rate));
+              taxMinor = grossMinor - netMinor;
+            }
+            newSubMinor += netMinor;
+            newTaxMinor += taxMinor;
+            updateLine.run(newQty, toMajor(discMinor), toMajor(taxMinor), toMajor(netMinor + taxMinor), Number(l.returned_qty || 0) + ret, l.id);
+            upsertStock.run(l.product_id, String(l.warehouse_id || 'W-01').slice(0, 32), ret, ret);
+          } else {
+            newSubMinor += toMinor(l.total) - toMinor(l.tax_amount);
+            newTaxMinor += toMinor(l.tax_amount);
+          }
+        }
+        const newGrossMinor = newSubMinor + newTaxMinor;
+        const oldGrossMinor = toMinor(inv.subtotal) + toMinor(inv.tax_amount);
+        const oldDiscMinor = toMinor(inv.discount_amount);
+        const newDiscMinor = oldGrossMinor > 0 ? Math.min(Math.round(oldDiscMinor * newGrossMinor / oldGrossMinor), newGrossMinor) : 0;
+        const newTotalMinor = newGrossMinor - newDiscMinor;
+        if (newTotalMinor < 0) throw new Error('إجمالي غير صالح بعد الإرجاع الجزئي');
+        const paidMinor = toMinor(inv.paid_amount);
+        const newPaidMinorCapped = Math.min(paidMinor, newTotalMinor);
+        const refundMinor = paidMinor - newPaidMinorCapped;
+        const newRemainingMinor = newTotalMinor - newPaidMinorCapped;
+        // Refund tender: wallet share back to the wallet first, remainder as
+        // an explicit negative REFUND row (nets correctly in shift/report sums).
+        const insertRefundPayment = db.prepare(`INSERT INTO payments (id,invoice_id,method,amount,reference) VALUES (?,?,?,?,?)`);
+        let refundLeft = refundMinor;
+        if (refundLeft > 0 && inv.customer_id) {
+          const walletPaid = db.prepare(`SELECT COALESCE(SUM(amount),0) as s FROM payments WHERE invoice_id=? AND method='WALLET'`).get(id)?.s || 0;
+          const wb = Math.min(toMinor(walletPaid), refundLeft);
+          if (wb > 0) {
+            refundWallet(inv.customer_id, toMajor(wb), id, req.user?.username);
+            refundLeft -= wb;
+          }
+        }
+        if (refundLeft > 0) {
+          insertRefundPayment.run(uuid(), id, 'REFUND', -toMajor(refundLeft), String(reason || '').slice(0, 128));
+        }
+        const newStatus = newRemainingMinor <= 1 ? 'PAID' : 'PARTIAL';
+        db.prepare(`UPDATE invoices SET subtotal=?,discount_amount=?,tax_amount=?,total=?,paid_amount=?,remaining_amount=?,status=?,notes=COALESCE(notes,'') || ? WHERE id=?`)
+          .run(toMajor(newSubMinor), toMajor(newDiscMinor), toMajor(newTaxMinor), toMajor(newTotalMinor), toMajor(newPaidMinorCapped), toMajor(newRemainingMinor), newStatus, ` | إرجاع جزئي: ${reason}`, id);
+        if (inv.customer_id) {
+          const deltaMinor = newRemainingMinor - toMinor(inv.remaining_amount);
+          if (deltaMinor !== 0) {
+            db.prepare(`UPDATE customers SET credit_used=MAX(0,credit_used+?),updated_at=datetime('now') WHERE id=?`).run(toMajor(deltaMinor), inv.customer_id);
+          }
+          const earned = db.prepare(`SELECT COALESCE(SUM(points),0) as s FROM loyalty_transactions WHERE reference_type='INVOICE' AND reference_id=? AND type IN ('EARN','RETURN_PARTIAL')`).get(id)?.s || 0;
+          const wouldEarn = Math.floor(toMajor(newTotalMinor) / 10);
+          const diff = Math.max(0, Math.floor(Number(earned)) - wouldEarn);
+          if (diff > 0) {
+            db.prepare('UPDATE customers SET loyalty_points=MAX(0,loyalty_points-?) WHERE id=?').run(diff, inv.customer_id);
+            db.prepare(`INSERT INTO loyalty_transactions (id,customer_id,points,amount,type,reference_type,reference_id,note) VALUES (?,?,?,?,?,?,?,?)`).run(cryptoId(), inv.customer_id, -diff, toMajor(newTotalMinor), 'RETURN_PARTIAL', 'INVOICE', id, reason);
+            try { recalcTier(inv.customer_id); } catch { /* ignore */ }
+          }
+        }
+        db.prepare(`INSERT INTO sync_log (entity_type,entity_id,action,payload,status) VALUES (?,?,?,?,?)`).run('INVOICE', id, 'RETURN_PARTIAL', JSON.stringify({ id, reason, lines: plan.length }), 'PENDING');
+        try { appendChain(id, { number: inv.number, total: toMajor(newTotalMinor), status: newStatus, action: 'RETURN_PARTIAL' }); } catch { /* ignore */ }
+        return { invoiceId: id, status: newStatus, partial: true, refunded: toMajor(refundMinor), subtotal: toMajor(newSubMinor), taxAmount: toMajor(newTaxMinor), discountAmount: toMajor(newDiscMinor), total: toMajor(newTotalMinor), paidAmount: toMajor(newPaidMinorCapped), remainingAmount: toMajor(newRemainingMinor), lines: plan.length };
+      }
       const items = db.prepare('SELECT * FROM invoice_items WHERE invoice_id=?').all(id);
+      // Same in-place invariant as void: current qty is what remains.
       for (const it of items) {
+        const restore = Number(it.qty);
+        if (!(restore > 0)) continue;
         const wh = String(it.warehouse_id || 'W-01').slice(0, 32);
-        db.prepare(`INSERT INTO stock_levels (product_id,warehouse_id,qty,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(product_id,warehouse_id) DO UPDATE SET qty=qty+?,updated_at=datetime('now')`).run(it.product_id, wh, Number(it.qty), Number(it.qty));
+        db.prepare(`INSERT INTO stock_levels (product_id,warehouse_id,qty,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(product_id,warehouse_id) DO UPDATE SET qty=qty+?,updated_at=datetime('now')`).run(it.product_id, wh, restore, restore);
       }
       if (inv.customer_id && (inv.status === 'PAID' || inv.status === 'PARTIAL')) {
-        const pts = Math.floor(Number(inv.total) / 10);
+        // Reverse exactly what was earned net of prior partial returns
+        // (PARTIAL invoices that never earned sum to 0 and reverse nothing).
+        const earned = db.prepare(`SELECT COALESCE(SUM(points),0) as s FROM loyalty_transactions WHERE reference_type='INVOICE' AND reference_id=? AND type IN ('EARN','RETURN_PARTIAL')`).get(id)?.s || 0;
+        const pts = Math.max(0, Math.floor(Number(earned)));
         if (pts > 0) {
           db.prepare('UPDATE customers SET loyalty_points=MAX(0,loyalty_points-?) WHERE id=?').run(pts, inv.customer_id);
           db.prepare(`INSERT INTO loyalty_transactions (id,customer_id,points,amount,type,reference_type,reference_id,note) VALUES (?,?,?,?,?,?,?,?)`).run(cryptoId(), inv.customer_id, -pts, Number(inv.total), 'RETURN', 'INVOICE', id, reason);
@@ -640,15 +802,19 @@ router.post('/:id/return', ah(async (req, res) => {
         if (Number(inv.remaining_amount) > 0) {
           db.prepare('UPDATE customers SET credit_used=MAX(0,credit_used-?) WHERE id=?').run(Number(inv.remaining_amount), inv.customer_id);
         }
+        // Refund wallet-paid money (same inverse as void).
+        const walletPaid = db.prepare(`SELECT COALESCE(SUM(amount),0) as s FROM payments WHERE invoice_id=? AND method='WALLET'`).get(id)?.s || 0;
+        if (Number(walletPaid) > 0) refundWallet(inv.customer_id, Number(walletPaid), id, req.user?.username);
       }
       db.prepare(`UPDATE invoices SET status='RETURNED',voided_at=datetime('now'),voided_by=?,notes=COALESCE(notes,'') || ? WHERE id=?`).run(req.user?.username || 'system', ` | إرجاع: ${reason}`, id);
       db.prepare(`INSERT INTO sync_log (entity_type,entity_id,action,payload,status) VALUES (?,?,?,?,?)`).run('INVOICE', id, 'RETURN', JSON.stringify({ id, reason }), 'PENDING');
       try { appendChain(id, { number: inv.number, total: inv.total, status: 'RETURNED', action: 'RETURN' }); } catch { /* ignore */ }
       return { invoiceId: id, status: 'RETURNED' };
     })();
-    req.audit?.('invoice.return', { invoiceId: id, reason });
-    recordTrail(req, { entity: 'INVOICE', entityId: id, action: 'RETURN', after: { reason } });
-    emit('invoice.returned', 'INVOICE', id, { reason });
+    const isPartial = !!(r && r.partial);
+    req.audit?.(isPartial ? 'invoice.return_partial' : 'invoice.return', { invoiceId: id, reason, ...(isPartial ? { lines: r.lines, refunded: r.refunded } : {}) });
+    recordTrail(req, { entity: 'INVOICE', entityId: id, action: isPartial ? 'RETURN_PARTIAL' : 'RETURN', after: isPartial ? { reason, lines: r.lines, refunded: r.refunded } : { reason } });
+    emit('invoice.returned', 'INVOICE', id, isPartial ? { reason, partial: true } : { reason });
     return r;
   });
 }));

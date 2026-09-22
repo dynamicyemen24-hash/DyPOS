@@ -485,6 +485,9 @@ import { useToast } from "@/composables/useToast"
 import { usePOSSettingsStore } from "@/stores/posSettings"
 import { useSerialNumberStore } from "@/stores/serialNumber"
 import { getItemStock } from "@/utils/stockValidator"
+import { logger } from "@/utils/logger"
+
+const log = logger.create("EditItem")
 import {
 	formatCurrency as formatCurrencyUtil,
 	getCurrencySymbol,
@@ -792,7 +795,7 @@ async function getRateForUom(uom) {
 				return serverRate
 			}
 		} catch (error) {
-			console.error("Error fetching UOM item price rate:", error)
+			log.error("Error fetching UOM item price rate:", error)
 		}
 	}
 
@@ -878,7 +881,7 @@ async function handleWarehouseChange() {
 			)
 		}
 	} catch (error) {
-		console.error("Error checking warehouse stock:", error)
+		log.error("Error checking warehouse stock:", error)
 		hasStock.value = true // Allow update if stock check fails
 	} finally {
 		isCheckingStock.value = false

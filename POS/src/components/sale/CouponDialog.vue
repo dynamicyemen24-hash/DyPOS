@@ -235,6 +235,9 @@ import {
 	DEFAULT_CURRENCY,
 	formatCurrency as formatCurrencyUtil,
 } from "@/utils/currency"
+import { logger } from "@/utils/logger"
+
+const log = logger.create("Coupon")
 import { Button, Dialog, Input, createResource } from "frappe-ui"
 import { ref, watch } from "vue"
 import { useInvoice } from "@/composables/useInvoice"
@@ -345,7 +348,7 @@ async function loadGiftCards() {
 	try {
 		await giftCardsResource.reload()
 	} catch (error) {
-		console.error("Error loading gift cards:", error)
+		log.error("Error loading gift cards:", error)
 	}
 }
 
@@ -446,7 +449,7 @@ async function applyCoupon() {
 
 		errorMessage.value = ""
 	} catch (error) {
-		console.error("Error applying coupon:", error)
+		log.error("Error applying coupon:", error)
 		errorMessage.value = __("Failed to apply coupon. Please try again.")
 		showError(errorMessage.value)
 	} finally {

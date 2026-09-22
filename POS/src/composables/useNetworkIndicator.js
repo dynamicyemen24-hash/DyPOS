@@ -10,6 +10,8 @@ import { ref, onMounted, onUnmounted, computed } from "vue"
 import { offlineState } from "@/utils/offline/offlineState"
 import { logger } from "@/utils/logger"
 
+const log = logger.create("NetworkIndicator")
+
 /**
  * Detect network quality using the Network Information API.
  * @returns {Object|null} Network info object or null
@@ -120,7 +122,9 @@ export function useNetworkIndicator() {
 					? "offline"
 					: getQualityLevel(getNetworkInfo())
 			})
-		} catch {}
+		} catch (e) {
+			log.warn("[Network] Failed to subscribe to offlineState", e)
+		}
 
 		startLatencyCheck()
 	}

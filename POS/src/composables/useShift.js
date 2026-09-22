@@ -1,5 +1,8 @@
 import { createResource } from "frappe-ui"
 import { computed, ref } from "vue"
+import { logger } from "@/utils/logger"
+
+const log = logger.create("ShiftClosing")
 
 export const shiftState = ref({
 	pos_opening_shift: null,
@@ -59,7 +62,7 @@ export function useShift() {
 			}
 		},
 		onError(error) {
-			console.error("Error checking opening shift:", error)
+			log.error("Error checking opening shift:", error)
 			// Try to load from localStorage
 			const cachedData = localStorage.getItem("pos_shift_data")
 			if (cachedData) {
@@ -74,7 +77,7 @@ export function useShift() {
 						_receivedAt: data._receivedAt || Date.now(),
 					}
 				} catch (e) {
-					console.error("Error parsing cached shift data:", e)
+					log.error("Error parsing cached shift data:", e)
 				}
 			}
 		},
@@ -116,7 +119,7 @@ export function useShift() {
 			)
 		},
 		onError(error) {
-			console.error("Error creating opening shift:", error)
+			log.error("Error creating opening shift:", error)
 		},
 	})
 
@@ -147,7 +150,7 @@ export function useShift() {
 			localStorage.removeItem("pos_shift_data")
 		},
 		onError(error) {
-			console.error("Error submitting closing shift:", error)
+			log.error("Error submitting closing shift:", error)
 		},
 	})
 

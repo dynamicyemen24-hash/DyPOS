@@ -641,3 +641,153 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
 CREATE INDEX IF NOT EXISTS idx_idem_scope ON idempotency_keys(scope, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_idem_expires ON idempotency_keys(expires_at);
 INSERT INTO schema_version (version, description) VALUES (20, 'generic idempotency store') ON CONFLICT DO NOTHING;
+
+-- ── v21: growth & organic marketing engine + print configs + hardware + advanced (parity with SQLite) ──
+CREATE TABLE IF NOT EXISTS store_synergies (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT,
+  partner_store_name TEXT,
+  partner_store_category TEXT,
+  offer_text_ar TEXT,
+  discount_code TEXT,
+  is_active INTEGER DEFAULT 1,
+  created_at timestamptz DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS merchant_insights (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT,
+  metric_key TEXT,
+  metric_value TEXT,
+  insight_text_ar TEXT,
+  created_at timestamptz DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS customer_feedback (
+  id TEXT PRIMARY KEY,
+  invoice_id TEXT,
+  rating INTEGER,
+  comment TEXT,
+  created_at timestamptz DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS document_print_configs (
+  id TEXT PRIMARY KEY,
+  document_type TEXT UNIQUE,
+  header_text_ar TEXT,
+  footer_text_ar TEXT,
+  show_logo INTEGER DEFAULT 1,
+  show_tax_number INTEGER DEFAULT 1,
+  show_qr_code INTEGER DEFAULT 1,
+  paper_size TEXT DEFAULT '80mm',
+  font_family TEXT DEFAULT 'Cairo',
+  primary_color TEXT DEFAULT '#0066CC',
+  updated_at timestamptz DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS hardware_devices (
+  id TEXT PRIMARY KEY,
+  device_name TEXT,
+  device_type TEXT,
+  connection_type TEXT,
+  connection_target TEXT,
+  is_default INTEGER DEFAULT 0,
+  settings_json TEXT DEFAULT '{}',
+  updated_at timestamptz DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS hardware_audit_logs (
+  id TEXT PRIMARY KEY,
+  device_id TEXT,
+  action TEXT,
+  status TEXT,
+  payload_summary TEXT,
+  username TEXT,
+  created_at timestamptz DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS subscriber_campaigns (
+  id TEXT PRIMARY KEY,
+  campaign_name TEXT,
+  discount_percentage REAL DEFAULT 0,
+  trial_days INTEGER DEFAULT 14,
+  referral_bonus_sar REAL DEFAULT 50,
+  is_active INTEGER DEFAULT 1,
+  created_at timestamptz DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS multimodal_search_index (
+  id TEXT PRIMARY KEY,
+  product_id TEXT,
+  search_tokens TEXT,
+  image_signature TEXT,
+  updated_at timestamptz DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS marketing_events (
+  id TEXT PRIMARY KEY,
+  username TEXT,
+  code TEXT,
+  action TEXT,
+  referee_id TEXT,
+  timestamp timestamptz DEFAULT now(),
+  version TEXT
+);
+CREATE TABLE IF NOT EXISTS marketing_referrals (
+  username TEXT PRIMARY KEY,
+  code TEXT,
+  totalReferrals INTEGER DEFAULT 0,
+  earnings REAL DEFAULT 0,
+  updated_at timestamptz DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS integration_configs (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT 'STD',
+  adapter TEXT NOT NULL,
+  name TEXT NOT NULL,
+  base_url TEXT NOT NULL DEFAULT '',
+  auth_type TEXT NOT NULL DEFAULT 'api_key',
+  credentials TEXT NOT NULL DEFAULT '{}',
+  options TEXT NOT NULL DEFAULT '{}',
+  direction TEXT NOT NULL DEFAULT 'both',
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_by TEXT,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(tenant_id, adapter, name)
+);
+CREATE TABLE IF NOT EXISTS integration_runs (
+  id SERIAL PRIMARY KEY,
+  tenant_id TEXT DEFAULT 'STD',
+  adapter TEXT NOT NULL,
+  config_id TEXT NOT NULL,
+  direction TEXT NOT NULL,
+  entity_type TEXT NOT NULL DEFAULT '',
+  entity_id TEXT NOT NULL DEFAULT '',
+  dypos_id TEXT NOT NULL DEFAULT '',
+  external_id TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'PENDING',
+  attempts INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at timestamptz DEFAULT now(),
+  idempotency_key TEXT,
+  request_json TEXT DEFAULT '{}',
+  response_json TEXT DEFAULT '{}',
+  last_error TEXT,
+  created_at timestamptz DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_intrun_idem ON integration_runs(idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
+CREATE INDEX IF NOT EXISTS idx_intrun_status ON integration_runs(status, next_attempt_at, id);
+CREATE INDEX IF NOT EXISTS idx_intrun_tenant ON integration_runs(tenant_id, status, id);
+CREATE INDEX IF NOT EXISTS idx_intcfg_tenant ON integration_configs(tenant_id, is_active);
+INSERT INTO schema_version (version, description) VALUES (21, 'growth + print configs + hardware + advanced + marketing + integrations') ON CONFLICT DO NOTHING;
+
+-- ── v21+: expenses ledger (parity with SQLite ensureExpensesTable) ──
+CREATE TABLE IF NOT EXISTS expenses (
+  id TEXT PRIMARY KEY,
+  date DATE NOT NULL,
+  category TEXT NOT NULL,
+  amount REAL NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  tenant_id TEXT,
+  branch_id TEXT,
+  created_by TEXT,
+  created_at timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_expenses_cat ON expenses(category, date DESC);
+
+-- ── v22: partial returns — cumulative returned qty per invoice line ──
+ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS returned_qty REAL NOT NULL DEFAULT 0;
+INSERT INTO schema_version (version, description) VALUES (22, 'partial returns: returned_qty per invoice line') ON CONFLICT DO NOTHING;

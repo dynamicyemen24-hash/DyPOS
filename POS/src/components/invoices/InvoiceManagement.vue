@@ -1047,7 +1047,9 @@ import { logger } from "@/utils/logger"
 
 // Heavy dialogs load lazily — they are NOT in the first-paint bundle.
 // PaymentDialog (~large) splits into its own chunk and prefetches on hover/idle.
-const PaymentDialog = defineAsyncComponent(() => import("@/components/sale/PaymentDialog.vue"))
+const PaymentDialog = defineAsyncComponent(
+	() => import("@/components/sale/PaymentDialog.vue"),
+)
 
 const log = logger.create("InvoiceManagement")
 const { showSuccess, showError } = useToast()

@@ -1183,6 +1183,9 @@
 import { useOfflineStatus } from "@/composables/useOfflineStatus"
 import { useToast } from "@/composables/useToast"
 import { getPaymentIcon } from "@/utils/payment"
+import { logger } from "@/utils/logger"
+
+const log = logger.create("ReturnInvoice")
 import {
 	DEFAULT_CURRENCY,
 	DEFAULT_LOCALE,
@@ -1282,7 +1285,7 @@ const loadInvoicesResource = createResource({
 		}
 	},
 	onError(error) {
-		console.error("Error loading invoices:", error)
+		log.error("Error loading invoices:", error)
 		showError(__("Failed to load recent invoices"))
 	},
 })
@@ -1303,7 +1306,7 @@ const searchInvoiceByNumberResource = createResource({
 		}
 	},
 	onError(error) {
-		console.error("Error searching invoice:", error)
+		log.error("Error searching invoice:", error)
 	},
 })
 
@@ -1334,7 +1337,7 @@ const loadPaymentMethodsResource = createResource({
 		}
 	},
 	onError(error) {
-		console.error("Error loading payment methods:", error)
+		log.error("Error loading payment methods:", error)
 	},
 })
 
@@ -1431,7 +1434,7 @@ const fetchInvoiceResource = createResource({
 		}
 	},
 	onError(error) {
-		console.error("Error fetching invoice:", error)
+		log.error("Error fetching invoice:", error)
 		// Close the return modal since we can't proceed
 		returnModal.visible = false
 		// Extract and show the actual error message (e.g., return period expired)
@@ -1530,7 +1533,7 @@ const createReturnResource = createResource({
 		isSubmitting.value = false
 		const errorMsg = extractErrorMessage(error)
 		submitError.value = errorMsg
-		console.error("Error creating return - full error object:", error)
+		log.error("Error creating return - full error object:", error)
 		openErrorDialog(errorMsg)
 	},
 })
@@ -1963,7 +1966,7 @@ async function checkValidityAndOpenModal(invoiceName, fallbackOnError = false) {
 			returnModal.visible = true
 		}
 	} catch (error) {
-		console.error("Error checking invoice validity:", error)
+		log.error("Error checking invoice validity:", error)
 		if (fallbackOnError) {
 			// Fallback to direct open if validity check fails
 			openReturnModal({ name: invoiceName })
@@ -2067,7 +2070,7 @@ async function handleCreateReturn() {
 			throw result
 		}
 	} catch (error) {
-		console.error("Caught error in handleCreateReturn:", error)
+		log.error("Caught error in handleCreateReturn:", error)
 		if (!submitError.value) {
 			const errorMsg = extractErrorMessage(error)
 			submitError.value = errorMsg

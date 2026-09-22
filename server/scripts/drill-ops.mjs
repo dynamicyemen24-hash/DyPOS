@@ -24,7 +24,7 @@
  *
  * Exit: 0 all phases pass · 1 any phase fails · 2 infra failure.
  */
-import { mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { v4 as uuid } from 'uuid';
@@ -39,7 +39,7 @@ mkdirSync(DRILL_IMG, { recursive: true });
 process.env.DYPOS_DB_PATH = DRILL_DB;
 
 const args = Object.fromEntries(process.argv.slice(2).map((a) => [a, true]));
-const toMinutes = Number(process.env.DRILL_MINUTES || 1) || 1;
+const _toMinutes = Number(process.env.DRILL_MINUTES || 1) || 1;
 const MONTH_DAYS = 30;
 const PRODUCT_TARGET = 1000;
 const TENANTS = [
@@ -96,7 +96,7 @@ const insertWarehouse = db.prepare(`INSERT OR IGNORE INTO warehouses (id,name,te
 const insertUser = db.prepare(`INSERT OR IGNORE INTO users (id,username,password_hash,full_name,role,tenant_id) VALUES (?,?,?,?,?,?)`);
 const insertCustomer = db.prepare(`INSERT OR IGNORE INTO customers (id,name,phone,loyalty_tier,loyalty_points,credit_limit,tenant_id) VALUES (?,?,?,?,?,?,?)`);
 const insertProduct = db.prepare(`INSERT INTO products (id,code,name,name_ar,barcode,unit_price,cost,tax_rate,uom,image,category,brand,tenant_id,is_active) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)`);
-const insertStock = db.prepare(`INSERT INTO stock_levels (product_id,warehouse_id,qty,updated_at) VALUES (?,?,?,datetime('now'))`);
+const _insertStock = db.prepare(`INSERT INTO stock_levels (product_id,warehouse_id,qty,updated_at) VALUES (?,?,?,datetime('now'))`);
 
 const seeded = {
   tenants: 0, orgs: 0, branches: 0, warehouses: 0, users: 0,
@@ -177,7 +177,7 @@ function svgFor(code, name) {
 </svg>`;
 }
 
-function fmtMoney(n) { return n % 1 === 0 ? String(n) : n.toFixed(2); }
+function _fmtMoney(n) { return n % 1 === 0 ? String(n) : n.toFixed(2); }
 
 const genT = lap('generate: 1000 products + SVG images');
 const seedProducts = db.transaction(() => {
@@ -216,7 +216,7 @@ phase('seed: 1000 products + local SVG images', seeded.products === PRODUCT_TARG
 // lookup + guarded stock decrement + invoice + items + payment, all inside a
 // single write transaction (single-writer SQLite ⇒ no lost updates).
 const invoicesWritten = { count: 0, items: 0, payments: 0 };
-const movT = lap('generate: 30 days of daily movement');
+const _movT = lap('generate: 30 days of daily movement');
 
 function dayOffset(day) {
   const base = new Date('2026-08-01T10:00:00Z');
@@ -292,7 +292,7 @@ phase('movement: 30-day daily sales', invoicesWritten.count > 200, { summary: `$
 const totalItems = db.prepare(`SELECT COUNT(*) c, COALESCE(SUM(qty),0) q, COALESCE(SUM(total),0) t FROM invoice_items`).get();
 const distinctProducts = db.prepare(`SELECT COUNT(DISTINCT product_id) c FROM invoice_items`).get().c;
 const stockDrained = db.prepare(`SELECT COUNT(*) c FROM stock_levels WHERE qty < 0`).get().c;
-const guardRefusals = db.prepare(`SELECT COUNT(*) c FROM invoices WHERE status='REJECTED'`).get().c;
+const _guardRefusals = db.prepare(`SELECT COUNT(*) c FROM invoices WHERE status='REJECTED'`).get().c;
 phase('verify: independent SQL recompute', Number(totalItems.c) === invoicesWritten.items, { summary: `invoice_items=${totalItems.c}, sum(qty)=${totalItems.q}, sum(total)=${totalItems.t}, distinct products sold=${distinctProducts}` });
 phase('verify: stock guard never undersold', Number(stockDrained) === 0, { summary: `negative stock rows=${stockDrained}` });
 

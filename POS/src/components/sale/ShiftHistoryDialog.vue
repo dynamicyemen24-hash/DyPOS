@@ -452,8 +452,9 @@ import {
 	DEFAULT_LOCALE,
 	formatCurrency as formatCurrencyUtil,
 } from "@/utils/currency"
-import { Button, Dialog, Input, createResource } from "frappe-ui"
-import { ref, watch, reactive, onMounted, computed } from "vue"
+import { logger } from "@/utils/logger"
+
+const log = logger.create("ShiftHistory")
 
 const { showError } = useToast()
 
@@ -706,7 +707,7 @@ const shiftsResource = createResource({
 		}
 	},
 	onError(error) {
-		console.error("Error loading shifts:", error)
+		log.error("Error loading shifts:", error)
 		showError(__("Failed to load shift history"))
 	},
 })

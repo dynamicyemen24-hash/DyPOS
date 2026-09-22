@@ -34,7 +34,7 @@ async function main() {
   const file = join(BACKUP_DIR, `dypos-${stamp}.db`);
 
   // 1) Snapshot — import schema.js for the live handle (runs migrate if needed)
-  const { default: db, checkIntegrity } = await import('../db/schema.js');
+  const { default: db } = await import('../db/schema.js');
   const safePath = file.replace(/'/g, "''");
   db.exec(`VACUUM INTO '${safePath}'`);
   const size = statSync(file).size;

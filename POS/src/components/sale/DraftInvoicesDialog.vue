@@ -201,10 +201,9 @@ import {
 } from "@/utils/currency"
 import { clearAllDrafts, deleteDraft, getAllDrafts } from "@/utils/draftManager"
 import { printInvoiceCustom } from "@/utils/printInvoice"
-import { useToast } from "@/composables/useToast"
-import { usePOSShiftStore } from "@/stores/posShift"
-import { Button, Dialog } from "frappe-ui"
-import { onMounted, ref, watch } from "vue"
+import { logger } from "@/utils/logger"
+
+const log = logger.create("DraftInvoices")
 
 const { showSuccess, showError } = useToast()
 const shiftStore = usePOSShiftStore()
@@ -251,7 +250,7 @@ async function loadDrafts() {
 	try {
 		drafts.value = await getAllDrafts()
 	} catch (error) {
-		console.error("Error loading drafts:", error)
+		log.error("Error loading drafts:", error)
 		showError(__("Failed to load draft invoices"))
 	}
 }
@@ -278,7 +277,7 @@ function handlePrintDraft(draft) {
 		}
 		printInvoiceCustom(invoiceData)
 	} catch (error) {
-		console.error("Error printing draft:", error)
+		log.error("Error printing draft:", error)
 		showError(__("Failed to print draft"))
 	}
 }
@@ -300,7 +299,7 @@ async function confirmDeleteDraft() {
 
 		showSuccess(__("Draft invoice deleted"))
 	} catch (error) {
-		console.error("Error deleting draft:", error)
+		log.error("Error deleting draft:", error)
 		showError(__("Failed to delete draft"))
 	}
 }
@@ -316,7 +315,7 @@ async function confirmClearAll() {
 
 		showSuccess(__("All draft invoices deleted"))
 	} catch (error) {
-		console.error("Error clearing drafts:", error)
+		log.error("Error clearing drafts:", error)
 		showError(__("Failed to clear drafts"))
 	}
 }

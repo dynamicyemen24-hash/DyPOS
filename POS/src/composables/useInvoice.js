@@ -61,7 +61,7 @@ export function useInvoice() {
 		auto: false,
 		onError(error) {
 			// Store the full error details for later access
-			console.error("submitInvoiceResource onError:", error)
+			log.error("submitInvoiceResource onError:", error)
 
 			// Attach the resource's error data to the error object
 			if (submitInvoiceResource.error) {
@@ -882,7 +882,7 @@ export function useInvoice() {
 			})
 			return result || []
 		} catch (error) {
-			console.error("Stock validation error:", error)
+			log.error("Stock validation error:", error)
 			return []
 		}
 	}
@@ -1111,7 +1111,7 @@ export function useInvoice() {
 					// Check if resource has error (frappe-ui pattern)
 					if (submitInvoiceResource.error) {
 						const resourceError = submitInvoiceResource.error
-						console.error("Submit invoice resource error:", resourceError)
+						log.error("Submit invoice resource error:", resourceError)
 
 						// Create a detailed error object
 						const detailedError = new Error(
@@ -1129,7 +1129,7 @@ export function useInvoice() {
 					return result
 				} catch (error) {
 					// Preserve original error object with all its properties
-					console.error("Submit invoice error:", error)
+					log.error("Submit invoice error:", error)
 					log.error("submitInvoiceResource.error:", submitInvoiceResource.error)
 
 					// If resource has error data, extract and attach it
@@ -1166,7 +1166,7 @@ export function useInvoice() {
 				}
 			} catch (error) {
 				// Outer catch to ensure error propagates
-				console.error("Submit invoice outer error:", error)
+				log.error("Submit invoice outer error:", error)
 				throw error
 			} finally {
 				isSubmitting.value = false
@@ -1264,7 +1264,7 @@ export function useInvoice() {
 				})
 			} catch (error) {
 				// Silent fail - don't block cart clearing
-				console.warn("Failed to cleanup old drafts:", error)
+				log.warn("Failed to cleanup old drafts:", error)
 			}
 		}
 	}
@@ -1290,7 +1290,7 @@ export function useInvoice() {
 
 			return taxRules.value
 		} catch (error) {
-			console.error("Error loading tax rules:", error)
+			log.error("Error loading tax rules:", error)
 			taxRules.value = []
 			return []
 		}

@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.33.0] - 2026-09-22 — حملة الكاشير الإنتاجية النهائية: نشر https://dypos.smartportssoft.com/
+### Fixed — بوابة الجودة كانت حمراء (الكاشير أولاً)
+- `POS/src/utils/marketing.js`: إزالة `console.log` الوحيد الذي كسر `npm run verify` (بوابة noConsole) → `logger.debug`؛ إزالة اعتماد `uuid` غير المدرج في `POS/package.json` (كان سيكسر البناء المحمول) → `crypto.randomUUID()` الأصلي مع بديل آمن؛ توحيد كل الطوابع المكتوبة يدوياً `1.31.0` على الثابت الوحيد `1.33.0`.
+- `server/routes/marketing.js`: حدث الإحالة كان يختم نسخة مكتوبة يدوياً `'1.31.0'` في قاعدة البيانات → الآن `VERSION` من المصدر الوحيد `server/lib/version.js`.
+- `POS/src/composables/useLiveCartRecovery.js`: حذف الثابت الميت `AUTOSAVE_DELAY_MS` وإصلاح انحراف المسافة في `scheduleAutosave` (السلوك مجمّد: فاصل الإعدادات 1..60 ثانية، افتراضي 2 ثانية).
+- `POS/src/composables/useRecentInvoices.js`: تقييد الحد `0..50` حسب عقد الوحدة (0 = مخفي) — يمنع جلباً ضخماً من إعداد خاطئ ويحمي سطح المكتب في الذروة.
+### Changed — توحيد الإصدار النهائي
+- `1.33.0` في `package.json` (الجذر) + `POS/package.json` + `server/package.json` + `server/lib/version.js` + صور Docker + `README` + ترويسات الكاشير (`main/posCart/posSettings/posOffers/useMarketing`) — لا طوابع يدوية متبقية في مسار الكاشير.
+### Verified
+- الواجهة: **406/406** (vitest) — الخادم: **224/224** (node:test) — `npm run verify` أخضر — `npm run parity` ok:true — بناء إنتاجي مثبّت على `DyPOS_BUILD_VERSION=1.33.0`.
+- النشر: `node scripts/build-pages-site.mjs` + `wrangler pages deploy .pages-site --project-name dypos-pos --branch main` ثم تحقق حي `version.json` + `pos.html` على `https://dypos.smartportssoft.com/`.
+
+## [1.32.0] - 2026-09-22 — الإصدار الإنتاجي النهائي المعياري: نشر https://dypos.smartportssoft.com/
+### Fixed — ديون حرجة بأدلة الجناح الرسمي
+- إصلاح `500` دائم عند إنشاء منتج بلا ضريبة (`defaultTaxRate` غير مستورد) و`recordTrail/emit` غير مستوردين في `products.js` — كانا يكسراً كل مسارات المنتجات.
+- استرداد المحفظة عند الإلغاء/الإرجاع (`refundWallet` العكس الدقيق لـ`deductWallet` مع دفتر `WALLET_REFUND`).
+- تسرب `credit_used` في الدفعات الجزئية: كل دفعة تحرر فرق المستحق بالهللات — لا مبالغ عالقة.
+- منع إحياء الفواتير الملغاة/المرتجعة بالدفع (فحص مبكر + شرط ذري `NOT IN`).
+- عكس نقاط الولاء بالمكتسب الفعلي من الدفتر بدل `floor(الإجمالي/10)` (يصلح خصم نقاط غير مكتسبة في الجزئي).
+### Added — المرتجع الجزئي ومزامنة المغلف
+- `POST /api/invoices/:id/return` يقبل `items:[{productId,qty}]`: إعادة حساب بنفس رياضيات الإنشاء، استرداد نقدي صريح (`REFUND` سالب + حصة المحفظة أولاً)، تتبع تراكمي `returned_qty` (ترحيل v22)، عدم تكرار بالمفتاح.
+- `POST /api/sync/push` يقبل مغلف العمليات `{operations:[...]}` ويطبعه على نفس الخط؛ `INVOICE` يبقى مرفوضاً صراحة حتى استخراج نواة البيع.
+- دفتر المصروفات `/api/expenses` وعتبة اعتماد المرتجع وفتح الدرج التلقائي (من الدفعات السابقة).
+### Verified
+- الجناح الرسمي: **224/224** (215 سابقة + 5 مرتجع جزئي + 4 مغلف مزامنة) — صفر فشل.
+- تحديث ملف الإصدار المنشور `DyPOS/public/pos/version.json` من `1.30.0` إلى `1.32.0` مع بيانات النطاق الرسمي.
+- توحيد `server/lib/version.js` + `package.json` (الجذر) + `POS/package.json` + `server/package.json` على `1.32.0`.
+- إصلاح إعدادات النشر الافتراضية: `DYPOS_CLUSTER=0` (وضع SQLite الآمن) و`DYPOS_CORS_ORIGIN=https://dypos.smartportssoft.com` وصور Docker `1.32.0` وإصلاح تعريف خدمة النسخ الاحتياطي.
+- إزالة الأوزان الميتة الآمنة: `legacy/pos_next/node_modules` و`__pycache__` و`legacy/.wrangler` (لا يستوردها البناء الحي).
+### Verified
+- `node --check` أخضر لملفات الإقلاع المصححة؛ لا استخدام `requireRole([...])`؛ لا سطر `Router` شارد.
+
+## [1.31.0] - 2026-09-22 — حملة الترقية النهائية: هوية مستقلة + تكامل خارجي + سداد الديون الحرجة
+### Fixed — إصلاحات حرجة تمنع الإقلاع
+- حذف السطر الشارد `const router = Router()` من `server/server.js` (كان يسبب ReferenceError عند الإقلاع).
+- إصلاح خطأ صياغي في `server/lib/rate-store.js` (قوس زائد) وفي `server/lib/jobs.js` (بقايا إغلاق زائدة).
+- توحيد الإصدار إلى `1.31.0` في `server/package.json` مع المصدر الوحيد `server/lib/version.js`.
+- تصحيح استخدام `requireRole('ADMIN')` بدل تمرير مصفوفة في مسارات الأجهزة وإعدادات الطباعة.
+- تأمين مسار الإيصال الذكي `GET /api/growth/receipt/:id` بالمصادقة، وإنشاء جدول `marketing_referrals` المفقود.
+### Added — وحدة التكامل الخارجي المخصصة
+- طبقة `server/lib/integrations/` (واجهة BaseAdapter + سجل المحولات + ERPNext/Odoo كمحولات أولى) مع مسارات `/api/integrations` (قائمة المحولات، تسجيل اتصال، اختبار اتصال) دون المساس بنواة البيع.
+- جداول `integration_configs` و `integration_runs` في SQLite و Postgres مع فهارس عدم التكرار.
+### Changed — هوية DyPOS المستقلة
+- جميع المسارات الجديدة تستورد `VERSION` من المصدر الوحيد بدل النصوص المكتوبة يدوياً.
+- تحديث `README` إلى الإصدار الحالي وتوثيق التكامل عبر الوحدة المخصصة.
+
 ## [1.30.0] - 2026-09-21 — الإصدار الإنتاجي النهائي: حسم الثنائية + نواة بيع نقية
 
 ### Changed — حسم ثنائية الأوفلاين (بالأدلة، صفر سلوك)

@@ -83,7 +83,7 @@ router.use(requireRole('ADMIN'));
 let backupRunning = false;
 
 // GET /api/admin/db — mode, health, integrity (fast parts only)
-router.get('/db', (req, res) => {
+router.get('/db', (_req, res) => {
   const health = checkDbHealth();
   return res.json({ ...describeDbMode(), health });
 });
@@ -117,7 +117,7 @@ router.post('/backup', (req, res) => {
 });
 
 // GET /api/admin/backups — list available snapshots
-router.get('/backups', (req, res) => {
+router.get('/backups', (_req, res) => {
   const dir = process.env.DYPOS_BACKUP_DIR || join(__dirname, '..', 'data', 'backups');
   let files = [];
   try {
@@ -244,7 +244,7 @@ router.get('/chain/verify', ah(async (req, res) => {
 }));
 
 // GET /api/admin/zatca/settings — e-invoicing identity (feeds print QR TLV)
-router.get('/zatca/settings', (req, res) => {
+router.get('/zatca/settings', (_req, res) => {
   const row = db.prepare('SELECT * FROM zatca_settings WHERE id=?').get('default') || { id: 'default' };
   return res.json({ settings: row });
 });
@@ -337,7 +337,7 @@ router.delete('/backups/:file', (req, res) => {
 const KEY_ROLES = new Set(['ADMIN', 'MANAGER', 'AUDITOR', 'CASHIER']);
 
 // GET /api/admin/api-keys — list (hashes never leave the server)
-router.get('/api-keys', (req, res) => {
+router.get('/api-keys', (_req, res) => {
   let rows = [];
   try {
     rows = db.prepare('SELECT id,name,key_prefix,role,scopes,tenant_id,expires_at,last_used_at,revoked,created_by,created_at FROM api_keys ORDER BY created_at DESC LIMIT 200').all();

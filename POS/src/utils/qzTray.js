@@ -771,6 +771,48 @@ export async function printHTML(html, printerName, options = {}) {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Cash drawer kick (ESC/POS pulse — best-effort, never throws)               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Open the cash drawer attached to the receipt printer.
+ *
+ * Sends the standard ESC/POS drawer-kick pulse (pin 2) as raw commands.
+ * Printers without a drawer safely ignore it. Returns false (never throws)
+ * when QZ Tray is unavailable or no printer is configured — the sale flow
+ * must never break because of a peripheral.
+ *
+ * @param {string} [printerName]
+ * @returns {Promise<boolean>} true when the pulse was dispatched.
+ */
+export async function kickCashDrawer(printerName) {
+	try {
+		const connected = await connect().catch(() => false)
+		if (!connected) return false
+		const printer =
+			typeof printerName === "string" && printerName.trim()
+				? printerName.trim()
+				: getSavedPrinterName()
+		if (!printer) return false
+		const config = qz.configs.create(printer)
+		const data = [
+			{
+				type: "raw",
+				format: "command",
+				flavor: "plain",
+				data: "\x1B\x70\x00\x19\xFA",
+			},
+		]
+		await qz.print(config, data)
+		log.info?.("Cash drawer kick dispatched", { printer })
+		return true
+	} catch (error) {
+		log.debug?.("Cash drawer kick failed", error?.message || error)
+		return false
+	}
+}
+
+/* -------------------------------------------------------------------------- */
 /* Printer selection                                                          */
 /* -------------------------------------------------------------------------- */
 
@@ -841,6 +883,7 @@ export default {
 
 	printHTML,
 	print,
+	kickCashDrawer,
 
 	getSavedPrinterName,
 	savePrinterName,

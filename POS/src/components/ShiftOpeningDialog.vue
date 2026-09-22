@@ -250,6 +250,9 @@
 import { Button, Dialog, Input } from "frappe-ui"
 import { createResource } from "frappe-ui"
 import { computed, ref, watch } from "vue"
+import { logger } from "@/utils/logger"
+
+const log = logger.create("ShiftOpening")
 import { useShift } from "../composables/useShift"
 import { useFormatters } from "../composables/useFormatters"
 import ShiftClosingDialog from "./ShiftClosingDialog.vue"
@@ -342,7 +345,7 @@ async function initDialog() {
 			step.value = 3
 		}
 	} catch (error) {
-		console.error("Error initializing shift dialog:", error)
+		log.error("Error initializing shift dialog:", error)
 		// Error will be displayed via profilesResource.error in the UI
 	}
 }
@@ -389,7 +392,7 @@ async function openShift() {
 		emit("shift-opened")
 		closeDialog("shift-opened")
 	} catch (error) {
-		console.error("Error opening shift:", error)
+		log.error("Error opening shift:", error)
 	}
 }
 

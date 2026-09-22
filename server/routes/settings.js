@@ -1,3 +1,4 @@
+/** DyPOS settings routes v1.31.0 — single source: server/lib/version.js */
 /**
  * GET /api/settings — business profile (any authenticated role).
  * PUT /api/settings — update allowlisted keys (ADMIN only).
@@ -10,7 +11,7 @@ import { SETTING_DEFS, allSettings, setSetting } from '../lib/settings.js';
 const router = Router();
 const isAdmin = (req) => req.user?.role === 'ADMIN';
 
-router.get('/', (req, res) => {
+router.get('/', (_req, res) => {
   return res.json({ settings: allSettings() });
 });
 

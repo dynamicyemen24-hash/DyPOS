@@ -1,5 +1,5 @@
 /**
- * DyPOS — Application Entry Point
+ * DyPOS — Application Entry Point v1.33.0
  *
  * Production bootstrap architecture
  * ---------------------------------
@@ -22,6 +22,7 @@
  * - Keep background work cancellable where possible
  * - Preserve Arabic + RTL before first paint
  * - Be safe for tests / HMR / non-browser environments
+ * - Version: 1.33.0 — single source: server/lib/version.js
  */
 
 import { createPinia } from "pinia"

@@ -79,9 +79,9 @@ describe('idempotency lib', () => {
 
   it('errors are never cached', async () => {
     resetIdempotencyForTests();
-    let calls = 0;
+    let _calls = 0;
     const key = newKey();
-    const boom = async () => { calls++; throw Object.assign(new Error('bad'), { statusCode: 400 }); };
+    const boom = async () => { _calls++; throw Object.assign(new Error('bad'), { statusCode: 400 }); };
     await assert.rejects(() => idempotency(mockReq(key), mockRes(), 'err', boom), /bad/);
     const ok = async () => ({ recovered: true });
     const r = mockRes();

@@ -367,7 +367,9 @@ import {
 	DEFAULT_CURRENCY,
 	formatCurrency as formatCurrencyUtil,
 } from "@/utils/currency"
-import { Button, Dialog } from "frappe-ui"
+import { logger } from "@/utils/logger"
+
+const log = logger.create("ItemSelection")
 import { createResource } from "frappe-ui"
 import { computed, nextTick, ref, watch } from "vue"
 import TranslatedHTML from "../common/TranslatedHTML.vue"
@@ -533,7 +535,7 @@ async function loadVariantsFromCache() {
 		options.value =
 			cachedVariants?.length > 0 ? mapVariantsToOptions(cachedVariants) : []
 	} catch (error) {
-		console.error("Error loading variants from cache:", error)
+		log.error("Error loading variants from cache:", error)
 		options.value = []
 	} finally {
 		loading.value = false
@@ -558,12 +560,12 @@ const variantsResource = createResource({
 		// Cache variants for offline use
 		if (variants.length > 0) {
 			cacheItems(variants).catch((err) =>
-				console.error("Error caching variants:", err),
+				log.error("Error caching variants:", err),
 			)
 		}
 	},
 	async onError(error) {
-		console.error("Error loading variants:", error)
+		log.error("Error loading variants:", error)
 		// Try cache as fallback (user might have just gone offline)
 		await loadVariantsFromCache()
 	},
