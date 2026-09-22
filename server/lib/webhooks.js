@@ -97,6 +97,14 @@ export async function dispatchBatch() {
       failed++;
     }
   }
+
+  // Periodic janitor: clean completed/dead outbox entries older than 7 days
+  try {
+    db.prepare(`DELETE FROM webhook_outbox WHERE status IN ('DELIVERED','SKIPPED','DEAD') AND created_at < datetime('now', '-7 days')`).run();
+  } catch {
+    // Non-blocking janitor
+  }
+
   return { delivered, failed };
 }
 

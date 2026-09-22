@@ -12,7 +12,7 @@ import { dayRange } from '../lib/dates.js';
 import { assertTenantScope, resolveTenantFilter, assertRecordTenant } from '../lib/tenant.js';
 import { assertCurrency, assertUom } from '../lib/fx.js';
 import { recordTrail } from '../lib/trail.js';
-import { ah } from '../lib/async.js';
+import { ah, mapErrorStatus } from '../lib/async.js';
 import { idempotency } from '../lib/idempotency.js';
 import { emit } from '../lib/webhooks.js';
 import { ensureOpenFiscalYear, yearOf } from './fiscal.js';
@@ -126,7 +126,7 @@ router.post('/', validate(invoiceSchema), (req, res) => {
     // a CLOSED year refuses posting so reported periods stay immutable.
     fiscalYear = ensureOpenFiscalYear(yearOf());
   } catch (e) {
-    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
+    return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 200) });
   }
 
   const idemKey = String(b.idempotencyKey || '').trim() || null;
@@ -229,7 +229,19 @@ router.post('/', validate(invoiceSchema), (req, res) => {
       const product = byId.get(String(it.productId).trim());
       const qty = toNum(it.qty, 1);
       if (!(qty > 0) || qty > 100000) throw new Error(`كمية غير صالحة للصنف ${product.id}`);
+      // Resolve line price. Guard: a paid line whose price resolves from a
+      // poisoned catalog row (NULL/NaN REAL unit_price, bad import falling to
+      // toNum's 0) silently bills as a FREE line — a revenue leak. Reject it at
+      // authoring time; a client-explicit unitPrice:0 (intentional giveaway) and
+      // isFreeItem lines still pass. Explicit 0 from shelf (tax_inclusive edge)
+      // is also honored when the client deliberately sends unitPrice.
       const price = it.unitPrice != null ? toNum(it.unitPrice) : toNum(product.unit_price);
+      if (it.unitPrice == null && !it.isFreeItem && Math.abs(price) < Number.EPSILON) {
+        throw new Error(`سعر غير صالح للصنف ${product.id} (قيمة صفرية من الكتالوج)`);
+      }
+      if (!(Number.isFinite(price) && price >= 0)) {
+        throw new Error(`سعر غير صالح للصنف ${product.id}`);
+      }
       const discountMinor = clampMinor(toMinor(it.discount), toMinor(qty * price));
       const taxRate = it.taxRate != null ? Math.max(0, Math.min(toNum(it.taxRate), 100)) : toNum(product.tax_rate, defaultTaxRate());
       const lineGrossMinor = toMinor(qty * price) - discountMinor;
@@ -391,7 +403,7 @@ router.post('/', validate(invoiceSchema), (req, res) => {
     }
     return res.status(result.deduped ? 200 : 201).json(result);
   } catch (e) {
-    return res.status(e.statusCode && Number.isInteger(e.statusCode) ? e.statusCode : 400).json({ error: String(e.message || '').slice(0, 300) });
+    return res.status(mapErrorStatus(e)).json({ error: String(e.message || '').slice(0, 300) });
   }
 });
 
@@ -424,7 +436,7 @@ router.get('/', ah(async (req, res) => {
   try {
     scopeTenant = resolveTenantFilter(req).tenantId;
   } catch (e) {
-    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
+    return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 200) });
   }
   let base = 'FROM invoices WHERE 1=1';
   const params = [];
@@ -509,7 +521,7 @@ router.post('/:id/pay', ah(async (req, res) => {
   try {
     assertPayMethod(payMethod, payRef);
   } catch (e) {
-    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
+    return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 200) });
   }
   const payIdem = String(req.body?.idempotencyKey || '').trim().slice(0, 128) || null;
 
@@ -584,7 +596,7 @@ router.post('/:id/pay', ah(async (req, res) => {
     if (result.status === 'PAID') emit('invoice.paid', 'INVOICE', id, { paidAmount: result.paidAmount });
     return res.json(result);
   } catch (e) {
-    return res.status(e.statusCode || 400).json({ error: String(e.message || '').slice(0, 300) });
+    return res.status(mapErrorStatus(e)).json({ error: String(e.message || '').slice(0, 300) });
   }
 }));
 

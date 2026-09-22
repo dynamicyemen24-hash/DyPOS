@@ -962,20 +962,22 @@ async function confirmPayment() {
 		syncState.value = "ready"
 
 		// الكاشير الذكي: التعلم من عملية البيع المكتملة
-		// (ارتباطات «يُشترى غالبًا مع» + نبض النوبة).
-		learnFromSale(
-			cart.value.map((item) => ({
-				productId: item.productId,
-				quantity: item.quantity,
-				name: item.name,
-			})),
-			{ total: total.value },
-		)
+		// أفضل جهد داخل try/catch منعزل حتى لا يؤثر أي خطأ تحليلي على نجاح البيع
+		try {
+			learnFromSale(
+				cart.value.map((item) => ({
+					productId: item.productId,
+					quantity: item.quantity,
+					name: item.name,
+				})),
+				{ total: total.value },
+			)
 
-		// الكاشير الذكي: تعلّم الفئة النقدية المستلمة فعليًا
-		// لاقتراح «الفئة المعتادة» في هذا المتجر لاحقًا.
-		if (paymentMethod.value === "cash" && amountReceived.value > 0) {
-			trackCashTendered(amountReceived.value)
+			if (paymentMethod.value === "cash" && amountReceived.value > 0) {
+				trackCashTendered(amountReceived.value)
+			}
+		} catch (learnErr) {
+			logger?.warn?.("Analytics learning skipped", learnErr)
 		}
 
 		emit("sale-completed", completedSale.value)
@@ -1017,11 +1019,7 @@ async function submitSale(payload) {
 		return await session.submitSale(payload)
 	}
 
-	/*
-	 * fallback production-safe:
-	 * نطلق event للطبقة الأعلى بدل اختلاق HTTP endpoint.
-	 */
-	return payload
+	throw new Error("جلسة البيع غير مهيأة (session.submitSale غير متوفر)")
 }
 
 function normalizePaymentError(error) {

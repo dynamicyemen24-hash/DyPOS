@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.35.0] - 2026-09-22 — التحصين الإنتاجي النهائي: استقرار/أمان بمستوى عالمي وبوابات جودة صفرية
+### Added
+- معالج `uncaughtException` في `server/server.js` بجوار `unhandledRejection` (تسجيل + إغلاق قاعدة البيانات + خروج رمز 1 في الإنتاج فقط).
+- `server/lib/async.js`: `isSqliteLockError` + `mapErrorStatus` — أخطاء القفل (SQLITE_BUSY/SQLITE_LOCKED/«database is locked») تُرد بـ **503 + Retry-After: 2** بدل 400 فتعلم العملاء إعادة المحاولة بدل الفشل الصوتي.
+- حارس السعر في `server/routes/invoices.js`: رفض السعر الصفري القادم من الكتالوج (إلا `isFreeItem` أو `unitPrice:0` الصريح) والأسعار السالبة/غير المحدودة قبل الدخول بالدفاتر.
+- تحديد `freeQty` محصور في `server/middleware/validate.js` (int 0..100000) مع تمديد `isFreeItem` الاختياري.
+- جدولة ANALYZE/التحسين في `server/lib/productionRelease.js` عبر `setImmediate` — لا تبطئ الإقلاع، ولا تعمل في NODE_ENV=test، مع استمرار تنظيف مفتاحيات idempotency المنتهية.
+- janitor احتفاظ في `server/lib/webhooks.js`: تنظيف `webhook_outbox` ذي الحالات النهائية (DELIVERED/SKIPPED/DEAD) الأقدم من 7 أيام في نهاية الدفعة.
+- تعافٍ تلقائي لـ Redis في `server/lib/rate-store.js` (مستمعا connect/ready يعيدان علامة الصحة — لم يكن `error` يعطّلها نهائياً).
+- تخطي الفوترة بسعر ≤ 0 في `server/routes/subscriptions.js` مع العدّاد.
+### Fixed — الديون المالية والوظيفية (fr)
+- **نجاح صامت خطير في البيع** (`POS/src/stores/session.js`): فشل إدراج الفاتورة في قائمة المزامنة كان يعيد حمولة النجاح — الآن يرمي خطأً صريحاً ويطبع حالة الخطأ في المتصفح مع تحرير الحجز.
+- **مسارات نجاح صامت في `POSSale.vue`**: إزالة fallback `return payload` في `submitSale` (رمي «جلسة البيع غير مهيأة») وعزل تعلم التحليلات بعد البيع في try/catch منعزل كي لا يؤثر أي حدث تحليلي على واجهة نجاح البيع.
+- **توجيه 401 الخام**: أي استجابة 401 كانت تنفّذ `window.location.href = "/login"` (مسار غير موجود) وتدمّر سياق البيع — الآن تطلق حدث `dypos:unauthorized` وتعيّن المسار الصحيح `/account/login` فقط خارج صفحات `/account/`.
+- **تحميل المحول**: `POS/src/adapters/index.js` يعيد المحاولة عند فشل جلب الـ chunk ويسقط بأمان إلى REST بدل إسقاط إقلاع التطبيق.
+- بوابة `verify`: `vitest run && biome lint src tests` (بدون `--only`) — يحترم overrides النطاق في biome؛ صفر تحذيرات على 358 ملفاً.
+### Verified
+- الواجهة: **462/462** (38 ملف) — الخادم: **224/224** (node:test) — `npm run verify` أخضر بلا تحذيرات — `npm run build` نظيف (vite + PWA generateSW) — تثبيت الإصدار `1.35.0` في المصادر الأربعة.
+
 ## [1.34.0] - 2026-09-22 — طباعة إنتاجية عالمية على طراز SAP: طابور مركزي، Output Determination، إعادة طباعة بعلامة COPY
 ### Added — نواة الطباعة (نظام طابور SAP الكامل في `POS/src/print/`)
 - `print/spool/printJobFactory.js`: بناء الوظائف المعياري، أرقام الطابور `SPR-000001`، مفاتيح idempotency (3s لدمج النقرات المزدوجة)، ضبط النسخ `1..20`، backoff أسي `1s→2s→4s…60s`.

@@ -5,6 +5,7 @@ import { validate, shiftOpenSchema } from '../middleware/validate.js';
 import { assertTenantScope, resolveTenantFilter, assertRecordTenant } from '../lib/tenant.js';
 import { recordTrail } from '../lib/trail.js';
 import { emit } from '../lib/webhooks.js';
+import { mapErrorStatus } from '../lib/async.js';
 
 const router = Router();
 
@@ -16,7 +17,7 @@ router.post('/open', validate(shiftOpenSchema), (req, res) => {
   try {
     scope = assertTenantScope(req);
   } catch (e) {
-    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
+    return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 200) });
   }
   const existing = db.prepare('SELECT id FROM shifts WHERE terminal_id=? AND status=?').get(term, 'OPEN');
   if (existing) return res.status(409).json({ error: 'يوجد وردية مفتوحة بالفعل', shiftId: existing.id });
@@ -44,7 +45,7 @@ router.get('/', (req, res) => {
   try {
     scopeTenant = resolveTenantFilter(req).tenantId;
   } catch (e) {
-    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
+    return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 200) });
   }
   let base = 'FROM shifts WHERE 1=1';
   const params = [];
@@ -93,7 +94,7 @@ router.post('/:id/close', (req, res) => {
     emit('shift.closed', 'SHIFT', id, { totalSales: result.totalSales, ordersCount: result.ordersCount, variance: result.variance });
     return res.json(result);
   } catch (e) {
-    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 300), needsApproval: e.needsApproval || undefined });
+    return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 300), needsApproval: e.needsApproval || undefined });
   }
 });
 
@@ -143,7 +144,7 @@ router.post('/:id/handover', (req, res) => {
     emit('shift.closed', 'SHIFT', id, { handoverTo: result.newShiftId, variance: result.variance });
     return res.status(201).json(result);
   } catch (e) {
-    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 300), needsApproval: e.needsApproval || undefined });
+    return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 300), needsApproval: e.needsApproval || undefined });
   }
 });
 

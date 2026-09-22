@@ -28,6 +28,8 @@ async function redis() {
         maxRetriesPerRequest: 1, enableReadyCheck: false, lazyConnect: true,
       });
       redis._client.on('error', () => { redis._ok = false; });
+      redis._client.on('connect', () => { redis._ok = true; });
+      redis._client.on('ready', () => { redis._ok = true; });
       await redis._client.connect().catch(() => null);
       redis._ok = true;
     }

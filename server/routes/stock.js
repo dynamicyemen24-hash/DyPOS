@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import db from '../db/schema.js';
 import { cacheDel, sendCached } from '../lib/cache.js';
-import { ah } from '../lib/async.js';
+import { ah, mapErrorStatus } from '../lib/async.js';
 import { idempotency } from '../lib/idempotency.js';
 import { tenantContext, assertRecordTenant } from '../lib/tenant.js';
 import { recordTrail } from '../lib/trail.js';
@@ -120,7 +120,7 @@ router.post('/reserve', ah(async (req, res) => {
     await cacheDel('products');
     return res.status(201).json(out);
   } catch (e) {
-    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 300) });
+    return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 300) });
   }
 }));
 
@@ -186,7 +186,7 @@ router.post('/transfer', ah(async (req, res) => {
     await cacheDel('products');
     return res.json(out);
   } catch (e) {
-    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 300) });
+    return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 300) });
   }
 }));
 

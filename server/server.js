@@ -62,7 +62,7 @@ import { metricsMiddleware, metricsHandler } from './middleware/metrics.js';
 import { auditMiddleware } from './middleware/audit.js';
 import { startDispatcher } from './lib/webhooks.js';
 import { cacheStats } from './lib/cache.js';
-import { ah } from './lib/async.js';
+import { ah, isSqliteLockError } from './lib/async.js';
 import { createRateStore } from './lib/rate-store.js';
 import { VERSION } from './lib/version.js';
 import { logger } from './lib/logger.js';
@@ -411,9 +411,12 @@ app.use((err, req, res, next) => {
     stack: isProduction ? undefined : err.stack,
   }, 'unhandled error');
   if (res.headersSent) return next(err);
-  const statusCode = err.statusCode && Number.isInteger(err.statusCode) ? err.statusCode : 500;
+  const statusCode = isSqliteLockError(err)
+    ? 503
+    : (err.statusCode && Number.isInteger(err.statusCode) ? err.statusCode : 500);
   const message = statusCode < 500 ? String(err.message || 'Bad Request').slice(0, 300)
     : (isProduction ? 'Internal Server Error' : String(err.message || 'Internal Error'));
+  if (statusCode === 503) res.set('Retry-After', '2');
   return res.status(statusCode).json({ error: message, req_id: req.id });
 });
 
@@ -462,6 +465,18 @@ export function start() {
   // event loop at millions-of-requests scale.
   process.on('unhandledRejection', (reason) => {
     logger.error({ reason: String(reason), stack: reason?.stack }, '[DyPOS] Unhandled Rejection');
+    if (isProduction && !process.argv.some((a) => a.includes('test'))) {
+      try { db.close(); } catch { /* already broken */ }
+      process.exit(1);
+    }
+  });
+  // Sync throws (timer callbacks, route middleware mistakes, driver edge) leave
+  // the process in unknown state. Same policy as rejections: in production we
+  // close the DB and die so the supervisor restarts clean, never serving
+  // traffic on a poisoned loop. In dev/test we keep the handler (avoid killing
+  // the REPL/test runner) but still log loudly.
+  process.on('uncaughtException', (err) => {
+    logger.error({ error: err?.message, stack: err?.stack }, '[DyPOS] Uncaught Exception');
     if (isProduction && !process.argv.some((a) => a.includes('test'))) {
       try { db.close(); } catch { /* already broken */ }
       process.exit(1);

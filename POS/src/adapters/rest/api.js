@@ -25,7 +25,12 @@ class ApiClient {
 		const res = await fetch(`${API_BASE}${path}`, { ...options, headers })
 		if (res.status === 401) {
 			this.clearToken()
-			window.location.href = "/login"
+			if (typeof window !== "undefined") {
+				window.dispatchEvent(new CustomEvent("dypos:unauthorized", { detail: { path } }))
+				if (!window.location.pathname.includes("/account/")) {
+					window.location.href = "/account/login"
+				}
+			}
 			throw new Error("غير مصرح")
 		}
 		const data = await res.json()

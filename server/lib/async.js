@@ -15,4 +15,30 @@ export function ah(fn) {
   };
 }
 
+const LOCK_RE = /(SQLITE_BUSY|SQLITE_LOCKED|database is locked)/i;
+
+/**
+ * True when a thrown error is a SQLite lock collision (another writer/process
+ * holds the reservation). These are transient, retryable conditions — they
+ * must surface as 503 + Retry-After so the POS can retry, never as a
+ * permanent 400 that drops a sale.
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+export function isSqliteLockError(err) {
+  return Boolean(err && typeof err.message === 'string' && LOCK_RE.test(err.message));
+}
+
+/**
+ * Consistent status for a caught route error. SQLite locks map to 503
+ * (retryable); everything else keeps its explicit statusCode or 400.
+ * @param {unknown} err
+ * @param {number} fallback
+ * @returns {number}
+ */
+export function mapErrorStatus(err, fallback = 400) {
+  if (isSqliteLockError(err)) return 503;
+  return err && err.statusCode && Number.isInteger(err.statusCode) ? err.statusCode : fallback;
+}
+
 export default ah;

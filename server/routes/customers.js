@@ -5,7 +5,7 @@ import { recalcTier, LOYALTY_RATE } from '../lib/loyalty.js';
 import { assertTenantScope, resolveTenantFilter, assertRecordTenant } from '../lib/tenant.js';
 import { recordTrail } from '../lib/trail.js';
 import { emit } from '../lib/webhooks.js';
-import { ah } from '../lib/async.js';
+import { ah, mapErrorStatus } from '../lib/async.js';
 import { idempotency } from '../lib/idempotency.js';
 
 const router = Router();
@@ -25,7 +25,7 @@ router.get('/', ah(async (req, res) => {
   try {
     scopeTenant = resolveTenantFilter(req).tenantId;
   } catch (e) {
-    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
+    return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 200) });
   }
   let sql = 'SELECT * FROM customers WHERE 1=1';
   const params = [];
@@ -101,7 +101,7 @@ router.post('/', (req, res) => {
   try {
     scope = assertTenantScope(req);
   } catch (e) {
-    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
+    return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 200) });
   }
   const id = uuid();
   db.prepare(`INSERT INTO customers (id,name,phone,email,tax_number,loyalty_tier,credit_limit,address,tenant_id,created_by) VALUES (?,?,?,?,?,?,?,?,?,?)`)
@@ -133,7 +133,7 @@ router.put('/:id', (req, res) => {
   try {
     assertTenantScope(req);
   } catch (e) {
-    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
+    return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 200) });
   }
   const before = db.prepare('SELECT name,phone FROM customers WHERE id=?').get(id);
   db.prepare(`UPDATE customers SET name=?,phone=?,email=?,tax_number=?,loyalty_tier=?,credit_limit=?,address=?,updated_by=?,updated_at=datetime('now') WHERE id=?`)

@@ -4,11 +4,31 @@
  */
 const backend = import.meta.env.VITE_DYPOS_BACKEND || "rest"
 
+async function loadModule(modulePath) {
+	try {
+		const mod = await import(modulePath)
+		return mod
+	} catch (firstError) {
+		// chunk قد يفشل تحميله مرة (شبكة/ذاكرة) — إعادة المحاولة قبل الاستسلام
+		try {
+			return await import(`${modulePath}?v=${Date.now()}`)
+		} catch {
+			throw firstError
+		}
+	}
+}
+
 let adapter
 if (backend === "frappe") {
-	adapter = await import("../adapters/frappe/api.js")
+	try {
+		adapter = await loadModule("../adapters/frappe/api.js")
+	} catch {
+		// fail-safe: fallback إلى REST بدل إفشال إقلاع التطبيق كاملاً.
+		// REST والمفاهيم الوظيفية لـ Frappe تتشارك نفس العقد التعاقدي.
+		adapter = await loadModule("../adapters/rest/api.js")
+	}
 } else {
-	adapter = await import("../adapters/rest/api.js")
+	adapter = await loadModule("../adapters/rest/api.js")
 }
 
 export const {

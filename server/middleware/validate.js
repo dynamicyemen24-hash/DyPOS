@@ -64,6 +64,8 @@ export const invoiceSchema = z.object({
     taxRate: z.number().min(0).max(100).optional(),
     uom: z.string().trim().max(20).optional(),
     warehouseId: z.string().trim().max(32).optional(),
+    isFreeItem: z.boolean().optional(),
+    freeQty: z.number().int().min(0).max(100000).optional(),
   })).min(1).max(500),
   payments: z.array(z.object({
     method: z.string().trim().max(20),

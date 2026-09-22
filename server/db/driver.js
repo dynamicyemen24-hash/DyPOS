@@ -284,7 +284,12 @@ class Database {
         }
       }
 
-      this._db.exec('BEGIN');
+      // BEGIN IMMEDIATE takes the write reservation up front instead of
+      // deferring it to COMMIT. With busy_timeout set, concurrent writers
+      // wait at BEGIN (where node:sqlite applies the timeout) rather than
+      // failing noisily at COMMIT after all work is done — so a busy moment
+      // retries cleanly and a live sale is never dropped on the finish line.
+      this._db.exec('BEGIN IMMEDIATE');
       this._inTransaction = true;
       try {
         const result = fn(...args);

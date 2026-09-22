@@ -205,6 +205,10 @@ router.post('/run-billing', (req, res) => {
   let skipped = 0;
   for (const sub of due) {
     const price = Number(sub.price) || 0;
+    if (price <= 0) {
+      skipped++;
+      continue;
+    }
     const balance = Number(sub.wallet_balance) || 0;
     const step = Math.max(1, Number(sub.interval_days) || 30);
     const periodStart = String(sub.next_billing_date).slice(0, 10);
