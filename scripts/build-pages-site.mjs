@@ -75,48 +75,11 @@ if (!html.includes(`?v=${VERSION}`)) {
 writeFileSync(join(OUT, 'index.html'), html, 'utf8');
 writeFileSync(join(OUT, 'pos.html'), html, 'utf8');
 
-// 3) DyPOS-branded 404 (the live domain currently falls back to a foreign-
-//    branded page — unprofessional for customers).
-const notFound = `<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>الصفحة غير موجودة — DyPOS</title>
-<meta name="robots" content="noindex" />
-<link rel="icon" href="/assets/DyPOS/pos/favicon.ico" sizes="any" />
-<style>
-  :root { color-scheme: dark; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { min-height: 100vh; display: flex; align-items: center; justify-content: center;
-    background: #060A13; color: #E8ECF4; text-align: center; padding: 24px;
-    font-family: system-ui, 'Segoe UI', Tahoma, sans-serif; }
-  .code { font-size: clamp(4rem, 18vw, 7rem); font-weight: 900; line-height: 1;
-    background: linear-gradient(135deg, #6366F1, #22D3EE);
-    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-  h1 { font-size: 1.35rem; margin: 12px 0 8px; }
-  p { color: #8B92A8; margin-bottom: 28px; line-height: 1.7; }
-  .btn { display: inline-flex; align-items: center; gap: 10px; padding: 13px 30px;
-    border-radius: 9999px; text-decoration: none; font-weight: 700; font-size: .95rem;
-    background: linear-gradient(135deg, #6366F1, #4F46E5); color: #fff; transition: transform .2s; }
-  .btn:hover { transform: translateY(-2px); }
-  .ghost { display: inline-block; margin-top: 16px; color: #8B92A8; font-size: .875rem; text-decoration: none; }
-  .ghost:hover { color: #E8ECF4; }
-</style>
-</head>
-<body>
-<main>
-  <div class="code">404</div>
-  <h1>هذه الصفحة غير موجودة في DyPOS</h1>
-  <p>ربما تغيّر الرابط أو انتهت الجلسة — لا تقلق، بيعك لم يتأثر.</p>
-  <a class="btn" href="/pos.html">افتح شاشة البيع</a>
-  <br />
-  <a class="ghost" href="/">الصفحة الرئيسية</a>
-</main>
-</body>
-</html>
-`;
-writeFileSync(join(OUT, '404.html'), notFound, 'utf8');
+// 3) NO root 404.html: on Cloudflare Pages a root 404.html short-circuits the
+//    SPA catch-all — every unknown path then returns 404 instead of being
+//    200-rewritten to index.html (verified live + isolated probe 2026-09-22).
+//    The Vue router owns unknown paths; the app itself stays reachable at any
+//    client route. A 404 brand page was removed for this reason.
 
 // 4) _headers — security + caching. Two fixes vs. the old Pages snapshot:
 //    a) Service-Worker-Allowed: / so the root-scope SW registration is legal
@@ -135,8 +98,6 @@ const headers = `/*
 /index.html
   Cache-Control: public, max-age=0, must-revalidate
 /pos.html
-  Cache-Control: public, max-age=0, must-revalidate
-/404.html
   Cache-Control: public, max-age=0, must-revalidate
 /assets/DyPOS/pos/index.html
   Cache-Control: public, max-age=0, must-revalidate
@@ -157,12 +118,15 @@ writeFileSync(join(OUT, '_headers'), headers, 'utf8');
 // 5) _redirects — SPA fallback (history-mode router). Rules, in order:
 //    - NO rule may touch /assets/** — a 200-rewrite there serves HTML for
 //      version.json/sw.js/JS bundles and hard-breaks the live site.
-//    - /pos* → pos.html keeps the legacy sales-screen URL working.
+//    - NO rule may rewrite /pos* → pos.html: Cloudflare Pages already
+//      auto-serves pos.html at /pos (extensionless, 200) and 308s
+//      /pos.html → /pos. Adding a 200-rewrite back to /pos.html creates an
+//      endless 308 loop (verified live + isolated probe on 2026-09-22).
 //    - catch-all /* → /index.html 200 is the SPA fallback for client routes;
 //      real static files win over plain 200-rewrites on Pages.
 writeFileSync(
   join(OUT, '_redirects'),
-  `/pos*  /pos.html  200\n/*  /index.html  200\n`,
+  `/*  /index.html  200\n`,
   'utf8',
 );
 
