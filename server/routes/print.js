@@ -5,7 +5,7 @@ import QRCode from 'qrcode';
 import db from '../db/schema.js';
 import { ah } from '../lib/async.js';
 import { dayRange } from '../lib/dates.js';
-import { assertRecordTenant } from '../lib/tenant.js';
+import { assertRecordTenant, resolveTenantFilter } from '../lib/tenant.js';
 
 const router = Router();
 
@@ -175,11 +175,23 @@ router.get('/invoice/:id', ah(async (req, res) => {
 
 // GET /api/print/daily?date=YYYY-MM-DD — daily Z report (HTML)
 router.get('/daily', (req, res) => {
+  let scopeTenant = null;
+  try {
+    scopeTenant = resolveTenantFilter(req).tenantId || null;
+    if (scopeTenant && req.user?.tenantId && String(scopeTenant) !== String(req.user.tenantId)) {
+      throw Object.assign(new Error('غير موجود'), { statusCode: 404 });
+    }
+    scopeTenant = scopeTenant || req.user?.tenantId || null;
+  } catch (e) {
+    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
+  }
   const raw = String(req.query.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return res.status(400).json({ error: 'صيغة التاريخ غير صالحة' });
   const { from, to } = dayRange(raw);
-  const rows = db.prepare(`SELECT status, COUNT(*) c, COALESCE(SUM(total),0) s FROM invoices WHERE created_at>=? AND created_at<? GROUP BY status`).all(from, to);
-  const pay = db.prepare(`SELECT p.method m, COALESCE(SUM(p.amount),0) s FROM payments p JOIN invoices i ON p.invoice_id=i.id WHERE i.created_at>=? AND i.created_at<? GROUP BY p.method`).all(from, to);
+  const tenWhere = scopeTenant ? ' AND i.tenant_id=?' : '';
+  const tenParams = scopeTenant ? [scopeTenant] : [];
+  const rows = db.prepare(`SELECT status, COUNT(*) c, COALESCE(SUM(total),0) s FROM invoices i WHERE i.created_at>=? AND i.created_at<?${tenWhere} GROUP BY status`).all(from, to, ...tenParams);
+  const pay = db.prepare(`SELECT p.method m, COALESCE(SUM(p.amount),0) s FROM payments p JOIN invoices i ON p.invoice_id=i.id WHERE i.created_at>=? AND i.created_at<?${tenWhere} GROUP BY p.method`).all(from, to, ...tenParams);
   const html = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"/><title>تقرير ${esc(raw)}</title>
 <style>body{font-family:system-ui,Tahoma;margin:24px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px;text-align:right}@media print{.no-print{display:none}}</style></head><body>
 <h3>تقرير يومي — ${esc(raw)}</h3><h4>الفواتير حسب الحالة</h4><table><tr><th>الحالة</th><th>العدد</th><th>الإجمالي</th></tr>${rows.map((r) => `<tr><td>${esc(r.status)}</td><td>${r.c}</td><td>${fmt(r.s)}</td></tr>`).join('') || '<tr><td colspan=3>لا توجد بيانات</td></tr>'}</table>

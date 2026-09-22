@@ -23,6 +23,7 @@ import {
 	readLiveSnapshot,
 	clearLiveSnapshot,
 } from "@/utils/liveCartAutosave"
+import { clearDraft as clearCrashDraft } from "@/utils/useCrashResume"
 
 const log = logger.create("LiveCartRecovery")
 
@@ -110,9 +111,7 @@ async function checkBootRecovery() {
 				itemsCount: snapshot.items.length,
 				savedAt: snapshot.savedAt,
 				customerName:
-					snapshot.customer?.customer_name ||
-					snapshot.customer?.name ||
-					null,
+					snapshot.customer?.customer_name || snapshot.customer?.name || null,
 				snapshot,
 			}
 			log.info("Unrestored open invoice found", {
@@ -124,6 +123,18 @@ async function checkBootRecovery() {
 		log.debug("Boot recovery check failed", error?.message)
 	}
 	return pendingRecovery.value
+}
+
+/** Best-effort cross-clear: the crash draft is a separate layer from the
+ *  live snapshot; once the cashier restores/discards the open invoice we must
+ *  drop any crash prompt too, so the two never double-prompt on the same
+ *  basket. Never throws — must not break the live-cart recovery flow. */
+function clearCrashDraftSafe() {
+	try {
+		clearCrashDraft()
+	} catch {
+		// Ignore: crash draft cleanup is best-effort.
+	}
 }
 
 /** Restore the surviving invoice back into the live cart. */
@@ -140,6 +151,7 @@ async function restoreLiveCart() {
 		pendingRecovery.value = null
 		// Keep the snapshot until the invoice is submitted or cleared,
 		// so a second crash during review still recovers.
+		clearCrashDraftSafe()
 		return true
 	} catch (error) {
 		log.warn("Live cart restore failed", error?.message)
@@ -153,6 +165,7 @@ async function restoreLiveCart() {
 async function discardLiveCart() {
 	try {
 		await clearLiveSnapshot()
+		clearCrashDraftSafe()
 	} finally {
 		pendingRecovery.value = null
 	}

@@ -47,11 +47,14 @@ export function initAdvancedGrowthTables() {
  * @param {Object} queryParams - Search parameters { query, barcode, qr, imageHash, voiceText }
  * @returns {Array} Matching products or records
  */
-export function executeMultimodalSearch({ query, barcode, qr, imageHash, voiceText }) {
+export function executeMultimodalSearch({ query, barcode, qr, imageHash, voiceText, tenantId }) {
   try {
+    const scope = tenantId || null
     if (barcode || qr) {
       const code = barcode || qr
-      const row = db.prepare('SELECT * FROM products WHERE barcode=? OR id=?').get(code, code)
+      const row = scope
+        ? db.prepare('SELECT * FROM products WHERE (barcode=? OR id=?) AND (tenant_id=? OR tenant_id IS NULL)').get(code, code, scope)
+        : db.prepare('SELECT * FROM products WHERE barcode=? OR id=?').get(code, code)
       return row ? [row] : []
     }
 
@@ -59,13 +62,17 @@ export function executeMultimodalSearch({ query, barcode, qr, imageHash, voiceTe
     if (!needle) return []
 
     // FTS / LIKE search across name, name_ar, barcode
-    const sql = `
-      SELECT * FROM products 
-      WHERE LOWER(name) LIKE ? OR LOWER(name_ar) LIKE ? OR barcode LIKE ? OR id LIKE ?
-      LIMIT 50
-    `
+    const sql = scope
+      ? `SELECT * FROM products
+        WHERE (LOWER(name) LIKE ? OR LOWER(name_ar) LIKE ? OR barcode LIKE ? OR id LIKE ?) AND (tenant_id=? OR tenant_id IS NULL)
+        LIMIT 50`
+      : `SELECT * FROM products
+        WHERE LOWER(name) LIKE ? OR LOWER(name_ar) LIKE ? OR barcode LIKE ? OR id LIKE ?
+        LIMIT 50`
     const likePattern = `%${needle}%`
-    return db.prepare(sql).all(likePattern, likePattern, likePattern, likePattern)
+    return scope
+      ? db.prepare(sql).all(likePattern, likePattern, likePattern, likePattern, scope)
+      : db.prepare(sql).all(likePattern, likePattern, likePattern, likePattern)
   } catch (e) {
     return []
   }

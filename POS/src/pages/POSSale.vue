@@ -47,6 +47,7 @@ import DyButton from "@/components/ui/DyButton.vue"
 
 import { useSmartCashier } from "@/composables/useSmartCashier"
 import { useDebouncedSearch } from "@/composables/useDebouncedSearch"
+import { useCrashResume } from "@/composables/useCrashResume"
 import {
 	buildPaymentBlock,
 	buildSalePayloadPure,
@@ -1057,6 +1058,114 @@ function startNewSale() {
 }
 
 /* ============================================================================
+ * Crash Resume — استئناف عملية البيع المعلّقة
+ *
+ * Adapter يقرأ حالة الكاشير الحية (الأصناف + العميل + المجاميع + الطرفية +
+ * وضع الدفع + عرض الضريبة) ويمرّرها إلى مسودة الانهيار. عند فتح الصفحة وسلة
+ * فارغة وتوافُر مسودة صالحة، تُعرض أزرار «استئناف البيع» / «تجاهل».
+ * ========================================================================== */
+
+const saleSettingsStore = usePOSSettingsStore()
+
+const crashResume = useCrashResume({
+	getItems: () => cart.value,
+
+	setItems: (items) => {
+		cart.value = Array.isArray(items) ? items : []
+	},
+
+	getPanel: () => ({
+		paymentMethod: paymentMethod.value,
+		paymentAmount: paymentAmount.value,
+	}),
+
+	setPanel: (panel) => {
+		if (!panel || typeof panel !== "object") return
+
+		if (typeof panel.paymentMethod === "string") {
+			paymentMethod.value = panel.paymentMethod
+		}
+
+		if (
+			typeof panel.paymentAmount === "string" ||
+			typeof panel.paymentAmount === "number"
+		) {
+			paymentAmount.value = String(panel.paymentAmount)
+		}
+	},
+
+	getMeta: () => ({
+		customer: customer.value,
+		discountValue: discountValue.value,
+		discountType: discountType.value,
+		saleSequence: saleSequence.value,
+		totals: {
+			subtotal: subtotal.value,
+			lineDiscount: lineDiscountTotal.value,
+			globalDiscount: globalDiscount.value,
+			taxable: taxableAmount.value,
+			tax: taxAmount.value,
+			total: total.value,
+		},
+		terminal: session.terminalId || null,
+		mode: paymentMethod.value,
+		taxDisplay: {
+			inclusive: Boolean(saleSettingsStore.settings.value?.tax_inclusive),
+			regime: saleSettingsStore.settings.value?.tax_regime || "standard",
+		},
+	}),
+
+	setMeta: (meta) => {
+		if (!meta || typeof meta !== "object") return
+
+		if (meta.customer && typeof meta.customer === "object") {
+			const entry = meta.customer
+
+			const name = entry.customer_name || entry.name || entry.label || entry.id
+
+			if (name) {
+				customer.value = {
+					id: entry.id ?? name,
+					name,
+					customer_name: entry.customer_name || name,
+				}
+			}
+		}
+
+		if (typeof meta.discountValue === "number") {
+			discountValue.value = meta.discountValue
+		}
+
+		if (meta.discountType === "percent" || meta.discountType === "amount") {
+			discountType.value = meta.discountType
+		}
+
+		if (typeof meta.saleSequence === "string" && meta.saleSequence) {
+			saleSequence.value = meta.saleSequence
+		}
+	},
+
+	isCartEmpty: () => cartEmpty.value,
+})
+
+/** كشف تسامطي للقالب: refs داخل كائن عادي لا تُفك تلقائيًا في القالب. */
+const crashResumeMessages = computed(() => crashResume.messages.value)
+
+function resumePendingSale() {
+	crashResume.accept()
+
+	nextTick(() => focusSearch())
+}
+
+function dismissPendingSale() {
+	crashResume.dismiss()
+}
+
+function captureCrashDraft() {
+	crashResume.captureNow()
+}
+
+/* ============================================================================
  * Receipt
  * ========================================================================== */
 
@@ -1414,6 +1523,8 @@ onMounted(async () => {
 
 	window.addEventListener("offline", handleOffline)
 
+	window.addEventListener("beforeunload", captureCrashDraft)
+
 	await nextTick()
 
 	focusSearch()
@@ -1425,6 +1536,11 @@ onBeforeUnmount(() => {
 	window.removeEventListener("online", handleOnline)
 
 	window.removeEventListener("offline", handleOffline)
+
+	window.removeEventListener("beforeunload", captureCrashDraft)
+
+	// لقطة سلة أخيرة قبل مغادرة الصفحة (الكتابة محمية بالثروتل الموقوت).
+	captureCrashDraft()
 
 	window.clearTimeout(showNotification.timeout)
 })
@@ -1564,6 +1680,77 @@ watch(
                 {{ cartLabel }}
             </span>
         </div>
+
+        <!-- =================================================================
+             Crash Resume
+             =============================================================== -->
+
+        <Teleport to="body">
+            <div
+                v-if="
+                    crashResumeMessages &&
+                    cartEmpty
+                "
+                class="dy-pos-sale__crash-resume"
+                role="alert"
+                aria-live="assertive"
+                data-testid="pos-crash-resume"
+            >
+                <div
+                    class="dy-pos-sale__crash-resume-icon"
+                    aria-hidden="true"
+                >
+                    <FeatherIcon
+                        name="rotate-ccw"
+                        :size="20"
+                    />
+                </div>
+
+                <div
+                    class="dy-pos-sale__crash-resume-content"
+                >
+                    <strong>
+                        {{ crashResumeMessages.title }}
+                    </strong>
+
+                    <span>
+                        {{ crashResumeMessages.body }}
+                    </span>
+
+                    <small
+                        v-if="
+                            crashResumeMessages.subtitle
+                        "
+                    >
+                        {{ crashResumeMessages.subtitle }}
+                    </small>
+                </div>
+
+                <div
+                    class="dy-pos-sale__crash-resume-actions"
+                >
+                    <DyButton
+                        size="sm"
+                        variant="primary"
+                        @click="
+                            resumePendingSale
+                        "
+                    >
+                        {{ crashResumeMessages.accept }}
+                    </DyButton>
+
+                    <DyButton
+                        size="sm"
+                        variant="secondary"
+                        @click="
+                            dismissPendingSale
+                        "
+                    >
+                        {{ crashResumeMessages.dismiss }}
+                    </DyButton>
+                </div>
+            </div>
+        </Teleport>
 
         <!-- =================================================================
              Workspace
@@ -5832,6 +6019,122 @@ watch(
 
     color:
         var(--dy-crimson-700);
+}
+
+/* =============================================================================
+   Crash Resume
+   ============================================================================= */
+
+.dy-pos-sale__crash-resume {
+    position: fixed;
+
+    z-index:
+        calc(
+            var(--dy-z-toast, 900) + 30
+        );
+
+    inset-inline: 50%;
+
+    bottom:
+        max(
+            24px,
+            env(safe-area-inset-bottom)
+        );
+
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    width:
+        min(
+            560px,
+            calc(100vw - 32px)
+        );
+
+    padding:
+        14px
+        16px;
+
+    transform:
+        translateX(-50%);
+
+    border:
+        1px solid
+        rgb(
+            var(--dy-amber-c-500) /
+            0.35
+        );
+
+    border-radius:
+        var(--dy-radius-lg);
+
+    background:
+        var(--dy-surface-strong);
+
+    color:
+        var(--dy-text-strong);
+
+    box-shadow:
+        var(--dy-elevation-4);
+}
+
+.dy-pos-sale__crash-resume-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    flex-shrink: 0;
+
+    width: 38px;
+    height: 38px;
+
+    border-radius:
+        var(--dy-radius-md);
+
+    background:
+        rgb(
+            var(--dy-amber-c-500) /
+            0.15
+        );
+
+    color:
+        var(--dy-amber-700);
+}
+
+.dy-pos-sale__crash-resume-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    min-width: 0;
+
+    flex: 1;
+}
+
+.dy-pos-sale__crash-resume-content strong {
+    font-size: 0.85rem;
+}
+
+.dy-pos-sale__crash-resume-content span {
+    font-size: 0.78rem;
+
+    color:
+        var(--dy-text-muted);
+}
+
+.dy-pos-sale__crash-resume-content small {
+    font-size: 0.72rem;
+
+    color:
+        var(--dy-text-muted);
+}
+
+.dy-pos-sale__crash-resume-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    flex-shrink: 0;
 }
 
 /* =============================================================================

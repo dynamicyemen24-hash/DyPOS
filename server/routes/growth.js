@@ -6,18 +6,35 @@ import { authMiddleware, requireRole } from '../middleware/auth.js'
 import { ah } from '../lib/async.js'
 import { VERSION } from '../lib/version.js'
 import { generateSmartLivingReceipt, computeMerchantInsight, initGrowthEngineTables } from '../lib/growthEngine.js'
+import { resolveTenantFilter } from '../lib/tenant.js'
 
 const router = Router()
 
 // Initialize tables on load
 initGrowthEngineTables()
 
+// Effective tenant for reads: explicit header/param (validated), else the
+// caller's bound tenant. A bound user can never scope to another tenant.
+function readScope(req) {
+  let t = null
+  try {
+    t = resolveTenantFilter(req).tenantId || null
+    if (t && req.user?.tenantId && String(t) !== String(req.user.tenantId)) {
+      throw Object.assign(new Error('غير موجود'), { statusCode: 404 })
+    }
+  } catch (e) {
+    throw e
+  }
+  return t || req.user?.tenantId || null
+}
+
 /**
  * GET /api/growth/insight — Get automated merchant growth insight & business intelligence
  */
 router.get('/insight', authMiddleware, ah(async (req, res) => {
-  const tenantId = req.query.tenant || 'STD'
-  const insight = computeMerchantInsight(tenantId)
+  let scopeTenant = null
+  try { scopeTenant = readScope(req) } catch (e) { return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) }) }
+  const insight = computeMerchantInsight(scopeTenant || 'STD')
   return res.json({
     success: true,
     data: insight,
@@ -32,6 +49,14 @@ router.get('/receipt/:invoiceId', authMiddleware, ah(async (req, res) => {
   const invoiceId = String(req.params.invoiceId).slice(0, 64)
   const invoice = db.prepare('SELECT * FROM invoices WHERE id=?').get(invoiceId)
   if (!invoice) return res.status(404).json({ error: 'الفاتورة غير موجودة' })
+  // Cross-tenant IDOR guard: legacy rows (no tenant) stay visible, tenant rows
+  // only to the owning tenant.
+  const owner = invoice.tenant_id ? String(invoice.tenant_id) : null
+  if (owner) {
+    let scopeTenant = null
+    try { scopeTenant = readScope(req) } catch (e) { return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) }) }
+    if (!scopeTenant || scopeTenant !== owner) return res.status(404).json({ error: 'الفاتورة غير موجودة' })
+  }
 
   const smartReceipt = generateSmartLivingReceipt(invoice)
   return res.json({
@@ -71,17 +96,24 @@ router.post('/feedback', ah(async (req, res) => {
  * GET /api/growth/synergies — Get local store synergy cross-promotions
  */
 router.get('/synergies', authMiddleware, ah(async (req, res) => {
+  let scopeTenant = null
+  let scopeClause = ''
+  let scopeParams = []
+  try {
+    scopeTenant = readScope(req)
+    if (scopeTenant) { scopeClause = ' AND (tenant_id=? OR tenant_id=\'STD\')'; scopeParams = [scopeTenant] }
+  } catch (e) { return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) }) }
   let synergies = []
   try {
-    synergies = db.prepare('SELECT * FROM store_synergies WHERE is_active=1').all()
+    synergies = db.prepare(`SELECT * FROM store_synergies WHERE is_active=1${scopeClause}`).all(...scopeParams)
     if (synergies.length === 0) {
-      // Seed default professional synergy example
+      // Seed default professional synergy example under the caller's scope
       const defaultId = uuid()
       db.prepare(`
         INSERT INTO store_synergies (id, tenant_id, partner_store_name, partner_store_category, offer_text_ar, discount_code, is_active, created_at)
-        VALUES (?, 'STD', 'مخبز الحارة العضوي', 'مخبوزات', 'احصل على خصم 10% عند إبراز فاتورة مقهانا', 'DYPOS-BAKERY10', 1, datetime('now'))
-      `).run(defaultId)
-      synergies = db.prepare('SELECT * FROM store_synergies WHERE is_active=1').all()
+        VALUES (?, ?, 'مخبز الحارة العضوي', 'مخبوزات', 'احصل على خصم 10% عند إبراز فاتورة مقهانا', 'DYPOS-BAKERY10', 1, datetime('now'))
+      `).run(defaultId, scopeTenant || 'STD')
+      synergies = db.prepare(`SELECT * FROM store_synergies WHERE is_active=1${scopeClause}`).all(...scopeParams)
     }
   } catch {
     // fallback

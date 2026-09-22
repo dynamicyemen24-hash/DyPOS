@@ -66,6 +66,12 @@ import { ah, isSqliteLockError } from './lib/async.js';
 import { createRateStore } from './lib/rate-store.js';
 import { VERSION } from './lib/version.js';
 import { logger } from './lib/logger.js';
+import { registerSecurityHeaders } from './middleware/securityHeaders.js';
+import { registerEnvGuard } from './middleware/envGuard.js';
+import { registerSseRoutes } from './lib/realtime.js';
+import { registerAuditRoutes } from './routes/audit.js';
+import { registerFeatures } from './routes/features.js';
+import { registerErrorTracker } from './lib/errorTracker.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.DYPOS_PORT) || 3001;
@@ -119,6 +125,10 @@ if (isProduction) {
 } else {
   console.log('[DyPOS] Running in DEVELOPMENT mode');
 }
+
+// Fail-fast env contract (production only; inert in tests/dev): required
+// secrets, storage target, non-wildcard CORS, and no leaked credentials.
+registerEnvGuard();
 
 assertDbModeSupported();
 console.log('[DyPOS] DB mode:', JSON.stringify(describeDbMode()));
@@ -216,6 +226,14 @@ app.use(cors({
   credentials: true,
   maxAge: 86400,
 }));
+
+// Campaign hardening: CSP/HSTS/nosniff/Permissions-Policy/COOP + no-store API.
+registerSecurityHeaders(app);
+
+// Realtime SSE hub — MUST mount BEFORE compression: gzip would buffer SSE
+// frames and break live delivery. JWT-authed per-tenant stream with heartbeat
+// + Last-Event-ID replay.
+registerSseRoutes(app);
 
 app.use(compression({ threshold: 1024 }));
 app.use(requestLogger);
@@ -332,6 +350,10 @@ app.get('/api/ready', ah(async (_req, res) => {
   return res.json({ ready: true, version: VERSION });
 }));
 
+// Feature flags — public GET must stay reachable BEFORE the shared auth
+// middleware blocks; admin PUT is internally gated (requireRole ADMIN).
+registerFeatures(app);
+
 // Auth routes with stricter rate limit (brute-force protection, shared store)
 const AUTH_WINDOW_MS = 15 * 60 * 1000;
 const authRateLimit = rateLimit({
@@ -375,6 +397,9 @@ app.use('/api/integrations', authMiddleware, integrationsRoutes);
 app.use('/api/updates', updatesRoutes);
 app.use('/api/expenses', expensesRoutes);
 
+// Tamper-evident audit ledger (ADMIN-gated read/verify + annotation).
+registerAuditRoutes(app);
+
 // Webhook dispatcher (outbox → subscriber systems). No-op in tests / when DYPOS_WEBHOOKS=0.
 startDispatcher();
 
@@ -402,6 +427,10 @@ if (existsSync(posDist)) {
 } else if (!isProduction) {
   console.warn(`[DyPOS] Frontend dist not found at ${posDist}. Run "cd POS && yarn build" first.`);
 }
+
+// Error tracking (log + optional webhook) — registered BEFORE the final
+// handler so every 5xx is captured without changing the response contract.
+registerErrorTracker(app);
 
 // Error handler
 // eslint-disable-next-line no-unused-vars

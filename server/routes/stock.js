@@ -4,11 +4,28 @@ import db from '../db/schema.js';
 import { cacheDel, sendCached } from '../lib/cache.js';
 import { ah, mapErrorStatus } from '../lib/async.js';
 import { idempotency } from '../lib/idempotency.js';
-import { tenantContext, assertRecordTenant } from '../lib/tenant.js';
+import { tenantContext, assertRecordTenant, resolveTenantFilter } from '../lib/tenant.js';
 import { recordTrail } from '../lib/trail.js';
 import { emit } from '../lib/webhooks.js';
+import { emit as emitRealtime } from '../lib/realtime.js';
 
 const router = Router();
+
+// Tenant guard shared by mutating stock ops: the product must exist and belong
+// to the caller's scope, and the warehouse tenant must match (cross-tenant IDOR
+// fix). Throws { statusCode } — never mutates a foreign tenant's rows.
+function guardStockAccess(req, pid, wh) {
+  const prod = db.prepare('SELECT id, tenant_id FROM products WHERE id=?').get(pid);
+  if (!prod) throw Object.assign(new Error('الصنف غير موجود'), { statusCode: 404 });
+  assertRecordTenant(req, prod);
+  const { tenantId } = tenantContext(req);
+  if (tenantId) {
+    const wrow = db.prepare('SELECT tenant_id FROM warehouses WHERE id=?').get(wh);
+    if (wrow?.tenant_id && String(wrow.tenant_id) !== tenantId) {
+      throw Object.assign(new Error('المستودع غير موجود'), { statusCode: 404 });
+    }
+  }
+}
 
 // GET /api/stock — bulk stock levels (bounded IN list + offset pagination)
 router.get('/', ah(async (req, res) => {
@@ -51,7 +68,19 @@ router.get('/', ah(async (req, res) => {
 // GET /api/stock/:productId
 router.get('/:productId', ah(async (req, res) => {
   const warehouse = String(req.query.warehouse || 'W-01').slice(0, 32);
-  const row = db.prepare('SELECT s.*, p.name, p.code FROM stock_levels s JOIN products p ON s.product_id=p.id WHERE s.product_id=? AND s.warehouse_id=?').get(String(req.params.productId).slice(0, 64), warehouse);
+  const pid = String(req.params.productId).slice(0, 64);
+  let scopeTenant = null;
+  try {
+    scopeTenant = resolveTenantFilter(req).tenantId;
+  } catch (e) {
+    return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 200) });
+  }
+  let row;
+  if (scopeTenant) {
+    row = db.prepare('SELECT s.*, p.name, p.code FROM stock_levels s JOIN products p ON s.product_id=p.id JOIN warehouses w ON s.warehouse_id=w.id AND w.tenant_id=? WHERE s.product_id=? AND s.warehouse_id=?').get(scopeTenant, pid, warehouse);
+  } else {
+    row = db.prepare('SELECT s.*, p.name, p.code FROM stock_levels s JOIN products p ON s.product_id=p.id WHERE s.product_id=? AND s.warehouse_id=?').get(pid, warehouse);
+  }
   return res.json(row || { qty: 0, reserved_qty: 0, allocated_qty: 0 });
 }));
 
@@ -93,6 +122,7 @@ router.post('/adjust', ah(async (req, res) => {
   req.audit?.('stock.adjust', { productId: pid, warehouseId: wh, adjustment: adj, reason: cleanReason });
   recordTrail(req, { entity: 'STOCK', entityId: `${pid}@${wh}`, action: 'ADJUST', after: { adjustment: adj, newQty: updated.qty } });
   emit('stock.adjusted', 'STOCK', `${pid}@${wh}`, { productId: pid, warehouseId: wh, adjustment: adj, newQty: updated.qty });
+  emitRealtime('stock.changed', { tenantId: prod.tenant_id || req.user?.tenantId || null, productId: pid, warehouseId: wh, adjustment: adj, newQty: updated.qty });
   await cacheDel('products');
   return res.json({ productId: pid, warehouseId: wh, adjustment: adj, newQty: updated.qty, reason: cleanReason });
 }));
@@ -106,6 +136,11 @@ router.post('/reserve', ah(async (req, res) => {
   const ref = String(req.body?.reference || '').trim().slice(0, 128);
   if (!pid) return res.status(400).json({ error: 'Product ID مطلوب' });
   if (!Number.isFinite(qty) || !(qty > 0) || qty > 1_000_000) return res.status(400).json({ error: 'الكمية أكبر من صفر' });
+  try {
+    guardStockAccess(req, pid, wh);
+  } catch (e) {
+    return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 300) });
+  }
   try {
     const out = db.transaction(() => {
       const row = db.prepare('SELECT qty, reserved_qty FROM stock_levels WHERE product_id=? AND warehouse_id=?').get(pid, wh);
@@ -135,6 +170,11 @@ router.post('/release', ah(async (req, res) => {
   const qty = Number(req.body?.qty);
   if (!pid) return res.status(400).json({ error: 'Product ID مطلوب' });
   if (!Number.isFinite(qty) || !(qty > 0) || qty > 1_000_000) return res.status(400).json({ error: 'الكمية أكبر من صفر' });
+  try {
+    guardStockAccess(req, pid, wh);
+  } catch (e) {
+    return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 300) });
+  }
   return idempotency(req, res, 'stock:release', async () => {
     const out = db.transaction(() => {
       const upd = db.prepare(`UPDATE stock_levels SET reserved_qty=MAX(0,reserved_qty-?),updated_at=datetime('now') WHERE product_id=? AND warehouse_id=?`).run(qty, pid, wh);
@@ -167,6 +207,15 @@ router.post('/transfer', ah(async (req, res) => {
   } catch {
     return res.status(404).json({ error: 'الصنف غير موجود' });
   }
+  const { tenantId } = tenantContext(req);
+  if (tenantId) {
+    for (const wh of [fromWh, toWh]) {
+      const wrow = db.prepare('SELECT tenant_id FROM warehouses WHERE id=?').get(wh);
+      if (wrow?.tenant_id && String(wrow.tenant_id) !== tenantId) {
+        return res.status(404).json({ error: 'المستودع غير موجود' });
+      }
+    }
+  }
   try {
     const out = db.transaction(() => {
       db.prepare('INSERT OR IGNORE INTO warehouses (id,name) VALUES (?,?)').run(fromWh, fromWh);
@@ -186,7 +235,9 @@ router.post('/transfer', ah(async (req, res) => {
     await cacheDel('products');
     return res.json(out);
   } catch (e) {
-    return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 300) });
+    const status = mapErrorStatus(e);
+    if (status === 503) res.set('Retry-After', '2');
+    return res.status(status).json({ error: String(e.message).slice(0, 300) });
   }
 }));
 

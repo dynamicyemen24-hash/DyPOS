@@ -1,6 +1,6 @@
 {
   "name": "DyPOS",
-  "version": "1.35.0",
+  "version": "1.36.0",
   "description": "POS built on DyPOS that brings together real-time billing, stock management, multi-user access, offline mode, and direct ERP integration. Run your store or restaurant with confidence and control, while staying 100% open source.",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",

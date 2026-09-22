@@ -9,6 +9,7 @@
 import { Router } from 'express';
 import db from '../db/schema.js';
 import { v4 as uuid } from 'uuid';
+import { assertTenantScope, resolveTenantFilter } from '../lib/tenant.js';
 
 const router = Router();
 
@@ -20,13 +21,39 @@ function clampInt(v, def, min, max) {
 const isManager = (req) => ['ADMIN', 'MANAGER'].includes(req.user?.role);
 const today = () => new Date().toISOString().slice(0, 10);
 
+/**
+ * Effective tenant for a read: explicit X-Tenant-Id (validated) else the
+ * caller's bound tenant. A tenant-bound user can never scope to another
+ * tenant (mirrors the write spoof guard) — mismatch answers 404.
+ */
+function readTenant(req) {
+  const bound = req.user?.tenantId || null;
+  let t = null;
+  try {
+    t = resolveTenantFilter(req).tenantId || null;
+  } catch (e) {
+    throw e;
+  }
+  if (bound && t && String(t) !== String(bound)) {
+    throw Object.assign(new Error('غير موجود'), { statusCode: 404 });
+  }
+  return t || bound || null;
+}
+
 // ── Offers ──
 router.get('/offers', (req, res) => {
   const active = req.query.active != null ? String(req.query.active) : null;
   const limit = clampInt(req.query.limit, 50, 1, 200);
   const offset = clampInt(req.query.offset, 0, 0, 100000);
+  let scopeTenant = null;
+  try {
+    scopeTenant = readTenant(req);
+  } catch (e) {
+    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
+  }
   let base = 'FROM offers WHERE 1=1';
   const params = [];
+  if (scopeTenant) { base += ' AND (tenant_id=? OR tenant_id IS NULL)'; params.push(scopeTenant); }
   if (active === '1' || active === '0') { base += ' AND is_active=?'; params.push(Number(active)); }
   const total = db.prepare(`SELECT COUNT(*) as c ${base}`).get(...params)?.c || 0;
   const rows = db.prepare(`SELECT * ${base} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...params, limit, offset);
@@ -36,6 +63,13 @@ router.get('/offers', (req, res) => {
 router.post('/offers', (req, res) => {
   if (!isManager(req)) return res.status(403).json({ error: 'صلاحية غير كافية' });
   const b = req.body || {};
+  let scope = { tenantId: null };
+  try {
+    scope = assertTenantScope(req);
+  } catch (e) {
+    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
+  }
+  const stampTenant = scope.tenantId || req.user?.tenantId || null;
   const name = String(b.name || '').trim().slice(0, 200);
   if (!name) return res.status(400).json({ error: 'اسم العرض مطلوب' });
   const type = String(b.type || 'PERCENT').toUpperCase().slice(0, 20);
@@ -44,10 +78,10 @@ router.post('/offers', (req, res) => {
   if (!Number.isFinite(value) || value < 0 || value > 1_000_000) return res.status(400).json({ error: 'قيمة العرض غير صالحة' });
   if (type === 'PERCENT' && value > 100) return res.status(400).json({ error: 'النسبة ≤ 100' });
   const id = uuid();
-  db.prepare(`INSERT INTO offers (id,name,type,value,min_qty,max_qty,min_amount,max_amount,applies_to,item_groups,valid_from,valid_to,one_time_per_customer) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+  db.prepare(`INSERT INTO offers (id,name,type,value,min_qty,max_qty,min_amount,max_amount,applies_to,item_groups,valid_from,valid_to,one_time_per_customer,tenant_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
     .run(id, name, type, value, Number(b.minQty) || 0, Number(b.maxQty) || 0, Number(b.minAmount) || 0, Number(b.maxAmount) || 0,
       String(b.appliesTo || 'ALL').slice(0, 20), String(b.itemGroups || '').slice(0, 1000) || null,
-      String(b.validFrom || '').slice(0, 10) || null, String(b.validTo || '').slice(0, 10) || null, b.oneTimePerCustomer ? 1 : 0);
+      String(b.validFrom || '').slice(0, 10) || null, String(b.validTo || '').slice(0, 10) || null, b.oneTimePerCustomer ? 1 : 0, stampTenant);
   req.audit?.('offer.create', { offerId: id, name });
   return res.status(201).json({ id, name });
 });
@@ -55,8 +89,15 @@ router.post('/offers', (req, res) => {
 router.patch('/offers/:id/toggle', (req, res) => {
   if (!isManager(req)) return res.status(403).json({ error: 'صلاحية غير كافية' });
   const id = String(req.params.id).slice(0, 64);
-  const row = db.prepare('SELECT is_active FROM offers WHERE id=?').get(id);
+  const row = db.prepare('SELECT is_active, tenant_id FROM offers WHERE id=?').get(id);
   if (!row) return res.status(404).json({ error: 'العرض غير موجود' });
+  try {
+    const rec = row.tenant_id ? String(row.tenant_id) : null;
+    const caller = readTenant(req);
+    if (rec && caller && rec !== caller) return res.status(404).json({ error: 'العرض غير موجود' });
+  } catch (e) {
+    return res.status(e.statusCode || 400).json({ error: e.statusCode === 404 ? 'العرض غير موجود' : String(e.message).slice(0, 200) });
+  }
   const next = Number(row.is_active) ? 0 : 1;
   db.prepare('UPDATE offers SET is_active=? WHERE id=?').run(next, id);
   req.audit?.('offer.toggle', { offerId: id, is_active: next });
@@ -68,8 +109,15 @@ router.get('/coupons', (req, res) => {
   const active = req.query.active != null ? String(req.query.active) : null;
   const limit = clampInt(req.query.limit, 50, 1, 200);
   const offset = clampInt(req.query.offset, 0, 0, 100000);
+  let scopeTenant = null;
+  try {
+    scopeTenant = readTenant(req);
+  } catch (e) {
+    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
+  }
   let base = 'FROM coupons WHERE 1=1';
   const params = [];
+  if (scopeTenant) { base += ' AND (tenant_id=? OR tenant_id IS NULL)'; params.push(scopeTenant); }
   if (active === '1' || active === '0') { base += ' AND is_active=?'; params.push(Number(active)); }
   const total = db.prepare(`SELECT COUNT(*) as c ${base}`).get(...params)?.c || 0;
   const rows = db.prepare(`SELECT id,code,discount_type,discount,max_discount,min_purchase,max_uses,used_count,valid_from,valid_to,is_active,created_at ${base} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...params, limit, offset);
@@ -79,6 +127,13 @@ router.get('/coupons', (req, res) => {
 router.post('/coupons', (req, res) => {
   if (!isManager(req)) return res.status(403).json({ error: 'صلاحية غير كافية' });
   const b = req.body || {};
+  let scope = { tenantId: null };
+  try {
+    scope = assertTenantScope(req);
+  } catch (e) {
+    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
+  }
+  const stampTenant = scope.tenantId || req.user?.tenantId || null;
   const code = String(b.code || '').trim().toUpperCase().slice(0, 64);
   if (!/^[A-Z0-9-]{3,64}$/.test(code)) return res.status(400).json({ error: 'الكود 3..64 (أحرف/أرقام/-)' });
   const dtype = String(b.discountType || b.discount_type || 'PCT').toUpperCase();
@@ -88,9 +143,9 @@ router.post('/coupons', (req, res) => {
   if (dtype === 'PCT' && discount > 100) return res.status(400).json({ error: 'النسبة ≤ 100' });
   const id = uuid();
   try {
-    db.prepare(`INSERT INTO coupons (id,code,discount_type,discount,max_discount,min_purchase,max_uses,valid_from,valid_to) VALUES (?,?,?,?,?,?,?,?,?)`)
+    db.prepare(`INSERT INTO coupons (id,code,discount_type,discount,max_discount,min_purchase,max_uses,valid_from,valid_to,tenant_id) VALUES (?,?,?,?,?,?,?,?,?,?)`)
       .run(id, code, dtype, discount, Number(b.maxDiscount ?? b.max_discount) || 0, Number(b.minPurchase ?? b.min_purchase) || 0,
-        Math.max(0, Math.floor(Number(b.maxUses ?? b.max_uses) || 0)), String(b.validFrom || b.valid_from || '').slice(0, 10) || null, String(b.validTo || b.valid_to || '').slice(0, 10) || null);
+        Math.max(0, Math.floor(Number(b.maxUses ?? b.max_uses) || 0)), String(b.validFrom || b.valid_from || '').slice(0, 10) || null, String(b.validTo || b.valid_to || '').slice(0, 10) || null, stampTenant);
   } catch (e) {
     if (/UNIQUE/i.test(String(e.message))) return res.status(409).json({ error: 'الكود مستخدم مسبقًا' });
     throw e;
@@ -102,8 +157,15 @@ router.post('/coupons', (req, res) => {
 router.patch('/coupons/:id/toggle', (req, res) => {
   if (!isManager(req)) return res.status(403).json({ error: 'صلاحية غير كافية' });
   const id = String(req.params.id).slice(0, 64);
-  const row = db.prepare('SELECT is_active FROM coupons WHERE id=?').get(id);
+  const row = db.prepare('SELECT is_active, tenant_id FROM coupons WHERE id=?').get(id);
   if (!row) return res.status(404).json({ error: 'الكوبون غير موجود' });
+  try {
+    const rec = row.tenant_id ? String(row.tenant_id) : null;
+    const caller = readTenant(req);
+    if (rec && caller && rec !== caller) return res.status(404).json({ error: 'الكوبون غير موجود' });
+  } catch (e) {
+    return res.status(e.statusCode || 400).json({ error: e.statusCode === 404 ? 'الكوبون غير موجود' : String(e.message).slice(0, 200) });
+  }
   const next = Number(row.is_active) ? 0 : 1;
   db.prepare('UPDATE coupons SET is_active=? WHERE id=?').run(next, id);
   req.audit?.('coupon.toggle', { couponId: id, is_active: next });
@@ -132,11 +194,19 @@ export function computeCouponDiscount(coupon, subtotal) {
 
 // POST /api/offers/coupons/validate { code, subtotal } — no side effects
 router.post('/coupons/validate', (req, res) => {
+  let scopeTenant = null;
+  try {
+    scopeTenant = readTenant(req);
+  } catch (e) {
+    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
+  }
   const code = String(req.body?.code || '').trim().toUpperCase().slice(0, 64);
   const subtotal = Number(req.body?.subtotal);
   if (!code) return res.status(400).json({ error: 'الكود مطلوب' });
   if (!Number.isFinite(subtotal) || subtotal < 0) return res.status(400).json({ error: 'subtotal غير صالح' });
-  const c = db.prepare('SELECT * FROM coupons WHERE code=?').get(code);
+  const c = scopeTenant
+    ? db.prepare('SELECT * FROM coupons WHERE code=? AND (tenant_id=? OR tenant_id IS NULL)').get(code, scopeTenant)
+    : db.prepare('SELECT * FROM coupons WHERE code=?').get(code);
   if (!c) return res.status(404).json({ error: 'الكوبون غير موجود' });
   const r = computeCouponDiscount(c, subtotal);
   if (!r.ok) return res.status(400).json({ error: r.error });
@@ -147,6 +217,12 @@ router.post('/coupons/validate', (req, res) => {
 // Returns every applicable active offer (validity window + thresholds) with computed
 // amounts, plus BXGY free lines. The POS applies the chosen ones at submit.
 router.post('/evaluate', (req, res) => {
+  let scopeTenant = null;
+  try {
+    scopeTenant = readTenant(req);
+  } catch (e) {
+    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
+  }
   const items = Array.isArray(req.body?.items) ? req.body.items : null;
   if (!items?.length || items.length > 500) return res.status(400).json({ error: 'items مصفوفة 1..500' });
   const customerId = String(req.body?.customerId || '').trim().slice(0, 64) || null;
@@ -156,7 +232,11 @@ router.post('/evaluate', (req, res) => {
   const byId = new Map();
   if (ids.length) {
     const ph = ids.map(() => '?').join(',');
-    for (const r of db.prepare(`SELECT id,unit_price FROM products WHERE id IN (${ph})`).all(...ids)) byId.set(r.id, Number(r.unit_price) || 0);
+    if (scopeTenant) {
+      for (const r of db.prepare(`SELECT id,unit_price FROM products WHERE id IN (${ph}) AND (tenant_id=? OR tenant_id IS NULL)`).all(...ids, scopeTenant)) byId.set(r.id, Number(r.unit_price) || 0);
+    } else {
+      for (const r of db.prepare(`SELECT id,unit_price FROM products WHERE id IN (${ph})`).all(...ids)) byId.set(r.id, Number(r.unit_price) || 0);
+    }
   }
   let subtotal = 0;
   let totalQty = 0;
@@ -171,11 +251,15 @@ router.post('/evaluate', (req, res) => {
     totalQty += qty;
     lines.push({ productId: pid, qty, unitPrice: price, lineTotal: Math.round(qty * price * 100) / 100 });
   }
-  const offers = db.prepare(`SELECT * FROM offers WHERE is_active=1 AND (valid_from IS NULL OR substr(valid_from,1,10)<=?) AND (valid_to IS NULL OR substr(valid_to,1,10)>=?)`).all(today, today);
+  const offers = scopeTenant
+    ? db.prepare(`SELECT * FROM offers WHERE is_active=1 AND (tenant_id=? OR tenant_id IS NULL) AND (valid_from IS NULL OR substr(valid_from,1,10)<=?) AND (valid_to IS NULL OR substr(valid_to,1,10)>=?)`).all(scopeTenant, today, today)
+    : db.prepare(`SELECT * FROM offers WHERE is_active=1 AND (valid_from IS NULL OR substr(valid_from,1,10)<=?) AND (valid_to IS NULL OR substr(valid_to,1,10)>=?)`).all(today, today);
   // one_time_per_customer: skip when this customer already bought (any live invoice).
   let boughtBefore = false;
   if (customerId) {
-    const hit = db.prepare(`SELECT 1 FROM invoices WHERE customer_id=? AND status IN ('PAID','PARTIAL','UNPAID') LIMIT 1`).get(customerId);
+    const hit = scopeTenant
+      ? db.prepare(`SELECT 1 FROM invoices WHERE customer_id=? AND status IN ('PAID','PARTIAL','UNPAID') AND tenant_id=? LIMIT 1`).get(customerId, scopeTenant)
+      : db.prepare(`SELECT 1 FROM invoices WHERE customer_id=? AND status IN ('PAID','PARTIAL','UNPAID') LIMIT 1`).get(customerId);
     boughtBefore = !!hit;
   }
   const applicable = [];

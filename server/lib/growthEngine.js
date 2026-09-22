@@ -49,7 +49,10 @@ export function initGrowthEngineTables() {
 export function generateSmartLivingReceipt(invoice) {
   let localSynergy = null
   try {
-    localSynergy = db.prepare('SELECT partner_store_name, offer_text_ar, discount_code FROM store_synergies WHERE is_active=1 ORDER BY RANDOM() LIMIT 1').get()
+    const owner = invoice.tenant_id ? String(invoice.tenant_id) : null
+    localSynergy = owner
+      ? db.prepare('SELECT partner_store_name, offer_text_ar, discount_code FROM store_synergies WHERE is_active=1 AND (tenant_id=? OR tenant_id=\'STD\') ORDER BY RANDOM() LIMIT 1').get(owner)
+      : db.prepare("SELECT partner_store_name, offer_text_ar, discount_code FROM store_synergies WHERE is_active=1 AND tenant_id='STD' ORDER BY RANDOM() LIMIT 1").get()
   } catch {
     // fallback
   }
@@ -77,19 +80,31 @@ export function generateSmartLivingReceipt(invoice) {
  */
 export function computeMerchantInsight(tenantId = 'STD') {
   let salesStats = { total_sales: 0, order_count: 0, top_product: 'غير متوفر' }
+  const scope = tenantId && tenantId !== 'STD' ? tenantId : null
   try {
-    salesStats = db.prepare(`
-      SELECT SUM(total) as total_sales, COUNT(*) as order_count 
-      FROM invoices 
-      WHERE status='PAID' AND datetime(created_at) >= datetime('now', '-7 days')
-    `).get() || salesStats
+    salesStats = scope
+      ? db.prepare(`SELECT SUM(total) as total_sales, COUNT(*) as order_count
+        FROM invoices
+        WHERE status='PAID' AND tenant_id=? AND datetime(created_at) >= datetime('now', '-7 days')`).get(scope) || salesStats
+      : db.prepare(`SELECT SUM(total) as total_sales, COUNT(*) as order_count
+        FROM invoices
+        WHERE status='PAID' AND datetime(created_at) >= datetime('now', '-7 days')`).get() || salesStats
 
-    const topProd = db.prepare(`
-      SELECT product_name, SUM(qty) as q 
-      FROM invoice_items 
-      GROUP BY product_id 
-      ORDER BY q DESC LIMIT 1
-    `).get()
+    const topProd = scope
+      ? db.prepare(`
+        SELECT i2.product_name, SUM(i2.qty) as q
+        FROM invoice_items i2 JOIN invoices v ON i2.invoice_id=v.id
+        WHERE v.tenant_id=? AND v.status='PAID' AND datetime(v.created_at) >= datetime('now', '-7 days')
+        GROUP BY i2.product_id
+        ORDER BY q DESC LIMIT 1
+      `).get(scope)
+      : db.prepare(`
+        SELECT i2.product_name, SUM(i2.qty) as q
+        FROM invoice_items i2 JOIN invoices v ON i2.invoice_id=v.id
+        WHERE v.status='PAID' AND datetime(v.created_at) >= datetime('now', '-7 days')
+        GROUP BY i2.product_id
+        ORDER BY q DESC LIMIT 1
+      `).get()
     if (topProd) salesStats.top_product = topProd.product_name
   } catch {
     // fallback

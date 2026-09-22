@@ -1,5 +1,5 @@
 import { ref, computed, onMounted } from "vue"
-import { translationVersion } from "../utils/translation"
+import { translationVersion, __ as serverTranslate } from "../utils/translation"
 import { call } from "../utils/apiWrapper"
 import { offlineState } from "../utils/offline/offlineState"
 import { logger } from "../utils/logger"
@@ -190,6 +190,71 @@ function getPOSDefaultLocale() {
 		return DEFAULT_LOCALE
 	}
 }
+
+/**
+ * Additive helpers (backward-compatible) for the regional/crash-resume layers:
+ *  - `hasTranslation(key)` — true when a safe key exists (Arabic fallback map
+ *    or the server/GUI translation dictionary).
+ *  - `translate(key, fallbackAr)` — layered lookup: server translation →
+ *    Arabic default map → caller fallback → the raw key.
+ *  - `t` — shorthand alias of `translate`.
+ *
+ * Arabic-first: when the server has no translation for a regional string, the
+ * Arabic default is used, so every surface stays Arabic by DyPOS convention.
+ */
+
+// Arabic defaults for keys the server dictionary may not know yet.
+const FALLBACK_MESSAGES = {
+	cashier_resume_title: "استئناف عملية البيع",
+	cashier_resume_body:
+		"عُثر على عملية بيع مُعلّقة ({0} صنف). هل تريد استئنافها من حيث توقفت؟",
+	cashier_resume_accept: "استئناف البيع",
+	cashier_resume_dismiss: "تجاهل",
+	cashier_resume_subtitle: "آخر حفظ: {0}",
+	tax_inclusive_15: "الضريبة شاملة في السعر (15%)",
+	tax_exclusive_15: "الضريبة تُضاف إلى السعر (15%)",
+	tax_inclusive_0: "بدون ضريبة",
+}
+
+export function hasTranslation(key) {
+	if (typeof key !== "string" || key.length === 0) return false
+	if (FALLBACK_MESSAGES[key] !== undefined) return true
+	try {
+		const messages =
+			typeof window !== "undefined" ? window.translatedMessages : null
+		return messages
+			? Object.prototype.hasOwnProperty.call(messages, key)
+			: false
+	} catch {
+		return false
+	}
+}
+
+/**
+ * Layered lookup, Arabic-first.
+ * @param {string} key - string key to resolve
+ * @param {string} [fallbackAr] - Arabic fallback for unknown keys
+ * @returns {string}
+ */
+export function translate(key, fallbackAr) {
+	if (typeof key !== "string" || key.length === 0) {
+		return fallbackAr ?? key ?? ""
+	}
+	try {
+		const serverValue = serverTranslate(key)
+		if (serverValue && serverValue !== key) return serverValue
+	} catch {
+		// Dictionary lookup is best-effort — fall through to Arabic defaults.
+	}
+	const arabicDefault = FALLBACK_MESSAGES[key]
+	if (arabicDefault !== undefined) return arabicDefault
+	// An empty-string fallback is treated as "no fallback" so the raw key wins
+	// (Arabic surface strings are themselves the final Arabic fallback).
+	return fallbackAr || key
+}
+
+/** Shorthand alias for translate(). */
+export const t = translate
 
 /**
  * Composable for locale management

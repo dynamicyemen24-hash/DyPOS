@@ -3,6 +3,7 @@ import db from '../db/schema.js';
 import { v4 as uuid } from 'uuid';
 import { requireRole } from '../middleware/auth.js';
 import { parseCsv } from '../lib/csv.js';
+import { assertTenantScope } from '../lib/tenant.js';
 
 const router = Router();
 router.use(requireRole('ADMIN', 'MANAGER'));
@@ -71,38 +72,61 @@ const validators = {
   },
 };
 
-function commit(entity, rows) {
+/**
+ * Persistent writes are stamped with the caller's tenant (assertTenantScope
+ * validates existence + the cross-tenant spoof guard). A scoped import can never
+ * overwrite another tenant's records: same-code products / same-phone customers
+ * owned by another tenant fail with 403/404 instead of mutating them.
+ */
+function commit(entity, rows, tenantId) {
   return db.transaction(() => {
     let created = 0, updated = 0;
     if (entity === 'products') {
-      const stmt = db.prepare(`INSERT INTO products (id,code,name,name_ar,barcode,unit_price,cost,tax_rate,uom,category,brand,is_active)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,1) ON CONFLICT(code) DO UPDATE SET name=excluded.name,name_ar=excluded.name_ar,barcode=excluded.barcode,unit_price=excluded.unit_price,cost=excluded.cost,tax_rate=excluded.tax_rate,uom=excluded.uom,category=excluded.category,brand=excluded.brand,is_active=1,updated_at=datetime('now')`);
-      const existed = db.prepare('SELECT 1 FROM products WHERE code=?');
+      const stmt = db.prepare(`INSERT INTO products (id,code,name,name_ar,barcode,unit_price,cost,tax_rate,uom,category,brand,is_active,tenant_id)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,1,?) ON CONFLICT(code) DO UPDATE SET name=excluded.name,name_ar=excluded.name_ar,barcode=excluded.barcode,unit_price=excluded.unit_price,cost=excluded.cost,tax_rate=excluded.tax_rate,uom=excluded.uom,category=excluded.category,brand=excluded.brand,is_active=1,tenant_id=excluded.tenant_id,updated_at=datetime('now')`);
+      const existed = db.prepare('SELECT id, tenant_id FROM products WHERE code=?');
       for (const r of rows) {
-        const isUpd = !!existed.get(r.code);
-        stmt.run(uuid(), r.code, r.name, r.nameAr || '', r.barcode || null, num(r.unitPrice), num(r.cost), num(r.taxRate, 15), r.uom, r.category || '', r.brand || '');
+        const ex = existed.get(r.code);
+        if (ex && tenantId && ex.tenant_id && String(ex.tenant_id) !== tenantId) {
+          throw Object.assign(new Error(`الكود مملوك لمستأجر آخر: ${r.code}`), { statusCode: 403 });
+        }
+        const isUpd = !!ex;
+        stmt.run(uuid(), r.code, r.name, r.nameAr || '', r.barcode || null, num(r.unitPrice), num(r.cost), num(r.taxRate, 15), r.uom, r.category || '', r.brand || '', tenantId);
         if (isUpd) updated++; else created++;
       }
     } else if (entity === 'customers') {
-      const byId = db.prepare('SELECT id FROM customers WHERE id=?');
-      const byPhone = db.prepare('SELECT id FROM customers WHERE phone=? AND phone IS NOT NULL AND phone<>""');
-      const ins = db.prepare(`INSERT INTO customers (id,name,phone,email,tax_number,loyalty_tier,credit_limit) VALUES (?,?,?,?,?,?,?)`);
-      const upd = db.prepare(`UPDATE customers SET name=?,phone=?,email=?,tax_number=?,loyalty_tier=?,credit_limit=?,updated_at=datetime('now') WHERE id=?`);
+      const byId = db.prepare('SELECT id, tenant_id FROM customers WHERE id=?');
+      const byPhone = db.prepare('SELECT id, tenant_id FROM customers WHERE phone=? AND phone IS NOT NULL AND phone<>""');
+      const ins = db.prepare(`INSERT INTO customers (id,name,phone,email,tax_number,loyalty_tier,credit_limit,tenant_id) VALUES (?,?,?,?,?,?,?,?)`);
+      const upd = db.prepare(`UPDATE customers SET name=?,phone=?,email=?,tax_number=?,loyalty_tier=?,credit_limit=?,tenant_id=COALESCE(tenant_id,?),updated_at=datetime('now') WHERE id=?`);
       for (const r of rows) {
         const hit = (r.id && byId.get(r.id)) || (r.phone && byPhone.get(r.phone));
-        if (hit) { upd.run(r.name, r.phone || null, r.email || null, r.taxNumber || null, r.loyaltyTier, Math.max(0, num(r.creditLimit)), hit.id); updated++; }
-        else { ins.run(uuid(), r.name, r.phone || null, r.email || null, r.taxNumber || null, r.loyaltyTier, Math.max(0, num(r.creditLimit))); created++; }
+        if (hit) {
+          if (tenantId && hit.tenant_id && String(hit.tenant_id) !== tenantId) {
+            throw Object.assign(new Error('العميل مملوك لمستأجر آخر'), { statusCode: 403 });
+          }
+          upd.run(r.name, r.phone || null, r.email || null, r.taxNumber || null, r.loyaltyTier, Math.max(0, num(r.creditLimit)), tenantId, hit.id); updated++;
+        }
+        else { ins.run(uuid(), r.name, r.phone || null, r.email || null, r.taxNumber || null, r.loyaltyTier, Math.max(0, num(r.creditLimit)), tenantId); created++; }
       }
     } else if (entity === 'stock') {
-      const byCode = db.prepare('SELECT id FROM products WHERE code=?');
-      const byId = db.prepare('SELECT id FROM products WHERE id=?');
-      const ensureWh = db.prepare('INSERT OR IGNORE INTO warehouses (id,name) VALUES (?,?)');
+      const byCode = db.prepare('SELECT id, tenant_id FROM products WHERE code=?');
+      const byId = db.prepare('SELECT id, tenant_id FROM products WHERE id=?');
+      const ensureWh = db.prepare('INSERT OR IGNORE INTO warehouses (id,name,tenant_id) VALUES (?,?,?)');
+      const wrow = db.prepare('SELECT tenant_id FROM warehouses WHERE id=?');
       const set = db.prepare(`INSERT INTO stock_levels (product_id,warehouse_id,qty,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(product_id,warehouse_id) DO UPDATE SET qty=excluded.qty,updated_at=datetime('now')`);
       for (const r of rows) {
         const prod = (r.productId && byId.get(r.productId)) || (r.productCode && byCode.get(r.productCode));
         if (!prod) throw new Error(`صنف غير موجود: ${r.productCode || r.productId}`);
+        if (tenantId && prod.tenant_id && String(prod.tenant_id) !== tenantId) {
+          throw Object.assign(new Error(`صنف غير موجود: ${r.productCode || r.productId}`), { statusCode: 404 });
+        }
         const pid = r.productId && byId.get(r.productId) ? r.productId : prod.id;
-        ensureWh.run(r.warehouseId, r.warehouseId);
+        const wh = wrow.get(r.warehouseId);
+        if (wh && tenantId && wh.tenant_id && String(wh.tenant_id) !== tenantId) {
+          throw Object.assign(new Error('المستودع مملوك لمستأجر آخر'), { statusCode: 403 });
+        }
+        ensureWh.run(r.warehouseId, r.warehouseId, tenantId);
         set.run(pid, r.warehouseId, Number(r.qty));
         updated++;
       }
@@ -131,9 +155,15 @@ router.post('/:entity', (req, res) => {
     return res.status(400).json({ error: `تحقق فاشل في ${errors.length} صفًا — لم يُكتب شيء`, errors: errors.slice(0, 20) });
   }
   const dryRun = String(req.query.dryRun || '') === '1' || String(req.query.dryRun || '').toLowerCase() === 'true';
+  let scopeTenant = null;
+  try {
+    scopeTenant = (assertTenantScope(req) || {}).tenantId || req.user?.tenantId || null;
+  } catch (e) {
+    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
+  }
   if (dryRun) return res.json({ dryRun: true, entity, rows: rows.length, valid: true });
   try {
-    const result = commit(entity, rows);
+    const result = commit(entity, rows, scopeTenant);
     req.audit?.('import.commit', { entity, ...result });
     try {
       db.prepare(`INSERT INTO webhook_outbox (event,entity_type,payload) VALUES (?,?,?)`)
@@ -141,7 +171,7 @@ router.post('/:entity', (req, res) => {
     } catch { /* outbox best-effort */ }
     return res.status(201).json({ entity, rows: rows.length, ...result });
   } catch (e) {
-    return res.status(400).json({ error: String(e.message || '').slice(0, 300) });
+    return res.status(e.statusCode || 400).json({ error: String(e.message || '').slice(0, 300) });
   }
 });
 

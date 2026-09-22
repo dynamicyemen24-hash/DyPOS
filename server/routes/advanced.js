@@ -5,6 +5,7 @@ import { authMiddleware, requireRole } from '../middleware/auth.js'
 import { ah } from '../lib/async.js'
 import { VERSION } from '../lib/version.js'
 import { initAdvancedGrowthTables, executeMultimodalSearch, getActiveSubscriberCampaign } from '../lib/advancedEngine.js'
+import { resolveTenantFilter } from '../lib/tenant.js'
 
 const router = Router()
 
@@ -16,7 +17,17 @@ initAdvancedGrowthTables()
  */
 router.post('/search', authMiddleware, ah(async (req, res) => {
   const { query, barcode, qr, imageHash, voiceText } = req.body
-  const results = executeMultimodalSearch({ query, barcode, qr, imageHash, voiceText })
+  let scopeTenant = null
+  try {
+    scopeTenant = resolveTenantFilter(req).tenantId || null
+    if (scopeTenant && req.user?.tenantId && String(scopeTenant) !== String(req.user.tenantId)) {
+      throw Object.assign(new Error('غير موجود'), { statusCode: 404 })
+    }
+    scopeTenant = scopeTenant || req.user?.tenantId || null
+  } catch (e) {
+    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) })
+  }
+  const results = executeMultimodalSearch({ query, barcode, qr, imageHash, voiceText, tenantId: scopeTenant })
 
   return res.json({
     success: true,

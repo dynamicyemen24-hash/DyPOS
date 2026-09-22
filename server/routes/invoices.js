@@ -15,6 +15,7 @@ import { recordTrail } from '../lib/trail.js';
 import { ah, mapErrorStatus } from '../lib/async.js';
 import { idempotency } from '../lib/idempotency.js';
 import { emit } from '../lib/webhooks.js';
+import { emit as emitRealtime } from '../lib/realtime.js';
 import { ensureOpenFiscalYear, yearOf } from './fiscal.js';
 import { invoicePrefix, getSetting, defaultTaxRate } from '../lib/settings.js';
 
@@ -306,7 +307,12 @@ router.post('/', validate(invoiceSchema), (req, res) => {
     let couponCode = null;
     if (b.couponCode) {
       couponCode = String(b.couponCode).trim().toUpperCase().slice(0, 64);
-      const c = db.prepare('SELECT * FROM coupons WHERE code=?').get(couponCode);
+      // Tenant-scoped coupon lookup (v23 promotes coupons to per-tenant data):
+      // the sale may use its own tenant's coupons or global (NULL-tenant) ones —
+      // never another tenant's. Fixes a cross-tenant discount vector.
+      const c = scope.tenantId
+        ? db.prepare('SELECT * FROM coupons WHERE code=? AND (tenant_id=? OR tenant_id IS NULL)').get(couponCode, scope.tenantId)
+        : db.prepare('SELECT * FROM coupons WHERE code=?').get(couponCode);
       if (!c) throw Object.assign(new Error('الكوبون غير موجود'), { statusCode: 404 });
       const r = computeCouponDiscount(c, toMajor(grossMinor));
       if (!r.ok) throw Object.assign(new Error(r.error), { statusCode: 400 });
@@ -383,9 +389,9 @@ router.post('/', validate(invoiceSchema), (req, res) => {
       }
     }
 
-    // Sync log
-    db.prepare(`INSERT INTO sync_log (entity_type,entity_id,action,payload,status) VALUES (?,?,?,?,?)`)
-      .run('INVOICE', invoiceId, 'CREATE', JSON.stringify({ id: invoiceId, number, total, status }), 'PENDING');
+    // Sync log (tenant-attributed so cross-tenant pull never leaks this row)
+    db.prepare(`INSERT INTO sync_log (entity_type,entity_id,action,payload,status,tenant_id) VALUES (?,?,?,?,?,?)`)
+      .run('INVOICE', invoiceId, 'CREATE', JSON.stringify({ id: invoiceId, number, total, status }), 'PENDING', scope.tenantId || req.user?.tenantId || null);
 
     // Tamper-evident chain link (inside the same transaction — atomic with the sale)
     try { appendChain(invoiceId, { number, total, status, action: 'CREATE' }); } catch { /* chain never breaks sales */ }
@@ -400,10 +406,13 @@ router.post('/', validate(invoiceSchema), (req, res) => {
       req.audit?.('invoice.create', { invoiceId: result.invoiceId, total: result.total });
       recordTrail(req, { entity: 'INVOICE', entityId: result.invoiceId, action: 'CREATE', after: { number: result.number, total: result.total, status: result.status } });
       emit('invoice.created', 'INVOICE', result.invoiceId, { number: result.number, total: result.total, status: result.status });
+      emitRealtime('invoice.created', { tenantId: scope.tenantId || req.user?.tenantId || null, id: result.invoiceId, number: result.number, total: result.total, status: result.status });
     }
     return res.status(result.deduped ? 200 : 201).json(result);
   } catch (e) {
-    return res.status(mapErrorStatus(e)).json({ error: String(e.message || '').slice(0, 300) });
+    const status = mapErrorStatus(e);
+    if (status === 503) res.set('Retry-After', '2');
+    return res.status(status).json({ error: String(e.message || '').slice(0, 300) });
   }
 });
 
@@ -593,7 +602,10 @@ router.post('/:id/pay', ah(async (req, res) => {
     })();
     req.audit?.('invoice.pay', { invoiceId: id, amount: amt, method: payMethod });
     recordTrail(req, { entity: 'INVOICE', entityId: id, action: 'PAY', after: { amount: amt, method: payMethod, status: result.status } });
-    if (result.status === 'PAID') emit('invoice.paid', 'INVOICE', id, { paidAmount: result.paidAmount });
+    if (result.status === 'PAID') {
+      emit('invoice.paid', 'INVOICE', id, { paidAmount: result.paidAmount });
+      emitRealtime('invoice.paid', { tenantId: req.user?.tenantId || null, id, paidAmount: result.paidAmount });
+    }
     return res.json(result);
   } catch (e) {
     return res.status(mapErrorStatus(e)).json({ error: String(e.message || '').slice(0, 300) });

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.36.0] - 2026-09-22 — حملة الترقية النهائية: Real-time، تحصين أمني، Observability، وخروج أُحادي
+### Added
+- Real-time: مركز SSE hub لبثٍّ فوري للمخزون/الفواتير مع `Last-Event-ID` (استئناف من نقطة الانقطاع) وheartbeat وعزل نطاق المستأجر.
+- تحصين أمني: ترويسات CSP/HSTS شاملة، حارس متغيرات البيئة، دفتر تدقيق مُسلسل SHA-256 (تمييع-proof)، قفل تسجيل الدخول و`429 + Retry-After`، إحكام عزل المستأجر (سد 5 ثغرات IDOR + منع انتحال `X-Tenant-Id`).
+- Observability: عدّادات Prometheus موسّعة (أقفال SQLite، Retry-After، إرسال الويبهوك، اتصالات SSE) + تتبّع أخطاء مع WEBHOOK اختياري.
+- ميزات (feature flags) allowlist عامة.
+- جودة/فوضى: سكربتات chaos (قفل، SIGKILL، استرداد)، E2E عبر Playwright، وk6.
+- تحمّل انقطاع: استعادة مسودة البيع (crash-resume) + i18n إقليمي (تنسيق أرقام/عملة/ضرائب).
+- `Retry-After` للفواتير عند قفل SQLite.
+### Verified
+- تثبيت الإصدار `1.36.0` في المصادر الأربعة (package.json الجذر + POS + server + server/lib/version.js).
+
 ## [1.35.0] - 2026-09-22 — التحصين الإنتاجي النهائي: استقرار/أمان بمستوى عالمي وبوابات جودة صفرية
 ### Added
 - معالج `uncaughtException` في `server/server.js` بجوار `unhandledRejection` (تسجيل + إغلاق قاعدة البيانات + خروج رمز 1 في الإنتاج فقط).

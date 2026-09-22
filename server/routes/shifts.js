@@ -30,7 +30,16 @@ router.post('/open', validate(shiftOpenSchema), (req, res) => {
 
 // GET /api/shifts/open/:terminalId
 router.get('/open/:terminalId', (req, res) => {
-  const row = db.prepare('SELECT * FROM shifts WHERE terminal_id=? AND status=?').get(String(req.params.terminalId).slice(0, 32), 'OPEN');
+  const term = String(req.params.terminalId).slice(0, 32);
+  let scopeTenant = null;
+  try {
+    scopeTenant = resolveTenantFilter(req).tenantId;
+  } catch (e) {
+    return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 200) });
+  }
+  const row = scopeTenant
+    ? db.prepare('SELECT * FROM shifts WHERE terminal_id=? AND status=? AND tenant_id=?').get(term, 'OPEN', scopeTenant)
+    : db.prepare('SELECT * FROM shifts WHERE terminal_id=? AND status=?').get(term, 'OPEN');
   return res.json({ shift: row || null });
 });
 

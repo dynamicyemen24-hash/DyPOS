@@ -111,6 +111,8 @@ function getBootstrapState() {
 			socketInitialized: false,
 			serviceWorkerInitialized: false,
 			platformSyncInitialized: false,
+			featuresInitialized: false,
+			realtimeSyncInitialized: false,
 		}
 	}
 
@@ -125,6 +127,8 @@ function getBootstrapState() {
 			socketInitialized: false,
 			serviceWorkerInitialized: false,
 			platformSyncInitialized: false,
+			featuresInitialized: false,
+			realtimeSyncInitialized: false,
 		}
 	}
 
@@ -604,6 +608,38 @@ async function preloadBootstrapData(user) {
 }
 
 /* =============================================================================
+   Feature flags
+   ============================================================================= */
+
+/**
+ * Initialize the feature-flag store exactly once (Pinia must be installed).
+ *
+ * Offline-safe by design: the store boots with its documented defaults ON and
+ * adopts server truth only when /api/features answers within the timeout.
+ * `registerFeatureHooks()` refetches after reconnect so views reactively flip.
+ * Fail-soft: a flag problem must never block the POS shell.
+ */
+async function initializeFeatures() {
+	if (!isBrowser || bootstrapState.featuresInitialized) {
+		return
+	}
+
+	bootstrapState.featuresInitialized = true
+
+	try {
+		const { useFeaturesStore } = await import("./stores/features")
+
+		const featuresStore = useFeaturesStore()
+
+		featuresStore.registerFeatureHooks()
+
+		void featuresStore.init()
+	} catch (error) {
+		log.debug("Feature-flag bootstrap skipped; defaults remain ON", error)
+	}
+}
+
+/* =============================================================================
    Realtime
    ============================================================================= */
 
@@ -843,6 +879,51 @@ function initializePlatformSync(user) {
 	})
 }
 
+/**
+ * Register the realtime (SSE) sync client exactly once for the active
+ * tenant/session, after auth state is resolved.
+ *
+ * The tenant id is read from the resolved session (posContext) with the
+ * platform auth state as fallback; it is reported on the client for
+ * observability only — EventSource cannot set headers, so the server
+ * re-resolves the tenant from the session JWT/cookie.
+ *
+ * Fail-soft: a realtime problem must never block the POS shell.
+ */
+async function initializeRealtimeSync() {
+	if (!isBrowser || bootstrapState.realtimeSyncInitialized) {
+		return
+	}
+
+	bootstrapState.realtimeSyncInitialized = true
+
+	try {
+		const { initAuth, authState } = await import("./services/sync-auth")
+
+		await initAuth().catch(() => {})
+
+		const { getSessionStore } = await import("./stores/session")
+
+		const tenantId =
+			getSessionStore()?.tenantId || authState?.tenantId || null
+
+		const { registerRealtimeSync } = await import("./stores/realtime")
+
+		const teardown = registerRealtimeSync({ tenantId })
+
+		if (typeof teardown === "function") {
+			bootstrapState.cleanup.push(teardown)
+		}
+
+		log.debug("Realtime sync registered", { tenantId })
+	} catch (error) {
+		log.warn(
+			"Realtime sync registration failed; POS continues offline-capable",
+			error,
+		)
+	}
+}
+
 /* =============================================================================
    Vue application creation
    ============================================================================= */
@@ -903,6 +984,12 @@ async function initializeApp() {
 		   ------------------------------------------------------------------ */
 
 		const { app } = createDyPOSApplication()
+
+		/* ---------------------------------------------------------------------
+		   Feature flags (offline-safe: defaults stay ON on any failure)
+		   ------------------------------------------------------------------ */
+
+		void initializeFeatures()
 
 		/* ---------------------------------------------------------------------
 		   Configure request infrastructure
@@ -966,6 +1053,7 @@ async function initializeApp() {
 		if (user) {
 			void preloadBootstrapData(user)
 			initializePlatformSync(user)
+			void initializeRealtimeSync()
 		}
 
 		initializeIdleWarmup()

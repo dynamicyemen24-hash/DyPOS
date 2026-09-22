@@ -77,15 +77,16 @@ describe('Shift gate (DYPOS_REQUIRE_SHIFT)', () => {
 });
 
 describe('Shared login lockout', () => {
-  it('8 fails → 429, success resets', async () => {
+  it('5 fails → 429 + Retry-After, success resets', async () => {
     const u = 's4lock_' + Date.now();
     await req('POST', '/api/auth/register', { username: u, password: 'Pass1234', fullName: 'Lock Test' });
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 5; i++) {
       const r = await req('POST', '/api/auth/login', { username: u, password: 'Wrong1234' });
       assert.strictEqual(r.status, 401);
     }
     const locked = await req('POST', '/api/auth/login', { username: u, password: 'Wrong1234' });
     assert.strictEqual(locked.status, 429);
+    assert.ok(Number(locked.headers['retry-after']) > 0);
   });
 });
 

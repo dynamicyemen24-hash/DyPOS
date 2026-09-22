@@ -20,8 +20,12 @@ export function tenantContext(req) {
   const h = req.headers || {};
   const b = req.body && typeof req.body === 'object' ? req.body : {};
   const q = req.query || {};
+  // A tenant-bound user is ALWAYS scoped to their own tenant, even when they
+  // omit the headers: otherwise bound users could fall back to the global
+  // passthrough and read/write other tenants' rows by id. Legacy users
+  // (tenant_id NULL) keep the unchanged passthrough.
   return {
-    tenantId: str(h['x-tenant-id'] || b.tenantId || q.tenant),
+    tenantId: str(h['x-tenant-id'] || b.tenantId || q.tenant) || (req.user?.tenantId ? String(req.user.tenantId) : null),
     orgId: str(h['x-org-id'] || b.orgId || q.org),
     branchId: str(h['x-branch-id'] || b.branchId || q.branch),
   };
@@ -58,6 +62,13 @@ export function assertTenantScope(req) {
       throw Object.assign(new Error('الفرع لا يتبع هذا المستأجر'), { statusCode: 400 });
     }
     if (!ctx.tenantId && br.tenant_id) ctx.tenantId = String(br.tenant_id);
+  }
+  // Cross-tenant spoof guard (security campaign): a user bound to a tenant
+  // can never act as another tenant — neither via an explicit X-Tenant-Id nor
+  // via ids derived from the org/branch hierarchy. Legacy users (tenant_id NULL)
+  // keep the documented passthrough; enforcement is opt-in (REQUIRE_TENANT).
+  if (ctx.tenantId && req.user?.tenantId && String(ctx.tenantId) !== String(req.user.tenantId)) {
+    throw Object.assign(new Error('غير مصرح بالوصول لهذا المستأجر'), { statusCode: 403 });
   }
   if (REQUIRED() && !ctx.tenantId) {
     throw Object.assign(new Error('المستأجر مطلوب (DYPOS_REQUIRE_TENANT=1) — أرسل X-Tenant-Id'), { statusCode: 400 });

@@ -16,7 +16,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DYPOS_DB_PATH || join(__dirname, '..', 'data', 'dypos.db');
 import { initGrowthEngineTables } from '../lib/growthEngine.js';
 
-const MIGRATION_VERSION = 22; // Increment when schema changes
+const MIGRATION_VERSION = 23; // Increment when schema changes
 
 function columnExists(table, column) {
 	try {
@@ -980,6 +980,27 @@ export function migrate() {
         .run(22, 'partial returns: returned_qty per invoice line');
     } catch (e) {
       console.warn('[DyPOS] v22 migration deferred:', String(e.message).slice(0, 200));
+    }
+  }
+
+  // ── v23: promotions plane tenant isolation (offers + coupons) ──
+  // Offers and coupons are tenant-attributed business data (each store manages
+  // its own promotions), but their tables shipped without a tenant column —
+  // GET /api/offers leaked every tenant's promotions. Guarded add-column:
+  // legacy rows keep NULL = global (same rule as assertRecordTenant); the
+  // routes scope by tenant only when a caller provides one.
+  if (currentVersion < 23) {
+    try {
+      addColumnIfMissing('offers', 'tenant_id', 'TEXT');
+      addColumnIfMissing('coupons', 'tenant_id', 'TEXT');
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_offers_tenant ON offers(tenant_id, is_active);
+        CREATE INDEX IF NOT EXISTS idx_coupons_tenant ON coupons(tenant_id, is_active);
+      `);
+      db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+        .run(23, 'offers + coupons tenant isolation');
+    } catch (e) {
+      console.warn('[DyPOS] v23 migration deferred:', String(e.message).slice(0, 200));
     }
   }
 

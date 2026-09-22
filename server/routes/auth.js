@@ -1,9 +1,11 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { hashPasswordAsync, verifyPasswordAsync, generateToken, revokeToken, revokeAllSessions, authMiddleware, requireRole, isProduction } from '../middleware/auth.js';
 import { validate, loginSchema, registerSchema } from '../middleware/validate.js';
 import { authAttempts } from '../middleware/metrics.js';
 import { ah } from '../lib/async.js';
 import { cacheGet, cacheSet, cacheDel } from '../lib/cache.js';
+import { createRateStore } from '../lib/rate-store.js';
 import db from '../db/schema.js';
 import { v4 as uuid } from 'uuid';
 
@@ -13,8 +15,8 @@ const ALLOWED_ROLES = new Set(['ADMIN', 'MANAGER', 'CASHIER', 'AUDITOR']);
 
 // Brute-force guard (shared via cache: memory single-node, Redis when
 // DYPOS_REDIS_URL is set so N cluster workers enforce ONE lockout).
-// 8 fails/15min → 429 for 15min. Fail-open to local Map when cache errors.
-const MAX_FAILS = 8;
+// 5 fails/15min → 429 for 15min. Fail-open to local Map when cache errors.
+const MAX_FAILS = 5;
 const WINDOW_SECS = 15 * 60;
 const localFails = new Map(); // fallback only
 const lockKey = (u) => `lockout:${String(u).slice(0, 64)}`;
@@ -53,13 +55,49 @@ async function recordFail(username) {
 }
 async function recordSuccess(username) { await clearFails(username); }
 
+// Per-IP credential-spraying guard, IN ADDITION to the per-username lockout:
+// one attacker rotating 5 passwords across 100 usernames would otherwise dodge
+// the username counter entirely. Shared sliding-window store ('login' namespace
+// — separate from the global + auth limiters so ERR_ERL_DOUBLE_COUNT is never
+// tripped). Configurable: DYPOS_LOGIN_IP_LIMIT (default 20/15min). Successful
+// logins reset the window, so a happy cashier flow never trips it.
+const LOGIN_IP_WINDOW_MS = WINDOW_SECS * 1000;
+// Exported so tests can reset the shared store between groups without touching
+// the limiter config (a server.js 'auth' limiter failure would otherwise
+// cascade into this one after sustained brute-force tests in one file).
+export const loginRateStore = createRateStore(LOGIN_IP_WINDOW_MS, 'login');
+const loginIpLimiter = rateLimit({
+  windowMs: LOGIN_IP_WINDOW_MS,
+  max: Number(process.env.DYPOS_LOGIN_IP_LIMIT) || 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: loginRateStore,
+  skipSuccessfulRequests: true,
+  handler: (_req, res) => {
+    const retryAfter = Number(res.getHeader('Retry-After')) || Math.ceil(LOGIN_IP_WINDOW_MS / 1000);
+    try { authAttempts.labels('ip_limit').inc(); } catch { /* ignore */ }
+    res.setHeader('Retry-After', String(retryAfter));
+    return res.status(429).json({ error: 'محاولات كثيرة — حاول بعد وقت لاحق', retryAfterSeconds: retryAfter });
+  },
+});
+
+/** Whole seconds until the username unlocks (0 = not locked / already elapsed). */
+function lockRemainingSecs(entry) {
+  if (!entry?.lockUntil) return 0;
+  const ms = Number(entry.lockUntil) - Date.now();
+  return ms > 0 ? Math.ceil(ms / 1000) : 0;
+}
+
 // POST /api/auth/login (async bcrypt — never block the event loop)
-router.post('/login', validate(loginSchema), ah(async (req, res) => {
+router.post('/login', loginIpLimiter, validate(loginSchema), ah(async (req, res) => {
   const { username, password } = req.body;
   const clean = String(username).trim();
   if (await isLocked(clean)) {
     try { authAttempts.labels('locked').inc(); } catch { /* ignore */ }
-    return res.status(429).json({ error: 'محاولات كثيرة — حاول بعد 15 دقيقة' });
+    const entry = await readFails(clean);
+    const waitLeft = lockRemainingSecs(entry) || WINDOW_SECS;
+    res.setHeader('Retry-After', String(waitLeft));
+    return res.status(429).json({ error: 'محاولات كثيرة — حاول بعد 15 دقيقة', retryAfterSeconds: waitLeft });
   }
   const user = db.prepare('SELECT * FROM users WHERE username=? AND is_active=1').get(clean);
   if (!user) {

@@ -8,6 +8,7 @@
  */
 import crypto from 'crypto';
 import db from '../db/schema.js';
+import { bumpMetric } from '../middleware/metrics.js';
 
 const MAX_ATTEMPTS = 8;
 const BATCH = 50;
@@ -63,6 +64,7 @@ export async function dispatchBatch() {
       .filter((s) => eventMatches(s.events, job.event));
     if (!subs.length) {
       db.prepare(`UPDATE webhook_outbox SET status='SKIPPED',last_error='no active subscribers' WHERE id=?`).run(job.id);
+      try { bumpMetric('webhook_dispatch', { status: 'skipped' }); } catch { /* metrics optional */ }
       continue;
     }
     // Parallel fan-out (bounded by subscriber count, typically <10). Each fetch
@@ -89,12 +91,15 @@ export async function dispatchBatch() {
     if (okAny) {
       db.prepare(`UPDATE webhook_outbox SET status='DELIVERED',attempts=? WHERE id=?`).run(nextCount, job.id);
       delivered++;
+      try { bumpMetric('webhook_dispatch', { status: 'delivered' }); } catch { /* metrics optional */ }
     } else if (nextCount >= MAX_ATTEMPTS) {
       db.prepare(`UPDATE webhook_outbox SET status='DEAD',attempts=?,last_error=? WHERE id=?`).run(nextCount, lastErr.slice(0, 300), job.id);
       failed++;
+      try { bumpMetric('webhook_dispatch', { status: 'dead' }); } catch { /* metrics optional */ }
     } else {
       db.prepare(`UPDATE webhook_outbox SET attempts=?,next_attempt_at=${backoff(nextCount)},last_error=? WHERE id=?`).run(nextCount, lastErr.slice(0, 300), job.id);
       failed++;
+      try { bumpMetric('webhook_dispatch', { status: 'failed' }); } catch { /* metrics optional */ }
     }
   }
 
