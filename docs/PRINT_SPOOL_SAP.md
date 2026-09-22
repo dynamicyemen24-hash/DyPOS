@@ -373,15 +373,32 @@ for (job of nextReadyJobs(sortByPriorityThenCreated)) {
 
 ## 14. التحقق / خطوات القبول
 
-1. `cd POS && npm run verify` (vitest + biome) — يمر.
-2. فاتورة ناجحة → تظهر Job في الطابور → QZ يطبع → `COMPLETED` + `was_printed`
-   للفواتير المحلية.
-3. إغلاق QZ ثم طباعة → `FAILED` + زر Reprint، لا تعليق للتنفيذ ولا رسالة مكسورة.
-4. طباعة مزدوجة سريعة → وظيفة واحدة فقط (idempotency).
-5. نسخ = 2 → صفحتان/نسختان مع `copy_no`.
-6. Reprint → سجل جديد بـ `reprintOf` + COPY watermark.
-7. عبر الإنترنت وغير متصل → الطابور تصرّفه نفسه.
-8. EOD أثناء وظيفة فاتورة → يسبقها (priority).
+البوابة الآلية: `cd POS && npm run verify:print` (مجموعة اختبار الطابعة كاملة).
+
+| # | الخطوة | الحالة |
+|---|--------|--------|
+| 1 | `npm run verify` (vitest + biome) | تلقائي — أخضر ✅ |
+| 4 | طباعة مزدوجة سريعة → وظيفة واحدة (idempotency) | تلقائي — `tests/print/idempotency.test.js` |
+| 5 | نسخ = 2 → نسختان مع `copy_no` | تلقائي — `tests/print/acceptanceFlow.test.js` |
+| 6 | Reprint → `reprintOf` + COPY watermark | تلقائي — `tests/print/acceptanceFlow.test.js` |
+| 8 | EOD أثناء فاتورة → يسبقها (priority) | تلقائي — `tests/print/acceptanceFlow.test.js` |
+| 3 | غلق QZ → FAILED + زر Reprint (لا تعليق) | آلي جزئياً (`dispatcherFlow`) + فحص جهاز |
+| 2 | فاتورة ناجحة → QZ → COMPLETED + `was_printed` | **يدوي — جهاز QZ حقيقي** |
+| 7 | عبر الإنترنت وغير متصل → سلوك واحد | **يدوي — تبديل الحالة على الجهاز** |
+
+### سكربت الفحص اليدوي للجهاز (البنود 2 و3 و7)
+
+على محطة كاشير مثبت عليها QZ Tray وطابعة:
+
+1. شغّل POS → أجرِ بيعاً مكتملاً → تأكد أن زر «طباعة آخر فاتورة» (في رأس
+   الشاشة، يظهر عندما يكون `allow_print_last_invoice` مفعّلاً) يوضّب الوظيفة
+   (`SPR-xxxxxx`) ويطبع خلال ثوانٍ، وتظهر الحالة `COMPLETED` في Print Monitor،
+   وتُعلَّم الفاتورة المؤجلة محلياً `was_printed`.
+2. أغلق QZ Tray → اضغط الطباعة → انتظر فشل البند البري: الوظيفة → `FAILED` مع
+   رسالة الخطأ وزر Retry/Reprint في Print Monitor، ولا يُعلّق تنفيذ البيع أبداً.
+3. افتح QZ Tray → اضغط Retry → تعود الوظيفة وتُطبع (أطوال backoff 1s→2s→4s).
+4. افصل الانترنت وقم ببيع آفلان → نفس المسار (بلا تنازل) — ثم أعد الاتصال.
+5. افتح وظيفتين (فاتورة + EOD) دفعة واحدة → يتقدم EOD أولاً (priority 1).
 
 ---
 

@@ -15,6 +15,7 @@
 		"test:run": "vitest run",
 		"test:coverage": "vitest run --coverage",
 		"verify": "vitest run && biome lint --only=suspicious/noConsole src tests",
+		"verify:print": "vitest run tests/print",
 		"copy-html-entry": "cp ../DyPOS/public/pos/index.html ../DyPOS/www/pos.html"
 	},
 	"dependencies": {

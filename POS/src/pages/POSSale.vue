@@ -230,6 +230,14 @@ const paymentError = ref("")
 const completedSale = ref(null)
 const receiptVisible = ref(false)
 
+/** Last sale invoice (session-scoped) for the "print last invoice" header action. */
+const lastSaleInvoiceId = ref(null)
+
+/** Gate for the "print last invoice" header action (settings → store). */
+const allowPrintLastInvoice = computed(
+	() => Boolean(usePOSSettingsStore().allowPrintLastInvoice),
+)
+
 const notification = ref(null)
 
 const busy = ref(false)
@@ -943,6 +951,9 @@ async function confirmPayment() {
 		const result = await submitSale(payload)
 
 		completedSale.value = result || payload
+		// Track the last invoice for the "print last invoice" header action.
+		lastSaleInvoiceId.value =
+			result?.invoice_id || result?.offline_id || result?.name || null
 
 		receiptVisible.value = true
 
@@ -1141,6 +1152,16 @@ async function handlePrintInvoice(invoice) {
 			logger?.error?.("Direct print failed", printError?.message)
 		}
 	}
+}
+
+/** Reprint the last completed invoice (idempotent; spool dedupes rapid taps). */
+async function printLastInvoice() {
+	const invoiceId = lastSaleInvoiceId.value
+	if (!invoiceId) {
+		showNotification("لا توجد فاتورة سابقة للطباعة", "info")
+		return
+	}
+	await handlePrintInvoice(invoiceId)
 }
 
 /* ============================================================================
@@ -1475,6 +1496,16 @@ watch(
             <!-- مؤشر حالة المزامنة الحي (معلّق/متصل/مزامنة أولية) -->
             <template #actions>
                 <SyncStatusIndicator />
+                <button
+                    v-if="allowPrintLastInvoice"
+                    type="button"
+                    class="dy-pos-header-action"
+                    :title="__('طباعة آخر فاتورة')"
+                    :aria-label="__('طباعة آخر فاتورة')"
+                    @click="printLastInvoice"
+                >
+                    <FeatherIcon name="printer" class="h-[18px] w-[18px]" />
+                </button>
             </template>
         </POSHeader>
 
@@ -3374,7 +3405,6 @@ watch(
 /* =============================================================================
    Status
    ============================================================================= */
-
 .dy-pos-sale__status {
     display: flex;
     align-items: center;
@@ -3391,10 +3421,55 @@ watch(
     background:
         var(--dy-surface);
 
-    color: var(--dy-text-muted);
+    color:
+        var(--dy-text-muted);
 
     font-size: 0.72rem;
     font-weight: 650;
+}
+
+.dy-pos-header-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    flex-shrink: 0;
+
+    width: 40px;
+    height: 40px;
+
+    border: 0;
+    border-radius: 12px;
+
+    background: transparent;
+
+    color:
+        rgb(71 85 105);
+
+    outline: none;
+
+    cursor: pointer;
+
+    transition:
+        background-color 140ms ease,
+        color 140ms ease,
+        transform 140ms ease;
+}
+
+.dy-pos-header-action:hover {
+    background: rgb(248 250 252);
+
+    color: rgb(15 23 42);
+}
+
+.dy-pos-header-action:active {
+    transform: scale(0.96);
+}
+
+.dy-pos-header-action:focus-visible {
+    outline: 2px solid rgb(5 150 105);
+
+    outline-offset: 2px;
 }
 
 .dy-pos-sale__status-dot {
