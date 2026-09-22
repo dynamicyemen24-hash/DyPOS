@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `POS/src/composables/useRecentInvoices.js`: تقييد الحد `0..50` حسب عقد الوحدة (0 = مخفي) — يمنع جلباً ضخماً من إعداد خاطئ ويحمي سطح المكتب في الذروة.
 ### Changed — توحيد الإصدار النهائي
 - `1.33.0` في `package.json` (الجذر) + `POS/package.json` + `server/package.json` + `server/lib/version.js` + صور Docker + `README` + ترويسات الكاشير (`main/posCart/posSettings/posOffers/useMarketing`) — لا طوابع يدوية متبقية في مسار الكاشير.
+- `POS/vite.config.js`: رفع هدف البناء إلى `es2022` (`target: "es2022"`) لتفعيل `top-level await` في `src/adapters/index.js` (مختار الخادم) بدون transpile متحفّظ.
 ### Verified
 - الواجهة: **406/406** (vitest) — الخادم: **224/224** (node:test) — `npm run verify` أخضر — `npm run parity` ok:true — بناء إنتاجي مثبّت على `DyPOS_BUILD_VERSION=1.33.0`.
 - النشر: `node scripts/build-pages-site.mjs` + `wrangler pages deploy .pages-site --project-name dypos-pos --branch main` ثم تحقق حي `version.json` + `pos.html` على `https://dypos.smartportssoft.com/`.

@@ -87,6 +87,9 @@ missing.txt
 
 # Deployment packages
 dist-deploy/
+allfiles.txt
+scripts/publish.ps1
+scripts/deploy-direct.cmd
 
 # Drill/test data
 server/data/drill/

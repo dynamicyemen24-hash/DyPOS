@@ -33,8 +33,20 @@ async function main() {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const file = join(BACKUP_DIR, `dypos-${stamp}.db`);
 
-  // 1) Snapshot — import schema.js for the live handle (runs migrate if needed)
-  const { default: db } = await import('../db/schema.js');
+  // 1) Snapshot — import schema.js for the live handle and run the full
+  //    migration first. schema.js does NOT self-migrate on import (server.js /
+  //    entrypoint.js / db/migrate.js call migrate() explicitly), so a fresh
+  //    checkout would otherwise VACUUM an empty database and the subsequent
+  //    restore drill would fail with "no such table: invoices".
+  const { default: db, migrate } = await import('../db/schema.js');
+  migrate();
+  const requiredTables = ['invoices', 'invoice_items', 'payments', 'products', 'users', 'schema_version'];
+  const missingTables = requiredTables.filter(
+    (t) => !db.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?`).get(t),
+  );
+  if (missingTables.length) {
+    throw new Error(`Backup aborted: schema incomplete after migrate() — missing tables: ${missingTables.join(', ')}`);
+  }
   const safePath = file.replace(/'/g, "''");
   db.exec(`VACUUM INTO '${safePath}'`);
   const size = statSync(file).size;

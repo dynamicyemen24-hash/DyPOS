@@ -68,6 +68,29 @@ jobs:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+      # ── Token preflight: a stale or IP-restricted token surfaces HERE as a
+      # clear 9106 "authentication failed" with replacement instructions,
+      # instead of a cryptic wrangler error swallowing the deploy. GitHub
+      # runners are never on an IP allowlist, so an IP-restricted token can
+      # never deploy from CI. OAuth is not usable in CI (interactive browser
+      # flow) — a scoped account API token WITHOUT IP restriction is the only
+      # supported path.
+      - name: Verify Cloudflare API token (actionable 9106 error)
+        if: steps.cf.outputs.available == 'true'
+        run: |
+          set -e
+          RESP=$(curl -sS -w '\n%{http_code}' "https://api.cloudflare.com/client/v4/user/tokens/verify" -H "Authorization: Bearer $CF_TOKEN")
+          CODE=$(printf '%s' "$RESP" | tail -n1)
+          BODY=$(printf '%s' "$RESP" | sed '$d')
+          if [ "$CODE" != "200" ] || ! printf '%s' "$BODY" | grep -q '"success"[[:space:]]*:[[:space:]]*true'; then
+            echo "::error::Cloudflare API token REJECTED (HTTP $CODE). The CLOUDFLARE_API_TOKEN secret is invalid, expired, or IP-restricted — Cloudflare returns 9106 'authentication failed' because GitHub Actions runners are NOT in the token's IP allowlist. Fix: Cloudflare dashboard → My Profile → API Tokens → create a token scoped to your account (Workers/Pages Edit) with NO IP address restriction, then run: gh secret set CLOUDFLARE_API_TOKEN  (CLOUDFLARE_ACCOUNT_ID already exists and is correct). Re-run this workflow."
+            echo "Cloudflare API response: $BODY"
+            exit 1
+          fi
+          echo "Cloudflare API token verified: OK"
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
       - name: Ensure Pages project exists
         if: steps.cf.outputs.available == 'true'
         continue-on-error: true
@@ -77,12 +100,24 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Deploy to Cloudflare Pages (production)
+        id: deploy
         if: steps.cf.outputs.available == 'true'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy .pages-site --project-name=${{ vars.CF_PAGES_PROJECT || 'dypos-pos' }} --branch=main --commit-dirty=true
+
+      # ── Deploy-time failure → one clear remediation line. The preflight above
+      # already fails fast on 9106-invalid/IP-restricted tokens; this catches
+      # the remaining case (token verifies but lacks Workers/Pages scopes, or
+      # wrangler surfaces 9106 for any other auth reason) so the fix is never
+      # buried in a raw wrangler stack trace. Build / quality gate / pages-site
+      # assembly are separate steps above and stay green; only publish fails. ──
+      - name: Deploy failed → actionable secret error
+        if: failure() && steps.deploy.outcome == 'failure'
+        run: |
+          echo "::error::Cloudflare Pages deploy FAILED (wrangler typically reports 9106 'authentication failed'). CLOUDFLARE_API_TOKEN is invalid, expired, IP-restricted, or lacks Workers/Pages Edit scope. Fix: Cloudflare dashboard → My Profile → API Tokens → Create Token (account scope, Workers/Pages Edit) with NO IP address restriction — GitHub runners are never on an IP allowlist — then run: gh secret set CLOUDFLARE_API_TOKEN. CLOUDFLARE_ACCOUNT_ID already exists and is correct. Re-run this workflow."
 
       # Optional cache purge — only when the zone id secret is provided
       # (Pages on a custom domain normally picks up instantly; kept for belt

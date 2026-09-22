@@ -154,9 +154,17 @@ const headers = `/*
 `;
 writeFileSync(join(OUT, '_headers'), headers, 'utf8');
 
-// 5) _redirects — SPA fallback (history-mode router). Static assets always win
-//    over 200-rewrites on Pages, so this only catches unknown paths.
-writeFileSync(join(OUT, '_redirects'), `/assets/DyPOS/pos/*  /  200\n/pos*  /  200\n/*  /  200\n`, 'utf8');
+// 5) _redirects — SPA fallback (history-mode router). Rules, in order:
+//    - NO rule may touch /assets/** — a 200-rewrite there serves HTML for
+//      version.json/sw.js/JS bundles and hard-breaks the live site.
+//    - /pos* → pos.html keeps the legacy sales-screen URL working.
+//    - catch-all /* → /index.html 200 is the SPA fallback for client routes;
+//      real static files win over plain 200-rewrites on Pages.
+writeFileSync(
+  join(OUT, '_redirects'),
+  `/pos*  /pos.html  200\n/*  /index.html  200\n`,
+  'utf8',
+);
 
 // 6) Report
 let files = 0;
