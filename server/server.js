@@ -58,6 +58,7 @@ import subscriptionsRoutes from './routes/subscriptions.js';
 import openapiRoutes from './routes/openapi.js';
 import deviceRoutes from './routes/device.js';
 import devicesRoutes from './routes/devices.js';
+import localizationRoutes from './routes/localization.js';
 import { metricsMiddleware, metricsHandler } from './middleware/metrics.js';
 import { auditMiddleware } from './middleware/audit.js';
 import { startDispatcher } from './lib/webhooks.js';
@@ -369,6 +370,8 @@ app.use('/api/auth', authRateLimit, authRoutes);
 app.use(requirePrimary);
 
 // Protected routes
+app.use('/api/method', localizationRoutes);
+
 app.use('/api/admin', authMiddleware, adminRoutes);
 app.use('/api/products', authMiddleware, productRoutes);
 app.use('/api/customers', authMiddleware, customerRoutes);

@@ -88,7 +88,7 @@ writeFileSync(join(OUT, 'pos.html'), html, 'utf8');
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), xr-spatial-tracking=(), gyroscope=(), magnetometer=(), accelerometer=(), autoplay=(), display-capture=()
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-+6WnXIl4biFTCa5FVjIi8kJI+6vVx8K7JQYJ7QK7QK7Q='; style-src 'self' 'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='; img-src 'self' data: blob: https://flagcdn.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://api.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com wss:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests; block-all-mixed-content
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-wfoI2Q+Z9ecv56V/FHXIA49Ef6tCopn4N+fovDGrxyE=' 'sha256-JnAxjs7aLTCd09xt7pLlvs5I8qQs5KRqeAPCN5lT9XA='; style-src 'self' 'sha256-ZXN5WtCflCi7h1dYJE0mxvE38DBD99dIcIFI5ImLul0='; img-src 'self' data: blob: https://flagcdn.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://api.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com wss:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests; block-all-mixed-content
 
 /
   Cache-Control: public, max-age=0, must-revalidate
