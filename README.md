@@ -1,244 +1,341 @@
-# DyPOS — Independent POS System
+# DyPOS v1.36.0
 
-**Version:** 1.33.0 | **Architecture:** Vue 3 + Pinia + Express + SQLite/PostgreSQL | **Production:** https://dypos.smartportssoft.com/
+## الكاشير الذكي ونظام نقاط البيع المتكامل — جاهز للإنتاج
 
-DyPOS is a standalone smart professional Point of Sale system. It runs independently and connects to any external ERP, accounting, or payment app only through the dedicated integration unit (`/api/integrations` + `server/lib/integrations/`).
+**DyPOS** هو نظام **كاشير ذكي ونقاط بيع احترافي ومستقل** من تطوير **شركة المنافذ الذكية للبرمجيات (Smart Ports Software)**، صُمم ليخدم مختلف أنواع المنشآت التي تعتمد على عمليات البيع والتحصيل وإدارة المنتجات والخدمات والعملاء والمخزون.
 
----
+يدعم DyPOS **المتاجر والمطاعم والمقاهي والمنشآت الخدمية والتجزئة والأنشطة التجارية المختلفة**، مع بنية مرنة تسمح بتكييف النظام وفق طبيعة النشاط وطريقة التشغيل.
 
-## Quick Start
+ولا يقتصر دور DyPOS على إصدار الفواتير، بل يوفر منظومة متكاملة تشمل:
 
-### 1. Install Server
-```bash
-cd server
-npm install
-cp .env.example .env
-node db/seed.js          # Create admin/admin123 + sample data
-npm run dev              # Start on port 3001
-```
+* الكاشير الذكي
+* نقاط البيع
+* المبيعات والفواتير
+* المنتجات والأصناف
+* المخزون
+* العملاء والولاء
+* المدفوعات
+* الورديات والصناديق
+* المرتجعات
+* التقارير
+* التشغيل دون اتصال (Offline-First)
+* مركز التكامل والربط
+* أدوات التكامل مع الأنظمة الخارجية
 
-### 2. Install Frontend
-```bash
-cd POS
-npm install
-cp .env.example .env     # Set VITE_DYPOS_API=http://localhost:3001/api
-npm run dev              # Start on port 5173
-```
-
-### 3. Login
-- **Admin:** admin / admin123
-- **Cashier:** cashier / cashier123
+> **DyPOS — كاشير ذكي لنشاطك، ونظام نقاط بيع ينمو مع أعمالك.**
 
 ---
 
-## Architecture
+## 🏷️ الإصدار الحالي: v1.36.0 (Production Ready)
 
+| المكون | الإصدار | الحالة |
+|----------|---------|--------|
+| **Frontend (Vue 3 + Vite + PWA)** | 1.36.0 | ✅ Production |
+| **Backend (Node.js + Express + SQLite/Postgres)** | 1.36.0 | ✅ Production |
+| **PWA / Service Worker** | v1.3.0 | ✅ Active |
+| **Offline Sync Engine** | Chunked + Idempotent | ✅ Verified |
+
+**روابط رسمية:**
+- **الموقع الرسمي:** https://smartportssoft.com/
+- **منصة Dycos:** https://dycos.smartportssoft.com/
+- **DyPOS Live:** https://dypos.smartportssoft.com/
+
+---
+
+## 🛡️ معايير الجودة والأمان (Production Grade)
+
+| معيار | النتيجة | التفاصيل |
+|--------|---------|-----------|
+| **اختبارات الواجهة الأمامية** | 552/552 ✅ | Vitest + jsdom + Vue Test Utils |
+| **اختبارات الخادم** | 282/282 ✅ | Node.js test runner + SQLite |
+| **التدقيق الأمني (Biome)** | 0 تحذيرات ✅ | Frontend + Backend |
+| **فحص التبعيات (npm audit)** | High+ ✅ | CI gate مفعل |
+| **Content Security Policy** | Strict ✅ | بدون `unsafe-inline`، Hash-based |
+| **Request Tracing** | مفعل ✅ | `X-Request-Id` عبر السلسلة الكاملة |
+| **Multi-Tenant Isolation** | Row-level ✅ | 404 على الوصول عبر المستأجرين |
+| **Idempotency** | Fail-closed ✅ | الفواتير لا تُسجل صامتاً |
+| **PWA Precaching** | 80 asset ✅ | 4.4 MB / Workbox |
+
+---
+
+## 🧠 كاشير ذكي
+
+تم تصميم DyPOS ليكون **كاشيرًا ذكيًا** وليس مجرد شاشة تسجيل مبيعات.
+
+يوفر للكاشير بيئة تشغيل سريعة ومنظمة تساعده على تنفيذ عمليات البيع اليومية بأقل عدد ممكن من الخطوات، مع إمكانية تهيئة طريقة العمل بحسب طبيعة المنشأة.
+
+### للكاشير
+
+* واجهة بيع سهلة وسريعة
+* البحث بالباركود وQR وSKU
+* البحث عن المنتجات والأصناف
+* إدارة سلة المبيعات
+* تطبيق الخصومات
+* التعامل مع العروض والكوبونات
+* اختيار وسيلة الدفع
+* الدفع المتعدد
+* تعليق واستعادة الفواتير
+* المبيعات الآجلة
+* المرتجعات
+* إدارة الوردية
+* العمل عند انقطاع الإنترنت
+* المزامنة التلقائية بعد عودة الاتصال
+
+---
+
+## 🍽️ مصمم للمطاعم والمقاهي
+
+يدعم DyPOS تشغيل نقاط البيع في **المطاعم والمقاهي ومختلف منشآت الأغذية والمشروبات**، مع إمكانية تكييف المنتجات والأصناف والطلبات وطرق التشغيل وفق طبيعة المنشأة.
+
+يمكن استخدامه في:
+* المطاعم
+* المقاهي
+* الكافيهات
+* المطاعم السريعة
+* محلات الحلويات
+* المخابز
+* محلات العصائر
+* خدمات الأغذية والمشروبات
+* المطابخ والمطاعم متعددة الفروع
+
+---
+
+## 🏪 للمتاجر والتجزئة
+
+يخدم DyPOS مختلف أنشطة البيع بالتجزئة:
+
+* السوبر ماركت
+* البقالات
+* متاجر الملابس
+* متاجر الإلكترونيات
+* محلات الأدوات المنزلية
+* الصيدليات وفق المتطلبات التنظيمية
+* المعارض
+* المتاجر المتخصصة
+* نقاط البيع متعددة الفروع
+
+---
+
+## 🏢 للمنشآت والخدمات
+
+لا يقتصر DyPOS على بيع المنتجات، بل يمكن تهيئته للمنشآت التي تعتمد على **بيع الخدمات أو المنتجات والخدمات معًا**:
+
+* مراكز الخدمات
+* مراكز التدريب
+* الصالات
+* مراكز العناية والخدمات الشخصية
+* الأنشطة المهنية والتجارية
+* المنشآت التي تعتمد على الحجوزات والتحصيل
+* أي نشاط يحتاج إلى نقطة بيع وإدارة عمليات التحصيل
+
+---
+
+## 🧩 منصة واحدة لأنشطة متعددة
+
+```text
+                          DyPOS
+                     Smart POS Platform
+                            │
+         ┌──────────────────┼──────────────────┐
+         │                  │                  │
+         ▼                  ▼                  ▼
+      Retail             Restaurants        Services
+         │                  │                  │
+         ▼                  ▼                  ▼
+    المتاجر             المطاعم            الخدمات
+    التجزئة             والمقاهي           والمنشآت
+         │                  │                  │
+         └──────────────────┼──────────────────┘
+                            │
+                            ▼
+                   Integration Center
+                            │
+                            ▼
+                    Any External System
 ```
-┌─────────────────────────────────────────────────────┐
-│                    DyPOS Frontend                    │
-│         Vue 3 + Pinia + Tailwind + PWA              │
-│                                                     │
-│  ┌──────────┐  ┌──────────┐  ┌──────────────────┐  │
-│  │ Cart     │  │ Payments │  │ Offline (Dexie)  │  │
-│  │ Offers   │  │ Shifts   │  │ Sync Protocol    │  │
-│  │ Stock    │  │ Reports  │  │ Conflict Res.    │  │
-│  └──────────┘  └──────────┘  └──────────────────┘  │
-│                                                     │
-│  ┌──────────────────────────────────────────────┐   │
-│  │          Backend Adapter (pluggable)          │   │
-│  │   REST API ◄──► Frappe API ◄──► Firebase     │   │
-│  └──────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────┘
+
+---
+
+## 🚀 مصمم ليتكيف مع نشاطك
+
+كل نشاط تجاري له طريقة مختلفة في البيع والتشغيل. تم بناء DyPOS بطريقة تسمح بتهيئة النظام وفق طبيعة المنشأة، بدل فرض طريقة تشغيل واحدة على جميع العملاء.
+
+يمكن تخصيص بيئة التشغيل بحسب:
+* نوع النشاط
+* المنتجات أو الخدمات
+* طرق الدفع
+* سياسة الخصومات
+* العملاء
+* المخزون
+* الورديات
+* الفروع
+* نقاط البيع
+* احتياجات التكامل
+
+---
+
+## 🔗 تكامل مفتوح مع الأنظمة الأخرى
+
+DyPOS **نظام مستقل ولا يفرض نظامًا خارجيًا محددًا**. يوفر النظام **مركزًا لإدارة التكامل والربط** وأدوات متخصصة تسمح بربطه مع أي نظام مناسب لاحتياجات المنشأة.
+
+```text
+                        DyPOS
                           │
                           ▼
-┌─────────────────────────────────────────────────────┐
-│                   DyPOS Server                       │
-│              Express + SQLite/PostgreSQL              │
-│                                                     │
-│  /api/auth      — JWT login/register                │
-│  /api/products  — CRUD + search + barcode           │
-│  /api/customers — CRUD + loyalty + credit           │
-│  /api/invoices  — Sale + payments + reports         │
-│  /api/shifts    — Open/close/X-report/Z-report     │
-│  /api/stock     — Levels + adjust + reservations    │
-│  /api/sync      — Pull/push for ERP integration     │
-│                                                     │
-└─────────────────────────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────┐
-│              External ERP Integration                │
-│                                                     │
-│  DyPOS / ERPNext / Odoo / Custom                    │
-│  via REST API or WebSocket sync                      │
-│                                                     │
-│  GET  /api/sync/pull?checkpoint=0   ← ERP reads     │
-│  POST /api/sync/push                → ERP writes    │
-│  WS   /ws/pos/inventory-updates     → Real-time     │
-└─────────────────────────────────────────────────────┘
+                ┌─────────────────┐
+                │ Integration     │
+                │ Center          │
+                └────────┬────────┘
+                         │
+           ┌─────────────┼─────────────┐
+           ▼             ▼             ▼
+          ERP       Accounting     E-Commerce
+           │             │             │
+           └─────────────┼─────────────┘
+                         ▼
+                   Custom Systems
+```
+
+**بروتوكولات مدعومة:**
+* REST API
+* WebSocket / SSE (Real-time)
+* Pull / Push Sync
+* Checkpoint Sync
+* Incremental Sync
+* أدوات اختبار الاتصال
+* إدارة إعدادات الربط
+* سجلات التكامل
+* أدوات المزامنة
+
+---
+
+## 📱 تجربة كاشير حديثة
+
+تم تصميم تجربة DyPOS حول احتياجات المستخدم الفعلي في نقطة البيع:
+
+**ابحث → أضف → راجع → ادفع → اطبع → أكمل**
+
+مع تقليل الخطوات غير الضرورية وجعل العمليات اليومية واضحة وسريعة. يعمل النظام عبر أجهزة مختلفة: أجهزة الكمبيوتر، أجهزة نقاط البيع، الأجهزة اللوحية، والمتصفحات الحديثة الداعمة لـ **PWA** (قابلة للتثبيت كتطبيق أصلي).
+
+---
+
+## 📡 يعمل حتى عند ضعف الإنترنت (Offline-First)
+
+يعتمد DyPOS على مفهوم **Offline-First** لتقليل تأثير انقطاع الإنترنت على التشغيل اليومي.
+
+* يمكن لنقطة البيع مواصلة العمليات المدعومة محليًا
+* مزامنة البيانات تلقائيًا عند عودة الاتصال
+* محرك مزامنة مقسم (Chunked) مع معالجة تضارب
+* ديدوبليكيشن (Idempotency) على مستوى الفاتورة
+
+> **الاتصال بالإنترنت يجب ألا يكون عائقًا أمام استمرار البيع.**
+
+---
+
+## 🏬 من مشروع صغير إلى منظومة متعددة الفروع
+
+```text
+كاشير واحد
+    ↓
+نقطة بيع
+    ↓
+عدة نقاط بيع
+    ↓
+فرع
+    ↓
+عدة فروع
+    ↓
+مستودعات
+    ↓
+منظومة متكاملة
+    ↓
+ربط الأنظمة الخارجية
 ```
 
 ---
 
-## Features
+## 🎯 لمن صُمم DyPOS؟
 
-### Sales & Checkout
-- Barcode/QR/SKU search + manual entry
-- Product variants, UoM, weights, bundles
-- Per-line and order-level discounts
-- Coupon codes (percentage/fixed)
-- Loyalty points earn + redemption
-- Wallet balance + credit sales
-- Split payments (cash + card + wallet)
-- Partial payments + installments
-- Hold/resume invoices
-- Returns with disposition (restock/waste/damaged)
-
-### Payment Methods
-Cash, Card, MADA, STC Pay, Tamara, Tabby, Transfer, Cheque, Wallet, Credit, Gift Card — all configurable.
-
-### Shift Management
-- Open shift with opening cash
-- Mid-shift X-report (cash count)
-- Close shift with variance approval
-- Z-report generation
-- Multi-cashier support
-
-### Offline-First
-- 100% offline via IndexedDB (Dexie)
-- Web Worker for background sync
-- Conflict resolution (keep-local / auto-merger)
-- Checkpoint-based incremental sync
-- Auto-sync on reconnection
-
-### ERP Integration
-- Generic REST API (any ERP can connect)
-- Sync protocol: pull/push with checkpoint
-- Product catalog sync
-- Customer sync
-- Invoice push to ERP
-- Real-time stock updates via WebSocket
+| النشاط | الاستخدام |
+|---------|-----------|
+| 🛒 المتاجر | المبيعات والمخزون والعملاء |
+| 🛍️ التجزئة | المنتجات والباركود والمدفوعات |
+| 🍽️ المطاعم | الطلبات والمبيعات والتحصيل |
+| ☕ المقاهي | الكاشير والمبيعات والمدفوعات |
+| 🍰 الحلويات والمخابز | المنتجات والمبيعات والمخزون |
+| 🥤 العصائر والمشروبات | نقاط البيع والتحصيل |
+| 🏢 الخدمات | بيع الخدمات والتحصيل |
+| 🏬 الفروع | نقاط بيع متعددة |
+| 🔗 المنشآت المتكاملة | الربط مع الأنظمة الخارجية |
 
 ---
 
-## API Reference
+## ⚙️ البنية التقنية (Tech Stack)
 
-### Auth
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | /api/auth/login | Login (returns JWT) |
-| POST | /api/auth/register | Create user |
-| GET | /api/auth/me | Current user |
-
-### Products
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /api/products | List (search, filter) |
-| GET | /api/products/:id | Get by ID |
-| POST | /api/products | Create |
-| PUT | /api/products/:id | Update |
-| DELETE | /api/products/:id | Soft delete |
-
-### Invoices
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | /api/invoices | Create sale (idempotent) |
-| GET | /api/invoices | List (filter by status/date) |
-| GET | /api/invoices/:id | Get with items + payments |
-| POST | /api/invoices/:id/pay | Add payment |
-| GET | /api/invoices/reports/daily | Daily summary |
-
-### Shifts
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | /api/shifts/open | Open shift |
-| GET | /api/shifts/open/:terminal | Get open shift |
-| POST | /api/shifts/:id/close | Close shift |
-| GET | /api/shifts/:id/report | Shift report |
-
-### Stock
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /api/stock | Bulk levels |
-| GET | /api/stock/:productId | Single level |
-| POST | /api/stock/adjust | Manual adjustment |
-
-### Sync (ERP Integration)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /api/sync/pull | Pull pending changes |
-| POST | /api/sync/push | Push changes from ERP |
-| GET | /api/sync/checkpoint | Last sync checkpoint |
+| الطبقة | التقنيات |
+|--------|----------|
+| **Frontend** | Vue 3, Pinia, Vite, TypeScript, TailwindCSS, frappe-ui |
+| **PWA** | Workbox, Service Worker, IndexedDB (Dexie) |
+| **Backend** | Node.js 22+, Express, SQLite / Postgres, Zod |
+| **Auth** | JWT + HttpOnly Cookies + CSRF |
+| **Real-time** | Server-Sent Events (SSE) |
+| **Testing** | Vitest (552 tests), Node test runner (282 tests) |
+| **Lint/Format** | Biome (zero warnings) |
+| **CI/CD** | GitHub Actions + Cloudflare Pages |
+| **Observability** | Pino structured logs, Request-ID tracing |
 
 ---
 
-## Deployment
+## 🚀 النشر (Deployment)
 
-### Development
+### Cloudflare Pages (Production)
 ```bash
-# Terminal 1: Server
-cd server && npm run dev
+# البناء المحلي
+cd POS && yarn build
 
-# Terminal 2: Frontend
-cd POS && npm run dev
+# تجميع موقع Pages
+node scripts/build-pages-site.mjs --out .pages-site
+
+# النشر عبر Wrangler
+npx wrangler pages deploy .pages-site --project-name=dypos-pos --branch=main
 ```
 
-### Production
+### التحقق بعد النشر
 ```bash
-# Build frontend
-cd POS && npm run build
-
-# The server serves the built frontend from POS/dist/
-cd server && NODE_ENV=production node server.js
+curl https://dypos.smartportssoft.com/assets/DyPOS/pos/version.json
+# {"version":"1.36.0","build":"1790203264127",...}
 ```
-
-### Docker
-```dockerfile
-FROM node:22-alpine
-WORKDIR /app
-COPY server/package*.json ./server/
-RUN cd server && npm ci --production
-COPY server/ ./server/
-COPY POS/dist/ ./POS/dist/
-EXPOSE 3001
-CMD ["node", "server/server.js"]
-```
-
-### Environment Variables
-
-**Server (.env):**
-| Variable | Default | Description |
-|----------|---------|-------------|
-| DYPOS_PORT | 3001 | Server port |
-| DYPOS_HOST | 0.0.0.0 | Bind address |
-| DYPOS_JWT_SECRET | (required) | JWT signing secret |
-| DYPOS_JWT_EXPIRES | 24h | Token expiry |
-| DYPOS_DB_PATH | ./data/dypos.db | SQLite path |
-| DYPOS_CORS_ORIGIN | * | Allowed origins |
-
-**Frontend (.env):**
-| Variable | Default | Description |
-|----------|---------|-------------|
-| VITE_DYPOS_BACKEND | rest | Backend type (rest/frappe) |
-| VITE_DYPOS_API | /api | API base URL |
 
 ---
 
-## ERP Sync Setup
+## 🔐 متطلبات تشغيل الخادم
 
-### With DyPOS
-1. DyPOS exposes `/api/pos/*` endpoints
-2. DyPOS sync adapter calls DyPOS API
-3. Products, customers, invoices sync bidirectionally
-
-### With Any ERP
-1. ERP implements `/api/sync/pull` and `/api/sync/push`
-2. DyPOS polls `/api/sync/pull` every 30s
-3. DyPOS pushes invoices via `/api/sync/push`
-4. Checkpoint-based: no data loss, no duplicates
+* **Node.js** ≥ 22.5.0
+* **SQLite** (مضمن) أو **PostgreSQL** ≥ 14
+* **منفذ** 3001 (افتراضي) أو حسب `PORT`
+* متغيرات بيئة أساسية في `.env`:
+  ```env
+  JWT_SECRET=<strong-random>
+  DATABASE_URL=sqlite:./data/dypos.db
+  # أو Postgres
+  DATABASE_URL=postgresql://user:pass@host:5432/dypos
+  ```
 
 ---
 
-## License
+## 📄 الترخيص
 
-Open Source — Free for commercial use.
+**ISC License** — مجاني ومفتوح المصدر للاستخدام التجاري وغير التجاري.
+
+---
+
+## 🏢 الشركة المطورة
+
+**شركة المنافذ الذكية للبرمجيات**  
+**Smart Ports Software**
+
+* **الموقع الرسمي:** https://smartportssoft.com/
+* **منصة Dycos:** https://dycos.smartportssoft.com/
+* **DyPOS Live:** https://dypos.smartportssoft.com/
+
+© 2026 Smart Ports Software. All Rights Reserved.
