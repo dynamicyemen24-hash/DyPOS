@@ -1,0 +1,70 @@
+# Nightly Load Test — k6 stress against staging
+name: Nightly Load Test
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # 03:00 UTC (06:00 AST)
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Target environment (staging|production)'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+concurrency:
+  group: nightly-load-test
+  cancel-in-progress: false
+
+jobs:
+  load-test:
+    name: k6 Load Test (${{ github.event.inputs.target || 'staging' }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      BASE_URL: ${{ github.event.inputs.target == 'production' && 'https://dypos.smartportssoft.com' || 'https://staging.dypos.smartportssoft.com' }}
+
+    steps:
+      - name: Clone
+        uses: actions/checkout@v4
+
+      - name: Setup k6
+        uses: grafana/k6-action@v0.2.0
+
+      - name: Run k6 invoice stress test
+        run: |
+          k6 run \
+            --vus 50 \
+            --duration 5m \
+            --out json=results.json \
+            -e BASE=${BASE_URL} \
+            server/tests/load/k6-invoices.js
+
+      - name: Upload k6 results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-results-${{ github.event.inputs.target || 'staging' }}
+          path: results.json
+          retention-days: 30
+
+      - name: Fail on threshold breach
+        if: always()
+        run: |
+          # Parse results.json and check thresholds
+          # Example: p95 < 500ms, error_rate < 1%
+          node -e "
+            const fs = require('fs');
+            const r = JSON.parse(fs.readFileSync('results.json'));
+            const checks = r.metrics.checks.values;
+            const httpReqDuration = r.metrics.http_req_duration.values;
+            const p95 = httpReqDuration['p(95)'];
+            const errorRate = 1 - checks.passes / (checks.passes + checks.fails);
+            console.log('p95:', p95, 'ms');
+            console.log('error_rate:', (errorRate * 100).toFixed(2), '%');
+            if (p95 > 500) process.exit(1);
+            if (errorRate > 0.01) process.exit(1);
+          "

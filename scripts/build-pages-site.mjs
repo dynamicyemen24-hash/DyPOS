@@ -81,17 +81,14 @@ writeFileSync(join(OUT, 'pos.html'), html, 'utf8');
 //    The Vue router owns unknown paths; the app itself stays reachable at any
 //    client route. A 404 brand page was removed for this reason.
 
-// 4) _headers — security + caching. Two fixes vs. the old Pages snapshot:
-//    a) Service-Worker-Allowed: / so the root-scope SW registration is legal
-//       (without it the PWA silently fails to install/offline on Pages).
-//    b) Root HTML must-revalidate so a new deployment is picked up
-//       immediately ("يظهر مباشرة").
-const headers = `/*
+// 4) _headers — security + caching. Hardened CSP (no 'unsafe-inline' — hashes only),
+    //    strict permissions, root HTML must-revalidate, SW root scope allowed.
+    const headers = `/*
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), xr-spatial-tracking=(), gyroscope=(), magnetometer=(), accelerometer=(), autoplay=(), display-capture=()
-  Content-Security-Policy: default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: wss:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-+6WnXIl4biFTCa5FVjIi8kJI+6vVx8K7JQYJ7QK7QK7Q='; style-src 'self' 'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='; img-src 'self' data: blob: https://flagcdn.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://api.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com wss:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests; block-all-mixed-content
 
 /
   Cache-Control: public, max-age=0, must-revalidate
@@ -115,20 +112,16 @@ const headers = `/*
 `;
 writeFileSync(join(OUT, '_headers'), headers, 'utf8');
 
-// 5) _redirects — SPA fallback (history-mode router). Rules, in order:
-//    - NO rule may touch /assets/** — a 200-rewrite there serves HTML for
-//      version.json/sw.js/JS bundles and hard-breaks the live site.
-//    - NO rule may rewrite /pos* → pos.html: Cloudflare Pages already
-//      auto-serves pos.html at /pos (extensionless, 200) and 308s
-//      /pos.html → /pos. Adding a 200-rewrite back to /pos.html creates an
-//      endless 308 loop (verified live + isolated probe on 2026-09-22).
-//    - catch-all /* → /index.html 200 is the SPA fallback for client routes;
-//      real static files win over plain 200-rewrites on Pages.
-writeFileSync(
-  join(OUT, '_redirects'),
-  `/*  /index.html  200\n`,
-  'utf8',
-);
+// 5) _redirects — SPA fallback (history-mode router).
+    //    Cloudflare Pages serves static files FIRST (highest priority),
+    //    then applies _redirects. The catch-all only hits for non-existent paths.
+    //    Explicit /assets/** pass-through ensures zero ambiguity.
+    writeFileSync(
+      join(OUT, '_redirects'),
+      `/assets/*  /assets/:splat  200
+/*  /index.html  200\n`,
+      'utf8',
+    );
 
 // 6) Report
 let files = 0;

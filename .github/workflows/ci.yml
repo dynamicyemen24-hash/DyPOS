@@ -32,6 +32,9 @@ jobs:
       - name: Install dependencies
         run: yarn install
 
+      - name: Security Audit (npm audit)
+        run: npm audit --audit-level=high --omit=dev
+
       - name: Windows bench-walk guard (frappe-ui/vite)
         # Regression gate: upstream utils.js walks to "/" which never matches
         # a Windows drive root and hangs vite before any output. The postinstall
@@ -69,6 +72,9 @@ jobs:
 
       - name: Install
         run: npm ci --no-audit --no-fund
+
+      - name: Security Audit (npm audit)
+        run: npm audit --audit-level=high --omit=dev
 
       - name: Lint (biome)
         run: npm run lint

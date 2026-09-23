@@ -1,0 +1,109 @@
+# Dependabot configuration for DyPOS
+# Updates: npm (frontend + server), GitHub Actions, Docker
+version: 2
+updates:
+  # Frontend dependencies (POS)
+  - package-ecosystem: "npm"
+    directory: "/POS"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:00"
+      timezone: "Asia/Riyadh"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "frontend"
+    commit-message:
+      prefix: "deps(frontend)"
+    groups:
+      dev-deps:
+        patterns:
+          - "@*"
+          - "vite*"
+          - "vitest*"
+          - "biome*"
+          - "tailwind*"
+          - "postcss*"
+          - "autoprefixer*"
+        update-types:
+          - "minor"
+          - "patch"
+      prod-deps:
+        patterns:
+          - "vue*"
+          - "pinia*"
+          - "frappe-ui*"
+          - "dexie*"
+          - "chart*"
+          - "socket.io*"
+          - "qz-tray*"
+          - "feather-icons*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Backend dependencies (server)
+  - package-ecosystem: "npm"
+    directory: "/server"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+      timezone: "Asia/Riyadh"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "backend"
+    commit-message:
+      prefix: "deps(backend)"
+    groups:
+      dev-deps:
+        patterns:
+          - "@biomejs/*"
+        update-types:
+          - "minor"
+          - "patch"
+      prod-deps:
+        patterns:
+          - "express*"
+          - "pino*"
+          - "prom-client*"
+          - "jsonwebtoken*"
+          - "bcryptjs*"
+          - "zod*"
+          - "pg*"
+          - "uuid*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "Asia/Riyadh"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "deps(ci)"
+
+  # Docker base images
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "Asia/Riyadh"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "deps(docker)"
