@@ -442,10 +442,15 @@ export const usePOSOffersStore = defineStore("posOffers", () => {
 				setAvailableOffers(response?.message || response || [])
 
 				// Cache offers for offline use
-				if (response?.message?.length > 0 || (Array.isArray(response) && response.length > 0)) {
-					offlineWorker.cacheOffers(response?.message || response, posProfile).catch(() => {
-						// Silently ignore cache errors
-					})
+				if (
+					response?.message?.length > 0 ||
+					(Array.isArray(response) && response.length > 0)
+				) {
+					offlineWorker
+						.cacheOffers(response?.message || response, posProfile)
+						.catch(() => {
+							// Silently ignore cache errors
+						})
 				}
 
 				return true

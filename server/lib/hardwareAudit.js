@@ -20,7 +20,7 @@ export function initHardwareAuditTables() {
 
       CREATE INDEX IF NOT EXISTS idx_hw_audit_time ON hardware_audit_logs(created_at DESC);
     `)
-  } catch (e) {
+  } catch (_e) {
     // Non-blocking best effort
   }
 }
@@ -46,7 +46,7 @@ export function recordHardwareAudit({ deviceId, action, status, payloadSummary, 
       username || 'system',
       timestamp
     )
-  } catch (e) {
+  } catch (_e) {
     // Non-blocking best effort
   }
   return { auditId, timestamp, status }

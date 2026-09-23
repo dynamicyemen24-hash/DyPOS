@@ -157,7 +157,7 @@ router.post('/:entity', (req, res) => {
   const dryRun = String(req.query.dryRun || '') === '1' || String(req.query.dryRun || '').toLowerCase() === 'true';
   let scopeTenant = null;
   try {
-    scopeTenant = (assertTenantScope(req) || {}).tenantId || req.user?.tenantId || null;
+    scopeTenant = assertTenantScope(req)?.tenantId || req.user?.tenantId || null;
   } catch (e) {
     return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
   }

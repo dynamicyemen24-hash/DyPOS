@@ -19,7 +19,7 @@ router.use(requireRole('ADMIN', 'MANAGER', 'AUDITOR'));
 const ENTITIES = {
   products: {
     columns: ['id', 'code', 'name', 'name_ar', 'barcode', 'unit_price', 'cost', 'tax_rate', 'uom', 'category', 'brand', 'is_active'],
-    build: (q, tenant) => {
+    build: (_q, tenant) => {
       const a = [];
       let s = 'SELECT * FROM products WHERE 1=1';
       if (tenant) { s += ' AND tenant_id=?'; a.push(tenant); }
@@ -28,7 +28,7 @@ const ENTITIES = {
   },
   customers: {
     columns: ['id', 'name', 'phone', 'email', 'tax_number', 'loyalty_tier', 'loyalty_points', 'wallet_balance', 'credit_limit', 'credit_used'],
-    build: (q, tenant) => {
+    build: (_q, tenant) => {
       const a = [];
       let s = 'SELECT * FROM customers WHERE 1=1';
       if (tenant) { s += ' AND tenant_id=?'; a.push(tenant); }
@@ -50,7 +50,7 @@ const ENTITIES = {
   },
   invoice_items: {
     columns: ['id', 'invoice_id', 'product_id', 'product_name', 'barcode', 'qty', 'unit_price', 'discount', 'tax_rate', 'tax_amount', 'total', 'uom', 'warehouse_id'],
-    build: (q, tenant) => {
+    build: (_q, tenant) => {
       const a = [];
       let s = 'SELECT i.* FROM invoice_items i JOIN invoices v ON i.invoice_id=v.id WHERE 1=1';
       if (tenant) { s += ' AND v.tenant_id=?'; a.push(tenant); }
@@ -59,7 +59,7 @@ const ENTITIES = {
   },
   payments: {
     columns: ['id', 'invoice_id', 'method', 'amount', 'reference', 'created_at'],
-    build: (q, tenant) => {
+    build: (_q, tenant) => {
       const a = [];
       let s = 'SELECT p.* FROM payments p JOIN invoices v ON p.invoice_id=v.id WHERE 1=1';
       if (tenant) { s += ' AND v.tenant_id=?'; a.push(tenant); }
@@ -68,7 +68,7 @@ const ENTITIES = {
   },
   stock: {
     columns: ['product_id', 'warehouse_id', 'qty', 'reserved_qty', 'allocated_qty', 'updated_at'],
-    build: (q, tenant) => {
+    build: (_q, tenant) => {
       const a = [];
       let s = 'SELECT s.* FROM stock_levels s JOIN warehouses w ON s.warehouse_id=w.id WHERE 1=1';
       if (tenant) { s += ' AND w.tenant_id=?'; a.push(tenant); }
@@ -77,7 +77,7 @@ const ENTITIES = {
   },
   shifts: {
     columns: ['id', 'terminal_id', 'opened_by', 'opening_cash', 'closing_cash', 'expected_cash', 'variance', 'status', 'opened_at', 'closed_at', 'total_sales', 'orders_count'],
-    build: (q, tenant) => {
+    build: (_q, tenant) => {
       const a = [];
       let s = 'SELECT * FROM shifts WHERE 1=1';
       if (tenant) { s += ' AND tenant_id=?'; a.push(tenant); }

@@ -12,7 +12,11 @@ import { defineStore } from "pinia"
 import { computed, ref } from "vue"
 
 import { logger } from "@/utils/logger"
-import { buildPrintJob, JOB_STATUSES, TERMINAL_STATUSES } from "@/print/spool/printJobFactory"
+import {
+	buildPrintJob,
+	JOB_STATUSES,
+	TERMINAL_STATUSES,
+} from "@/print/spool/printJobFactory"
 
 const log = logger.create("PrintJobStore")
 
@@ -37,7 +41,8 @@ const TERMINAL_MEMORY_WINDOW = 300
 const dexie = new Dexie(PRINT_DB_NAME)
 
 dexie.version(1).stores({
-	dypos_print_jobs: "&id, status, docType, docId, createdAt, priority, deviceId",
+	dypos_print_jobs:
+		"&id, status, docType, docId, createdAt, priority, deviceId",
 	dypos_print_history:
 		"&id, jobId, docType, docId, createdAt, finishedAt, status, terminalId",
 	meta: "&key",
@@ -57,8 +62,7 @@ export const usePrintJobStore = defineStore("printJob", () => {
 		() => jobs.value.filter((j) => j.status === JOB_STATUSES.QUEUED).length,
 	)
 	const processingCount = computed(
-		() =>
-			jobs.value.filter((j) => j.status === JOB_STATUSES.PROCESSING).length,
+		() => jobs.value.filter((j) => j.status === JOB_STATUSES.PROCESSING).length,
 	)
 	const failedCount = computed(
 		() => jobs.value.filter((j) => j.status === JOB_STATUSES.FAILED).length,

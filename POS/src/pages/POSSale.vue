@@ -235,8 +235,8 @@ const receiptVisible = ref(false)
 const lastSaleInvoiceId = ref(null)
 
 /** Gate for the "print last invoice" header action (settings → store). */
-const allowPrintLastInvoice = computed(
-	() => Boolean(usePOSSettingsStore().allowPrintLastInvoice),
+const allowPrintLastInvoice = computed(() =>
+	Boolean(usePOSSettingsStore().allowPrintLastInvoice),
 )
 
 const notification = ref(null)
@@ -1203,10 +1203,16 @@ async function printReceipt() {
 	} catch (error) {
 		// Spool unavailable or failed — never block the cashier; keep the
 		// historical browser-print behaviour as a safe fallback.
-		logger?.warn?.("Receipt spool print failed; browser fallback", error?.message)
+		logger?.warn?.(
+			"Receipt spool print failed; browser fallback",
+			error?.message,
+		)
 		try {
 			const { printInvoiceByName } = await import("@/utils/printInvoice")
-			await printInvoiceByName(invoiceId, usePOSSettingsStore().settings.value?.print_format || null)
+			await printInvoiceByName(
+				invoiceId,
+				usePOSSettingsStore().settings.value?.print_format || null,
+			)
 		} catch {
 			window.print()
 		}

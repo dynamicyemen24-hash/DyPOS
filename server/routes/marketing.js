@@ -2,7 +2,7 @@
 import { Router } from 'express'
 import db from '../db/schema.js'
 import { v4 as uuid } from 'uuid'
-import { authMiddleware, requireRole } from '../middleware/auth.js'
+import { authMiddleware, } from '../middleware/auth.js'
 import { ah } from '../lib/async.js'
 import { VERSION } from '../lib/version.js'
 
@@ -74,7 +74,7 @@ router.post('/referral/track', authMiddleware, ah(async (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(eventId, username || 'system', code, action, refereeId || null, timestamp, VERSION)
 
-  } catch (e) {
+  } catch (_e) {
     // Non-blocking log
   }
 
@@ -89,7 +89,7 @@ router.post('/referral/track', authMiddleware, ah(async (req, res) => {
 /**
  * GET /api/marketing/badges — Get official version and promotional badges
  */
-router.get('/badges', ah(async (req, res) => {
+router.get('/badges', ah(async (_req, res) => {
   return res.json({
     success: true,
     badges: {

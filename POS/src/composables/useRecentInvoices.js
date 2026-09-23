@@ -32,7 +32,10 @@ async function loadRecentInvoices() {
 	const settings = usePOSSettingsStore()
 	// Clamp 0..50 per module contract: 0 = hidden, >50 never leaves the client.
 	const rawLimit = Number(settings.desktopRecentInvoicesCount ?? 10)
-	const limit = Math.max(0, Math.min(50, Number.isFinite(rawLimit) ? rawLimit : 10))
+	const limit = Math.max(
+		0,
+		Math.min(50, Number.isFinite(rawLimit) ? rawLimit : 10),
+	)
 	if (!limit || limit <= 0) {
 		invoices.value = []
 		return invoices.value
@@ -41,9 +44,7 @@ async function loadRecentInvoices() {
 	offline.value = false
 	try {
 		const { getInvoices } = await import("@/adapters/index.js")
-		const rows = normalizeRows(
-			await getInvoices({ limit, count: "false" }),
-		)
+		const rows = normalizeRows(await getInvoices({ limit, count: "false" }))
 		invoices.value = rows.slice(0, limit)
 		lastLoadedAt.value = new Date().toISOString()
 	} catch (error) {

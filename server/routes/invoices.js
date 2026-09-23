@@ -835,7 +835,7 @@ router.post('/:id/return', ah(async (req, res) => {
       try { appendChain(id, { number: inv.number, total: inv.total, status: 'RETURNED', action: 'RETURN' }); } catch { /* ignore */ }
       return { invoiceId: id, status: 'RETURNED' };
     })();
-    const isPartial = !!(r && r.partial);
+    const isPartial = !!(r?.partial);
     req.audit?.(isPartial ? 'invoice.return_partial' : 'invoice.return', { invoiceId: id, reason, ...(isPartial ? { lines: r.lines, refunded: r.refunded } : {}) });
     recordTrail(req, { entity: 'INVOICE', entityId: id, action: isPartial ? 'RETURN_PARTIAL' : 'RETURN', after: isPartial ? { reason, lines: r.lines, refunded: r.refunded } : { reason } });
     emit('invoice.returned', 'INVOICE', id, isPartial ? { reason, partial: true } : { reason });

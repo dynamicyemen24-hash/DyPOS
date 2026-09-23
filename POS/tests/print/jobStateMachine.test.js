@@ -12,10 +12,7 @@ vi.mock("@/utils/logger", () => ({
 	},
 }))
 
-import {
-	buildPrintJob,
-	JOB_STATUSES,
-} from "@/print/spool/printJobFactory"
+import { buildPrintJob, JOB_STATUSES } from "@/print/spool/printJobFactory"
 
 import {
 	applyAttemptResult as dispatcherApply,
@@ -38,7 +35,11 @@ describe("applyAttemptResult", () => {
 
 	it("schedules a backoff retry when nothing printed yet", () => {
 		const job = buildPrintJob({ docId: "SI-1", maxAttempts: 3 })
-		const next = dispatcherApply(job, { printedCopies: 0, error: new Error("boom") }, 1000)
+		const next = dispatcherApply(
+			job,
+			{ printedCopies: 0, error: new Error("boom") },
+			1000,
+		)
 		expect(next.status).toBe(JOB_STATUSES.QUEUED)
 		expect(next.attempts).toBe(1)
 		expect(next.pendingRetryTime).toBeGreaterThan(1000)
@@ -71,7 +72,10 @@ describe("cancelJob", () => {
 	})
 
 	it("leaves terminal jobs untouched", () => {
-		const job = { ...buildPrintJob({ docId: "SI-1" }), status: JOB_STATUSES.COMPLETED }
+		const job = {
+			...buildPrintJob({ docId: "SI-1" }),
+			status: JOB_STATUSES.COMPLETED,
+		}
 		expect(cancelJob(job, 5)).toBe(job)
 	})
 })

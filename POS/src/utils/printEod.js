@@ -37,7 +37,11 @@ export async function printEODReport(closingShiftName) {
 		if (error?.job) throw error
 		log.warn("Spool EOD failed; legacy silent print fallback", error?.message)
 		const { silentPrintDoc } = await import("./printInvoice")
-		await silentPrintDoc("POS Closing Shift", closingShiftName, EOD_PRINT_FORMAT)
+		await silentPrintDoc(
+			"POS Closing Shift",
+			closingShiftName,
+			EOD_PRINT_FORMAT,
+		)
 		return true
 	}
 }

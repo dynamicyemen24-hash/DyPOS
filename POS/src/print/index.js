@@ -112,7 +112,11 @@ export async function printviewPopup(doctype, name, printFormat) {
 		trigger_print: 1,
 		_t: Date.now(),
 	})
-	const popup = window.open(`/printview?${params}`, "_blank", "width=800,height=600")
+	const popup = window.open(
+		`/printview?${params}`,
+		"_blank",
+		"width=800,height=600",
+	)
 	if (!popup) throw new Error("Popup blocked — check your browser settings.")
 }
 
@@ -166,9 +170,7 @@ export async function initPrintSystem() {
 				resolvePlan: async (job) => {
 					let silentPrint = false
 					try {
-						const { usePOSSettingsStore } = await import(
-							"@/stores/posSettings"
-						)
+						const { usePOSSettingsStore } = await import("@/stores/posSettings")
 						silentPrint = Boolean(usePOSSettingsStore().silentPrint)
 					} catch {
 						// store not ready — default to browser
@@ -227,7 +229,14 @@ export async function submitPrintJob(input) {
 			j.docType === candidate.docType &&
 			j.reprintOf === candidate.reprintOf,
 	)
-	if (isDuplicateWithinWindow(existing, idempotencyKeyOf(candidate), now, SUBMIT_WINDOW_MS)) {
+	if (
+		isDuplicateWithinWindow(
+			existing,
+			idempotencyKeyOf(candidate),
+			now,
+			SUBMIT_WINDOW_MS,
+		)
+	) {
 		log.debug("Print job deduplicated", { docId: candidate.docId })
 		return existing
 	}

@@ -2126,16 +2126,15 @@ const lastSelectedMethod = ref(null)
 // matched by method name first, then the POS Profile default flag, then first.
 // Empty setting preserves the legacy profile-default behavior exactly.
 function pickDefaultPaymentMethod() {
-	const preferred = String(
-		settingsStore.defaultPaymentMethod || "",
-	)
+	const preferred = String(settingsStore.defaultPaymentMethod || "")
 		.trim()
 		.toLowerCase()
 	const settingsMatch = preferred
 		? paymentMethods.value.find(
 				(m) =>
-					String(m.mode_of_payment || "").trim().toLowerCase() ===
-					preferred,
+					String(m.mode_of_payment || "")
+						.trim()
+						.toLowerCase() === preferred,
 			)
 		: null
 	return (

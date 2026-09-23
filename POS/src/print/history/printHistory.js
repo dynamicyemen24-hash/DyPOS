@@ -103,9 +103,7 @@ export async function findJobForReprint(store, jobId) {
 			typeof store.getByIdFromDisk === "function" &&
 			(await store.getByIdFromDisk(parent.jobId))
 		if (onDisk) return onDisk
-		throw new Error(
-			"Original print payload is no longer available for reprint",
-		)
+		throw new Error("Original print payload is no longer available for reprint")
 	}
 
 	throw new Error("Print job not found")
@@ -121,7 +119,10 @@ export async function syncPrintHistoryToServer(entry) {
 		await fetch("/api/print/jobs", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ id: `job:${entry.jobId}:${Date.now()}`, ...entry }),
+			body: JSON.stringify({
+				id: `job:${entry.jobId}:${Date.now()}`,
+				...entry,
+			}),
 		}).catch(() => {
 			// Network unavailable or route not deployed — perfectly fine.
 		})

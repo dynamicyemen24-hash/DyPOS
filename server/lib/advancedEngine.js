@@ -1,6 +1,5 @@
 /** DyPOS Multimodal Smart Search & Subscriber Acquisition Engine v1.31.0 */
 import db from '../db/schema.js'
-import { v4 as uuid } from 'uuid'
 
 /**
  * Initialize advanced search index and subscriber acquisition tables.
@@ -37,7 +36,7 @@ export function initAdvancedGrowthTables() {
         VALUES ('camp-launch-2026', 'حملة الانطلاقة الذكية - استقطاب التجار', 20.0, 30, 100.0, 1, datetime('now'))
       `).run()
     }
-  } catch (e) {
+  } catch (_e) {
     // Non-blocking best effort
   }
 }
@@ -47,7 +46,7 @@ export function initAdvancedGrowthTables() {
  * @param {Object} queryParams - Search parameters { query, barcode, qr, imageHash, voiceText }
  * @returns {Array} Matching products or records
  */
-export function executeMultimodalSearch({ query, barcode, qr, imageHash, voiceText, tenantId }) {
+export function executeMultimodalSearch({ query, barcode, qr, _imageHash, voiceText, tenantId }) {
   try {
     const scope = tenantId || null
     if (barcode || qr) {
@@ -73,7 +72,7 @@ export function executeMultimodalSearch({ query, barcode, qr, imageHash, voiceTe
     return scope
       ? db.prepare(sql).all(likePattern, likePattern, likePattern, likePattern, scope)
       : db.prepare(sql).all(likePattern, likePattern, likePattern, likePattern)
-  } catch (e) {
+  } catch (_e) {
     return []
   }
 }

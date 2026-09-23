@@ -1,6 +1,5 @@
 /** DyPOS Value-Driven Organic Growth Engine v1.31.0 */
 import db from '../db/schema.js'
-import { v4 as uuid } from 'uuid'
 
 /**
  * Initialize organic growth database tables for synergy, smart receipts, and insights.
@@ -36,7 +35,7 @@ export function initGrowthEngineTables() {
         created_at TEXT
       );
     `)
-  } catch (e) {
+  } catch (_e) {
     // Non-blocking best effort
   }
 }

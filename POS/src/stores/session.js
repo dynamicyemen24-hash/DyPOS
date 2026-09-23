@@ -389,7 +389,9 @@ export const useSessionStore = defineStore("session", () => {
 			// حرّر الحجز إذا فشل إدراج العملية في قائمة المزامنة
 			releaseReservation(invoiceId).catch(() => {})
 			// لا تعلن نجاح البيع إذا فشل حفظه محلياً في قائمة المزامنة
-			throw new Error(`فشل حفظ الفاتورة محلياً: ${error.message || String(error)}`)
+			throw new Error(
+				`فشل حفظ الفاتورة محلياً: ${error.message || String(error)}`,
+			)
 		}
 
 		return { ...payload, invoice_id: invoiceId, synced: false }

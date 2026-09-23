@@ -16,9 +16,7 @@ import { FeatherIcon } from "frappe-ui"
 const settings = usePOSSettingsStore()
 const { invoices, loading, offline, loadRecentInvoices } = useRecentInvoices()
 
-const visibleCount = computed(
-	() => settings.desktopRecentInvoicesCount ?? 10,
-)
+const visibleCount = computed(() => settings.desktopRecentInvoicesCount ?? 10)
 
 function formatTotal(row) {
 	const n = Number(row?.total ?? row?.grand_total ?? 0)

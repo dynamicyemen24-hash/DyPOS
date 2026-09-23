@@ -18,7 +18,7 @@ initHardwareAuditTables()
 /**
  * GET /api/hardware/devices — Get all configured hardware peripherals
  */
-router.get('/devices', authMiddleware, ah(async (req, res) => {
+router.get('/devices', authMiddleware, ah(async (_req, res) => {
   let devices = []
   try {
     devices = db.prepare('SELECT * FROM hardware_devices').all()

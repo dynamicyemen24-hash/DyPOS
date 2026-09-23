@@ -172,7 +172,10 @@ export const DEFAULT_BLOCKS = {
 		const payments = Array.isArray(payload.payments) ? payload.payments : []
 		if (!payments.length) return ""
 		return `<div class="payments"><div style="font-weight:bold">Payments</div>${payments
-			.map((p) => `<div class="payment-row"><span>${escapeHTML(p.mode_of_payment)}</span><span>${Number(p.amount).toFixed(2)}</span></div>`)
+			.map(
+				(p) =>
+					`<div class="payment-row"><span>${escapeHTML(p.mode_of_payment)}</span><span>${Number(p.amount).toFixed(2)}</span></div>`,
+			)
 			.join("")}</div>`
 	},
 	qr: (payload, vars) => buildQrBlock(payload, vars),

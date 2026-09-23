@@ -66,7 +66,11 @@ describe("buildPrintJob", () => {
 describe("idempotencyKeyOf", () => {
 	it("distinguishes original from reprint", () => {
 		const a = buildPrintJob({ docType: "invoice", docId: "INV-1" })
-		const b = buildPrintJob({ docType: "invoice", docId: "INV-1", reprintOf: "job-1" })
+		const b = buildPrintJob({
+			docType: "invoice",
+			docId: "INV-1",
+			reprintOf: "job-1",
+		})
 		expect(idempotencyKeyOf(a)).not.toBe(idempotencyKeyOf(b))
 		expect(idempotencyKeyOf(a)).toBe("invoice:INV-1:")
 	})

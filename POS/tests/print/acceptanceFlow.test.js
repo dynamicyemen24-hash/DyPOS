@@ -85,7 +85,7 @@ describe("§14.5 — multiple copies render per-copy watermarks", () => {
 		expect(renderedCopyNos).toEqual([1, 2])
 		for (const n of [1, 2]) {
 			const vars = buildFormVars({ ...job, copyNo: n, copies: 2 })
-			expect(buildCopyMarks(vars)).toContain("class=\"copy-no\"")
+			expect(buildCopyMarks(vars)).toContain('class="copy-no"')
 			expect(buildCopyMarks(vars)).toContain(`${n} / 2 — SPR-000007`)
 		}
 		expect(store.getById(job.id).status).toBe(JOB_STATUSES.COMPLETED)
@@ -110,7 +110,7 @@ describe("§14.6 — reprint stamps a COPY watermark", () => {
 
 		expect(reprint.reprintOf).toBe(original.id)
 		expect(reprint.printedCount).toBe(1)
-		expect(marks).toContain("class=\"copy-watermark\">COPY")
+		expect(marks).toContain('class="copy-watermark">COPY')
 		expect(marks).toContain(">COPY</div>")
 	})
 
@@ -123,7 +123,11 @@ describe("§14.6 — reprint stamps a COPY watermark", () => {
 
 describe("§14.8 — EOD priority precedes invoices", () => {
 	it("dispatches a priority-1 EOD before an already-queued invoice", async () => {
-		const invoice = fakeJob({ docId: "SI-A", title: "invoice", createdAt: Date.now() })
+		const invoice = fakeJob({
+			docId: "SI-A",
+			title: "invoice",
+			createdAt: Date.now(),
+		})
 		const eod = fakeJob({
 			docId: "EOD-1",
 			title: "eod",

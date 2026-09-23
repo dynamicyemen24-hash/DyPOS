@@ -253,7 +253,8 @@ export function resolveOutput(ctx) {
 
 	// blanket docType match (no profile filter).
 	const docRule = (rules || []).find(
-		(r) => r?.docType === docType && !r?.match?.profile && ruleMatches(r, scoped),
+		(r) =>
+			r?.docType === docType && !r?.match?.profile && ruleMatches(r, scoped),
 	)
 	if (docRule) return mergeRule(docRule, scoped)
 

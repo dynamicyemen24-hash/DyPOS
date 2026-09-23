@@ -45,26 +45,26 @@ export const RT_STATE_DISABLED = "disabled"
 
 export class RealtimeClient {
 	/**
-* @param {object} options
- * @param {string} [options.url] SSE endpoint (built from window origin by default)
- * @param {() => (string | null)} [options.getToken] returns the auth token
- * @param {typeof EventSource} [options.EventSourceCtor] injectable for tests;
- *   `null` forces the disabled state
- * @param {() => boolean} [options.isOffline] overrides navigator.onLine
- * @param {string} [options.tenantId] active tenant marker (EventSource cannot
- *   set headers, so the server re-resolves the tenant from the JWT/cookie)
- */
-constructor(options = {}) {
-	this.log = logger.create("RealtimeClient")
-	this.options = options
-	this.url = options.url ?? `${window.location.origin}/api/realtime/events`
-	this.getToken = options.getToken ?? (() => null)
-	this.calcOffline = options.isOffline ?? (() => !navigator.onLine)
-	this.state = RT_STATE_IDLE
-	this.es = null
-	this.lastEventId = null
-	this.attempts = 0
-	this.tenantId = options.tenantId ?? null
+	 * @param {object} options
+	 * @param {string} [options.url] SSE endpoint (built from window origin by default)
+	 * @param {() => (string | null)} [options.getToken] returns the auth token
+	 * @param {typeof EventSource} [options.EventSourceCtor] injectable for tests;
+	 *   `null` forces the disabled state
+	 * @param {() => boolean} [options.isOffline] overrides navigator.onLine
+	 * @param {string} [options.tenantId] active tenant marker (EventSource cannot
+	 *   set headers, so the server re-resolves the tenant from the JWT/cookie)
+	 */
+	constructor(options = {}) {
+		this.log = logger.create("RealtimeClient")
+		this.options = options
+		this.url = options.url ?? `${window.location.origin}/api/realtime/events`
+		this.getToken = options.getToken ?? (() => null)
+		this.calcOffline = options.isOffline ?? (() => !navigator.onLine)
+		this.state = RT_STATE_IDLE
+		this.es = null
+		this.lastEventId = null
+		this.attempts = 0
+		this.tenantId = options.tenantId ?? null
 		this.timer = null
 		this.disposed = false
 		this.statusCallbacks = new Set()

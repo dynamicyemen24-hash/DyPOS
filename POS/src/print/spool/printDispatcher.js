@@ -32,7 +32,11 @@ const activeLanes = new Set()
  * @param {number} now
  * @returns {PrintJob} the next job state
  */
-export function applyAttemptResult(job, { printedCopies = 0, error = null }, now) {
+export function applyAttemptResult(
+	job,
+	{ printedCopies = 0, error = null },
+	now,
+) {
 	const total = job?.copies || 1
 	const attempts = (job?.attempts || 0) + 1
 	const maxAttempts = job?.maxAttempts || 3
@@ -59,8 +63,7 @@ export function applyAttemptResult(job, { printedCopies = 0, error = null }, now
 	if (attempts >= maxAttempts) {
 		return {
 			...base,
-			status:
-				printed > 0 ? JOB_STATUSES.PARTIAL : JOB_STATUSES.FAILED,
+			status: printed > 0 ? JOB_STATUSES.PARTIAL : JOB_STATUSES.FAILED,
 			finishedAt: now,
 			pendingRetryTime: null,
 		}
@@ -183,11 +186,7 @@ export function createPrintDispatcher(deps) {
 				spoolNo: state.spoolNo,
 				error: error?.message,
 			})
-			state = applyAttemptResult(
-				state,
-				{ printedCopies, error },
-				Date.now(),
-			)
+			state = applyAttemptResult(state, { printedCopies, error }, Date.now())
 		} finally {
 			activeLanes.delete(laneKey)
 		}

@@ -197,7 +197,9 @@ onBeforeUnmount(() => {
 const ALL = ["QUEUED", "PROCESSING"]
 const DONE = ["COMPLETED"]
 
-const queued = computed(() => activeJobs.value.filter((j) => j.status === "QUEUED").length)
+const queued = computed(
+	() => activeJobs.value.filter((j) => j.status === "QUEUED").length,
+)
 const processing = computed(
 	() => activeJobs.value.filter((j) => j.status === "PROCESSING").length,
 )

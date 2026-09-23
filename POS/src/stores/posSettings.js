@@ -664,8 +664,8 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 	const disableRoundedTotal = computed(() =>
 		Boolean(settings.value.disable_rounded_total),
 	)
-	const defaultPaymentMethod = computed(
-		() => String(settings.value.default_payment_method || "").trim(),
+	const defaultPaymentMethod = computed(() =>
+		String(settings.value.default_payment_method || "").trim(),
 	)
 
 	// ================================================================

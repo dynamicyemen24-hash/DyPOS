@@ -14,7 +14,7 @@ initPrintConfigTables()
 /**
  * GET /api/print-configs — Get all document printing properties
  */
-router.get('/', authMiddleware, ah(async (req, res) => {
+router.get('/', authMiddleware, ah(async (_req, res) => {
   let configs = []
   try {
     configs = db.prepare('SELECT * FROM document_print_configs').all()

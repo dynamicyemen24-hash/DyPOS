@@ -26,7 +26,9 @@ class ApiClient {
 		if (res.status === 401) {
 			this.clearToken()
 			if (typeof window !== "undefined") {
-				window.dispatchEvent(new CustomEvent("dypos:unauthorized", { detail: { path } }))
+				window.dispatchEvent(
+					new CustomEvent("dypos:unauthorized", { detail: { path } }),
+				)
 				if (!window.location.pathname.includes("/account/")) {
 					window.location.href = "/account/login"
 				}

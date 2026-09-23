@@ -37,7 +37,7 @@ export function initPrintConfigTables() {
         stmt.run(...cfg)
       }
     }
-  } catch (e) {
+  } catch (_e) {
     // Non-blocking best effort
   }
 }

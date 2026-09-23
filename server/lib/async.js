@@ -38,7 +38,7 @@ export function isSqliteLockError(err) {
  */
 export function mapErrorStatus(err, fallback = 400) {
   if (isSqliteLockError(err)) return 503;
-  return err && err.statusCode && Number.isInteger(err.statusCode) ? err.statusCode : fallback;
+  return err?.statusCode && Number.isInteger(err.statusCode) ? err.statusCode : fallback;
 }
 
 export default ah;

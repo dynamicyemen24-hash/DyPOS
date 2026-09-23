@@ -2,7 +2,7 @@
 import { Router } from 'express'
 import db from '../db/schema.js'
 import { v4 as uuid } from 'uuid'
-import { authMiddleware, requireRole } from '../middleware/auth.js'
+import { authMiddleware, } from '../middleware/auth.js'
 import { ah } from '../lib/async.js'
 import { VERSION } from '../lib/version.js'
 import { generateSmartLivingReceipt, computeMerchantInsight, initGrowthEngineTables } from '../lib/growthEngine.js'
@@ -17,14 +17,10 @@ initGrowthEngineTables()
 // caller's bound tenant. A bound user can never scope to another tenant.
 function readScope(req) {
   let t = null
-  try {
     t = resolveTenantFilter(req).tenantId || null
     if (t && req.user?.tenantId && String(t) !== String(req.user.tenantId)) {
       throw Object.assign(new Error('غير موجود'), { statusCode: 404 })
     }
-  } catch (e) {
-    throw e
-  }
   return t || req.user?.tenantId || null
 }
 
@@ -81,7 +77,7 @@ router.post('/feedback', ah(async (req, res) => {
       INSERT INTO customer_feedback (id, invoice_id, rating, comment, created_at)
       VALUES (?, ?, ?, ?, datetime('now'))
     `).run(feedbackId, invoiceId, Number(rating), String(comment || '').slice(0, 500))
-  } catch (e) {
+  } catch (_e) {
     return res.status(400).json({ error: 'تعذر حفظ التقييم' })
   }
 

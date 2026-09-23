@@ -29,11 +29,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 function readTenant(req) {
   const bound = req.user?.tenantId || null;
   let t = null;
-  try {
     t = resolveTenantFilter(req).tenantId || null;
-  } catch (e) {
-    throw e;
-  }
   if (bound && t && String(t) !== String(bound)) {
     throw Object.assign(new Error('غير موجود'), { statusCode: 404 });
   }

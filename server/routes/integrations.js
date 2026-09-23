@@ -72,7 +72,7 @@ router.post('/', authMiddleware, requireRole('ADMIN', 'MANAGER'), ah(async (req,
       String(direction || 'both').slice(0, 16),
       req.user?.username || null,
     );
-  } catch (e) {
+  } catch (_e) {
     return res.status(400).json({ error: 'تعذر حفظ التكامل (قد يكون الاسم مكرراً)' });
   }
   return res.status(201).json({ success: true, id, adapter: ad.key, version: VERSION });
@@ -87,7 +87,7 @@ router.post('/:id/test', authMiddleware, requireRole('ADMIN', 'MANAGER'), ah(asy
   if (row.tenant_id && String(row.tenant_id) !== 'STD') {
     const bound = req.user?.tenantId || null;
     let ctx = null;
-    try { ctx = resolveTenantFilter(req).tenantId || null; } catch (e) { return res.status(404).json({ error: 'التكامل غير موجود' }); }
+    try { ctx = resolveTenantFilter(req).tenantId || null; } catch (_e) { return res.status(404).json({ error: 'التكامل غير موجود' }); }
     const eff = ctx || bound || null;
     if (String(row.tenant_id) !== eff) return res.status(404).json({ error: 'التكامل غير موجود' });
   }

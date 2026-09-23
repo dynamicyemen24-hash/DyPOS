@@ -904,8 +904,7 @@ async function initializeRealtimeSync() {
 
 		const { getSessionStore } = await import("./stores/session")
 
-		const tenantId =
-			getSessionStore()?.tenantId || authState?.tenantId || null
+		const tenantId = getSessionStore()?.tenantId || authState?.tenantId || null
 
 		const { registerRealtimeSync } = await import("./stores/realtime")
 

@@ -1636,7 +1636,10 @@ async function openPrintMonitor() {
 	try {
 		const { getPrintStatus, listPrintJobs } = await import("@/print/index")
 		const status = getPrintStatus()
-		failedPrintJobs.value = status?.counts?.FAILED || listPrintJobs?.().filter((j) => j.status === "FAILED").length || 0
+		failedPrintJobs.value =
+			status?.counts?.FAILED ||
+			listPrintJobs?.().filter((j) => j.status === "FAILED").length ||
+			0
 		printMonitorRef.value?.open()
 	} catch (error) {
 		log.warn("Print Monitor unavailable", error?.message)

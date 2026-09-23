@@ -131,7 +131,7 @@ describe("buildBlockHTML", () => {
 describe("renderCustomTemplate", () => {
 	it("substitutes tokens in a custom template", () => {
 		const html = renderCustomTemplate(
-			'<h1>{{invoice_no}}</h1><p>{{company_name}}</p>',
+			"<h1>{{invoice_no}}</h1><p>{{company_name}}</p>",
 			{ invoice_no: "INV-9", company_name: "ACME" },
 			{},
 		)
