@@ -344,6 +344,55 @@ describe('QZ certificate lifecycle', () => {
   });
 });
 
+describe('frappe doctypes: POS Coupon / Shifts + order_by', () => {
+  const coupon = `MC-${stamp}`.slice(0, 20);
+
+  it("get_list 'POS Coupon' resolves the alias and maps rows", async () => {
+    const create = await M('DyPOS.api.promotions.create_coupon', adminToken, {
+      data: JSON.stringify({ coupon_code: coupon, discount_type: 'Amount', discount_amount: 7 }),
+    });
+    assert.strictEqual(create.status, 200);
+
+    const list = await M('frappe.client.get_list', cashierToken, {
+      doctype: 'POS Coupon',
+      fields: ['coupon_code', 'discount_amount'],
+      limit_page_length: 100,
+    });
+    assert.strictEqual(list.status, 200);
+    const hit = list.body.message.find((c) => c.coupon_code === coupon);
+    assert.ok(hit, 'alias doctype lists the coupon');
+    assert.strictEqual(Number(hit.discount_amount), 7);
+
+    const one = await M('frappe.client.get', cashierToken, { doctype: 'POS Coupon', name: coupon });
+    assert.strictEqual(one.status, 200);
+    assert.strictEqual(one.body.message.coupon_code, coupon);
+  });
+
+  it("get_list 'POS Opening Shift' resolves (array, never 500)", async () => {
+    for (const dt of ['POS Opening Shift', 'POS Closing Shift']) {
+      const r = await M('frappe.client.get_list', cashierToken, { doctype: dt, limit_page_length: 10 });
+      assert.strictEqual(r.status, 200, dt);
+      assert.ok(Array.isArray(r.body.message), dt);
+    }
+  });
+
+  it('get_list honors order_by (mapped fields, unknown dropped)', async () => {
+    const asc = await M('frappe.client.get_list', cashierToken, {
+      doctype: 'Item', fields: ['item_name'], order_by: 'item_name asc', limit_page_length: 100,
+    });
+    assert.strictEqual(asc.status, 200);
+    const names = asc.body.message.map((r) => r.item_name);
+    assert.deepStrictEqual(names, [...names].sort(), 'ascending order holds');
+
+    const desc = await M('frappe.client.get_list', cashierToken, {
+      doctype: 'Item', fields: ['item_name'], order_by: 'item_name desc, no_such_col asc', limit_page_length: 100,
+    });
+    assert.strictEqual(desc.status, 200);
+    const dnames = desc.body.message.map((r) => r.item_name);
+    assert.deepStrictEqual(dnames, [...dnames].sort().reverse(), 'descending order holds, bad key ignored');
+  });
+});
+
 describe('warehouse availability / batch-serial / one-time / pos settings', () => {
   it('availability lists per-warehouse rows with actual/available qty', async () => {
     const r = await M('DyPOS.api.items.get_item_warehouse_availability', cashierToken, { item_code: prodCode });

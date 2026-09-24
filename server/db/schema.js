@@ -283,6 +283,49 @@ export function migrate() {
       CREATE INDEX IF NOT EXISTS idx_coupons_code ON coupons(code);
 
       -- ══════════════════════════════════════════════════════════
+      -- Hardware devices + growth engine (canonical definitions; the
+      -- lib ensure-functions in hardwareBridge.js/growthEngine.js are
+      -- idempotent backstops with identical DDL + default-device seeding).
+      -- Previously these lived ONLY in ensure-functions (SQLite) and
+      -- schema-postgres.sql — schema.js is now the single DDL source.
+      -- ══════════════════════════════════════════════════════════
+      CREATE TABLE IF NOT EXISTS hardware_devices (
+        id TEXT PRIMARY KEY,
+        device_name TEXT,
+        device_type TEXT,
+        connection_type TEXT,
+        connection_target TEXT,
+        is_default INTEGER DEFAULT 0,
+        settings_json TEXT DEFAULT '{}',
+        updated_at TEXT
+      );
+      CREATE TABLE IF NOT EXISTS store_synergies (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT,
+        partner_store_name TEXT,
+        partner_store_category TEXT,
+        offer_text_ar TEXT,
+        discount_code TEXT,
+        is_active INTEGER DEFAULT 1,
+        created_at TEXT
+      );
+      CREATE TABLE IF NOT EXISTS merchant_insights (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT,
+        metric_key TEXT,
+        metric_value TEXT,
+        insight_text_ar TEXT,
+        created_at TEXT
+      );
+      CREATE TABLE IF NOT EXISTS customer_feedback (
+        id TEXT PRIMARY KEY,
+        invoice_id TEXT,
+        rating INTEGER,
+        comment TEXT,
+        created_at TEXT
+      );
+
+      -- ══════════════════════════════════════════════════════════
       -- Loyalty Transactions
       -- ══════════════════════════════════════════════════════════
       CREATE TABLE IF NOT EXISTS loyalty_transactions (

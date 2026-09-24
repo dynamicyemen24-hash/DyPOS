@@ -312,6 +312,42 @@ const DOCTYPES = {
     defaultWhere: 'is_active=1',
     idAliases: ['code', 'name'],
   },
+  Coupons: {
+    table: 'coupons',
+    idCol: 'id',
+    fields: {
+      name: 'code', coupon_name: 'code', coupon_code: 'code',
+      discount_type: 'discount_type', discount: 'discount',
+      discount_amount: 'discount', discount_percentage: 'discount',
+      min_amount: 'min_purchase', min_purchase: 'min_purchase',
+      max_amount: 'max_discount', max_discount: 'max_discount',
+      maximum_use: 'max_uses', max_uses: 'max_uses', used_count: 'used_count',
+      valid_from: 'valid_from', valid_upto: 'valid_to', valid_to: 'valid_to',
+      disabled: 'is_active', is_active: 'is_active',
+    },
+    mapRow(r) { return mapCoupon(r); },
+    defaultWhere: null,
+    idAliases: ['id', 'code', 'name', 'coupon_name', 'coupon_code'],
+  },
+  Shifts: {
+    table: 'shifts',
+    idCol: 'id',
+    fields: {
+      name: 'id', terminal_id: 'terminal_id', status: 'status',
+      opening_cash: 'opening_cash', closing_cash: 'closing_cash',
+      opened_at: 'opened_at', closed_at: 'closed_at',
+    },
+    mapRow(r) {
+      return {
+        name: r.id, id: r.id, terminal_id: r.terminal_id, status: r.status,
+        opening_cash: r.opening_cash ?? 0, closing_cash: r.closing_cash,
+        expected_cash: r.expected_cash, variance: r.variance,
+        opened_at: r.opened_at, closed_at: r.closed_at, opened_by: r.opened_by,
+      };
+    },
+    defaultWhere: null,
+    idAliases: ['id', 'name'],
+  },
 };
 
 function resolveDoctype(doctype) {
@@ -466,6 +502,25 @@ function normalizeFilters(filters) {
     return Object.entries(filters).map(([field, value]) => ({ field, op: '=', value }));
   }
   return [];
+}
+
+/**
+ * Frappe order_by ("field [asc|desc], ...") mapped through the spec so only
+ * real columns reach SQL. Unknown fields are dropped, never 500.
+ */
+function parseOrderBy(raw, spec) {
+  if (!raw) return '';
+  const str = Array.isArray(raw) ? raw.join(',') : String(raw);
+  const out = [];
+  for (const part of str.split(',')) {
+    const m = part.trim().match(/^([\w.]+)(?:\s+(asc|desc))?$/i);
+    if (!m) continue;
+    const col = spec.fields[m[1]] || (spec.idAliases?.includes(m[1]) ? spec.idCol : null);
+    if (!col) continue;
+    out.push(`${col} ${String(m[2] || 'asc').toUpperCase() === 'DESC' ? 'DESC' : 'ASC'}`);
+    if (out.length >= 3) break;
+  }
+  return out.length ? ` ORDER BY ${out.join(', ')}` : '';
 }
 
 function applyFilters(spec, whereParts, params, filters) {
@@ -816,8 +871,9 @@ def('frappe.client.get_list', (params, req, res) => {
   if (!pushTenantScope(spec, req, res, whereParts, sqlParams)) return;
   const where = whereParts.length ? ` WHERE ${whereParts.join(' AND ')}` : '';
   const select = buildFieldSelect(spec, fields);
+  const orderClause = parseOrderBy(params.order_by || params.orderBy, spec);
   try {
-    const rows = db.prepare(`${select} FROM ${spec.table}${where} LIMIT ? OFFSET ?`)
+    const rows = db.prepare(`${select} FROM ${spec.table}${where}${orderClause} LIMIT ? OFFSET ?`)
       .all(...sqlParams, limit, start);
     if (spec.mapRow) {
       return res.json({ message: rows.map((r) => redactRow(spec, spec.mapRow(r))) });
