@@ -94,6 +94,9 @@ scripts/deploy-direct.cmd
 # Drill/test data
 server/data/drill/
 
+# Runtime uploads (upload_file test/prod artifacts)
+server/uploads/
+
 # One-off probes / dumps (regenerable diagnostics, never source)
 # -- removed 24 of these in the v1.27.0 release hygiene pass
 _live-*.html
