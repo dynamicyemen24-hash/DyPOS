@@ -69,6 +69,29 @@ jobs:
               -d '{"hostname":"dypos.smartportssoft.com","service":"dypos-pos","environment":"production"}')
             echo "HTTP $code"
             cat /tmp/wbind.json; echo
+
+            # GET script routes worked (200) — try writing them (account-scoped).
+            echo "=== TRY script routes PUT ==="
+            code=$(curl -sS -o /tmp/sput.json -w '%{http_code}' -X PUT "$A/accounts/$CF_ACCOUNT/workers/scripts/dypos-pos/routes" \
+              -H "$H" -H 'Content-Type: application/json' \
+              -d '[{"pattern":"dypos.smartportssoft.com/*","zone_name":"smartportssoft.com"}]')
+            echo "HTTP $code"
+            cat /tmp/sput.json; echo
+
+            echo "=== TRY script routes POST ==="
+            code=$(curl -sS -o /tmp/spost.json -w '%{http_code}' -X POST "$A/accounts/$CF_ACCOUNT/workers/scripts/dypos-pos/routes" \
+              -H "$H" -H 'Content-Type: application/json' \
+              -d '{"pattern":"dypos.smartportssoft.com/*","zone_name":"smartportssoft.com"}')
+            echo "HTTP $code"
+            cat /tmp/spost.json; echo
+
+            # Workers Domains API sometimes needs account-level custom hostname path
+            echo "=== TRY custom hostname on zone ==="
+            code=$(curl -sS -o /tmp/ch.json -w '%{http_code}' -X POST "$A/zones/$ZONE/custom_hostnames" \
+              -H "$H" -H 'Content-Type: application/json' \
+              -d '{"hostname":"dypos.smartportssoft.com","ssl":{"settings":[{"type":"dv"}}]}}')
+            echo "HTTP $code (custom_hostname — informational)"
+            head -c 400 /tmp/ch.json; echo
           fi
 
           {
