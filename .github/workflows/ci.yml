@@ -52,6 +52,8 @@ jobs:
 
       - name: Build
         run: yarn build
+        env:
+          VITE_ROUTER_BASE: /
 
       - name: Bundle budget (gzip JS+CSS cap)
         run: npm run size

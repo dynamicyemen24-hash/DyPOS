@@ -6,7 +6,33 @@ import { session } from "./data/session"
 
 const log = logger.create("Router")
 
-const POS_BASE_PATH = "/pos"
+/**
+ * Dual-mode router base (offline-first on any device, anywhere served).
+ *
+ * - Standalone deployments (Cloudflare Worker / PWA at domain root) → "/".
+ * - Frappe-embedded desk page (served under /pos) → "/pos".
+ * - VITE_ROUTER_BASE overrides both (exotic embeds).
+ *
+ * A hardcoded "/pos" base while served at "/" breaks EVERY route (blank
+ * screen with zero errors in the route tree) — this auto-detection keeps
+ * both serving modes working from a single build.
+ */
+function resolveRouterBase() {
+	const configured =
+		typeof import.meta !== "undefined"
+			? import.meta.env?.VITE_ROUTER_BASE
+			: null
+	if (configured) return configured
+	try {
+		if (typeof window !== "undefined") {
+			const p = window.location.pathname || "/"
+			if (p === "/pos" || p.startsWith("/pos/")) return "/pos"
+		}
+	} catch {
+		/* non-browser bundling (tests import with jsdom — fine) */
+	}
+	return "/"
+}
 
 const ROUTE_NAMES = Object.freeze({
 	POS: "POSSale",
@@ -258,6 +284,34 @@ async function ensureUserSession() {
 }
 
 /**
+ * Session guard with a hard ceiling (offline-first).
+ *
+ * ensureUserSession() awaits a network resource that may NEVER settle when
+ * the backend is gone (hanging fetch, captive portal, killed socket). A
+ * guard that never settles = a RouterView that never renders = blank screen
+ * on exactly the devices that need offline POS most (phones/tablets on
+ * flaky store wifi). After the ceiling we continue as guest: Login renders
+ * from cache and queued sales keep working.
+ */
+const GUARD_SESSION_TIMEOUT_MS = 8000
+
+async function settleSession(timeoutMs = GUARD_SESSION_TIMEOUT_MS) {
+	try {
+		const result = await Promise.race([
+			ensureUserSession(),
+			new Promise((resolve) => setTimeout(() => resolve("timeout"), timeoutMs)),
+		])
+		if (result === "timeout") {
+			log.warn?.("Session guard timed out; continuing as guest (offline-first)")
+			return false
+		}
+		return result === true
+	} catch {
+		return false
+	}
+}
+
+/**
  * --------------------------------------------------------------------------
  * Shift state
  * --------------------------------------------------------------------------
@@ -386,7 +440,7 @@ function isChunkLoadError(error) {
  */
 
 const router = createRouter({
-	history: createWebHistory(POS_BASE_PATH),
+	history: createWebHistory(resolveRouterBase()),
 
 	routes,
 
@@ -446,7 +500,7 @@ router.beforeEach(async (to, from) => {
 	let authenticated = wasAuthenticated
 
 	if (requiresAuth || guestOnly) {
-		authenticated = await ensureUserSession()
+		authenticated = await settleSession()
 	}
 
 	/**
@@ -627,6 +681,11 @@ export function goToForgotPassword() {
 	})
 }
 
-export { ROUTE_NAMES }
+export {
+	ROUTE_NAMES,
+	resolveRouterBase,
+	settleSession,
+	GUARD_SESSION_TIMEOUT_MS,
+}
 
 export default router

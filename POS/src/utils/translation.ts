@@ -142,11 +142,20 @@ const getLocale = (): string => {
 /**
  * Initializes translations on app startup.
  * Uses stale-while-revalidate: shows cached immediately, refreshes in background.
+ * Never throws: offline boot must render from Arabic fallbacks, not crash.
  */
 async function init() {
-	const locale = getLocale()
-	const loaded = await loadLocale(locale, { preferCache: true })
-	if (!loaded) fallbackFetch(locale)
+	try {
+		const locale = getLocale()
+		const loaded = await loadLocale(locale, { preferCache: true })
+		if (!loaded) fallbackFetch(locale)
+	} catch {
+		try {
+			fallbackFetch(getLocale())
+		} catch {
+			// Fully offline: translate() falls back to source strings (Arabic).
+		}
+	}
 }
 
 /**

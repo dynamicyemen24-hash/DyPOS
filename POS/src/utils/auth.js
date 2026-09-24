@@ -1,4 +1,13 @@
 import { logger } from "./logger"
+import { cleanupUserSession } from "@/utils/sessionCleanup"
+import {
+	normalizeAuthError,
+	extractAuthStatus,
+	isAuthExpiryError,
+	isAuthForbiddenError,
+	isAuthRateLimitedError,
+	requiresReauthentication,
+} from "@/utils/authErrors"
 
 const log = logger.create("Auth")
 /**
@@ -6,9 +15,14 @@ const log = logger.create("Auth")
  *
  * Re-exports the low-level cleanup and classification helpers so consumers
  * (Login.vue, session store) never reach into implementation details.
+ *
+ * NOTE: the default export below needs REAL local bindings — shorthand
+ * object properties are NOT re-exports. A missing import here throws
+ * ReferenceError at module load and breaks every importer (this bricked
+ * Login.vue entirely until fixed).
  */
 
-export { cleanupUserSession } from "@/utils/sessionCleanup"
+export { cleanupUserSession }
 
 export {
 	normalizeAuthError,
@@ -17,7 +31,7 @@ export {
 	isAuthForbiddenError,
 	isAuthRateLimitedError,
 	requiresReauthentication,
-} from "@/utils/authErrors"
+}
 
 /**
  * Best-effort full logout teardown. Does not throw; logs and swallows

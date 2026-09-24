@@ -60,6 +60,8 @@ jobs:
         run: yarn build
         env:
           DyPOS_BUILD_VERSION: ${{ steps.ver.outputs.version }}
+          # Standalone Worker build is served at domain root (router base "/").
+          VITE_ROUTER_BASE: /
 
       # Efficiency gate: fail the deploy on bundle bloat (900KB gzip budget).
       - name: Bundle budget (gzip JS+CSS cap)
