@@ -22,6 +22,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -81,14 +82,29 @@ writeFileSync(join(OUT, 'pos.html'), html, 'utf8');
 //    The Vue router owns unknown paths; the app itself stays reachable at any
 //    client route. A 404 brand page was removed for this reason.
 
-// 4) _headers — security + caching. Hardened CSP (no 'unsafe-inline' — hashes only),
-    //    strict permissions, root HTML must-revalidate, SW root scope allowed.
-    const headers = `/*
+// 4) _headers — security + caching. CSP hashes are COMPUTED from the final
+//    HTML below (never hardcoded: hardcoded hashes go stale on every build
+//    and browsers then block the inline boot scripts → blank screen).
+//    Strict permissions, root HTML must-revalidate, SW root scope allowed.
+function cspHashes(html, tag) {
+  // Match inline blocks only (no src=/href=): <script>…</script>, <style>…</style>.
+  const re = new RegExp(`<${tag}(?![^>]*\\b(?:src|href)\\s*=)[^>]*>([\\s\\S]*?)<\\/${tag}\\s*>`, 'gi');
+  const out = [];
+  let m;
+  while ((m = re.exec(html))) {
+    if (!m[1].trim()) continue;
+    out.push(`'sha256-${createHash('sha256').update(m[1], 'utf8').digest('base64')}'`);
+  }
+  return out;
+}
+const scriptSrc = ["'self'", "'wasm-unsafe-eval'", ...cspHashes(html, 'script')].join(' ');
+const styleSrc = ["'self'", ...cspHashes(html, 'style')].join(' ');
+const headers = `/*
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), xr-spatial-tracking=(), gyroscope=(), magnetometer=(), accelerometer=(), autoplay=(), display-capture=()
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-wfoI2Q+Z9ecv56V/FHXIA49Ef6tCopn4N+fovDGrxyE=' 'sha256-JnAxjs7aLTCd09xt7pLlvs5I8qQs5KRqeAPCN5lT9XA='; style-src 'self' 'sha256-ZXN5WtCflCi7h1dYJE0mxvE38DBD99dIcIFI5ImLul0='; img-src 'self' data: blob: https://flagcdn.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://api.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com wss:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests; block-all-mixed-content
+  Content-Security-Policy: default-src 'self'; script-src ${scriptSrc}; style-src ${styleSrc}; img-src 'self' data: blob: https://flagcdn.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://api.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com wss:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests; block-all-mixed-content
 
 /
   Cache-Control: public, max-age=0, must-revalidate
@@ -111,6 +127,17 @@ writeFileSync(join(OUT, 'pos.html'), html, 'utf8');
   Cache-Control: public, max-age=31536000, immutable
 `;
 writeFileSync(join(OUT, '_headers'), headers, 'utf8');
+
+// Self-verification: every inline script/style in the FINAL html must have
+// its hash in the published policy — otherwise browsers block boot blocks.
+for (const tag of ['script', 'style']) {
+  for (const h of cspHashes(html, tag)) {
+    if (!headers.includes(h)) {
+      console.error(`[pages-site] FATAL: inline <${tag}> hash ${h} missing from CSP.`);
+      process.exit(1);
+    }
+  }
+}
 
 // 5) _redirects — SPA fallback (history-mode router).
     //    Cloudflare Pages serves static files FIRST (highest priority),
@@ -147,3 +174,4 @@ console.log(`  main bundle: ${bundle}`);
 console.log(`  files      : ${files}`);
 console.log(`  size       : ${(bytes / 1024 / 1024).toFixed(2)} MB`);
 console.log('  jinja left : none (guarded)');
+console.log(`  csp        : build-time hashes (scripts + styles covered, none hardcoded)`);
