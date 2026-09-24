@@ -1,0 +1,44 @@
+# Uptime Monitor — lightweight production heartbeat
+name: Uptime Monitor
+
+# عالميًا: فحص خفيف كل 15 دقيقة أن العملاء يرون build صالحًا على النطاق الحي.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uptime-monitor
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: Probe live site
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Probe version.json (valid JSON + version field)
+        run: |
+          set -e
+          SITE="https://dypos.smartportssoft.com"
+          LIVE_JSON=$(curl -fsS --max-time 20 "$SITE/assets/DyPOS/pos/version.json")
+          echo "version.json → $LIVE_JSON"
+          echo "$LIVE_JSON" | grep -Eq '"version"[[:space:]]*:[[:space:]]*"[0-9]+\.[0-9]+\.[0-9]+"' || {
+            echo "::error::version.json missing or has no semver version field"
+            exit 1
+          }
+
+      - name: Probe homepage (200 + version-pinned bundle)
+        run: |
+          set -e
+          SITE="https://dypos.smartportssoft.com"
+          HTML=$(curl -fsS --max-time 20 "$SITE/")
+          echo "$HTML" | grep -Eq 'assets/index-[A-Za-z0-9_-]+\.js\?v=[0-9]+\.[0-9]+\.[0-9]+' || {
+            echo "::error::homepage does not reference a version-pinned bundle"
+            exit 1
+          }
+          echo "homepage OK — serves a version-pinned bundle"
