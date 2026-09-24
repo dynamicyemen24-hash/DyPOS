@@ -15,12 +15,13 @@ push إلى main (أو تشغيل يدوي)
    → تحقق حي: version.json + الحزمة الرئيسية على dypos.smartportssoft.com
 ```
 
-> **مسار Pages القديم مهجور:** التوكن الحالي يملك `Workers Scripts` فقط وليس `Pages:Edit`.
-> النشر يتم كـ Worker بأصول ثابتة (`wrangler.toml` + `worker.js`).
+> **مسار Pages القديم مهجور:** النشر كـ Worker بأصول ثابتة
+> (`wrangler.toml` + `worker.js`). نطاق التوكن المطلوب:
+> `Workers Scripts Edit` + `Zone Workers Routes Edit` (بدون قيود IP).
 
 ### مطلوب مرة واحدة (أنت فقط — التوكن لا يُكتب في المستودع أبدًا)
 ```bash
-gh secret set CLOUDFLARE_API_TOKEN     # توكن: Workers Scripts Edit (بدون قيود IP)
+gh secret set CLOUDFLARE_API_TOKEN     # Workers Scripts Edit + Zone Workers Routes Edit (بدون IP restriction)
 gh secret set CLOUDFLARE_ACCOUNT_ID    # Account ID من لوحة Cloudflare (Overview)
 # اختياري:
 gh secret set CF_ZONE_ID               # Zone ID لتنقية كاش إجبارية بعد كل نشر
