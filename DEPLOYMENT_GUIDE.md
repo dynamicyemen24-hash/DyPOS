@@ -76,3 +76,11 @@ npx wrangler deploy --name dypos-pos --assets .pages-site --compatibility-date 2
 - **Live:** `https://dypos.smartportssoft.com/` serves Worker `dypos-pos`
   (bundle hash changes every build; verified by `?v=1.36.0` + `version.json`)
 - **Tests:** server 362/362 · POS 552/552 · method contract 105/105 · biome 0 errors · pg parity OK
+
+## Backend topology (why `/api` needs an origin)
+- The Worker serves the frontend + proxies same-origin `/api/*` → `DYPOS_BACKEND_URL`
+  (Worker secret, set from repo secret `DYPOS_BACKEND_URL` on every deploy; unset → clean Arabic 503).
+- Run the API anywhere (VPS `docker compose up -d`), then expose it via Cloudflare Tunnel
+  (`docker compose --profile tunnel up -d cloudflared` with `CLOUDFLARED_TOKEN`), e.g.
+  `api.dypos.smartportssoft.com` → `http://dypos-server:3001`. Zero open ports, no CORS changes
+  (`DYPOS_CORS_ORIGIN` already allows the frontend domain).

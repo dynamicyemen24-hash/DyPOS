@@ -96,5 +96,20 @@ services:
       dypos-server:
         condition: service_healthy
 
+  # ── Cloudflare Tunnel (opt-in): expose the API to the Cloudflare edge with
+  #    zero open firewall ports — the Worker /api proxy targets the tunnel
+  #    hostname (same-origin for browsers, no CORS pain).
+  #    Run: CLOUDFLARED_TOKEN=<token> docker compose --profile tunnel up -d cloudflared
+  #    Token: Cloudflare dashboard → Zero Trust → Networks → Tunnels → Create →
+  #    Public hostname (e.g. api.dypos.smartportssoft.com) → Service http://dypos-server:3001
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: [tunnel]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TOKEN:?Set CLOUDFLARED_TOKEN from the Zero Trust dashboard}
+    depends_on:
+      dypos-server:
+        condition: service_healthy
+
 volumes:
   dypos-data:
