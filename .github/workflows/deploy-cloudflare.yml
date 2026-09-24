@@ -61,6 +61,11 @@ jobs:
         env:
           DyPOS_BUILD_VERSION: ${{ steps.ver.outputs.version }}
 
+      # Efficiency gate: fail the deploy on bundle bloat (900KB gzip budget).
+      - name: Bundle budget (gzip JS+CSS cap)
+        working-directory: POS
+        run: npm run size
+
       - name: Assemble deploy site (Pages layout + Worker SPA)
         run: node scripts/build-pages-site.mjs --out .pages-site
 

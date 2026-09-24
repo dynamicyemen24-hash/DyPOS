@@ -49,7 +49,7 @@
 | **اختبارات الواجهة الأمامية** | 552/552 ✅ | Vitest + jsdom + Vue Test Utils |
 | **اختبارات الخادم** | 362/362 ✅ | Node.js test runner + SQLite |
 | **التدقيق الأمني (Biome)** | 0 تحذيرات ✅ | Frontend + Backend |
-| **فحص التبعيات (npm audit)** | High+ ✅ | CI gate مفعل |
+| **فحص التبعيات (npm audit)** | High+ ✅ | CI gate مفعل — ثغرتان متوسطتان في `echarts` المتداخلة بـ `frappe-ui` مقبولتان رسميًا: غير موجودتين في حزمة الإنتاج (tree-shaken، مثبت بالبناء) وإصلاحهما يتطلب كسرًا رئيسيًا |
 | **Content Security Policy** | Strict ✅ | بدون `unsafe-inline`، Hash-based |
 | **Request Tracing** | مفعل ✅ | `X-Request-Id` عبر السلسلة الكاملة |
 | **Multi-Tenant Isolation** | Row-level ✅ | 404 على الوصول عبر المستأجرين |

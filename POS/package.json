@@ -16,6 +16,7 @@
 		"test:coverage": "vitest run --coverage",
 		"verify": "vitest run && biome lint src tests",
 		"verify:print": "vitest run tests/print",
+		"size": "node scripts/check-bundle-size.mjs",
 		"copy-html-entry": "cp ../DyPOS/public/pos/index.html ../DyPOS/www/pos.html"
 	},
 	"dependencies": {
