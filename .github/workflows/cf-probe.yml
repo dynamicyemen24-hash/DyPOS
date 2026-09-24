@@ -1,0 +1,85 @@
+name: CF token capability probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      try_bind_route:
+        description: "Try to bind dypos.smartportssoft.com/* to dypos-pos"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe token scopes + optional route bind
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ZONE: 27bbfbac5c7c0dd7c244bb19e084a2b3
+          TRY_BIND: ${{ inputs.try_bind_route }}
+        run: |
+          set -e
+          H="Authorization: Bearer $CF_TOKEN"
+          A="https://api.cloudflare.com/client/v4"
+          {
+            echo "## Cloudflare token probe"
+            echo "- account: \`$CF_ACCOUNT\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "=== verify ==="
+          curl -sS "$A/user/tokens/verify" -H "$H" | tee /tmp/verify.json
+          echo
+
+          echo "=== zone workers routes GET ==="
+          code=$(curl -sS -o /tmp/routes.json -w '%{http_code}' "$A/zones/$ZONE/workers/routes" -H "$H")
+          echo "HTTP $code"
+          cat /tmp/routes.json; echo
+
+          echo "=== script routes GET ==="
+          code=$(curl -sS -o /tmp/sroutes.json -w '%{http_code}' "$A/accounts/$CF_ACCOUNT/workers/scripts/dypos-pos/routes" -H "$H")
+          echo "HTTP $code"
+          cat /tmp/sroutes.json; echo
+
+          echo "=== workers domains GET ==="
+          code=$(curl -sS -o /tmp/wdom.json -w '%{http_code}' "$A/accounts/$CF_ACCOUNT/workers/domains" -H "$H")
+          echo "HTTP $code"
+          cat /tmp/wdom.json; echo
+
+          echo "=== dns GET dypos ==="
+          code=$(curl -sS -o /tmp/dns.json -w '%{http_code}' "$A/zones/$ZONE/dns_records?name=dypos.smartportssoft.com" -H "$H")
+          echo "HTTP $code"
+          cat /tmp/dns.json; echo
+
+          if [ "$TRY_BIND" = "true" ]; then
+            echo "=== TRY zone route POST ==="
+            code=$(curl -sS -o /tmp/bind.json -w '%{http_code}' -X POST "$A/zones/$ZONE/workers/routes" \
+              -H "$H" -H 'Content-Type: application/json' \
+              -d '{"pattern":"dypos.smartportssoft.com/*","script":"dypos-pos"}')
+            echo "HTTP $code"
+            cat /tmp/bind.json; echo
+
+            echo "=== TRY workers domain POST ==="
+            code=$(curl -sS -o /tmp/wbind.json -w '%{http_code}' -X POST "$A/accounts/$CF_ACCOUNT/workers/domains" \
+              -H "$H" -H 'Content-Type: application/json' \
+              -d '{"hostname":"dypos.smartportssoft.com","service":"dypos-pos","environment":"production"}')
+            echo "HTTP $code"
+            cat /tmp/wbind.json; echo
+          fi
+
+          {
+            echo "### Results"
+            echo '```'
+            echo "routes GET: $(head -c 400 /tmp/routes.json 2>/dev/null || true)"
+            echo "script routes GET: $(head -c 400 /tmp/sroutes.json 2>/dev/null || true)"
+            echo "domains GET: $(head -c 400 /tmp/wdom.json 2>/dev/null || true)"
+            if [ "$TRY_BIND" = "true" ]; then
+              echo "route POST: $(head -c 400 /tmp/bind.json 2>/dev/null || true)"
+              echo "domain POST: $(head -c 400 /tmp/wbind.json 2>/dev/null || true)"
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
