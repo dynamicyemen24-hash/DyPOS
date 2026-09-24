@@ -10,7 +10,7 @@
  * Run: npm run backup  |  node scripts/backup.mjs [--json]
  * Cron: 0 2 * * * cd /app/server && node scripts/backup.mjs >> /var/log/dypos-backup.log 2>&1
  */
-import { join, dirname, basename } from 'node:path';
+import { join, dirname, basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs';
 import { execFile } from 'node:child_process';
@@ -27,7 +27,13 @@ function log(obj) {
   else console.log(line);
 }
 
-async function main() {
+/**
+ * Online snapshot + verify + retention. Import-safe: unlike the legacy
+ * top-level main(), it never calls process.exit and — with
+ * closeAfter:false (default) — never closes the shared live handle, so the
+ * production scheduler can call it in-process.
+ */
+export async function runBackup({ closeAfter = false } = {}) {
   if (DB_PATH === ':memory:') throw new Error('Refusing to back up :memory: database');
   mkdirSync(BACKUP_DIR, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -89,12 +95,22 @@ async function main() {
   }
 
   const result = { ok: true, file, size_bytes: size, integrity, retained: Math.min(files.length, RETENTION), pruned, s3 };
-  log(result);
-  try { db.close(); } catch { /* ignore */ }
-  process.exit(0);
+  if (closeAfter) {
+    try { db.close(); } catch { /* ignore */ }
+  }
+  return result;
 }
 
-main().catch((e) => {
-  log({ ok: false, error: String(e?.message || e).slice(0, 500) });
-  process.exit(1);
-});
+// CLI entry — identical behavior to the legacy script (JSON + exit codes).
+// Importing the module (scheduler, tests) has zero side effects.
+const invokedDirectly = (() => {
+  try {
+    return !!process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+  } catch { return false; }
+})();
+if (invokedDirectly) {
+  runBackup({ closeAfter: true }).then(
+    (result) => { log(result); process.exit(0); },
+    (e) => { log({ ok: false, error: String(e?.message || e).slice(0, 500) }); process.exit(1); },
+  );
+}

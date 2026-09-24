@@ -23,7 +23,7 @@ import { existsSync, mkdirSync } from 'fs';
 dotenv.config();
 
 import { migrate, db, checkDbHealth, } from './db/schema.js';
-import { assertDbModeSupported, describeDbMode } from './db/mode.js';
+import { assertDbModeSupported, describeDbMode, IS_READ_ONLY_REPLICA } from './db/mode.js';
 import { authMiddleware, isProduction } from './middleware/auth.js';
 import requirePrimary from './middleware/requirePrimary.js';
 import adminRoutes from './routes/admin.js';
@@ -493,6 +493,30 @@ export function start() {
   _server.timeout = Number(process.env.DYPOS_SERVER_TIMEOUT) || 30000;
   _server.keepAliveTimeout = 65000;
   _server.headersTimeout = 66000;
+
+  // Scheduled online backups (primary only — replicas must not snapshot).
+  // DYPOS_BACKUP_INTERVAL_HOURS: default 24h in production, off elsewhere
+  // (explicit value always wins). Retention is enforced by the backup
+  // itself; the timer is unref'd so it never blocks shutdown or tests.
+  // start() is never called by the test runner — only entrypoint/supervisor.
+  const backupRaw = process.env.DYPOS_BACKUP_INTERVAL_HOURS;
+  const backupHours = backupRaw !== undefined && backupRaw !== ''
+    ? Number(backupRaw)
+    : (isProduction && !IS_READ_ONLY_REPLICA ? 24 : 0);
+  if (Number.isFinite(backupHours) && backupHours > 0
+    && process.env.NODE_ENV !== 'test' && process.env.DYPOS_DB_PATH !== ':memory:') {
+    const backupMs = Math.min(Math.max(backupHours, 1), 24 * 30) * 3600_000;
+    const runScheduledBackup = () => {
+      import('./scripts/backup.mjs').then(({ runBackup }) => runBackup().catch((e) => {
+        logger.error({ error: String(e?.message || e).slice(0, 200) }, '[DyPOS] Scheduled backup failed');
+      })).catch((e) => {
+        logger.error({ error: String(e?.message || e).slice(0, 200) }, '[DyPOS] Scheduled backup loader failed');
+      });
+    };
+    const backupTimer = setInterval(runScheduledBackup, backupMs);
+    if (backupTimer.unref) backupTimer.unref();
+    console.log(`[DyPOS] Scheduled online backups every ${backupHours}h (retention: DYPOS_BACKUP_RETENTION, S3: DYPOS_BACKUP_S3).`);
+  }
 
   // Graceful shutdown
   const gracefulShutdown = (signal) => {
