@@ -68,10 +68,18 @@ if (DB_PATH !== ':memory:' && existsSync(PENDING)) {
   }
 }
 
-const { migrate } = await import('./db/schema.js');
+const { migrate, snapshotForMigration } = await import('./db/schema.js');
 
 console.log('[DyPOS] Running database migrations...');
 try {
+  // Rollback insurance: snapshot first when the DB is behind the code.
+  // Warn-not-block: a failed snapshot must never stop the migration itself.
+  try {
+    const snap = snapshotForMigration(process.env.DYPOS_BACKUP_DIR || join(__dirname, 'data', 'backups'));
+    if (snap) console.log(`[DyPOS] Pre-migration snapshot: ${basename(snap)} (rollback insurance)`);
+  } catch (e) {
+    console.error(`[DyPOS WARN] Pre-migration snapshot failed — proceeding with migration: ${String(e.message).slice(0, 160)}`);
+  }
   migrate();
   console.log('[DyPOS] Migrations complete. Starting server...');
 } catch (e) {

@@ -10,7 +10,8 @@
 import Database from './driver.js';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { mkdirSync } from 'fs';
+import { mkdirSync, existsSync } from 'fs';
+import { DatabaseSync } from 'node:sqlite';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DYPOS_DB_PATH || join(__dirname, '..', 'data', 'dypos.db');
@@ -41,6 +42,9 @@ db.pragma('foreign_keys = ON');
 // Durability/performance balance suited to a POS write workload.
 db.pragma('synchronous = NORMAL');
 db.pragma('busy_timeout = 5000');
+// Bound the WAL file on busy stores (64MB): checkpoints reclaim beyond this
+// instead of letting -wal grow without limit during sale storms.
+db.pragma('journal_size_limit = 67108864');
 
 
 export function checkDbHealth() {
@@ -1048,6 +1052,36 @@ export function migrate() {
   }
 
   console.log('[DyPOS] Database migrated (v' + MIGRATION_VERSION + ')');
+}
+
+/**
+ * Pre-migration snapshot (rollback insurance for production upgrades).
+ * Returns the snapshot path when the database exists but is BEHIND the
+ * code's MIGRATION_VERSION, else null (fresh install / current / :memory:).
+ * The copy is integrity-verified before it is trusted; failures throw so
+ * the caller (entrypoint) can warn loudly — it never blocks the migration
+ * itself (availability first, snapshot second).
+ */
+export function snapshotForMigration(backupDir) {
+  if (DB_PATH === ':memory:') return null;
+  if (!existsSync(DB_PATH)) return null; // fresh install — nothing to protect
+  let current = 0;
+  try {
+    current = Number(db.prepare('SELECT MAX(version) as v FROM schema_version').get()?.v) || 0;
+  } catch { current = 0; }
+  if (current >= MIGRATION_VERSION) return null;
+  mkdirSync(backupDir, { recursive: true });
+  const snap = join(backupDir, `pre-migrate-v${current}-to-v${MIGRATION_VERSION}-${Date.now()}.db`);
+  db.exec(`VACUUM INTO '${snap.replace(/'/g, "''")}'`);
+  const probe = new DatabaseSync(snap, { readOnly: true });
+  try {
+    const integ = Object.values(probe.prepare('PRAGMA integrity_check').get())[0];
+    if (integ !== 'ok') throw new Error(`integrity_check=${integ}`);
+    probe.prepare('SELECT version FROM schema_version ORDER BY version DESC LIMIT 1').get();
+  } finally {
+    probe.close();
+  }
+  return snap;
 }
 
 // Named export kept in addition to the default export: `server.js` imports
