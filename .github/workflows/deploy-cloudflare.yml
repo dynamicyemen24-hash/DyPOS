@@ -97,9 +97,9 @@ jobs:
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
-      # ── Deploy: Workers Static Assets (wrangler deploy). Pages:Edit is NOT
-      # required for this token path; assets + worker script upload is enough.
-      # Domain route binding is a one-time dashboard step (see live-verify hint).
+      # ── Deploy: Workers Static Assets (wrangler deploy). Domain route
+      # dypos.smartportssoft.com/* is declared in wrangler.toml [[routes]]
+      # and attaches on every deploy (Zone Workers Routes Edit on the token). ──
       - name: Deploy to Cloudflare Workers (static assets)
         id: deploy
         if: steps.cf.outputs.available == 'true'
@@ -130,9 +130,8 @@ jobs:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ZONE: ${{ secrets.CF_ZONE_ID }}
 
-      # ── Live verification: the whole point is that CUSTOMERS see the new
-      # build. If the custom domain is not bound to this Pages project (or an
-      # old IIS origin still fronts the domain) this step says so loudly. ──
+      # ── Live verification: customers must see the NEW build. Rejects the
+      # known-stale pre-1.36 bundle and any live HTML without a ?v= pin. ──
       - name: Live verify (customers must see the new build)
         if: steps.cf.outputs.available == 'true'
         continue-on-error: true
@@ -148,7 +147,7 @@ jobs:
           echo "index bundle → ${BUNDLE:-MISSING}"
           # Reject known-stale bundle from the pre-1.36 method-router deploy.
           if echo "$BUNDLE" | grep -q 'index-FF_1PWVh'; then
-            echo "::warning::Live site still serves STALE bundle index-FF_1PWVh.js. Worker dypos-pos deployed, but dypos.smartportssoft.com is bound to another origin. One-time fix: Cloudflare dashboard → Workers & Pages → dypos-pos → Settings → Routes → add dypos.smartportssoft.com/*."
+            echo "::warning::Live site still serves STALE bundle index-FF_1PWVh.js. Domain route may be detached — check Workers & Pages → dypos-pos → Routes for dypos.smartportssoft.com/*."
             BUNDLE=""
           fi
           {
@@ -160,5 +159,5 @@ jobs:
           if echo "$LIVE_JSON" | grep -q "$VERSION" && [ -n "$BUNDLE" ]; then
             echo "✅ LIVE $VERSION VERIFIED — customers are on the new build."
           else
-            echo "::warning::Live site does NOT serve the fresh $VERSION build yet. Worker dypos-pos deployed; domain route still points at the old origin."
+            echo "::warning::Live site does NOT serve the fresh $VERSION build yet. Worker dypos-pos deployed; domain route may point at another origin."
           fi
