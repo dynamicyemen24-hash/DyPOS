@@ -92,7 +92,7 @@ function deductWallet(customerId, amt, invoiceId, actor) {
  * mirrored ledger rows, bank-statement style balance_after.
  * Missing/deleted customer → no-op (never breaks void/return).
  */
-function refundWallet(customerId, amt, invoiceId, actor) {
+export function refundWallet(customerId, amt, invoiceId, actor) {
   if (!customerId || !(amt > 0)) return 0;
   const c = db.prepare('SELECT wallet_balance FROM customers WHERE id=?').get(customerId);
   if (!c) return 0;
@@ -675,11 +675,19 @@ router.post('/:id/void', ah(async (req, res) => {
 
 // POST /api/invoices/:id/return — إرجاع بضاعة (ADMIN/MANAGER/CASHIER) — يعكس المخزون ويوسم RETURNED
 // Idempotent عبر Idempotency-Key: نفس المفتاح لا يعكس المخزون مرتين.
-router.post('/:id/return', ah(async (req, res) => {
-  const id = String(req.params.id).slice(0, 64);
-  const reason = String(req.body?.reason || '').trim().slice(0, 200) || 'إرجاع';
-  return idempotency(req, res, 'invoice:return', async () => {
-    const r = db.transaction(() => {
+//
+// applyInvoiceReturn: the same stock/loyalty/credit reversal as the REST
+// route, exported so the Frappe-compat method router (is_return submit)
+// reuses ONE money implementation instead of a divergent copy.
+// input = { reason?, items?: [{productId|product_id, qty, warehouseId?,
+//           lineId?|line_id?|sales_invoice_item?}], creditToWallet? }.
+// creditToWallet routes the cash refund share into the customer wallet
+// (POS "add to customer balance") instead of a negative REFUND payment row.
+export function applyInvoiceReturn(req, id, input) {
+  const reason = String(input?.reason ?? req.body?.reason ?? '').trim().slice(0, 200) || 'إرجاع';
+  const itemsInput = Array.isArray(input?.items) ? input.items : req.body?.items;
+  const creditToWallet = Boolean(input?.creditToWallet);
+  return db.transaction(() => {
       const inv = db.prepare('SELECT * FROM invoices WHERE id=?').get(id);
       if (!inv) throw Object.assign(new Error('الفاتورة غير موجودة'), { statusCode: 404 });
       try {
@@ -705,18 +713,21 @@ router.post('/:id/return', ah(async (req, res) => {
       // negative REFUND payment row so shift/report sums net correctly),
       // and reverses only the loyalty share attributable to the return.
       // Each partial batch needs its own Idempotency-Key; replays dedupe.
-      const retReq = Array.isArray(req.body?.items) ? req.body.items : null;
+      const retReq = Array.isArray(itemsInput) ? itemsInput : null;
       if (retReq) {
         if (retReq.length === 0 || retReq.length > 100) throw Object.assign(new Error('قائمة المرتجع يجب أن تكون بين 1 و 100 بند'), { statusCode: 400 });
         const want = new Map();
+        const lineWant = new Map();
         for (const r of retReq) {
-          const pid = String(r.productId ?? r.product_id ?? '').trim().slice(0, 64);
+          const pid = String(r.productId ?? r.product_id ?? r.item_code ?? '').trim().slice(0, 64);
           const q = Number(r.qty ?? r.quantity);
           if (!pid) throw Object.assign(new Error('صنف غير محدد في بنود المرتجع'), { statusCode: 400 });
           if (!(q > 0) || q > 100000) throw Object.assign(new Error(`كمية إرجاع غير صالحة للصنف ${pid}`), { statusCode: 400 });
-          const wh = String(r.warehouseId ?? r.warehouse_id ?? 'W-01').trim().slice(0, 32) || 'W-01';
+          const wh = String(r.warehouseId ?? r.warehouse_id ?? r.warehouse ?? 'W-01').trim().slice(0, 32) || 'W-01';
+          const lineId = String(r.lineId ?? r.line_id ?? r.sales_invoice_item ?? '').trim().slice(0, 64);
           const k = `${pid}|${wh}`;
           want.set(k, (want.get(k) || 0) + q);
+          if (lineId) lineWant.set(k, lineId);
         }
         const allLines = db.prepare('SELECT * FROM invoice_items WHERE invoice_id=?').all(id);
         const plan = [];
@@ -724,7 +735,16 @@ router.post('/:id/return', ah(async (req, res) => {
           const sep = k.lastIndexOf('|');
           const pid = k.slice(0, sep);
           const wh = k.slice(sep + 1);
-          const row = allLines.find((l) => String(l.product_id) === pid && String(l.warehouse_id || 'W-01') === wh && Number(l.is_free_item ?? 0) !== 1);
+          const pinned = lineWant.get(k);
+          // POS dialogs address lines by product CODE; invoice_lines store the
+          // product ID — resolve code→id so both spellings match.
+          let pidResolved = pid;
+          try {
+            const hit = db.prepare('SELECT id FROM products WHERE id=? OR code=? LIMIT 1').get(pid, pid);
+            if (hit?.id) pidResolved = String(hit.id);
+          } catch { /* keep raw pid */ }
+          const row = (pinned && allLines.find((l) => String(l.id) === pinned))
+            || allLines.find((l) => (String(l.product_id) === pid || String(l.product_id) === pidResolved) && String(l.warehouse_id || 'W-01') === wh && Number(l.is_free_item ?? 0) !== 1);
           if (!row) throw Object.assign(new Error(`البند غير موجود في الفاتورة: ${pid}`), { statusCode: 404 });
           // qty already shrinks with each partial return (returned_qty is the
           // audit trail), so the live available quantity IS the current qty.
@@ -782,7 +802,11 @@ router.post('/:id/return', ah(async (req, res) => {
           }
         }
         if (refundLeft > 0) {
-          insertRefundPayment.run(uuid(), id, 'REFUND', -toMajor(refundLeft), String(reason || '').slice(0, 128));
+          if (creditToWallet && inv.customer_id) {
+            refundWallet(inv.customer_id, toMajor(refundLeft), id, req.user?.username);
+          } else {
+            insertRefundPayment.run(uuid(), id, 'REFUND', -toMajor(refundLeft), String(reason || '').slice(0, 128));
+          }
         }
         const newStatus = newRemainingMinor <= 1 ? 'PAID' : 'PARTIAL';
         db.prepare(`UPDATE invoices SET subtotal=?,discount_amount=?,tax_amount=?,total=?,paid_amount=?,remaining_amount=?,status=?,notes=COALESCE(notes,'') || ? WHERE id=?`)
@@ -828,13 +852,29 @@ router.post('/:id/return', ah(async (req, res) => {
         }
         // Refund wallet-paid money (same inverse as void).
         const walletPaid = db.prepare(`SELECT COALESCE(SUM(amount),0) as s FROM payments WHERE invoice_id=? AND method='WALLET'`).get(id)?.s || 0;
-        if (Number(walletPaid) > 0) refundWallet(inv.customer_id, Number(walletPaid), id, req.user?.username);
+        const walletAmt = Number(walletPaid) || 0;
+        if (walletAmt > 0) refundWallet(inv.customer_id, walletAmt, id, req.user?.username);
+        if (creditToWallet && inv.customer_id) {
+          // POS "add to customer balance": the cash/card share lands in the
+          // wallet too instead of being handed back physically.
+          const cashOwed = Math.round((Number(inv.paid_amount) - walletAmt) * 100) / 100;
+          if (cashOwed > 0) refundWallet(inv.customer_id, cashOwed, id, req.user?.username);
+        }
       }
       db.prepare(`UPDATE invoices SET status='RETURNED',voided_at=datetime('now'),voided_by=?,notes=COALESCE(notes,'') || ? WHERE id=?`).run(req.user?.username || 'system', ` | إرجاع: ${reason}`, id);
       db.prepare(`INSERT INTO sync_log (entity_type,entity_id,action,payload,status) VALUES (?,?,?,?,?)`).run('INVOICE', id, 'RETURN', JSON.stringify({ id, reason }), 'PENDING');
       try { appendChain(id, { number: inv.number, total: inv.total, status: 'RETURNED', action: 'RETURN' }); } catch { /* ignore */ }
       return { invoiceId: id, status: 'RETURNED' };
-    })();
+  })();
+}
+
+// POST /api/invoices/:id/return — REST entry (idempotent; money logic lives
+// in applyInvoiceReturn so the method router reuses it verbatim).
+router.post('/:id/return', ah(async (req, res) => {
+  const id = String(req.params.id).slice(0, 64);
+  const reason = String(req.body?.reason || '').trim().slice(0, 200) || 'إرجاع';
+  return idempotency(req, res, 'invoice:return', async () => {
+    const r = applyInvoiceReturn(req, id);
     const isPartial = !!(r?.partial);
     req.audit?.(isPartial ? 'invoice.return_partial' : 'invoice.return', { invoiceId: id, reason, ...(isPartial ? { lines: r.lines, refunded: r.refunded } : {}) });
     recordTrail(req, { entity: 'INVOICE', entityId: id, action: isPartial ? 'RETURN_PARTIAL' : 'RETURN', after: isPartial ? { reason, lines: r.lines, refunded: r.refunded } : { reason } });

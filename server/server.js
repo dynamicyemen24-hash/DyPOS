@@ -147,7 +147,7 @@ if (isProduction) {
     }
   } catch { /* users table check is best-effort */ }
   if (!process.env.DYPOS_METRICS_TOKEN) {
-    console.warn('[DyPOS WARN] DYPOS_METRICS_TOKEN unset — /api/metrics is publicly scrapable. Set a token to restrict access.');
+    console.warn('[DyPOS WARN] DYPOS_METRICS_TOKEN unset — /api/metrics is FORBIDDEN in production. Set a token (X-Metrics-Token header) to enable Prometheus scraping.');
   }
   if (!process.env.DYPOS_BACKUP_S3 && !process.env.DYPOS_BACKUP_DIR) {
     console.warn('[DyPOS WARN] No backup target configured — set DYPOS_BACKUP_S3 or DYPOS_BACKUP_DIR to enable automated backups.');
@@ -184,8 +184,16 @@ function requestLogger(req, res, next) {
 
 const app = express();
 app.disable('x-powered-by');
-// Behind nginx/LB: needed for correct req.ip → correct per-IP rate limiting
-app.set('trust proxy', Number(process.env.DYPOS_TRUST_PROXY) || 1);
+// Behind LB only: DYPOS_TRUST_PROXY=1 (or hop count). Default 0 so a direct
+// client cannot spoof X-Forwarded-For to evade per-IP rate limiters.
+// ERR_ERL_DYNAMIC_IPV4_SUBNET note: Number('') || 0 === 0; explicit 0 stays off.
+const trustProxyRaw = process.env.DYPOS_TRUST_PROXY;
+app.set(
+  'trust proxy',
+  trustProxyRaw === undefined || trustProxyRaw === '' || trustProxyRaw === '0'
+    ? false
+    : (Number(trustProxyRaw) || (trustProxyRaw === 'true' ? 1 : false)),
+);
 
 // Security headers (CSP hardened)
 app.use(helmet({
@@ -337,11 +345,16 @@ app.use('/api', (_req, res, next) => {
 app.use('/api', openapiRoutes);
 // Device intelligence (no auth — the login shell adapts before sign-in)
 app.use('/api/device', deviceRoutes);
-// Prometheus metrics — gate with token when configured (prevents public scraping)
+// Prometheus metrics — default-deny in production when no token is configured.
+// Header-only (query token intentionally ignored to keep secrets out of access logs).
 app.get('/api/metrics', ah(async (req, res, next) => {
   const token = process.env.DYPOS_METRICS_TOKEN;
-  if (token && req.query.token !== token && req.headers['x-metrics-token'] !== token) {
-    return res.status(403).json({ error: 'Forbidden' });
+  if (token) {
+    if (req.headers['x-metrics-token'] !== token) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+  } else if (isProduction) {
+    return res.status(403).json({ error: 'Forbidden', reason: 'DYPOS_METRICS_TOKEN unset in production' });
   }
   return metricsHandler(req, res, next);
 }));

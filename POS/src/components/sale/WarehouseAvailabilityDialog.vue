@@ -1344,17 +1344,28 @@ async function loadAvailability() {
 }
 
 /**
- * Highlight matching text in search results
+ * Highlight matching text in search results (XSS-safe: escape HTML first)
  * @param {string} text - Text to search in
  * @param {string} query - Search query to highlight
  * @returns {string} HTML with highlighted matches
  */
-function highlightMatch(text, query) {
-	if (!text || !query) return text
+function escapeHtml(value) {
+	return String(value ?? "")
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;")
+}
 
-	const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+function highlightMatch(text, query) {
+	if (!text) return ""
+	if (!query) return escapeHtml(text)
+
+	const safe = escapeHtml(text)
+	const escapedQuery = String(query).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 	const regex = new RegExp(`(${escapedQuery})`, "gi")
-	return text.replace(
+	return safe.replace(
 		regex,
 		'<mark class="bg-yellow-200 text-yellow-900 rounded px-0.5">$1</mark>',
 	)

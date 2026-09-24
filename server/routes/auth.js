@@ -55,6 +55,10 @@ async function recordFail(username) {
 }
 async function recordSuccess(username) { await clearFails(username); }
 
+// Exported so the Frappe-compat method router (/api/method/login) enforces the
+// SAME lockout as /api/auth/login — otherwise brute-force is one endpoint away.
+export { isLocked, recordFail, recordSuccess, readFails, lockRemainingSecs };
+
 // Per-IP credential-spraying guard, IN ADDITION to the per-username lockout:
 // one attacker rotating 5 passwords across 100 usernames would otherwise dodge
 // the username counter entirely. Shared sliding-window store ('login' namespace
@@ -66,7 +70,7 @@ const LOGIN_IP_WINDOW_MS = WINDOW_SECS * 1000;
 // the limiter config (a server.js 'auth' limiter failure would otherwise
 // cascade into this one after sustained brute-force tests in one file).
 export const loginRateStore = createRateStore(LOGIN_IP_WINDOW_MS, 'login');
-const loginIpLimiter = rateLimit({
+export const loginIpLimiter = rateLimit({
   windowMs: LOGIN_IP_WINDOW_MS,
   max: Number(process.env.DYPOS_LOGIN_IP_LIMIT) || 20,
   standardHeaders: true,

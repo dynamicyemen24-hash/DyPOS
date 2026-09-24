@@ -10,21 +10,33 @@
  * need a user return 401 in Frappe error shape (`exc_type`, `_error_message`).
  */
 import { Router } from 'express';
-import crypto, { createHash, randomBytes } from 'crypto';
+import crypto, { createHash, randomBytes, X509Certificate } from 'crypto';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { mkdirSync, writeFileSync, existsSync } from 'fs';
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'fs';
 import db from '../db/schema.js';
 import { ah, mapErrorStatus } from '../lib/async.js';
 import {
   extractToken, verifyToken, tokenHash, generateToken,
   verifyPasswordAsync, hashPasswordAsync, hashPassword, revokeToken, isProduction,
 } from '../middleware/auth.js';
-import { getSetting, allSettings, invoicePrefix, defaultTaxRate } from '../lib/settings.js';
+import { getSetting, allSettings, setSetting, invoicePrefix, defaultTaxRate } from '../lib/settings.js';
 import { toMinor, toMajor, pctOf, clampMinor } from '../lib/money.js';
 import { computeCouponDiscount } from './offers.js';
 import { appendChain } from '../lib/chain.js';
 import { ensureOpenFiscalYear, yearOf } from './fiscal.js';
+import { applyInvoiceReturn } from './invoices.js';
+import {
+  isLocked as isLoginLocked,
+  recordFail as recordLoginFail,
+  recordSuccess as recordLoginSuccess,
+  readFails as readLoginFails,
+  lockRemainingSecs as loginLockRemainingSecs,
+  loginIpLimiter,
+} from './auth.js';
+import { resolveTenantFilter } from '../lib/tenant.js';
+import { authAttempts } from '../middleware/metrics.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -281,6 +293,10 @@ const DOCTYPES = {
   User: {
     table: 'users',
     idCol: 'id',
+    // Never expose credential material via frappe.client.* — even if the
+    // caller omits fields (SELECT *) or explicitly asks for password_hash.
+    safeColumns: ['id', 'username', 'full_name', 'role', 'is_active', 'tenant_id', 'created_at'],
+    forbidden: new Set(['password_hash', 'password', 'token', 'api_key', 'secret']),
     fields: { name: 'username', full_name: 'full_name', email: 'username', role: 'role', enabled: 'is_active' },
     mapRow(r) {
       return { name: r.username, full_name: r.full_name, email: r.username, role: r.role, enabled: r.is_active };
@@ -330,16 +346,63 @@ function resolveDoctype(doctype) {
   return null;
 }
 
+/**
+ * By-name lookup honoring idAliases (Frappe `name` may be any alias:
+ * Item.code, User.username, invoice number…). Columns are static spec
+ * strings — never user input — so interpolating them is safe.
+ */
+function idLookupWhere(spec) {
+  const cols = [spec.idCol];
+  for (const a of spec.idAliases || []) {
+    // Aliases may be field names (Item.item_code → code) or raw column
+    // names (User.username); fall back to the raw alias as a column.
+    const c = spec.fields[a] || a;
+    if (c && !cols.includes(c)) cols.push(c);
+  }
+  return { where: cols.map((c) => `${c}=?`).join(' OR '), count: cols.length };
+}
+
+/**
+ * By-id tenant guard for get/set_value/delete_doc: a tenant-bound caller
+ * gets 404 on foreign-tenant rows (never a leak, never a cross-tenant
+ * write). Sends the error itself; returns false when already answered.
+ */
+function assertMethodRecordTenant(req, res, spec, name) {
+  if (!tenantColumnKnown(spec.table)) return true;
+  const { where, count } = idLookupWhere(spec);
+  let row = null;
+  try {
+    row = db.prepare(`SELECT tenant_id FROM ${spec.table} WHERE ${where} LIMIT 1`).get(...Array(count).fill(name));
+  } catch { return true; } // table/column edge → the main path decides (404/empty)
+  if (!row?.tenant_id) return true; // missing or legacy global
+  let caller = null;
+  try { caller = resolveTenantFilter(req).tenantId || null; }
+  catch { frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); return false; }
+  if (caller && String(row.tenant_id) !== String(caller)) {
+    frappeError(res, 404, 'NotFoundError', 'غير موجود');
+    return false;
+  }
+  return true;
+}
+
 function buildFieldSelect(spec, fields) {
-  if (!Array.isArray(fields) || !fields.length) return 'SELECT *';
+  // Never SELECT * on credential-bearing tables — map to the safe column set.
+  const safeDefault = spec.safeColumns?.length
+    ? `SELECT ${spec.safeColumns.join(', ')}`
+    : null;
+  if (!Array.isArray(fields) || !fields.length) {
+    return safeDefault || 'SELECT *';
+  }
   const cols = [];
   const seen = new Set();
   for (const f of fields) {
     const raw = String(f).trim();
-    if (!raw || raw === '*') return 'SELECT *';
+    if (!raw || raw === '*') {
+      return safeDefault || 'SELECT *';
+    }
     // "name as serial_no" | "name" | "* as x"
     const asMatch = raw.match(/^(.+?)\s+as\s+(\w+)$/i);
-    let expr, alias = null;
+    let expr; let alias = null;
     if (asMatch) {
       expr = asMatch[1].trim().replace(/`/g, '');
       alias = asMatch[2];
@@ -348,11 +411,49 @@ function buildFieldSelect(spec, fields) {
     }
     const col = spec.fields[expr] || (spec.idAliases?.includes(expr) ? spec.idCol : null);
     if (!col) continue;
+    // Defense-in-depth: never allow selecting secret columns by name.
+    if (spec.forbidden?.has(col)) continue;
     const sql = alias ? `${col} AS ${alias}` : col;
     if (!seen.has(sql)) { seen.add(sql); cols.push(sql); }
   }
-  if (!cols.length) return 'SELECT *';
+  if (!cols.length) return safeDefault || 'SELECT *';
   return `SELECT ${cols.join(', ')}`;
+}
+
+/** Strip secrets from raw rows before any response leaves the method router. */
+function redactRow(spec, row) {
+  if (!row || typeof row !== 'object') return row;
+  const forbidden = spec?.forbidden;
+  if (!forbidden?.size) return row;
+  const out = { ...row };
+  for (const col of forbidden) delete out[col];
+  return out;
+}
+
+// Tables that carry tenant_id (keep in sync with schema.js + migrations).
+// Null = legacy global. NOTE: users.tenant_id is migration-added (v14+);
+// on a pre-migration DB the scoped queries fail closed to an empty list.
+const TENANT_TABLES = new Set([
+  'products', 'customers', 'invoices', 'stock_levels', 'shifts', 'offers', 'coupons',
+  'expenses', 'audit_events', 'sync_log', 'webhook_deliveries', 'user_sessions', 'users',
+  'settings', 'hardware_devices', 'store_synergies',
+]);
+
+function tenantColumnKnown(table) {
+  return TENANT_TABLES.has(String(table));
+}
+
+/** Append `(tenant_id=? OR tenant_id IS NULL)` when the caller is tenant-bound. Fail-closed: invalid/spoofed tenant → 403 (never an unscoped list). */
+function pushTenantScope(spec, req, res, whereParts, sqlParams) {
+  if (!tenantColumnKnown(spec.table)) return true;
+  let tenantId = null;
+  try {
+    tenantId = resolveTenantFilter(req).tenantId || null;
+  } catch { return frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); }
+  if (!tenantId) return true;
+  whereParts.push('(tenant_id=? OR tenant_id IS NULL)');
+  sqlParams.push(tenantId);
+  return true;
 }
 
 function normalizeFilters(filters) {
@@ -460,21 +561,44 @@ def('DyPOS.api.rate_limit.check', (params, _req, res) => {
   return res.json({ message: { allowed: true, remaining: maxAttempts } });
 });
 
-// ── Auth (Frappe-style) ──────────────────────────────────────────────────
+// ── Auth (Frappe-style) — shared lockout with /api/auth/login ────────────
+async function assertLoginAllowed(res, username) {
+  if (await isLoginLocked(username)) {
+    try { authAttempts.labels('locked').inc(); } catch { /* ignore */ }
+    const entry = await readLoginFails(username);
+    const waitLeft = loginLockRemainingSecs(entry) || 900;
+    res.setHeader('Retry-After', String(waitLeft));
+    frappeError(res, 429, 'RateLimitExceeded', 'محاولات كثيرة — حاول بعد 15 دقيقة');
+    return false;
+  }
+  return true;
+}
+
 async function doLogin(req, res, username, password) {
   const clean = String(username || '').trim();
   if (!clean || !password) {
     return frappeError(res, 400, 'ValidationError', 'اسم المستخدم وكلمة المرور مطلوبان');
   }
+  if (!(await assertLoginAllowed(res, clean))) return;
   const user = db.prepare('SELECT * FROM users WHERE username=? AND is_active=1').get(clean);
   if (!user) {
+    await recordLoginFail(clean);
+    try { authAttempts.labels('fail').inc(); } catch { /* ignore */ }
     return frappeError(res, 401, 'AuthenticationError', 'بيانات الدخول غير صحيحة');
   }
   let ok = false;
-  try { ok = await verifyPasswordAsync(password, user.password_hash); } catch { ok = false; }
+  try { ok = await verifyPasswordAsync(password, user.password_hash); }
+  catch (e) {
+    logger?.warn?.({ err: String(e?.message || e) }, 'method login verify failed');
+    ok = false;
+  }
   if (!ok) {
+    await recordLoginFail(clean);
+    try { authAttempts.labels('fail').inc(); } catch { /* ignore */ }
     return frappeError(res, 401, 'AuthenticationError', 'بيانات الدخول غير صحيحة');
   }
+  await recordLoginSuccess(clean);
+  try { authAttempts.labels('ok').inc(); } catch { /* ignore */ }
   const token = generateToken(user);
   const payload = {
     token,
@@ -505,11 +629,27 @@ async function doLoginMessage(params, req, res) {
   if (!username || !password) {
     return frappeError(res, 400, 'ValidationError', 'اسم المستخدم وكلمة المرور مطلوبان');
   }
-  const user = db.prepare('SELECT * FROM users WHERE username=? AND is_active=1').get(String(username).trim());
-  if (!user) return frappeError(res, 401, 'AuthenticationError', 'بيانات الدخول غير صحيحة');
+  const clean = String(username).trim();
+  if (!(await assertLoginAllowed(res, clean))) return;
+  const user = db.prepare('SELECT * FROM users WHERE username=? AND is_active=1').get(clean);
+  if (!user) {
+    await recordLoginFail(clean);
+    try { authAttempts.labels('fail').inc(); } catch { /* ignore */ }
+    return frappeError(res, 401, 'AuthenticationError', 'بيانات الدخول غير صحيحة');
+  }
   let ok = false;
-  try { ok = await verifyPasswordAsync(password, user.password_hash); } catch { ok = false; }
-  if (!ok) return frappeError(res, 401, 'AuthenticationError', 'بيانات الدخول غير صحيحة');
+  try { ok = await verifyPasswordAsync(password, user.password_hash); }
+  catch (e) {
+    logger?.warn?.({ err: String(e?.message || e) }, 'method login verify failed');
+    ok = false;
+  }
+  if (!ok) {
+    await recordLoginFail(clean);
+    try { authAttempts.labels('fail').inc(); } catch { /* ignore */ }
+    return frappeError(res, 401, 'AuthenticationError', 'بيانات الدخول غير صحيحة');
+  }
+  await recordLoginSuccess(clean);
+  try { authAttempts.labels('ok').inc(); } catch { /* ignore */ }
   const token = generateToken(user);
   const payload = {
     token,
@@ -673,12 +813,16 @@ def('frappe.client.get_list', (params, req, res) => {
   const sqlParams = [];
   if (spec.defaultWhere) whereParts.push(spec.defaultWhere);
   applyFilters(spec, whereParts, sqlParams, normalizeFilters(params.filters));
+  if (!pushTenantScope(spec, req, res, whereParts, sqlParams)) return;
   const where = whereParts.length ? ` WHERE ${whereParts.join(' AND ')}` : '';
   const select = buildFieldSelect(spec, fields);
   try {
     const rows = db.prepare(`${select} FROM ${spec.table}${where} LIMIT ? OFFSET ?`)
       .all(...sqlParams, limit, start);
-    return res.json({ message: rows });
+    if (spec.mapRow) {
+      return res.json({ message: rows.map((r) => redactRow(spec, spec.mapRow(r))) });
+    }
+    return res.json({ message: rows.map((r) => redactRow(spec, r)) });
   } catch (_e) {
     // Unknown column / table edge → empty list (UI degrades, never 500s)
     return res.json({ message: [] });
@@ -694,23 +838,28 @@ def('frappe.client.get_value', (params, req, res) => {
   const sqlParams = [];
   if (spec.defaultWhere) whereParts.push(spec.defaultWhere);
   applyFilters(spec, whereParts, sqlParams, filters);
+  if (!pushTenantScope(spec, req, res, whereParts, sqlParams)) return;
   const where = whereParts.length ? ` WHERE ${whereParts.join(' AND ')}` : '';
   try {
     const row = db.prepare(`SELECT * FROM ${spec.table}${where} LIMIT 1`).get(...sqlParams);
     if (!row) return res.json({ message: null });
-    const mapped = spec.mapRow ? spec.mapRow(row) : row;
+    const mapped = spec.mapRow ? spec.mapRow(row) : redactRow(spec, row);
+    // Secret columns are never readable by name, even when explicitly asked.
+    const colFor = (f) => spec.fields[String(f)] || String(f);
     // Frappe get_value with fieldname list returns subset; with object returns full-ish
     const fieldname = params.fieldname;
     if (Array.isArray(fieldname) && fieldname.length) {
       const out = {};
       for (const f of fieldname) {
         const key = String(f);
-        out[key] = mapped[key] ?? row[spec.fields[key] || key] ?? null;
+        if (spec.forbidden?.has(colFor(f))) { out[key] = null; continue; }
+        out[key] = mapped[key] ?? row[colFor(f)] ?? null;
       }
       return res.json({ message: out });
     }
     if (typeof fieldname === 'string' && fieldname) {
-      return res.json({ message: mapped[fieldname] ?? row[spec.fields[fieldname] || fieldname] ?? null });
+      if (spec.forbidden?.has(colFor(fieldname))) return res.json({ message: null });
+      return res.json({ message: mapped[fieldname] ?? row[colFor(fieldname)] ?? null });
     }
     return res.json({ message: mapped });
   } catch {
@@ -724,13 +873,13 @@ def('frappe.client.get', (params, req, res) => {
   if (!spec) return frappeError(res, 404, 'NotFoundError', 'غير موجود');
   const id = String(params.name || params.docname || params.filter_name || '').trim();
   if (!id) return frappeError(res, 400, 'ValidationError', 'المعرف مطلوب');
-  const idCol = spec.idCol;
-  const aliases = (spec.idAliases || [idCol]).map(() => '?');
-  const where = `${idCol} IN (${aliases.join(',')})`;
+  if (!assertMethodRecordTenant(req, res, spec, id)) return;
+  const { where, count } = idLookupWhere(spec);
   try {
-    const row = db.prepare(`SELECT * FROM ${spec.table} WHERE ${where} LIMIT 1`).get(...(spec.idAliases || [idCol]).map(() => id));
+    const row = db.prepare(`SELECT * FROM ${spec.table} WHERE ${where} LIMIT 1`).get(...Array(count).fill(id));
     if (!row) return frappeError(res, 404, 'NotFoundError', 'غير موجود');
-    return res.json({ message: spec.mapRow ? spec.mapRow(row) : row });
+    const single = spec.mapRow ? spec.mapRow(row) : redactRow(spec, row);
+    return res.json({ message: single });
   } catch {
     return frappeError(res, 404, 'NotFoundError', 'غير موجود');
   }
@@ -746,6 +895,7 @@ def('frappe.client.set_value', (params, req, res) => {
   if (!spec) return frappeError(res, 404, 'NotFoundError', 'غير موجود');
   const name = String(params.name || '').trim();
   if (!name) return frappeError(res, 400, 'ValidationError', 'المعرف مطلوب');
+  if (!assertMethodRecordTenant(req, res, spec, name)) return;
   const fieldname = params.fieldname;
   let values = {};
   if (fieldname && typeof fieldname === 'object' && !Array.isArray(fieldname)) {
@@ -765,14 +915,14 @@ def('frappe.client.set_value', (params, req, res) => {
     sqlParams.push(v);
   }
   if (!sets.length) return frappeError(res, 400, 'ValidationError', 'لا حقول للتحديث');
-  const idAliases = spec.idAliases || [spec.idCol];
-  const where = `${spec.idCol} IN (${idAliases.map(() => '?').join(',')})`;
+  const { where, count } = idLookupWhere(spec);
   try {
     const upd = db.prepare(`UPDATE ${spec.table} SET ${sets.join(', ')} WHERE ${where}`)
-      .run(...sqlParams, ...idAliases.map(() => name));
+      .run(...sqlParams, ...Array(count).fill(name));
     if (!upd.changes) return frappeError(res, 404, 'NotFoundError', 'غير موجود');
-    const row = db.prepare(`SELECT * FROM ${spec.table} WHERE ${where} LIMIT 1`).get(...idAliases.map(() => name));
-    return res.json({ message: spec.mapRow ? spec.mapRow(row) : row });
+    const row = db.prepare(`SELECT * FROM ${spec.table} WHERE ${where} LIMIT 1`).get(...Array(count).fill(name));
+    const saved = spec.mapRow ? spec.mapRow(row) : redactRow(spec, row);
+    return res.json({ message: saved });
   } catch (e) {
     return frappeError(res, mapErrorStatus(e), 'ValidationError', String(e.message || 'فشل التحديث').slice(0, 200));
   }
@@ -786,15 +936,16 @@ def('frappe.delete_doc', (params, req, res) => {
   const spec = resolveDoctype(params.doctype);
   if (!spec) return res.json({ message: { deleted: true } });
   const name = String(params.name || '').trim();
-  const idAliases = spec.idAliases || [spec.idCol];
-  const where = `${spec.idCol} IN (${idAliases.map(() => '?').join(',')})`;
+  if (!name) return frappeError(res, 400, 'ValidationError', 'المعرف مطلوب');
+  if (!assertMethodRecordTenant(req, res, spec, name)) return;
+  const { where, count } = idLookupWhere(spec);
   try {
     // Soft-delete when is_active exists; hard-delete otherwise.
     const cols = db.prepare(`PRAGMA table_info(${spec.table})`).all().map((c) => c.name);
     if (cols.includes('is_active')) {
-      db.prepare(`UPDATE ${spec.table} SET is_active=0 WHERE ${where}`).run(...idAliases.map(() => name));
+      db.prepare(`UPDATE ${spec.table} SET is_active=0 WHERE ${where}`).run(...Array(count).fill(name));
     } else {
-      db.prepare(`DELETE FROM ${spec.table} WHERE ${where}`).run(...idAliases.map(() => name));
+      db.prepare(`DELETE FROM ${spec.table} WHERE ${where}`).run(...Array(count).fill(name));
     }
     return res.json({ message: { deleted: true } });
   } catch (e) {
@@ -912,6 +1063,13 @@ def('DyPOS.api.items.get_items', (params, req, res) => {
     }
   }
   try {
+    const { tenantId } = resolveTenantFilter(req);
+    if (tenantId) {
+      where += ' AND (p.tenant_id=? OR p.tenant_id IS NULL)';
+      sqlParams.push(tenantId);
+    }
+  } catch { return frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); }
+  try {
     const rows = db.prepare(
       `SELECT p.*, COALESCE(s.qty,0) as stock_qty FROM products p
        LEFT JOIN stock_levels s ON p.id=s.product_id AND s.warehouse_id=?
@@ -932,12 +1090,18 @@ def('DyPOS.api.items.get_items_bulk', (params, req, res) => {
   if (!Array.isArray(codes) || !codes.length) return res.json({ message: [] });
   const warehouse = String(params.warehouse || 'W-01').slice(0, 32);
   const ids = codes.map((c) => String(c).slice(0, 64)).slice(0, 500);
+  let tenantClause = '';
+  const tenantParams = [];
+  try {
+    const { tenantId } = resolveTenantFilter(req);
+    if (tenantId) { tenantClause = ' AND (p.tenant_id=? OR p.tenant_id IS NULL)'; tenantParams.push(tenantId); }
+  } catch { return frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); }
   try {
     const rows = db.prepare(
       `SELECT p.*, COALESCE(s.qty,0) as stock_qty FROM products p
        LEFT JOIN stock_levels s ON p.id=s.product_id AND s.warehouse_id=?
-       WHERE p.code IN (${ids.map(() => '?').join(',')})`
-    ).all(warehouse, ...ids);
+       WHERE p.code IN (${ids.map(() => '?').join(',')})${tenantClause}`
+    ).all(warehouse, ...ids, ...tenantParams);
     return res.json({ message: rows.map(mapProductToItem) });
   } catch {
     return res.json({ message: [] });
@@ -946,8 +1110,14 @@ def('DyPOS.api.items.get_items_bulk', (params, req, res) => {
 
 def('DyPOS.api.items.get_items_count', (_params, req, res) => {
   if (!requireUser(req, res)) return;
+  let tenantClause = '';
+  const tenantParams = [];
   try {
-    const row = db.prepare('SELECT COUNT(*) as c FROM products WHERE is_active=1').get();
+    const { tenantId } = resolveTenantFilter(req);
+    if (tenantId) { tenantClause = ' AND (tenant_id=? OR tenant_id IS NULL)'; tenantParams.push(tenantId); }
+  } catch { return frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); }
+  try {
+    const row = db.prepare(`SELECT COUNT(*) as c FROM products WHERE is_active=1${tenantClause}`).get(...tenantParams);
     return res.json({ message: row?.c || 0 });
   } catch {
     return res.json({ message: 0 });
@@ -956,8 +1126,14 @@ def('DyPOS.api.items.get_items_count', (_params, req, res) => {
 
 def('DyPOS.api.items.get_item_groups', (_p, req, res) => {
   if (!requireUser(req, res)) return;
+  let tenantClause = '';
+  const tenantParams = [];
   try {
-    const rows = db.prepare('SELECT DISTINCT category as name, category as item_group FROM products WHERE is_active=1 AND category IS NOT NULL AND category != \'\' ORDER BY category').all();
+    const { tenantId } = resolveTenantFilter(req);
+    if (tenantId) { tenantClause = ' AND (tenant_id=? OR tenant_id IS NULL)'; tenantParams.push(tenantId); }
+  } catch { return frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); }
+  try {
+    const rows = db.prepare(`SELECT DISTINCT category as name, category as item_group FROM products WHERE is_active=1 AND category IS NOT NULL AND category != ''${tenantClause} ORDER BY category`).all(...tenantParams);
     return res.json({ message: rows });
   } catch {
     return res.json({ message: [] });
@@ -966,8 +1142,14 @@ def('DyPOS.api.items.get_item_groups', (_p, req, res) => {
 
 def('DyPOS.api.items.get_brands', (_p, req, res) => {
   if (!requireUser(req, res)) return;
+  let tenantClause = '';
+  const tenantParams = [];
   try {
-    const rows = db.prepare('SELECT DISTINCT brand as name, brand FROM products WHERE is_active=1 AND brand IS NOT NULL AND brand != \'\' ORDER BY brand').all();
+    const { tenantId } = resolveTenantFilter(req);
+    if (tenantId) { tenantClause = ' AND (tenant_id=? OR tenant_id IS NULL)'; tenantParams.push(tenantId); }
+  } catch { return frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); }
+  try {
+    const rows = db.prepare(`SELECT DISTINCT brand as name, brand FROM products WHERE is_active=1 AND brand IS NOT NULL AND brand != ''${tenantClause} ORDER BY brand`).all(...tenantParams);
     return res.json({ message: rows });
   } catch {
     return res.json({ message: [] });
@@ -979,12 +1161,18 @@ def('DyPOS.api.items.search_by_barcode', (params, req, res) => {
   const barcode = String(params.barcode || params.search_term || '').trim().slice(0, 64);
   if (!barcode) return res.json({ message: [] });
   const warehouse = String(params.warehouse || 'W-01').slice(0, 32);
+  let tenantClause = '';
+  const tenantParams = [];
+  try {
+    const { tenantId } = resolveTenantFilter(req);
+    if (tenantId) { tenantClause = ' AND (p.tenant_id=? OR p.tenant_id IS NULL)'; tenantParams.push(tenantId); }
+  } catch { return frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); }
   try {
     const rows = db.prepare(
       `SELECT p.*, COALESCE(s.qty,0) as stock_qty FROM products p
        LEFT JOIN stock_levels s ON p.id=s.product_id AND s.warehouse_id=?
-       WHERE p.is_active=1 AND (p.barcode=? OR p.code=? OR p.name LIKE ?) LIMIT 10`
-    ).all(warehouse, barcode, barcode, `%${barcode}%`);
+       WHERE p.is_active=1 AND (p.barcode=? OR p.code=? OR p.name LIKE ?)${tenantClause} LIMIT 10`
+    ).all(warehouse, barcode, barcode, `%${barcode}%`, ...tenantParams);
     return res.json({ message: rows.map(mapProductToItem) });
   } catch {
     return res.json({ message: [] });
@@ -998,13 +1186,20 @@ def('DyPOS.api.items.get_stock_quantities', (params, req, res) => {
     try { codes = JSON.parse(codes); } catch { codes = codes.split(',').map((s) => s.trim()).filter(Boolean); }
   }
   const warehouse = String(params.warehouse || 'W-01').slice(0, 32);
+  let tenantId = null;
+  try { tenantId = resolveTenantFilter(req).tenantId || null; } catch { return frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); }
   if (!Array.isArray(codes) || !codes.length) {
     // Return all stock for warehouse
     try {
-      const rows = db.prepare(
-        `SELECT s.product_id as item_code, s.qty, p.code, p.name FROM stock_levels s
-         JOIN products p ON p.id=s.product_id WHERE s.warehouse_id=?`
-      ).all(warehouse);
+      const rows = tenantId
+        ? db.prepare(
+          `SELECT s.product_id as item_code, s.qty, p.code, p.name FROM stock_levels s
+           JOIN products p ON p.id=s.product_id WHERE s.warehouse_id=? AND (p.tenant_id=? OR p.tenant_id IS NULL)`
+        ).all(warehouse, tenantId)
+        : db.prepare(
+          `SELECT s.product_id as item_code, s.qty, p.code, p.name FROM stock_levels s
+           JOIN products p ON p.id=s.product_id WHERE s.warehouse_id=?`
+        ).all(warehouse);
       return res.json({ message: rows.map((r) => ({ item_code: r.code, actual_qty: r.qty, warehouse, qty: r.qty, name: r.name })) });
     } catch {
       return res.json({ message: [] });
@@ -1012,11 +1207,12 @@ def('DyPOS.api.items.get_stock_quantities', (params, req, res) => {
   }
   const ids = codes.map((c) => String(c).slice(0, 64)).slice(0, 500);
   try {
+    const tenantClause = tenantId ? ' AND (p.tenant_id=? OR p.tenant_id IS NULL)' : '';
     const rows = db.prepare(
       `SELECT p.code as item_code, COALESCE(s.qty,0) as actual_qty, COALESCE(s.qty,0) as qty
        FROM products p LEFT JOIN stock_levels s ON s.product_id=p.id AND s.warehouse_id=?
-       WHERE p.code IN (${ids.map(() => '?').join(',')})`
-    ).all(warehouse, ...ids);
+       WHERE p.code IN (${ids.map(() => '?').join(',')})${tenantClause}`
+    ).all(warehouse, ...ids, ...(tenantId ? [tenantId] : []));
     return res.json({ message: rows });
   } catch {
     return res.json({ message: [] });
@@ -1028,6 +1224,8 @@ def('DyPOS.api.items.get_item_details', (params, req, res) => {
   const code = String(params.item_code || params.itemCode || params.item || '').trim();
   const warehouse = String(params.warehouse || 'W-01').slice(0, 32);
   if (!code) return frappeError(res, 400, 'ValidationError', 'item_code مطلوب');
+  let callerTenant = null;
+  try { callerTenant = resolveTenantFilter(req).tenantId || null; } catch { return frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); }
   try {
     const row = db.prepare(
       `SELECT p.*, COALESCE(s.qty,0) as stock_qty FROM products p
@@ -1035,6 +1233,9 @@ def('DyPOS.api.items.get_item_details', (params, req, res) => {
        WHERE (p.code=? OR p.id=?) AND p.is_active=1 LIMIT 1`
     ).get(warehouse, code, code);
     if (!row) return frappeError(res, 404, 'NotFoundError', 'الصنف غير موجود');
+    if (row.tenant_id && callerTenant && String(row.tenant_id) !== String(callerTenant)) {
+      return frappeError(res, 404, 'NotFoundError', 'الصنف غير موجود');
+    }
     return res.json({ message: { ...mapProductToItem(row), stock_qty: row.stock_qty } });
   } catch (e) {
     return frappeError(res, mapErrorStatus(e), 'ValidationError', String(e.message || 'خطأ').slice(0, 200));
@@ -1079,6 +1280,13 @@ def('DyPOS.api.customers.get_customers', (params, req, res) => {
     sqlParams.push(modifiedSince);
   }
   try {
+    const { tenantId } = resolveTenantFilter(req);
+    if (tenantId) {
+      where += ' AND (tenant_id=? OR tenant_id IS NULL)';
+      sqlParams.push(tenantId);
+    }
+  } catch { return frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); }
+  try {
     const rows = db.prepare(
       `SELECT * FROM customers WHERE ${where} ORDER BY name LIMIT ? OFFSET ?`
     ).all(...sqlParams, limit || 500, start);
@@ -1091,8 +1299,14 @@ def('DyPOS.api.customers.get_customers', (params, req, res) => {
 // ── Offers ───────────────────────────────────────────────────────────────
 def('DyPOS.api.offers.get_offers', (_params, req, res) => {
   if (!requireUser(req, res)) return;
+  let tenantClause = '';
+  const tenantParams = [];
   try {
-    const rows = db.prepare(`SELECT * FROM offers WHERE is_active=1 ORDER BY created_at DESC LIMIT 100`).all();
+    const { tenantId } = resolveTenantFilter(req);
+    if (tenantId) { tenantClause = ' AND (tenant_id=? OR tenant_id IS NULL)'; tenantParams.push(tenantId); }
+  } catch { return frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); }
+  try {
+    const rows = db.prepare(`SELECT * FROM offers WHERE is_active=1${tenantClause} ORDER BY created_at DESC LIMIT 100`).all(...tenantParams);
     return res.json({ message: rows });
   } catch {
     return res.json({ message: [] });
@@ -1130,10 +1344,14 @@ def('DyPOS.api.pos_profile.get_pos_profile_data', (_p, req, res) => {
   const settings = allSettings();
   let warehouses = [];
   try { warehouses = db.prepare('SELECT * FROM warehouses').all(); } catch { /* ignore */ }
+  const configured = String(settings.default_warehouse || '');
+  const preferred = (configured && warehouses.some((w) => w.id === configured))
+    ? configured
+    : warehouses[0]?.id;
   return res.json({
     message: {
       name: 'POS',
-      warehouse: warehouses[0]?.id || 'W-01',
+      warehouse: preferred || 'W-01',
       warehouses,
       company: settings.business_name || 'DyPOS',
       currency: settings.currency || 'SAR',
@@ -1154,8 +1372,13 @@ def('DyPOS.api.pos_profile.get_payment_methods', (_p, req, res) => {
 
 def('DyPOS.api.pos_profile.get_sales_persons', (_p, req, res) => {
   if (!requireUser(req, res)) return;
+  let tenantId = null;
+  try { tenantId = resolveTenantFilter(req).tenantId || null; }
+  catch { return frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); }
   try {
-    const rows = db.prepare('SELECT id, username as name, full_name FROM users WHERE is_active=1').all();
+    const rows = tenantId
+      ? db.prepare('SELECT id, username as name, full_name FROM users WHERE is_active=1 AND (tenant_id=? OR tenant_id IS NULL)').all(tenantId)
+      : db.prepare('SELECT id, username as name, full_name FROM users WHERE is_active=1').all();
     return res.json({ message: rows });
   } catch {
     return res.json({ message: [] });
@@ -1243,8 +1466,19 @@ def('DyPOS.api.invoices.get_invoices', (params, req, res) => {
   if (!requireUser(req, res)) return;
   const limit = Math.min(Math.max(Number(params.limit) || 50, 1), 200);
   const start = Math.max(Number(params.start) || 0, 0);
+  let where = '1=1';
+  const sqlParams = [];
   try {
-    const rows = db.prepare('SELECT * FROM invoices ORDER BY created_at DESC LIMIT ? OFFSET ?').all(limit, start);
+    const { tenantId } = resolveTenantFilter(req);
+    if (tenantId) {
+      where += ' AND (tenant_id=? OR tenant_id IS NULL)';
+      sqlParams.push(tenantId);
+    }
+  } catch { return frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); }
+  try {
+    const rows = db.prepare(
+      `SELECT * FROM invoices WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+    ).all(...sqlParams, limit, start);
     return res.json({ message: rows });
   } catch {
     return res.json({ message: [] });
@@ -1805,6 +2039,12 @@ def('DyPOS.api.invoices.update_invoice', (params, req, res) => {
 
 def('DyPOS.api.invoices.submit_invoice', (params, req, res) => {
   if (!requireUser(req, res)) return;
+  // POS returns arrive here as { invoice: { is_return:1, return_against, items(-qty) } }
+  const invPeek = parseMaybeJson(params.invoice) || {};
+  const dataPeek = parseMaybeJson(params.data) || {};
+  if (invPeek.is_return || dataPeek.is_return || params.is_return) {
+    return submitReturnInvoice(params, req, res);
+  }
   try {
     const invoice = parseMaybeJson(params.invoice) || {};
     const data = parseMaybeJson(params.data) || {};
@@ -1845,7 +2085,10 @@ def('DyPOS.api.invoices.submit_invoice', (params, req, res) => {
       couponCode: source.coupon_code || data.coupon_code || '',
       currency: source.currency || data.currency || getSetting('currency', 'SAR'),
       notes: source.notes || data.notes || '',
-      idempotencyKey: data.idempotencyKey || source.idempotencyKey || params.idempotencyKey || '',
+      // Offline queue dedupe: the offline_id doubles as the idempotency key
+      // so check_offline_invoice_synced + retried pushes agree on identity.
+      idempotencyKey: data.idempotencyKey || source.idempotencyKey || params.idempotencyKey
+        || data.offline_id || source.offline_id || params.offline_id || '',
       change_amount: toNum(data.change_amount ?? params.change_amount),
       write_off_amount: toNum(data.write_off_amount ?? params.write_off_amount),
       existingId: isDraft ? draftId : null,
@@ -2527,6 +2770,1199 @@ def('DyPOS.api.sync.push', (params, req, res) => {
   return res.json({ message: { results, pushed: results.filter((r) => r.status === 'SYNCED').length, failed: results.filter((r) => r.status === 'FAILED').length } });
 });
 
+// ── Returns / credit / wallet / promotions / product-mgmt / QZ ──────────
+// Closes the 404 "طريقة غير معروفة" gaps used by the POS dialogs. List reads
+// are tenant-scoped (fail-closed 403 on spoofed tenant); catalog/money
+// writes are ADMIN/MANAGER-gated like their REST twins.
+
+function findCustomerRef(ref) {
+  const key = String(ref || '').trim().slice(0, 64);
+  if (!key) return null;
+  try {
+    return db.prepare('SELECT * FROM customers WHERE id=? OR name=? LIMIT 1').get(key, key) || null;
+  } catch { return null; }
+}
+
+function returnWindowDays() {
+  const n = Number(getSetting('return_window_days', '14'));
+  return Number.isFinite(n) && n > 0 ? Math.min(Math.floor(n), 365) : 14;
+}
+
+function returnValidity(inv) {
+  if (!inv) return { valid: false, error_type: 'not_found', message: 'الفاتورة غير موجودة' };
+  const base = { invoice_name: inv.id, invoice_date: String(inv.created_at || '').slice(0, 10) };
+  if (['VOIDED', 'RETURNED'].includes(inv.status)) {
+    return { ...base, valid: false, error_type: 'already_returned', message: 'الفاتورة ملغاة/مرتجعة مسبقًا' };
+  }
+  if (inv.status === 'DRAFT') {
+    return { ...base, valid: false, error_type: 'draft', message: 'الفواتير المسودة لا تُسترجع' };
+  }
+  if (inv.status === 'UNPAID') {
+    return { ...base, valid: false, error_type: 'unpaid', message: 'لا يمكن إرجاع فاتورة غير مدفوعة — ألغها (void) بدلًا من ذلك' };
+  }
+  const created = Date.parse(inv.created_at || '');
+  const daysSince = Number.isFinite(created) ? Math.max(0, Math.floor((Date.now() - created) / 86400000)) : 0;
+  const allowed = returnWindowDays();
+  if (daysSince > allowed) {
+    return { ...base, valid: false, error_type: 'return_period_expired', message: `انتهت مهلة الإرجاع (${allowed} يوم)`, days_since: daysSince, allowed_days: allowed };
+  }
+  return { ...base, valid: true, days_since: daysSince, allowed_days: allowed };
+}
+
+function loadReturnState(id) {
+  let inv = null;
+  try {
+    inv = db.prepare('SELECT * FROM invoices WHERE id=? OR number=? LIMIT 1').get(id, id) || null;
+  } catch { inv = null; }
+  if (!inv) return { inv: null, items: [] };
+  let items = [];
+  try { items = db.prepare('SELECT * FROM invoice_items WHERE invoice_id=?').all(inv.id); } catch { items = []; }
+  return { inv, items };
+}
+
+/** Fail-closed per-invoice visibility: foreign-tenant → 404, bad header → 403. */
+function assertInvoiceVisible(req, res, inv) {
+  if (!inv?.tenant_id) return true;
+  let caller = null;
+  try { caller = resolveTenantFilter(req).tenantId || null; }
+  catch { frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); return false; }
+  if (caller && String(inv.tenant_id) !== String(caller)) {
+    frappeError(res, 404, 'NotFoundError', 'الفاتورة غير موجودة');
+    return false;
+  }
+  return true;
+}
+
+function checkReturnable(id) {
+  const { inv, items } = loadReturnState(id);
+  const v = returnValidity(inv);
+  if (!v.valid) return { ok: false, error: v };
+  const open = items.filter((l) => Number(l.qty) > 0);
+  if (!open.length) {
+    return {
+      ok: false,
+      error: { invoice_name: inv.id, invoice_date: String(inv.created_at || '').slice(0, 10), valid: false, error_type: 'fully_returned', message: 'تم إرجاع كل بنود الفاتورة مسبقًا' },
+    };
+  }
+  return { ok: true, inv, items: open, validity: v };
+}
+
+function mapReturnableInvoice(inv) {
+  return {
+    name: inv.id, id: inv.id,
+    customer: inv.customer_id || 'WALK-IN', customer_name: inv.customer_name,
+    posting_date: String(inv.created_at || '').slice(0, 10),
+    grand_total: inv.total, paid_amount: inv.paid_amount,
+    outstanding_amount: inv.remaining_amount, status: inv.status,
+    number: inv.number, currency: inv.currency || 'SAR',
+  };
+}
+
+def('DyPOS.api.invoices.get_returnable_invoices', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const limit = Math.min(Math.max(Number(params.limit) || 50, 1), 200);
+  let tenantId = null;
+  try { tenantId = resolveTenantFilter(req).tenantId || null; }
+  catch { return frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); }
+  try {
+    const rows = db.prepare(
+      `SELECT * FROM invoices WHERE status IN ('PAID','PARTIAL')${tenantId ? ' AND (tenant_id=? OR tenant_id IS NULL)' : ''} ORDER BY created_at DESC LIMIT ?`
+    ).all(...(tenantId ? [tenantId] : []), limit);
+    const hasOpen = db.prepare('SELECT 1 FROM invoice_items WHERE invoice_id=? AND qty>0 LIMIT 1');
+    const out = [];
+    for (const inv of rows) {
+      if (!hasOpen.get(inv.id)) continue;
+      out.push(mapReturnableInvoice(inv));
+    }
+    return res.json({ message: out });
+  } catch {
+    return res.json({ message: [] });
+  }
+});
+
+def('DyPOS.api.invoices.search_invoice_by_number', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const q = String(params.search_term || params.q || params.invoice_number || params.name || '').trim().slice(0, 64);
+  if (!q) return res.json({ message: [] });
+  let tenantId = null;
+  try { tenantId = resolveTenantFilter(req).tenantId || null; }
+  catch { return frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); }
+  try {
+    const rows = db.prepare(
+      `SELECT * FROM invoices WHERE (number LIKE ? OR id=?)${tenantId ? ' AND (tenant_id=? OR tenant_id IS NULL)' : ''} ORDER BY created_at DESC LIMIT 20`
+    ).all(`%${q}%`, q, ...(tenantId ? [tenantId] : []));
+    return res.json({ message: rows.map(mapReturnableInvoice) });
+  } catch {
+    return res.json({ message: [] });
+  }
+});
+
+def('DyPOS.api.invoices.prepare_return_invoice', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const id = String(params.invoice_name || params.name || '').trim().slice(0, 64);
+  if (!id) return frappeError(res, 400, 'ValidationError', 'invoice_name مطلوب');
+  const chk = checkReturnable(id);
+  if (!chk.ok) return frappeError(res, chk.error.error_type === 'not_found' ? 404 : 400, 'ValidationError', chk.error.message);
+  if (!assertInvoiceVisible(req, res, chk.inv)) return;
+  const items = chk.items.map((l) => ({
+    ...l,
+    sales_invoice_item: l.id,
+    name: l.id,
+    item_code: l.product_id,
+    item_name: l.product_name,
+    rate: l.unit_price,
+    warehouse: l.warehouse_id || 'W-01',
+    remaining_qty: Number(l.qty),
+    original_qty: Number(l.qty) + Number(l.returned_qty || 0),
+    return_qty: Number(l.qty),
+  }));
+  let pays = [];
+  try { pays = db.prepare('SELECT method, amount, reference FROM payments WHERE invoice_id=?').all(chk.inv.id); } catch { pays = []; }
+  const payView = pays.map((p) => ({ mode_of_payment: p.method, amount: p.amount, reference: p.reference || '' }));
+  const doc = {
+    name: chk.inv.id,
+    return_against: chk.inv.id,
+    customer: chk.inv.customer_id || 'WALK-IN',
+    customer_name: chk.inv.customer_name,
+    company: allSettings().business_name || 'DyPOS',
+    posting_date: String(chk.inv.created_at || '').slice(0, 10),
+    items,
+    payments: payView,
+    sales_team: [],
+    _original_invoice: {
+      customer_name: chk.inv.customer_name,
+      posting_date: String(chk.inv.created_at || '').slice(0, 10),
+      grand_total: chk.inv.total,
+      paid_amount: chk.inv.paid_amount,
+      outstanding_amount: chk.inv.remaining_amount,
+      payments: payView,
+    },
+  };
+  return res.json({ message: doc });
+});
+
+def('DyPOS.api.invoices.check_invoice_return_validity', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const id = String(params.invoice_name || params.name || '').trim().slice(0, 64);
+  if (!id) return frappeError(res, 400, 'ValidationError', 'invoice_name مطلوب');
+  const { inv } = loadReturnState(id);
+  if (!inv) return res.json({ message: { valid: false, error_type: 'not_found', message: 'الفاتورة غير موجودة' } });
+  if (!assertInvoiceVisible(req, res, inv)) return;
+  const chk = checkReturnable(id);
+  if (!chk.ok) return res.json({ message: chk.error });
+  return res.json({ message: { ...chk.validity, valid: true } });
+});
+
+def('DyPOS.api.invoices.check_offline_invoice_synced', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const offId = String(params.offline_id || params.offlineId || '').trim().slice(0, 128);
+  if (!offId) return res.json({ message: { synced: false } });
+  try {
+    const row = db.prepare('SELECT id, number, tenant_id FROM invoices WHERE idempotency_key=? LIMIT 1').get(offId);
+    if (!row) return res.json({ message: { synced: false } });
+    if (!assertInvoiceVisible(req, res, row)) return;
+    return res.json({ message: { synced: true, sales_invoice: row.number || row.id } });
+  } catch {
+    return res.json({ message: { synced: false } });
+  }
+});
+
+/**
+ * POS return submit (is_return=1, negative-qty lines): validates the window,
+ * then runs the SAME applyInvoiceReturn money path as the REST route.
+ */
+function submitReturnInvoice(params, req, res) {
+  try {
+    const invoice = parseMaybeJson(params.invoice) || {};
+    const data = parseMaybeJson(params.data) || {};
+    const source = (invoice && Object.keys(invoice).length ? invoice : (data && Object.keys(data).length ? data : params)) || {};
+    const against = String(source.return_against || data.return_against || params.return_against || '').trim().slice(0, 64);
+    if (!against) return frappeError(res, 400, 'ValidationError', 'return_against مطلوب');
+    const chk = checkReturnable(against);
+    if (!chk.ok) return frappeError(res, chk.error.error_type === 'not_found' ? 404 : 400, 'ValidationError', chk.error.message);
+    if (!assertInvoiceVisible(req, res, chk.inv)) return;
+    const rawItems = Array.isArray(source.items) ? source.items : [];
+    const items = rawItems.map((it) => ({
+      productId: it.item_code || it.product_id,
+      qty: Math.abs(Number(it.qty ?? it.quantity ?? 0)),
+      warehouseId: it.warehouse || it.warehouse_id || 'W-01',
+      lineId: it.sales_invoice_item || it.name,
+    })).filter((l) => l.productId && l.qty > 0);
+    if (!items.length) return frappeError(res, 400, 'ValidationError', 'بنود المرتجع مطلوبة');
+    const reason = String(source.remarks || source.reason || data.reason || '').trim().slice(0, 200) || 'إرجاع من نقطة البيع';
+    const addToBalance = Boolean(source.add_to_customer_balance ?? data.add_to_customer_balance);
+    const r = applyInvoiceReturn(req, chk.inv.id, { reason, items, creditToWallet: addToBalance });
+    req.audit?.(r?.partial ? 'invoice.return_partial' : 'invoice.return', { invoiceId: chk.inv.id, via: 'method', reason });
+    const full = loadInvoiceFull(chk.inv.id);
+    const doc = full ? { ...mapInvoiceRowToDoc(full.inv, full.items, full.pays), name: full.inv.id } : { name: chk.inv.id, ...r };
+    return res.json({ message: doc, data: doc, ...doc });
+  } catch (e) {
+    return frappeError(res, mapErrorStatus(e, 400), 'ValidationError', String(e.message || 'فشل إنشاء المرتجع').slice(0, 300));
+  }
+}
+
+// ── Credit sales / wallet / receivable accounts ─────────────────────────
+def('DyPOS.api.wallet.get_wallet_info', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const c = findCustomerRef(params.customer || params.customer_name);
+  if (!c) return frappeError(res, 404, 'NotFoundError', 'العميل غير موجود');
+  return res.json({
+    message: {
+      wallet_enabled: true,
+      wallet_exists: true,
+      wallet_balance: Number(c.wallet_balance) || 0,
+      wallet_name: c.name,
+    },
+  });
+});
+
+def('DyPOS.api.credit_sales.get_available_credit', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const c = findCustomerRef(params.customer || params.customer_name);
+  if (!c) return res.json({ message: [] });
+  const limit = Number(c.credit_limit) || 0;
+  const used = Number(c.credit_used) || 0;
+  const avail = Math.round((limit - used) * 100) / 100;
+  if (!(avail > 0)) return res.json({ message: [] });
+  return res.json({
+    message: [{
+      name: c.id, customer: c.name, credit_amount: avail, available_amount: avail,
+      credit_limit: limit, credit_used: used,
+    }],
+  });
+});
+
+def('DyPOS.api.credit_sales.get_customer_balance', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const c = findCustomerRef(params.customer || params.customer_name);
+  let outstanding = 0;
+  let limit = 0;
+  let used = 0;
+  if (c) {
+    limit = Number(c.credit_limit) || 0;
+    used = Number(c.credit_used) || 0;
+    try {
+      const row = db.prepare(
+        `SELECT COALESCE(SUM(remaining_amount),0) as s FROM invoices WHERE customer_id=? AND status IN ('UNPAID','PARTIAL')`
+      ).get(c.id);
+      outstanding = Number(row?.s) || 0;
+    } catch { /* ignore */ }
+  }
+  const totalCredit = Math.max(0, Math.round((limit - used) * 100) / 100);
+  const net = Math.round((outstanding - totalCredit) * 100) / 100;
+  return res.json({ message: { total_outstanding: outstanding, total_credit: totalCredit, net_balance: net } });
+});
+
+def('DyPOS.api.pos_profile.get_receivable_accounts', (_p, req, res) => {
+  if (!requireUser(req, res)) return;
+  // No separate receivable chart in DyPOS (credit rides on customer
+  // credit_limit + UNPAID invoices); the dialog treats [] as "disabled".
+  return res.json({ message: [] });
+});
+
+def('DyPOS.api.pos_profile.get_wallet_payment_flags', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  let methods = params.methods || params.method_names || params.modes || [];
+  if (typeof methods === 'string') {
+    try { methods = JSON.parse(methods); } catch { methods = methods.split(','); }
+  }
+  if (!Array.isArray(methods)) methods = [];
+  let walletCodes = new Set();
+  try {
+    walletCodes = new Set(
+      db.prepare(`SELECT code FROM payment_methods WHERE kind='WALLET' AND is_active=1`).all()
+        .map((r) => String(r.code).toUpperCase())
+    );
+  } catch { /* masters table missing → heuristic fallback below */ }
+  const flags = {};
+  for (const m of methods.slice(0, 50)) {
+    const key = String(m);
+    const up = key.toUpperCase();
+    flags[key] = walletCodes.has(up) || up.includes('WALLET') || key.includes('محفظة');
+  }
+  return res.json({ message: flags });
+});
+
+// ── Promotions (Frappe-shaped UI over the offers/coupons tables) ─────────
+function methodTenantOr403(req, res) {
+  try {
+    return { tenantId: resolveTenantFilter(req).tenantId || null };
+  } catch {
+    frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح');
+    return null;
+  }
+}
+
+function writeTenantOf(req) {
+  try {
+    return resolveTenantFilter(req).tenantId || req.user?.tenantId || null;
+  } catch {
+    throw Object.assign(new Error('نطاق المستأجر غير صالح'), { statusCode: 403 });
+  }
+}
+
+const isPromoManager = (req) => ['ADMIN', 'MANAGER'].includes(req.user?.role);
+
+function couponStatus(c) {
+  const t = new Date().toISOString().slice(0, 10);
+  if (Number(c.is_active) !== 1) return 'Disabled';
+  if (c.valid_from && String(c.valid_from).slice(0, 10) > t) return 'Scheduled';
+  if (c.valid_to && String(c.valid_to).slice(0, 10) < t) return 'Expired';
+  if (Number(c.max_uses) > 0 && Number(c.used_count) >= Number(c.max_uses)) return 'Exhausted';
+  return 'Active';
+}
+
+function mapCoupon(c) {
+  const pct = String(c.discount_type).toUpperCase() === 'PCT';
+  return {
+    name: c.code,
+    coupon_name: c.code,
+    coupon_code: c.code,
+    coupon_type: 'Promotional',
+    discount_type: pct ? 'Percentage' : 'Amount',
+    discount_percentage: pct ? Number(c.discount) || 0 : 0,
+    discount_amount: pct ? 0 : Number(c.discount) || 0,
+    min_amount: Number(c.min_purchase) || 0,
+    max_amount: Number(c.max_discount) || 0,
+    apply_on: 'Grand Total',
+    valid_from: c.valid_from ? String(c.valid_from).slice(0, 10) : '',
+    valid_upto: c.valid_to ? String(c.valid_to).slice(0, 10) : '',
+    maximum_use: Number(c.max_uses) || 0,
+    used_count: Number(c.used_count) || 0,
+    status: couponStatus(c),
+    disabled: Number(c.is_active) === 1 ? 0 : 1,
+  };
+}
+
+function couponByCode(req, res, code) {
+  const s = methodTenantOr403(req, res);
+  if (!s) return null;
+  const clean = String(code || '').trim().toUpperCase().slice(0, 64);
+  if (!clean) { frappeError(res, 400, 'ValidationError', 'coupon_name مطلوب'); return null; }
+  let row = null;
+  try {
+    row = s.tenantId
+      ? db.prepare('SELECT * FROM coupons WHERE code=? AND (tenant_id=? OR tenant_id IS NULL)').get(clean, s.tenantId)
+      : db.prepare('SELECT * FROM coupons WHERE code=?').get(clean);
+  } catch { row = null; }
+  if (!row) { frappeError(res, 404, 'NotFoundError', 'الكوبون غير موجود'); return null; }
+  return row;
+}
+
+def('DyPOS.api.promotions.get_coupons', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const s = methodTenantOr403(req, res);
+  if (!s) return;
+  try {
+    const rows = s.tenantId
+      ? db.prepare('SELECT * FROM coupons WHERE (tenant_id=? OR tenant_id IS NULL) ORDER BY created_at DESC LIMIT 200').all(s.tenantId)
+      : db.prepare('SELECT * FROM coupons ORDER BY created_at DESC LIMIT 200').all();
+    const list = rows.map(mapCoupon);
+    return res.json({ message: params.include_disabled ? list : list.filter((c) => c.status !== 'Disabled') });
+  } catch {
+    return res.json({ message: [] });
+  }
+});
+
+def('DyPOS.api.promotions.get_coupon_details', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const row = couponByCode(req, res, params.coupon_name || params.coupon_code || params.name);
+  if (!row) return;
+  return res.json({ message: mapCoupon(row) });
+});
+
+def('DyPOS.api.promotions.create_coupon', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  if (!isPromoManager(req)) return frappeError(res, 403, 'PermissionError', 'صلاحية غير كافية');
+  const f = parseMaybeJson(params.data) || params;
+  let stamp = null;
+  try { stamp = writeTenantOf(req); }
+  catch (e) { return frappeError(res, e.statusCode || 403, 'PermissionError', String(e.message).slice(0, 200)); }
+  const pct = String(f.discount_type || 'Percentage').toLowerCase() !== 'amount';
+  const discount = Number(pct ? (f.discount_percentage ?? f.discount) : (f.discount_amount ?? f.discount));
+  if (!(discount > 0)) return frappeError(res, 400, 'ValidationError', 'قيمة الخصم أكبر من صفر');
+  if (pct && discount > 100) return frappeError(res, 400, 'ValidationError', 'النسبة ≤ 100');
+  const code = (String(f.coupon_code || f.coupon_name || '').trim().toUpperCase() || `CPN-${randomBytes(3).toString('hex').toUpperCase()}`).slice(0, 64);
+  if (!/^[A-Z0-9-]{3,64}$/.test(code)) return frappeError(res, 400, 'ValidationError', 'الكود 3..64 (أحرف/أرقام/-)');
+  const maxUses = f.one_use ? 1 : Math.max(0, Math.floor(Number(f.maximum_use) || 0));
+  const id = crypto.randomUUID();
+  try {
+    db.prepare(`INSERT INTO coupons (id,code,discount_type,discount,max_discount,min_purchase,max_uses,valid_from,valid_to,tenant_id) VALUES (?,?,?,?,?,?,?,?,?,?)`)
+      .run(id, code, pct ? 'PCT' : 'FIXED', discount,
+        Math.max(0, Number(f.max_amount ?? f.max_discount) || 0),
+        Math.max(0, Number(f.min_amount ?? f.min_purchase) || 0),
+        maxUses,
+        String(f.valid_from || '').slice(0, 10) || null,
+        String(f.valid_upto || f.valid_to || '').slice(0, 10) || null,
+        stamp);
+  } catch (e) {
+    if (/UNIQUE/i.test(String(e.message))) return frappeError(res, 409, 'ValidationError', 'الكود مستخدم مسبقًا');
+    throw e;
+  }
+  req.audit?.('coupon.create', { couponId: id, code });
+  return res.json({ message: { name: code, coupon_name: code, coupon_code: code, message: 'تم إنشاء الكوبون' } });
+});
+
+def('DyPOS.api.promotions.update_coupon', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  if (!isPromoManager(req)) return frappeError(res, 403, 'PermissionError', 'صلاحية غير كافية');
+  const row = couponByCode(req, res, params.coupon_name || params.coupon_code);
+  if (!row) return;
+  const f = parseMaybeJson(params.data) || {};
+  const sets = [];
+  const args = [];
+  const setPct = (dtype) => {
+    const pct = String(dtype ?? (String(row.discount_type).toUpperCase() === 'PCT' ? 'Percentage' : 'Amount')).toLowerCase() !== 'amount';
+    sets.push('discount_type=?'); args.push(pct ? 'PCT' : 'FIXED');
+    return pct;
+  };
+  if (f.discount_type !== undefined || f.discount_percentage !== undefined || f.discount_amount !== undefined) {
+    const pct = setPct(f.discount_type);
+    const d = Number(pct ? (f.discount_percentage ?? f.discount) : (f.discount_amount ?? f.discount));
+    if (d !== undefined && Number.isFinite(Number(d))) {
+      if (!(Number(d) > 0)) return frappeError(res, 400, 'ValidationError', 'قيمة الخصم أكبر من صفر');
+      if (pct && Number(d) > 100) return frappeError(res, 400, 'ValidationError', 'النسبة ≤ 100');
+      sets.push('discount=?'); args.push(Number(d));
+    }
+  }
+  if (f.min_amount !== undefined) { sets.push('min_purchase=?'); args.push(Math.max(0, Number(f.min_amount) || 0)); }
+  if (f.max_amount !== undefined) { sets.push('max_discount=?'); args.push(Math.max(0, Number(f.max_amount) || 0)); }
+  if (f.maximum_use !== undefined || f.one_use !== undefined) {
+    sets.push('max_uses=?'); args.push(f.one_use ? 1 : Math.max(0, Math.floor(Number(f.maximum_use) || 0)));
+  }
+  if (f.valid_from !== undefined) { sets.push('valid_from=?'); args.push(String(f.valid_from || '').slice(0, 10) || null); }
+  if (f.valid_upto !== undefined || f.valid_to !== undefined) {
+    sets.push('valid_to=?'); args.push(String(f.valid_upto ?? f.valid_to ?? '').slice(0, 10) || null);
+  }
+  if (!sets.length) return frappeError(res, 400, 'ValidationError', 'لا حقول للتحديث');
+  try {
+    db.prepare(`UPDATE coupons SET ${sets.join(', ')} WHERE id=?`).run(...args, row.id);
+  } catch (e) {
+    return frappeError(res, mapErrorStatus(e, 400), 'ValidationError', String(e.message || 'فشل التحديث').slice(0, 200));
+  }
+  req.audit?.('coupon.update', { couponId: row.id, code: row.code });
+  const fresh = db.prepare('SELECT * FROM coupons WHERE id=?').get(row.id);
+  return res.json({ message: { ...mapCoupon(fresh), message: 'تم تحديث الكوبون' } });
+});
+
+def('DyPOS.api.promotions.toggle_coupon', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  if (!isPromoManager(req)) return frappeError(res, 403, 'PermissionError', 'صلاحية غير كافية');
+  const row = couponByCode(req, res, params.coupon_name || params.coupon_code);
+  if (!row) return;
+  const next = Number(row.is_active) ? 0 : 1;
+  db.prepare('UPDATE coupons SET is_active=? WHERE id=?').run(next, row.id);
+  req.audit?.('coupon.toggle', { couponId: row.id, is_active: next });
+  const fresh = db.prepare('SELECT * FROM coupons WHERE id=?').get(row.id);
+  return res.json({ message: { ...mapCoupon(fresh), message: 'تم تحديث حالة الكوبون' } });
+});
+
+def('DyPOS.api.promotions.delete_coupon', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  if (!isPromoManager(req)) return frappeError(res, 403, 'PermissionError', 'صلاحية غير كافية');
+  const row = couponByCode(req, res, params.coupon_name || params.coupon_code);
+  if (!row) return;
+  db.prepare('DELETE FROM coupons WHERE id=?').run(row.id);
+  req.audit?.('coupon.delete', { couponId: row.id, code: row.code });
+  return res.json({ message: { deleted: true, message: 'تم حذف الكوبون' } });
+});
+
+// ── Pricing-rule style schemes over the offers table ─────────────────────
+function mapScheme(o) {
+  let groups = [];
+  let freeItem = '';
+  let freeQty = 1;
+  const raw = String(o.item_groups || '');
+  if (raw) {
+    let parsed = null;
+    try { parsed = JSON.parse(raw); } catch { parsed = null; }
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const g = Array.isArray(parsed.groups) ? parsed.groups : [];
+      groups = g.map((x) => (typeof x === 'string' ? { item_group: x } : x));
+      freeItem = String(parsed.free_item || '');
+      freeQty = Number(parsed.free_qty) || 1;
+    } else {
+      groups = raw.split(',').map((s) => s.trim()).filter(Boolean).map((g) => ({ item_group: g }));
+    }
+  }
+  const dt = o.type === 'PERCENT' ? 'percentage' : o.type === 'FIXED' ? 'amount' : 'free_item';
+  return {
+    name: o.name,
+    promotion_name: o.name,
+    company: '',
+    apply_on: o.applies_to || 'Item Group',
+    discount_type: dt,
+    discount_value: Number(o.value) || 0,
+    free_item: freeItem,
+    free_qty: freeQty,
+    items: groups,
+    min_qty: Number(o.min_qty) || 0,
+    max_qty: Number(o.max_qty) || 0,
+    min_amt: Number(o.min_amount) || 0,
+    max_amt: Number(o.max_amount) || 0,
+    valid_from: o.valid_from ? String(o.valid_from).slice(0, 10) : '',
+    valid_upto: o.valid_to ? String(o.valid_to).slice(0, 10) : '',
+    disabled: Number(o.is_active) === 1 ? 0 : 1,
+    source: 'DyPOS',
+  };
+}
+
+function schemeByName(req, res, schemeName) {
+  const s = methodTenantOr403(req, res);
+  if (!s) return null;
+  const name = String(schemeName || '').trim().slice(0, 200);
+  if (!name) { frappeError(res, 400, 'ValidationError', 'scheme_name مطلوب'); return null; }
+  let row = null;
+  try {
+    row = s.tenantId
+      ? db.prepare(`SELECT * FROM offers WHERE name=? AND (tenant_id=? OR tenant_id IS NULL) ORDER BY created_at DESC LIMIT 1`).get(name, s.tenantId)
+      : db.prepare(`SELECT * FROM offers WHERE name=? ORDER BY created_at DESC LIMIT 1`).get(name);
+  } catch { row = null; }
+  if (!row) { frappeError(res, 404, 'NotFoundError', 'العرض غير موجود'); return null; }
+  return row;
+}
+
+function schemeTypeOf(f) {
+  const t = String(f.discount_type || 'percentage').toLowerCase();
+  if (t === 'amount' || t === 'fixed') return 'FIXED';
+  if (t === 'free_item' || t === 'free' || t === 'bxgy') return 'BXGY';
+  return 'PERCENT';
+}
+
+def('DyPOS.api.promotions.get_promotions', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const s = methodTenantOr403(req, res);
+  if (!s) return;
+  try {
+    const rows = s.tenantId
+      ? db.prepare(`SELECT * FROM offers WHERE (tenant_id=? OR tenant_id IS NULL) ORDER BY created_at DESC LIMIT 200`).all(s.tenantId)
+      : db.prepare(`SELECT * FROM offers ORDER BY created_at DESC LIMIT 200`).all();
+    const list = rows.map(mapScheme);
+    return res.json({ message: params.include_disabled ? list : list.filter((p) => !p.disabled) });
+  } catch {
+    return res.json({ message: [] });
+  }
+});
+
+def('DyPOS.api.promotions.get_item_groups', (_p, req, res) => {
+  if (!requireUser(req, res)) return;
+  const s = methodTenantOr403(req, res);
+  if (!s) return;
+  try {
+    const rows = s.tenantId
+      ? db.prepare(`SELECT DISTINCT category as name FROM products WHERE is_active=1 AND category IS NOT NULL AND category != '' AND (tenant_id=? OR tenant_id IS NULL) ORDER BY category`).all(s.tenantId)
+      : db.prepare(`SELECT DISTINCT category as name FROM products WHERE is_active=1 AND category IS NOT NULL AND category != '' ORDER BY category`).all();
+    return res.json({ message: rows.map((r) => ({ name: r.name, is_group: 0 })) });
+  } catch {
+    return res.json({ message: [] });
+  }
+});
+
+def('DyPOS.api.promotions.get_brands', (_p, req, res) => {
+  if (!requireUser(req, res)) return;
+  const s = methodTenantOr403(req, res);
+  if (!s) return;
+  try {
+    const rows = s.tenantId
+      ? db.prepare(`SELECT DISTINCT brand as name FROM products WHERE is_active=1 AND brand IS NOT NULL AND brand != '' AND (tenant_id=? OR tenant_id IS NULL) ORDER BY brand`).all(s.tenantId)
+      : db.prepare(`SELECT DISTINCT brand as name FROM products WHERE is_active=1 AND brand IS NOT NULL AND brand != '' ORDER BY brand`).all();
+    return res.json({ message: rows.map((r) => ({ name: r.name })) });
+  } catch {
+    return res.json({ message: [] });
+  }
+});
+
+function buildSchemeGroups(f, type) {
+  const items = Array.isArray(f.items) ? f.items : [];
+  const groups = items.map((i) => String(i.item_code || i.item_group || i.brand || '').trim()).filter(Boolean);
+  if (type === 'BXGY') {
+    // evaluate() honors BXGY as buy-min_qty-get-value-free of the same line;
+    // the UI's distinct free_item rides along in this envelope for display.
+    return JSON.stringify({
+      groups,
+      free_item: String(f.free_item || '').trim().slice(0, 64),
+      free_qty: Math.max(1, Math.floor(Number(f.free_qty) || 1)),
+    });
+  }
+  return groups.join(',');
+}
+
+def('DyPOS.api.promotions.create_promotion', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  if (!isPromoManager(req)) return frappeError(res, 403, 'PermissionError', 'صلاحية غير كافية');
+  const f = parseMaybeJson(params.data) || params;
+  let stamp = null;
+  try { stamp = writeTenantOf(req); }
+  catch (e) { return frappeError(res, e.statusCode || 403, 'PermissionError', String(e.message).slice(0, 200)); }
+  const name = String(f.name || '').trim().slice(0, 200) || `PRM-${randomBytes(3).toString('hex').toUpperCase()}`;
+  const type = schemeTypeOf(f);
+  const value = type === 'BXGY'
+    ? Math.max(1, Math.floor(Number(f.free_qty) || 1))
+    : Math.max(0, Number(f.discount_value) || 0);
+  if (type === 'PERCENT' && value > 100) return frappeError(res, 400, 'ValidationError', 'النسبة ≤ 100');
+  const applyOn = ['Item Group', 'Item Code', 'Brand', 'Transaction'].includes(f.apply_on) ? f.apply_on : 'Item Group';
+  const id = crypto.randomUUID();
+  try {
+    db.prepare(`INSERT INTO offers (id,name,type,value,min_qty,max_qty,min_amount,max_amount,applies_to,item_groups,valid_from,valid_to,tenant_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(id, name, type, value,
+        Math.max(0, Number(f.min_qty) || 0), Math.max(0, Number(f.max_qty) || 0),
+        Math.max(0, Number(f.min_amt) || 0), Math.max(0, Number(f.max_amt) || 0),
+        applyOn, buildSchemeGroups(f, type),
+        String(f.valid_from || '').slice(0, 10) || null,
+        String(f.valid_upto || f.valid_to || '').slice(0, 10) || null,
+        stamp);
+  } catch (e) {
+    return frappeError(res, mapErrorStatus(e, 400), 'ValidationError', String(e.message || 'فشل إنشاء العرض').slice(0, 200));
+  }
+  req.audit?.('offer.create', { offerId: id, name });
+  return res.json({ message: { name, message: 'تم إنشاء العرض' } });
+});
+
+def('DyPOS.api.promotions.update_promotion', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  if (!isPromoManager(req)) return frappeError(res, 403, 'PermissionError', 'صلاحية غير كافية');
+  const row = schemeByName(req, res, params.scheme_name || params.name);
+  if (!row) return;
+  const f = parseMaybeJson(params.data) || {};
+  const sets = [];
+  const args = [];
+  if (f.valid_from !== undefined) { sets.push('valid_from=?'); args.push(String(f.valid_from || '').slice(0, 10) || null); }
+  if (f.valid_upto !== undefined || f.valid_to !== undefined) {
+    sets.push('valid_to=?'); args.push(String(f.valid_upto ?? f.valid_to ?? '').slice(0, 10) || null);
+  }
+  if (f.min_qty !== undefined) { sets.push('min_qty=?'); args.push(Math.max(0, Number(f.min_qty) || 0)); }
+  if (f.max_qty !== undefined) { sets.push('max_qty=?'); args.push(Math.max(0, Number(f.max_qty) || 0)); }
+  if (f.min_amt !== undefined) { sets.push('min_amount=?'); args.push(Math.max(0, Number(f.min_amt) || 0)); }
+  if (f.max_amt !== undefined) { sets.push('max_amount=?'); args.push(Math.max(0, Number(f.max_amt) || 0)); }
+  if (f.discount_value !== undefined || f.free_qty !== undefined || f.discount_type !== undefined || f.items !== undefined || f.free_item !== undefined) {
+    const merged = { ...(row ? mapScheme(row) : {}), ...f };
+    const type = schemeTypeOf(merged);
+    const value = type === 'BXGY'
+      ? Math.max(1, Math.floor(Number(merged.free_qty) || 1))
+      : Math.max(0, Number(merged.discount_value) || 0);
+    if (type === 'PERCENT' && value > 100) return frappeError(res, 400, 'ValidationError', 'النسبة ≤ 100');
+    sets.push('type=?', 'value=?', 'item_groups=?');
+    args.push(type, value, buildSchemeGroups(merged, type));
+  }
+  if (!sets.length) return frappeError(res, 400, 'ValidationError', 'لا حقول للتحديث');
+  try {
+    db.prepare(`UPDATE offers SET ${sets.join(', ')} WHERE id=?`).run(...args, row.id);
+  } catch (e) {
+    return frappeError(res, mapErrorStatus(e, 400), 'ValidationError', String(e.message || 'فشل التحديث').slice(0, 200));
+  }
+  req.audit?.('offer.update', { offerId: row.id, name: row.name });
+  const fresh = db.prepare('SELECT * FROM offers WHERE id=?').get(row.id);
+  return res.json({ message: { ...mapScheme(fresh), message: 'تم تحديث العرض' } });
+});
+
+def('DyPOS.api.promotions.toggle_promotion', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  if (!isPromoManager(req)) return frappeError(res, 403, 'PermissionError', 'صلاحية غير كافية');
+  const row = schemeByName(req, res, params.scheme_name || params.name);
+  if (!row) return;
+  const next = Number(row.is_active) ? 0 : 1;
+  db.prepare('UPDATE offers SET is_active=? WHERE id=?').run(next, row.id);
+  req.audit?.('offer.toggle', { offerId: row.id, is_active: next });
+  return res.json({ message: { name: row.name, disabled: next ? 0 : 1, message: 'تم تحديث حالة العرض' } });
+});
+
+def('DyPOS.api.promotions.delete_promotion', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  if (!isPromoManager(req)) return frappeError(res, 403, 'PermissionError', 'صلاحية غير كافية');
+  const row = schemeByName(req, res, params.scheme_name || params.name);
+  if (!row) return;
+  db.prepare('DELETE FROM offers WHERE id=?').run(row.id);
+  req.audit?.('offer.delete', { offerId: row.id, name: row.name });
+  return res.json({ message: { deleted: true, message: 'تم حذف العرض' } });
+});
+
+def('DyPOS.api.promotions.get_promotion_details', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const row = schemeByName(req, res, params.scheme_name || params.name);
+  if (!row) return;
+  return res.json({ message: mapScheme(row) });
+});
+
+// ── Product management (POS catalog editor over products) ────────────────
+function mapMethodProduct(p) {
+  return {
+    name: p.code,
+    item_code: p.code,
+    item_name: p.name,
+    item_group: p.category || '',
+    stock_uom: p.uom || 'Nos',
+    price: p.unit_price ?? 0,
+    standard_rate: p.unit_price ?? 0,
+    image: p.image || '',
+    disabled: Number(p.is_active) === 1 ? 0 : 1,
+    description: p.name_ar || '',
+    brand: p.brand || '',
+    barcode: p.barcode || '',
+  };
+}
+
+def('DyPOS.api.product_management.get_products', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const s = methodTenantOr403(req, res);
+  if (!s) return;
+  const limit = Math.min(Math.max(Number(params.limit) || 20, 1), 100);
+  const start = Math.max(Number(params.start) || 0, 0);
+  const search = String(params.search_term || params.search || '').trim().slice(0, 64);
+  const group = String(params.item_group || '').trim().slice(0, 64);
+  let where = '1=1';
+  const args = [];
+  if (s.tenantId) { where += ' AND (tenant_id=? OR tenant_id IS NULL)'; args.push(s.tenantId); }
+  if (search) {
+    const like = `%${search}%`;
+    where += ' AND (code LIKE ? OR name LIKE ? OR barcode LIKE ?)';
+    args.push(like, like, like);
+  }
+  if (group && group !== 'All') { where += ' AND category=?'; args.push(group); }
+  try {
+    // limit+1 so the client can detect hasMore (it slices to PAGE_SIZE).
+    const rows = db.prepare(`SELECT * FROM products WHERE ${where} ORDER BY name LIMIT ? OFFSET ?`).all(...args, limit + 1, start);
+    return res.json({ message: rows.map(mapMethodProduct) });
+  } catch {
+    return res.json({ message: [] });
+  }
+});
+
+def('DyPOS.api.product_management.get_item_groups', (_p, req, res) => {
+  if (!requireUser(req, res)) return;
+  const s = methodTenantOr403(req, res);
+  if (!s) return;
+  try {
+    const rows = s.tenantId
+      ? db.prepare(`SELECT DISTINCT category as name FROM products WHERE category IS NOT NULL AND category != '' AND (tenant_id=? OR tenant_id IS NULL) ORDER BY category`).all(s.tenantId)
+      : db.prepare(`SELECT DISTINCT category as name FROM products WHERE category IS NOT NULL AND category != '' ORDER BY category`).all();
+    return res.json({ message: rows.map((r) => ({ name: r.name, is_group: 0 })) });
+  } catch {
+    return res.json({ message: [] });
+  }
+});
+
+def('DyPOS.api.product_management.save_product', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  if (!isPromoManager(req)) return frappeError(res, 403, 'PermissionError', 'صلاحية غير كافية');
+  const f = parseMaybeJson(params.data) || params;
+  let stamp = null;
+  try { stamp = writeTenantOf(req); }
+  catch (e) { return frappeError(res, e.statusCode || 403, 'PermissionError', String(e.message).slice(0, 200)); }
+  const itemName = String(f.item_name || f.name || '').trim().slice(0, 200);
+  if (!itemName) return frappeError(res, 400, 'ValidationError', 'اسم الصنف مطلوب');
+  const price = Number(f.price ?? f.standard_rate ?? 0);
+  if (!Number.isFinite(price) || price < 0) return frappeError(res, 400, 'ValidationError', 'السعر غير صالح');
+  let code = String(f.item_code || f.code || '').trim().slice(0, 64);
+  let existing = null;
+  try {
+    existing = code
+      ? (stamp
+        ? db.prepare('SELECT * FROM products WHERE code=? AND (tenant_id=? OR tenant_id IS NULL)').get(code, stamp)
+        : db.prepare('SELECT * FROM products WHERE code=?').get(code))
+      : null;
+  } catch { existing = null; }
+  if (!code) code = `PRD-${randomBytes(3).toString('hex').toUpperCase()}`;
+  const category = String(f.item_group || f.category || '').trim().slice(0, 64);
+  const uom = String(f.stock_uom || f.uom || 'Nos').trim().slice(0, 20);
+  const image = String(f.image || '').trim().slice(0, 500);
+  const active = f.disabled ? 0 : 1;
+  try {
+    if (existing) {
+      db.prepare(`UPDATE products SET name=?,unit_price=?,category=?,uom=?,image=?,is_active=?,updated_at=datetime('now') WHERE id=?`)
+        .run(itemName, price, category || null, uom, image || null, active, existing.id);
+    } else {
+      const id = crypto.randomUUID();
+      db.prepare(`INSERT INTO products (id,code,name,unit_price,category,uom,image,is_active,tenant_id,created_by) VALUES (?,?,?,?,?,?,?,?,?,?)`)
+        .run(id, code, itemName, price, category || null, uom, image || null, active, stamp, req.user?.username || null);
+    }
+  } catch (e) {
+    if (/UNIQUE/i.test(String(e.message))) return frappeError(res, 409, 'ValidationError', 'كود الصنف مستخدم مسبقًا');
+    return frappeError(res, mapErrorStatus(e, 400), 'ValidationError', String(e.message || 'فشل حفظ الصنف').slice(0, 200));
+  }
+  req.audit?.('product.save', { code, name: itemName });
+  return res.json({ message: { item_code: code, message: 'تم حفظ الصنف' } });
+});
+
+def('DyPOS.api.product_management.update_product_image', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  if (!isPromoManager(req)) return frappeError(res, 403, 'PermissionError', 'صلاحية غير كافية');
+  const code = String(params.item_code || params.code || '').trim().slice(0, 64);
+  const url = String(params.file_url || params.image || '').trim().slice(0, 500);
+  if (!code) return frappeError(res, 400, 'ValidationError', 'item_code مطلوب');
+  if (!url) return frappeError(res, 400, 'ValidationError', 'file_url مطلوب');
+  let stamp = null;
+  try { stamp = writeTenantOf(req); }
+  catch (e) { return frappeError(res, e.statusCode || 403, 'PermissionError', String(e.message).slice(0, 200)); }
+  let row = null;
+  try {
+    row = stamp
+      ? db.prepare('SELECT id FROM products WHERE code=? AND (tenant_id=? OR tenant_id IS NULL)').get(code, stamp)
+      : db.prepare('SELECT id FROM products WHERE code=?').get(code);
+  } catch { row = null; }
+  if (!row) return frappeError(res, 404, 'NotFoundError', 'الصنف غير موجود');
+  db.prepare(`UPDATE products SET image=?,updated_at=datetime('now') WHERE id=?`).run(url, row.id);
+  req.audit?.('product.image', { code });
+  return res.json({ message: { item_code: code, image: url } });
+});
+
+def('DyPOS.api.product_management.get_product_image_settings', (_p, req, res) => {
+  if (!requireUser(req, res)) return;
+  return res.json({
+    message: {
+      max_file_size: 5 * 1024 * 1024,
+      allowed_extensions: ['jpg', 'jpeg', 'png', 'webp'],
+      max_width: 1024,
+      max_height: 1024,
+    },
+  });
+});
+
+def('DyPOS.api.items.get_item_variants', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  // No variants table in DyPOS (single-level catalog); the dialogs fall back
+  // to their offline cache on []. Kept as an explicit empty contract.
+  const template = String(params.template_item || params.item_code || '').trim().slice(0, 64);
+  if (!template) return frappeError(res, 400, 'ValidationError', 'template_item مطلوب');
+  return res.json({ message: [] });
+});
+
+// ── QZ Tray certificate + SHA-512 signing ─────────────────────────────────
+function qzPaths() {
+  let dir = UPLOAD_DIR;
+  try { dir = join(UPLOAD_DIR, 'qz'); mkdirSync(dir, { recursive: true }); } catch { dir = UPLOAD_DIR; }
+  return { key: join(dir, 'private.pem'), cert: join(dir, 'cert.pem') };
+}
+
+function qzFingerprint(pem) {
+  try { return createHash('sha256').update(String(pem)).digest('hex').slice(0, 32); }
+  catch { return ''; }
+}
+
+// Minimal DER helpers for minting a self-signed RSA certificate (no extras).
+function derLength(n) {
+  if (n < 128) return Buffer.from([n]);
+  const oct = [];
+  let x = n;
+  while (x > 0) { oct.unshift(x & 0xff); x = Math.floor(x / 256); }
+  return Buffer.from([0x80 | oct.length, ...oct]);
+}
+function derTlv(tag, ...parts) {
+  const body = Buffer.concat(parts.map((p) => (Buffer.isBuffer(p) ? p : Buffer.from(p))));
+  return Buffer.concat([Buffer.from([tag]), derLength(body.length), body]);
+}
+const derSeq = (...p) => derTlv(0x30, ...p);
+const derSet = (...p) => derTlv(0x31, ...p);
+function derIntBuf(buf) {
+  let b = Buffer.from(buf);
+  while (b.length > 1 && b[0] === 0x00) b = b.subarray(1);
+  if (b[0] & 0x80) b = Buffer.concat([Buffer.from([0x00]), b]);
+  return derTlv(0x02, b);
+}
+function derOid(arcs) {
+  const out = [arcs[0] * 40 + arcs[1]];
+  for (let i = 2; i < arcs.length; i++) {
+    let v = arcs[i];
+    const stack = [];
+    do { stack.unshift(v & 0x7f); v = Math.floor(v / 128); } while (v > 0);
+    for (let j = 0; j < stack.length - 1; j++) stack[j] |= 0x80;
+    out.push(...stack);
+  }
+  return derTlv(0x06, Buffer.from(out));
+}
+const derNull = () => Buffer.from([0x05, 0x00]);
+const derUtf8 = (s) => derTlv(0x0c, Buffer.from(String(s), 'utf8'));
+const derBool = (v) => derTlv(0x01, Buffer.from([v ? 0xff : 0x00]));
+const derOctet = (data) => derTlv(0x04, Buffer.from(data));
+function derGeneralizedTime(date) {
+  const p = (n, l = 2) => String(n).padStart(l, '0');
+  const s = `${p(date.getUTCFullYear(), 4)}${p(date.getUTCMonth() + 1)}${p(date.getUTCDate())}${p(date.getUTCHours())}${p(date.getUTCMinutes())}${p(date.getUTCSeconds())}Z`;
+  return derTlv(0x18, Buffer.from(s, 'ascii'));
+}
+/** Split a DER SEQUENCE into its child TLVs (to reuse the SPKI bit string). */
+function derChildren(seqDer) {
+  let off = 0;
+  const takeLen = () => {
+    const b = seqDer[off++];
+    if (b < 128) return b;
+    const n = b & 0x7f;
+    let v = 0;
+    for (let i = 0; i < n; i++) v = v * 256 + seqDer[off++];
+    return v;
+  };
+  off++; // SEQUENCE tag
+  const outerLen = takeLen();
+  const end = off + outerLen;
+  const kids = [];
+  while (off < end) {
+    const start = off;
+    off++; // child tag
+    // NOTE: never `off += takeLen()` — compound assignment reads off BEFORE
+    // the call runs, silently dropping takeLen's own increments.
+    const childLen = takeLen();
+    off += childLen;
+    kids.push(seqDer.subarray(start, off));
+  }
+  return kids;
+}
+
+const OID_RSA = [1, 2, 840, 113549, 1, 1, 1];
+const OID_SHA256_RSA = [1, 2, 840, 113549, 1, 1, 11];
+const OID_CN = [2, 5, 4, 3];
+const OID_O = [2, 5, 4, 10];
+const OID_BASIC = [2, 5, 29, 19];
+const OID_KEY_USAGE = [2, 5, 29, 15];
+const OID_EXT_KEY_USAGE = [2, 5, 29, 37];
+const OID_SERVER_AUTH = [1, 3, 6, 1, 5, 5, 7, 3, 1];
+const OID_CLIENT_AUTH = [1, 3, 6, 1, 5, 5, 7, 3, 2];
+
+/**
+ * Mint a self-signed RSA certificate (CN = POS identity, 10y). The bytes
+ * are self-verified (X509 parse + signature check) before they are stored —
+ * a malformed cert must never reach the trust-install step.
+ */
+function mintSelfSignedQz({ commonName, organization, days }) {
+  const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048, publicExponent: 0x10001 });
+  const privPem = String(privateKey.export({ format: 'pem', type: 'pkcs8' }));
+  const pub = crypto.createPublicKey(privateKey);
+  const spkiKids = derChildren(pub.export({ format: 'der', type: 'spki' }));
+  if (spkiKids.length !== 2) throw new Error('SPKI parse failed');
+  const spkiKeyBits = spkiKids[1];
+  const serial = derIntBuf(randomBytes(16));
+  const sigAlg = derSeq(derOid(OID_SHA256_RSA), derNull());
+  const rdn = (oid, val) => derSet(derSeq(derOid(oid), derUtf8(val)));
+  const name = derSeq(rdn(OID_CN, commonName), rdn(OID_O, organization));
+  const now = new Date();
+  const validity = derSeq(
+    derGeneralizedTime(new Date(now.getTime() - 86400000)),
+    derGeneralizedTime(new Date(now.getTime() + days * 86400000))
+  );
+  // keyUsage critical: digitalSignature + keyEncipherment (bits 0,2 → 0xA0, 5 pad bits).
+  const keyUsage = derSeq(derOid(OID_KEY_USAGE), derBool(true), derOctet(derTlv(0x03, Buffer.from([0x05, 0xa0]))));
+  const extKeyUsage = derSeq(derOid(OID_EXT_KEY_USAGE), derOctet(derSeq(derOid(OID_SERVER_AUTH), derOid(OID_CLIENT_AUTH))));
+  const basic = derSeq(derOid(OID_BASIC), derOctet(derSeq()));
+  const extensions = derTlv(0xa3, derSeq(keyUsage, extKeyUsage, basic));
+  const spki = derSeq(derSeq(derOid(OID_RSA), derNull()), spkiKeyBits);
+  const tbs = derSeq(
+    derTlv(0xa0, derIntBuf(Buffer.from([2]))),
+    serial, sigAlg, name, validity, name, spki, extensions
+  );
+  const sig = crypto.sign('sha256', tbs, privateKey);
+  if (!crypto.verify('sha256', tbs, pub, sig)) throw new Error('self-verify failed');
+  const cert = derSeq(tbs, sigAlg, derTlv(0x03, Buffer.concat([Buffer.from([0x00]), sig])));
+  const pem = `-----BEGIN CERTIFICATE-----\n${cert.toString('base64').match(/.{1,64}/g).join('\n')}\n-----END CERTIFICATE-----\n`;
+  const parsed = new X509Certificate(pem);
+  if (!parsed.subject.includes(commonName)) throw new Error('subject mismatch');
+  return { privPem, certPem: pem };
+}
+
+function ensureQzPair(orgName) {
+  const { key, cert } = qzPaths();
+  if (existsSync(key) && existsSync(cert)) {
+    return { status: 'exists', fingerprint: qzFingerprint(readFileSync(cert, 'utf8')) };
+  }
+  const org = String(orgName || 'DyPOS').slice(0, 64);
+  const cn = `DyPOS POS (${org.slice(0, 40)})`;
+  const { privPem, certPem } = mintSelfSignedQz({ commonName: cn, organization: org, days: 3650 });
+  writeFileSync(key, privPem, { mode: 0o600 });
+  writeFileSync(cert, certPem);
+  return { status: 'generated', fingerprint: qzFingerprint(certPem) };
+}
+
+def('DyPOS.api.qz.get_certificate', (_p, req, res) => {
+  if (!requireUser(req, res)) return;
+  try {
+    const { cert } = qzPaths();
+    if (!existsSync(cert)) return frappeError(res, 404, 'NotFoundError', 'لا توجد شهادة — أنشئ واحدة أولًا');
+    return res.json({ message: readFileSync(cert, 'utf8') });
+  } catch {
+    return frappeError(res, 500, 'ServerError', 'تعذر قراءة الشهادة');
+  }
+});
+
+def('DyPOS.api.qz.setup_qz_certificate', (_p, req, res) => {
+  if (!requireUser(req, res)) return;
+  if (req.user?.role !== 'ADMIN') return frappeError(res, 403, 'PermissionError', 'إنشاء الشهادة يتطلب مدير النظام');
+  try {
+    const out = ensureQzPair(allSettings().business_name || 'DyPOS');
+    req.audit?.('qz.certificate', { status: out.status, fingerprint: out.fingerprint });
+    return res.json({ message: out });
+  } catch (e) {
+    return frappeError(res, 500, 'ServerError', String(e.message || 'فشل إنشاء الشهادة').slice(0, 200));
+  }
+});
+
+def('DyPOS.api.qz.sign_message', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const msg = typeof params.message === 'string' ? params.message : '';
+  if (!msg) return frappeError(res, 400, 'ValidationError', 'message مطلوب');
+  if (msg.length > 20000) return frappeError(res, 400, 'ValidationError', 'الرسالة أطول من المسموح');
+  try {
+    const { key } = qzPaths();
+    if (!existsSync(key)) return frappeError(res, 404, 'NotFoundError', 'لا يوجد مفتاح — أنشئ الشهادة أولًا');
+    const sig = crypto.sign('sha512', Buffer.from(msg, 'utf8'), {
+      key: readFileSync(key, 'utf8'),
+      padding: crypto.constants.RSA_PKCS1_PADDING,
+    });
+    return res.json({ message: sig.toString('base64') });
+  } catch {
+    return frappeError(res, 500, 'ServerError', 'فشل التوقيع');
+  }
+});
+
+def('DyPOS.api.qz.get_certificate_download', (_p, req, res) => {
+  if (!requireUser(req, res)) return;
+  try {
+    const { cert } = qzPaths();
+    if (!existsSync(cert)) return frappeError(res, 404, 'NotFoundError', 'لا توجد شهادة — أنشئ واحدة أولًا');
+    return res.json({ message: { pem: readFileSync(cert, 'utf8'), company: allSettings().business_name || 'DyPOS' } });
+  } catch {
+    return frappeError(res, 500, 'ServerError', 'تعذر قراءة الشهادة');
+  }
+});
+
+// ── Per-warehouse availability / batch-serial / one-time offers / settings ─
+def('DyPOS.api.items.get_item_warehouse_availability', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  let codes = params.item_codes || params.codes || [];
+  if (typeof codes === 'string') {
+    try { codes = JSON.parse(codes); } catch { codes = codes.split(',').map((s) => s.trim()).filter(Boolean); }
+  }
+  if (!Array.isArray(codes) || !codes.length) {
+    const single = String(params.item_code || params.itemCode || '').trim().slice(0, 64);
+    if (!single) return res.json({ message: [] });
+    codes = [single];
+  }
+  const s = methodTenantOr403(req, res);
+  if (!s) return;
+  const ids = codes.map((c) => String(c).slice(0, 64)).slice(0, 100);
+  try {
+    const ph = ids.map(() => '?').join(',');
+    const products = db.prepare(
+      `SELECT id, code FROM products WHERE (id IN (${ph}) OR code IN (${ph}))${s.tenantId ? ' AND (tenant_id=? OR tenant_id IS NULL)' : ''}`
+    ).all(...ids, ...ids, ...(s.tenantId ? [s.tenantId] : []));
+    const byKey = new Map();
+    for (const p of products) { byKey.set(p.id, p.code); if (p.code) byKey.set(p.code, p.code); }
+    const out = [];
+    const stockStmt = db.prepare(
+      `SELECT s.warehouse_id, w.name as warehouse_name, s.qty, s.reserved_qty
+       FROM stock_levels s LEFT JOIN warehouses w ON w.id=s.warehouse_id WHERE s.product_id=?`
+    );
+    for (const pid of [...new Set(ids.map((c) => byKey.get(c)).filter(Boolean))]) {
+      const prod = products.find((p) => p.code === pid);
+      for (const row of stockStmt.all(prod?.id || pid)) {
+        const qty = Number(row.qty) || 0;
+        const reserved = Number(row.reserved_qty) || 0;
+        out.push({
+          warehouse: row.warehouse_id,
+          warehouse_name: row.warehouse_name || row.warehouse_id,
+          item_code: pid,
+          actual_qty: qty,
+          available_qty: Math.max(0, Math.round((qty - reserved) * 1000) / 1000),
+          reserved_qty: reserved,
+        });
+      }
+    }
+    return res.json({ message: out });
+  } catch {
+    return res.json({ message: [] });
+  }
+});
+
+def('DyPOS.api.items.get_batch_serial_data_for_items', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  let codes = params.item_codes || params.codes || [];
+  if (typeof codes === 'string') {
+    try { codes = JSON.parse(codes); } catch { codes = codes.split(',').map((s) => s.trim()).filter(Boolean); }
+  }
+  if (!Array.isArray(codes)) codes = [];
+  // DyPOS runs a single-level catalog (no batch/serial ledger); answer the
+  // offline-caching contract explicitly so the store degrades, never 404s.
+  const out = {};
+  for (const c of codes.map((x) => String(x).slice(0, 64)).slice(0, 100)) {
+    out[c] = { batches: [], serials: [], has_batch_no: false, has_serial_no: false };
+  }
+  return res.json({ message: out });
+});
+
+def('DyPOS.api.offers.get_customer_one_time_redemptions', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const ref = String(params.customer || params.customer_name || '').trim().slice(0, 64);
+  if (!ref || ref === 'WALK-IN') return res.json({ message: [] });
+  const s = methodTenantOr403(req, res);
+  if (!s) return;
+  try {
+    const c = findCustomerRef(ref);
+    if (!c) return res.json({ message: [] });
+    const hit = db.prepare(
+      `SELECT 1 FROM invoices WHERE customer_id=? AND status IN ('PAID','PARTIAL','UNPAID') LIMIT 1`
+    ).get(c.id);
+    if (!hit) return res.json({ message: [] });
+    // Mirrors evaluate(): a customer who already bought redeems every active
+    // one-time offer, so the POS stops presenting them.
+    const rows = s.tenantId
+      ? db.prepare(`SELECT name FROM offers WHERE is_active=1 AND one_time_per_customer=1 AND (tenant_id=? OR tenant_id IS NULL)`).all(s.tenantId)
+      : db.prepare(`SELECT name FROM offers WHERE is_active=1 AND one_time_per_customer=1`).all();
+    return res.json({ message: rows.map((r) => r.name) });
+  } catch {
+    return res.json({ message: [] });
+  }
+});
+
+const POS_SETTINGS_WRITABLE = new Set([
+  'allow_negative_stock', 'tax_inclusive', 'require_customer_on_sale',
+  'tax_rate_default', 'default_payment_method', 'autosave_interval_seconds',
+]);
+
+function posSettingsView() {
+  const s = allSettings();
+  return {
+    allow_negative_stock: s.allow_negative_stock === '1',
+    tax_inclusive: s.tax_inclusive === '1',
+    require_customer_on_sale: s.require_customer_on_sale === '1',
+    tax_rate_default: Number(s.tax_rate_default || 15),
+    default_payment_method: s.default_payment_method || '',
+    autosave_interval_seconds: Number(s.autosave_interval_seconds || 5),
+    pos_profile: 'POS',
+  };
+}
+
+def('DyPOS.DyPOS.doctype.pos_settings.pos_settings.update_pos_settings', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  if (!isPromoManager(req)) return frappeError(res, 403, 'PermissionError', 'صلاحية غير كافية');
+  const f = parseMaybeJson(params.settings) || {};
+  const keys = Object.keys(f).filter((k) => POS_SETTINGS_WRITABLE.has(k));
+  if (!keys.length) return frappeError(res, 400, 'ValidationError', 'لا إعدادات صالحة للإرسال');
+  const saved = {};
+  try {
+    for (const k of keys) {
+      const v = f[k];
+      saved[k] = setSetting(k, typeof v === 'boolean' ? (v ? '1' : '0') : v);
+    }
+  } catch (e) {
+    return frappeError(res, e.statusCode || 400, 'ValidationError', String(e.message || 'إعداد غير صالح').slice(0, 200));
+  }
+  req.audit?.('settings.update', { keys: Object.keys(saved), via: 'pos-settings' });
+  return res.json({ message: { ...posSettingsView(), pos_profile: String(params.pos_profile || 'POS').slice(0, 64) } });
+});
+
+def('DyPOS.api.pos_profile.update_warehouse', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  if (!isPromoManager(req)) return frappeError(res, 403, 'PermissionError', 'صلاحية غير كافية');
+  const id = String(params.warehouse || '').trim().slice(0, 32);
+  if (!id) return frappeError(res, 400, 'ValidationError', 'warehouse مطلوب');
+  let row = null;
+  try { row = db.prepare('SELECT id, is_active FROM warehouses WHERE id=?').get(id); } catch { row = null; }
+  if (!row) return frappeError(res, 404, 'NotFoundError', 'المستودع غير موجود');
+  if (Number(row.is_active) !== 1) return frappeError(res, 400, 'ValidationError', 'المستودع موقوف');
+  try {
+    setSetting('default_warehouse', id);
+  } catch (e) {
+    return frappeError(res, e.statusCode || 400, 'ValidationError', String(e.message || 'فشل الحفظ').slice(0, 200));
+  }
+  req.audit?.('pos-profile.warehouse', { warehouse: id });
+  return res.json({ message: { success: true, warehouse: id } });
+});
+
 // ── Lowercase dypos.* aliases (frappe adapter uses dypos.api.*) ─────────
 for (const [key, entry] of [...handlers.entries()]) {
   if (key.startsWith('DyPOS.')) {
@@ -2540,12 +3976,10 @@ if (!handlers.has('dypos.api.auth.login') && handlers.has('DyPOS.api.auth.login'
 }
 
 // ── Catch-all dispatcher ─────────────────────────────────────────────────
-function dispatch(methodPath, req, res) {
-  const entry = handlers.get(methodPath);
-  if (!entry) {
-    // Alias: strip leading module prefixes for a few known families
-    return frappeError(res, 404, 'NotFoundError', `طريقة غير معروفة: ${methodPath}`);
-  }
+// Login-family paths share the per-IP spray guard with /api/auth/login
+// (skipSuccessfulRequests resets the window on a good login).
+const LOGIN_METHOD_PATHS = new Set(['login', 'DyPOS.api.auth.login', 'dypos.api.auth.login']);
+function runHandler(entry, req, res) {
   try {
     const result = entry.handler(paramsOf(req), req, res);
     if (result && typeof result.then === 'function') {
@@ -2560,6 +3994,20 @@ function dispatch(methodPath, req, res) {
       frappeError(res, mapErrorStatus(e, 500), 'ServerError', String(e.message || 'خطأ في الخادم').slice(0, 200));
     }
   }
+}
+function dispatch(methodPath, req, res) {
+  const entry = handlers.get(methodPath);
+  if (!entry) {
+    // Alias: strip leading module prefixes for a few known families
+    return frappeError(res, 404, 'NotFoundError', `طريقة غير معروفة: ${methodPath}`);
+  }
+  if (LOGIN_METHOD_PATHS.has(methodPath)) {
+    return void loginIpLimiter(req, res, (err) => {
+      if (err || res.headersSent) return;
+      runHandler(entry, req, res);
+    });
+  }
+  runHandler(entry, req, res);
 }
 
 function methodPathOf(req) {

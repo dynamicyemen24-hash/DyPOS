@@ -43,6 +43,18 @@ jobs:
         working-directory: POS
         run: npm run verify
 
+      # Backend gates (deterministic subset of CI): the POS talks to the
+      # Frappe-compat method router, so a deploy must prove the contract
+      # (every POS call site resolves), lint, and schema parity. The full
+      # backend suite + backup drills run in CI (server-api job).
+      - name: Install backend dependencies
+        working-directory: server
+        run: npm ci --no-audit --no-fund
+
+      - name: Backend gates (lint + method contract + schema parity)
+        working-directory: server
+        run: npm run lint && npm run contract && npm run parity
+
       - name: Build frontend (version-pinned, no timestamps)
         working-directory: POS
         run: yarn build

@@ -14,6 +14,8 @@
  *   desktop_recent_invoices_count 0–50 (desktop widget size, 0 hides)
  *   default_payment_method    free text ≤64 (preselect at checkout, "" = profile default)
  *   return_approval_threshold 0–10M (CASHIER returns above this need MANAGER+, 0 = disabled)
+ *   allow_negative_stock   0 | 1 (oversell guard off when 1)
+ *   default_warehouse      warehouse id (≤32) preselected as the POS default
  *
  * Reads are single indexed SELECTs (no cache layer to invalidate — writes
  * are rare admin ops, reads are per-request-cheap).
@@ -106,6 +108,17 @@ export const SETTING_DEFS = {
       if (!Number.isFinite(n) || n < 0 || n > 10000000) throw Object.assign(new Error('عتبة اعتماد المرتجع بين 0 و 10,000,000 (0 = بدون قيد)'), { statusCode: 400 });
       return String(Math.round(n * 100) / 100);
     },
+  },
+  allow_negative_stock: {
+    validate: (v) => {
+      const s = String(v ?? '0').trim().toLowerCase();
+      if (s === '') return '0';
+      if (['0', '1', 'false', 'true'].includes(s)) return (s === '1' || s === 'true') ? '1' : '0';
+      throw Object.assign(new Error('السماح بالمخزون السالب 0 أو 1'), { statusCode: 400 });
+    },
+  },
+  default_warehouse: {
+    validate: (v) => String(v ?? '').trim().slice(0, 32),
   },
 };
 
