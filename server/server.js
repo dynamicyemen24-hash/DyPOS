@@ -58,7 +58,7 @@ import subscriptionsRoutes from './routes/subscriptions.js';
 import openapiRoutes from './routes/openapi.js';
 import deviceRoutes from './routes/device.js';
 import devicesRoutes from './routes/devices.js';
-import localizationRoutes from './routes/localization.js';
+import methodRoutes from './routes/method.js';
 import { metricsMiddleware, metricsHandler } from './middleware/metrics.js';
 import { auditMiddleware } from './middleware/audit.js';
 import { startDispatcher } from './lib/webhooks.js';
@@ -370,7 +370,8 @@ app.use('/api/auth', authRateLimit, authRoutes);
 app.use(requirePrimary);
 
 // Protected routes
-app.use('/api/method', localizationRoutes);
+// Frappe-compat dual GET/POST method router (localization, auth, client, items, …)
+app.use('/api/method', methodRoutes);
 
 app.use('/api/admin', authMiddleware, adminRoutes);
 app.use('/api/products', authMiddleware, productRoutes);
@@ -419,6 +420,11 @@ app.get('/admin', (_req, res) => {
 
 // Serve POS frontend (SPA) — Vite builds to DyPOS/public/pos
 const posDist = resolve(process.env.DYPOS_FRONTEND_DIST || join(__dirname, '..', 'DyPOS', 'public', 'pos'));
+// Frappe-style file uploads (upload_file method) → /uploads/*
+const uploadsDir = join(__dirname, 'uploads');
+if (existsSync(uploadsDir)) {
+  app.use('/uploads', express.static(uploadsDir, { maxAge: '1y', etag: true, index: false }));
+}
 if (existsSync(posDist)) {
   app.use(express.static(posDist, { maxAge: '1y', etag: true, index: false }));
   // Express 4+5 compatible SPA fallback (no '*' pattern)
