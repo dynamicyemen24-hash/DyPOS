@@ -143,7 +143,7 @@ jobs:
         continue-on-error: true
         run: |
           if [ -z "$BACKEND_URL" ]; then echo "DYPOS_BACKEND_URL secret not set — /api answers 503 BACKEND_UNCONFIGURED until configured (gh secret set DYPOS_BACKEND_URL)."; exit 0; fi
-          printf '%s' "$BACKEND_URL" | npx -y wrangler secret put DYPOS_BACKEND_URL
+          printf '%s' "$BACKEND_URL" | npx -y wrangler secret put DYPOS_BACKEND_URL --account-id "$CF_ACCOUNT"
           echo "Backend origin configured."
         env:
           BACKEND_URL: ${{ secrets.DYPOS_BACKEND_URL }}
