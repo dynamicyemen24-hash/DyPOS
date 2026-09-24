@@ -20,7 +20,11 @@ import {
   extractToken, verifyToken, tokenHash, generateToken,
   verifyPasswordAsync, hashPasswordAsync, hashPassword, revokeToken, isProduction,
 } from '../middleware/auth.js';
-import { getSetting, allSettings } from '../lib/settings.js';
+import { getSetting, allSettings, invoicePrefix, defaultTaxRate } from '../lib/settings.js';
+import { toMinor, toMajor, pctOf, clampMinor } from '../lib/money.js';
+import { computeCouponDiscount } from './offers.js';
+import { appendChain } from '../lib/chain.js';
+import { ensureOpenFiscalYear, yearOf } from './fiscal.js';
 
 const router = Router();
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -493,6 +497,35 @@ def('login', async (params, req, res) => {
   const password = params.pwd || params.password;
   return doLogin(req, res, username, password);
 });
+
+// Adapter path: frappe-ui call() unwraps { message } for non-/login URLs.
+async function doLoginMessage(params, req, res) {
+  const username = params.usr || params.username || params.user;
+  const password = params.pwd || params.password;
+  if (!username || !password) {
+    return frappeError(res, 400, 'ValidationError', 'اسم المستخدم وكلمة المرور مطلوبان');
+  }
+  const user = db.prepare('SELECT * FROM users WHERE username=? AND is_active=1').get(String(username).trim());
+  if (!user) return frappeError(res, 401, 'AuthenticationError', 'بيانات الدخول غير صحيحة');
+  let ok = false;
+  try { ok = await verifyPasswordAsync(password, user.password_hash); } catch { ok = false; }
+  if (!ok) return frappeError(res, 401, 'AuthenticationError', 'بيانات الدخول غير صحيحة');
+  const token = generateToken(user);
+  const payload = {
+    token,
+    user: {
+      id: user.id, username: user.username, fullName: user.full_name,
+      role: user.role, tenantId: user.tenant_id || null,
+    },
+    mustChangePassword: Number(user.must_change_password) === 1,
+    full_name: user.full_name,
+    user_id: user.username,
+  };
+  setAuthCookies(res, token, payload.user);
+  req.audit?.('auth.login', { userId: user.id, username: user.username });
+  return res.json({ message: payload, ...payload });
+}
+def('DyPOS.api.auth.login', doLoginMessage);
 
 def('logout', (_p, req, res) => {
   if (req.token) {
@@ -1270,7 +1303,8 @@ function escapeHtml(s) {
 }
 
 // ── upload_file (multipart or JSON base64) ──────────────────────────────
-async function handleUpload(req, res) {
+// Dispatch signature is (params, req, res) — match every other handler.
+async function handleUpload(_params, req, res) {
   if (!requireUser(req, res)) return;
   const ct = String(req.headers['content-type'] || '');
   let filename = 'upload.bin';
@@ -1326,6 +1360,1184 @@ def('frappe.client.has_value', (params, req, res) => {
   if (!spec) return res.json({ message: { exists: false } });
   return res.json({ message: { exists: true } });
 });
+
+// ══════════════════════════════════════════════════════════════════════
+// Domain methods: invoices / shifts / customers / auth / partials / offers
+// ══════════════════════════════════════════════════════════════════════
+
+function toNum(v, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function parseMaybeJson(v) {
+  if (v == null) return v;
+  if (typeof v === 'object') return v;
+  if (typeof v === 'string') {
+    try { return JSON.parse(v); } catch { return v; }
+  }
+  return v;
+}
+
+function mapInvoiceItemToRest(it) {
+  const productId = String(it.item_code || it.productId || it.product_id || '').trim();
+  const qty = toNum(it.qty ?? it.quantity, 1);
+  const rate = it.rate != null ? toNum(it.rate) : toNum(it.unitPrice);
+  const discount = it.discount_amount != null ? toNum(it.discount_amount) : toNum(it.discount);
+  const discountPct = toNum(it.discount_percentage);
+  const lineGross = qty * rate;
+  const disc = discount > 0 ? discount : (discountPct > 0 ? (lineGross * discountPct) / 100 : 0);
+  return {
+    productId,
+    qty,
+    unitPrice: rate,
+    discount: Math.round(disc * 100) / 100,
+    taxRate: it.tax_rate != null ? toNum(it.tax_rate) : undefined,
+    uom: it.uom ? String(it.uom).slice(0, 20) : undefined,
+    warehouseId: it.warehouse ? String(it.warehouse).slice(0, 32) : undefined,
+    isFreeItem: Boolean(Number(it.is_free_item) || it.isFreeItem) || undefined,
+    freeQty: it.free_qty != null ? Math.max(0, Math.floor(toNum(it.free_qty))) : undefined,
+  };
+}
+
+function mapPaymentsFromFrappe(payments) {
+  if (!Array.isArray(payments)) return [];
+  return payments
+    .filter((p) => p && !p.is_customer_credit)
+    .map((p) => ({
+      method: String(p.mode_of_payment || p.method || 'CASH').toUpperCase().slice(0, 20),
+      amount: toNum(p.amount),
+      reference: String(p.reference || '').slice(0, 128),
+    }))
+    .filter((p) => p.amount >= 0)
+    .slice(0, 10);
+}
+
+function mapInvoiceRowToDoc(inv, items = null, payments = null) {
+  const out = {
+    name: inv.id,
+    id: inv.id,
+    invoice_name: inv.id,
+    doctype: 'Sales Invoice',
+    docstatus: inv.status === 'DRAFT' ? 0 : 1,
+    status: inv.status,
+    number: inv.number,
+    invoice_number: inv.number,
+    customer: inv.customer_id || 'WALK-IN',
+    customer_name: inv.customer_name,
+    customer_id: inv.customer_id,
+    subtotal: inv.subtotal,
+    total: inv.total,
+    grand_total: inv.total,
+    base_grand_total: inv.total,
+    discount_amount: inv.discount_amount,
+    total_taxes_and_charges: inv.tax_amount,
+    tax_amount: inv.tax_amount,
+    paid_amount: inv.paid_amount,
+    outstanding_amount: inv.remaining_amount,
+    remaining_amount: inv.remaining_amount,
+    change_amount: 0,
+    currency: inv.currency || 'SAR',
+    shift_id: inv.shift_id,
+    terminal_id: inv.terminal_id,
+    notes: inv.notes || '',
+    is_pos: 1,
+    update_stock: 1,
+    posting_date: String(inv.created_at || '').slice(0, 10),
+    creation: inv.created_at,
+    modified: inv.updated_at || inv.created_at,
+    created_at: inv.created_at,
+  };
+  if (items) out.items = items;
+  if (payments) out.payments = payments;
+  return out;
+}
+
+function loadInvoiceFull(id) {
+  const inv = db.prepare('SELECT * FROM invoices WHERE id=?').get(id);
+  if (!inv) return null;
+  const items = db.prepare('SELECT * FROM invoice_items WHERE invoice_id=?').all(id);
+  const pays = db.prepare('SELECT * FROM payments WHERE invoice_id=?').all(id);
+  return { inv, items, pays };
+}
+
+/** Create sale or finalize a DRAFT — mirrors routes/invoices.js money/stock rules. */
+function createOrFinalizeSale(req, payload) {
+  const itemsIn = Array.isArray(payload.items) ? payload.items : [];
+  if (!itemsIn.length) throw Object.assign(new Error('سلة فارغة'), { statusCode: 400 });
+
+  const items = itemsIn.map(mapInvoiceItemToRest).filter((i) => i.productId);
+  if (!items.length) throw Object.assign(new Error('سلة فارغة'), { statusCode: 400 });
+
+  const paymentsIn = Array.isArray(payload.payments) && payload.payments.length
+    ? mapPaymentsFromFrappe(payload.payments)
+    : [];
+
+  const customerId = String(payload.customerId || payload.customer || '').trim().slice(0, 64) || null;
+  const customerName = String(payload.customerName || payload.customer_name || 'Walk-in Customer').trim().slice(0, 200) || 'Walk-in Customer';
+  const shiftId = String(payload.shiftId || payload.posa_pos_opening_shift || payload.shift_id || '').trim().slice(0, 64) || null;
+  const terminalId = String(payload.terminalId || payload.terminal_id || 'POS-01').trim().slice(0, 32);
+  const warehouseDefault = String(payload.warehouseId || payload.warehouse || 'W-01').trim().slice(0, 32) || 'W-01';
+  const discountAmount = toNum(payload.discountAmount ?? payload.discount_amount);
+  const couponCodeRaw = String(payload.couponCode || payload.coupon_code || '').trim().toUpperCase().slice(0, 64);
+  const currency = String(payload.currency || getSetting('currency', 'SAR')).slice(0, 10).toUpperCase();
+  const notes = String(payload.notes || '').slice(0, 1000);
+  const idemKey = String(payload.idempotencyKey || '').trim().slice(0, 128) || null;
+  const draftId = String(payload.existingId || payload.name || '').trim().slice(0, 64) || null;
+  const writeOffAmount = Math.max(0, toNum(payload.write_off_amount));
+
+  if (idemKey) {
+    const existing = db.prepare('SELECT id FROM invoices WHERE idempotency_key=? LIMIT 1').get(idemKey);
+    if (existing) {
+      const full = loadInvoiceFull(existing.id);
+      if (full) return { deduped: true, ...mapInvoiceRowToDoc(full.inv, full.items, full.pays) };
+    }
+  }
+
+  const ids = [...new Set(items.map((i) => String(i.productId)))];
+  const ph = ids.map(() => '?').join(',');
+  const rows = db.prepare(`SELECT id,code,name,name_ar,barcode,unit_price,tax_rate FROM products WHERE id IN (${ph}) OR code IN (${ph})`).all(...ids, ...ids);
+  const byKey = new Map();
+  for (const r of rows) {
+    byKey.set(r.id, r);
+    if (r.code) byKey.set(r.code, r);
+  }
+  for (const pid of ids) {
+    if (!byKey.has(pid)) throw Object.assign(new Error(`صنف غير موجود: ${pid}`.slice(0, 200)), { statusCode: 400 });
+  }
+
+  const draftRow = draftId ? db.prepare("SELECT id, status, number FROM invoices WHERE id=?").get(draftId) : null;
+  const isDraftFinalize = Boolean(draftRow && draftRow.status === 'DRAFT');
+  const invoiceId = isDraftFinalize ? draftId : crypto.randomUUID();
+
+  const insertItem = db.prepare(`INSERT INTO invoice_items (id,invoice_id,product_id,product_name,name_ar,barcode,qty,unit_price,discount,tax_rate,tax_amount,total,uom,warehouse_id,free_qty,is_free_item) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+  const insertPayment = db.prepare(`INSERT INTO payments (id,invoice_id,method,amount,reference) VALUES (?,?,?,?,?)`);
+  const stockGuardMode = String(process.env.DYPOS_STOCK_GUARD || 'legacy').trim().toLowerCase() === 'strict' ? 'strict' : 'legacy';
+  const selectStockRow = db.prepare('SELECT qty, reserved_qty FROM stock_levels WHERE product_id=? AND warehouse_id=?');
+  const guardedDecr = db.prepare('UPDATE stock_levels SET qty=qty+?,updated_at=datetime(\'now\') WHERE product_id=? AND warehouse_id=? AND qty+?>=reserved_qty');
+  const upsertStock = db.prepare('INSERT INTO stock_levels (product_id,warehouse_id,qty,updated_at) VALUES (?,?,?,datetime(\'now\')) ON CONFLICT(product_id,warehouse_id) DO UPDATE SET qty=qty+excluded.qty,updated_at=datetime(\'now\')');
+  const ensureWh = db.prepare('INSERT OR IGNORE INTO warehouses (id,name) VALUES (?,?)');
+  const taxInclusive = getSetting('tax_inclusive', '0') === '1';
+
+  const out = db.transaction(() => {
+    ensureWh.run(warehouseDefault, warehouseDefault === 'W-01' ? 'المستودع الرئيسي' : warehouseDefault);
+    for (const it of items) {
+      const w = it.warehouseId || warehouseDefault;
+      if (w !== warehouseDefault) ensureWh.run(w, w);
+    }
+    if (shiftId) {
+      const sh = db.prepare('SELECT id, status FROM shifts WHERE id=?').get(shiftId);
+      if (sh && sh.status !== 'OPEN') {
+        throw Object.assign(new Error('البيع على وردية مغلقة مرفوض'), { statusCode: 409 });
+      }
+    }
+
+    let number;
+    const needsNewNumber = !isDraftFinalize || !draftRow?.number || String(draftRow.number).startsWith('DRAFT-');
+    if (needsNewNumber) {
+      const fiscalYear = yearOf();
+      ensureOpenFiscalYear(fiscalYear);
+      const seqScope = `STD/${fiscalYear}`;
+      const seqPrefix = invoicePrefix();
+      db.prepare('INSERT OR IGNORE INTO invoice_sequences (scope,prefix,last_number) VALUES (?,?,0)').run(seqScope, seqPrefix);
+      db.prepare('UPDATE invoice_sequences SET last_number=last_number+1,updated_at=datetime(\'now\') WHERE scope=?').run(seqScope);
+      const seqNo = Number(db.prepare('SELECT last_number FROM invoice_sequences WHERE scope=?').get(seqScope)?.last_number) || 0;
+      if (!(seqNo > 0)) throw new Error('تعذر تخصيص رقم الفاتورة');
+      number = `${seqPrefix}-${fiscalYear}-${String(seqNo).padStart(6, '0')}`;
+    } else {
+      number = draftRow.number;
+    }
+
+    if (isDraftFinalize) {
+      db.prepare('DELETE FROM invoice_items WHERE invoice_id=?').run(invoiceId);
+      db.prepare('DELETE FROM payments WHERE invoice_id=?').run(invoiceId);
+    } else {
+      // Header FIRST: invoice_items/payments have FK → invoices(id).
+      try {
+        db.prepare(`INSERT INTO invoices (id,number,customer_id,customer_name,subtotal,discount_amount,tax_amount,total,paid_amount,remaining_amount,status,currency,notes,shift_id,terminal_id,idempotency_key,created_by)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+          .run(invoiceId, number, customerId, customerName, 0, 0, 0, 0, 0, 0, 'UNPAID', currency, notes, shiftId, terminalId, idemKey, req.user?.username || null);
+      } catch (e) {
+        if (idemKey && /UNIQUE|CONFLICT/i.test(String(e.message))) {
+          const dup = db.prepare('SELECT id FROM invoices WHERE idempotency_key=?').get(idemKey);
+          if (dup) {
+            const full = loadInvoiceFull(dup.id);
+            if (full) return { deduped: true, ...mapInvoiceRowToDoc(full.inv, full.items, full.pays) };
+          }
+        }
+        throw e;
+      }
+    }
+
+    let subtotalMinor = 0;
+    let taxTotalMinor = 0;
+    for (const it of items) {
+      const product = byKey.get(it.productId);
+      const qty = toNum(it.qty, 1);
+      if (!(qty > 0) || qty > 100000) throw Object.assign(new Error(`كمية غير صالحة للصنف ${product.id}`), { statusCode: 400 });
+      const price = it.unitPrice != null ? toNum(it.unitPrice) : toNum(product.unit_price);
+      if (!(Number.isFinite(price) && price >= 0)) {
+        throw Object.assign(new Error(`سعر غير صالح للصنف ${product.id}`), { statusCode: 400 });
+      }
+      const discountMinor = clampMinor(toMinor(it.discount), toMinor(qty * price));
+      const taxRate = it.taxRate != null ? Math.max(0, Math.min(toNum(it.taxRate), 100)) : toNum(product.tax_rate, defaultTaxRate());
+      const lineGrossMinor = toMinor(qty * price) - discountMinor;
+      let lineNetMinor = lineGrossMinor;
+      let lineTaxMinor = pctOf(lineGrossMinor, taxRate);
+      if (taxInclusive && taxRate > 0) {
+        lineNetMinor = Math.round((lineGrossMinor * 100) / (100 + taxRate));
+        lineTaxMinor = lineGrossMinor - lineNetMinor;
+      }
+      subtotalMinor += lineNetMinor;
+      taxTotalMinor += lineTaxMinor;
+      const wh = it.warehouseId || warehouseDefault;
+      const isFree = it.isFreeItem ? 1 : 0;
+      const freeQty = isFree ? 0 : (Number(it.freeQty) || 0);
+      insertItem.run(
+        crypto.randomUUID(), invoiceId, product.id, product.name, product.name_ar || '', product.barcode,
+        qty, price, toMajor(discountMinor), taxRate, toMajor(lineTaxMinor), toMajor(lineNetMinor + lineTaxMinor),
+        String(it.uom || 'Unit').slice(0, 20), wh, freeQty, isFree,
+      );
+      const tracked = selectStockRow.get(product.id, wh);
+      const trackedQty = tracked ? Number(tracked.qty) : null;
+      if (tracked && trackedQty >= 0) {
+        const ch = guardedDecr.run(-qty, product.id, wh, -qty);
+        if (ch.changes === 0) {
+          throw Object.assign(new Error(`الكمية المتوفرة غير كافية لصنف ${product.id} في المستودع ${wh} (المتاح ${Math.max(0, trackedQty - Number(tracked.reserved_qty || 0))})`), { statusCode: 409 });
+        }
+      } else if (stockGuardMode === 'strict') {
+        throw Object.assign(new Error(`الكمية المتوفرة غير كافية لصنف ${product.id} (DYPOS_STOCK_GUARD=strict)`), { statusCode: 409 });
+      } else {
+        upsertStock.run(product.id, wh, -qty);
+      }
+    }
+
+    const grossMinor = subtotalMinor + taxTotalMinor;
+    let couponDiscountMinor = 0;
+    if (couponCodeRaw) {
+      const c = db.prepare('SELECT * FROM coupons WHERE code=?').get(couponCodeRaw);
+      if (!c) throw Object.assign(new Error('الكوبون غير موجود'), { statusCode: 404 });
+      const r = computeCouponDiscount(c, toMajor(grossMinor));
+      if (!r.ok) throw Object.assign(new Error(r.error), { statusCode: 400 });
+      couponDiscountMinor = Math.min(toMinor(r.discount), Math.max(0, grossMinor - toMinor(discountAmount)));
+      const inc = db.prepare('UPDATE coupons SET used_count=used_count+1 WHERE code=? AND (max_uses=0 OR used_count < max_uses)').run(couponCodeRaw);
+      if (inc.changes === 0) throw Object.assign(new Error('تجاوز حد استخدام الكوبون (تعارض تزامن)'), { statusCode: 409 });
+    }
+
+    const manualDiscountMinor = clampMinor(toMinor(discountAmount), grossMinor);
+    const discountAmountMinor = Math.min(manualDiscountMinor + couponDiscountMinor, grossMinor);
+    const totalMinor = grossMinor - discountAmountMinor;
+    if (totalMinor < 0) throw Object.assign(new Error('إجمالي غير صالح'), { statusCode: 400 });
+    const writeOffMinor = clampMinor(toMinor(writeOffAmount), totalMinor);
+    const afterWriteOffMinor = totalMinor - writeOffMinor;
+
+    const subtotal = toMajor(subtotalMinor);
+    const taxTotal = toMajor(taxTotalMinor);
+    const discountTotal = toMajor(discountAmountMinor);
+
+    let paidMinor = 0;
+    const payList = paymentsIn.length ? paymentsIn : [];
+    for (const p of payList) {
+      const amt = toNum(p.amount);
+      if (amt < 0 || amt > 10_000_000) throw Object.assign(new Error('مبلغ دفعة غير صالح'), { statusCode: 400 });
+      const pm = String(p.method || 'CASH').toUpperCase().slice(0, 20);
+      paidMinor += toMinor(amt);
+      insertPayment.run(crypto.randomUUID(), invoiceId, pm, amt, String(p.reference || '').slice(0, 128));
+    }
+
+    const changeMinor = Math.max(0, paidMinor - afterWriteOffMinor);
+    const paidMinorCapped = paidMinor - changeMinor;
+    const remainingMinor = Math.max(0, afterWriteOffMinor - paidMinorCapped);
+    const paidAmount = toMajor(paidMinorCapped);
+    const remainingAmount = toMajor(remainingMinor);
+    const change = toMajor(changeMinor);
+    const total = toMajor(afterWriteOffMinor);
+    const status = remainingMinor <= 1 ? 'PAID' : paidMinorCapped <= 0 ? 'UNPAID' : 'PARTIAL';
+
+    if (remainingAmount > 0.01 && customerId) {
+      const cust = db.prepare('SELECT credit_limit, credit_used FROM customers WHERE id=?').get(customerId);
+      if (cust) {
+        const lim = Number(cust.credit_limit) || 0;
+        const used = Number(cust.credit_used) || 0;
+        if (lim > 0 && used + remainingAmount - lim > 0.01) {
+          throw Object.assign(new Error(`تجاوز حد الائتمان (المتاح ${(lim - used).toFixed(2)})`), { statusCode: 402 });
+        }
+        db.prepare('UPDATE customers SET credit_used=credit_used+?,updated_at=datetime(\'now\') WHERE id=?').run(remainingAmount, customerId);
+      }
+    }
+
+    // Finalize header row (draft update or new-sale fill-in after placeholder insert).
+    db.prepare(`UPDATE invoices SET number=?,customer_id=?,customer_name=?,subtotal=?,discount_amount=?,tax_amount=?,total=?,paid_amount=?,remaining_amount=?,status=?,currency=?,notes=?,shift_id=?,terminal_id=?,idempotency_key=?,paid_at=?,updated_by=?,updated_at=datetime('now') WHERE id=?`)
+      .run(number, customerId, customerName, subtotal, discountTotal, taxTotal, total, paidAmount, remainingAmount, status, currency, notes, shiftId, terminalId, idemKey, status === 'PAID' ? new Date().toISOString() : null, req.user?.username || null, invoiceId);
+
+    if (customerId && status === 'PAID') {
+      const pts = Math.floor(total / 10);
+      if (pts > 0) {
+        db.prepare('UPDATE customers SET loyalty_points=loyalty_points+? WHERE id=?').run(pts, customerId);
+      }
+    }
+
+    try { appendChain(invoiceId, { number, total, status, action: 'CREATE' }); } catch { /* chain never breaks sales */ }
+
+    const invRow = db.prepare('SELECT * FROM invoices WHERE id=?').get(invoiceId);
+    const itemRows = db.prepare('SELECT * FROM invoice_items WHERE invoice_id=?').all(invoiceId);
+    const payRows = db.prepare('SELECT * FROM payments WHERE invoice_id=?').all(invoiceId);
+    return {
+      ...mapInvoiceRowToDoc(invRow, itemRows, payRows),
+      change_amount: change,
+      paid_amount: paidAmount,
+      outstanding_amount: remainingAmount,
+      grand_total: total,
+      total,
+      status,
+      success: true,
+    };
+  })();
+
+  req.audit?.('invoice.create', { invoiceId: out.id, total: out.total, via: 'method' });
+  return out;
+}
+
+// ── Invoices: update / submit / get / offers / cleanup ──────────────────
+def('DyPOS.api.invoices.update_invoice', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  try {
+    const data = parseMaybeJson(params.data) || {};
+    const rawItems = Array.isArray(data.items) ? data.items : [];
+    if (!rawItems.length) return frappeError(res, 400, 'ValidationError', 'سلة فارغة');
+
+    const restItems = rawItems.map(mapInvoiceItemToRest);
+    const payments = mapPaymentsFromFrappe(data.payments);
+    const customerId = String(data.customer || data.customerId || '').trim() || null;
+    const customerRow = customerId ? db.prepare('SELECT id, name FROM customers WHERE id=?').get(customerId) : null;
+    const customerName = customerRow?.name || String(data.customer_name || 'Walk-in Customer').slice(0, 200);
+
+    // Compute provisional totals for the draft header.
+    let subtotalMinor = 0;
+    let taxMinor = 0;
+    const taxInclusive = getSetting('tax_inclusive', '0') === '1';
+    for (const it of restItems) {
+      const product = db.prepare('SELECT id, code, name, unit_price, tax_rate FROM products WHERE id=? OR code=? LIMIT 1').get(it.productId, it.productId);
+      const qty = toNum(it.qty, 1);
+      const price = it.unitPrice != null ? toNum(it.unitPrice) : toNum(product?.unit_price);
+      const discountMinor = clampMinor(toMinor(it.discount), toMinor(qty * price));
+      const taxRate = it.taxRate != null ? toNum(it.taxRate) : toNum(product?.tax_rate, defaultTaxRate());
+      const lineGross = toMinor(qty * price) - discountMinor;
+      let net = lineGross;
+      let tax = pctOf(lineGross, taxRate);
+      if (taxInclusive && taxRate > 0) {
+        net = Math.round((lineGross * 100) / (100 + taxRate));
+        tax = lineGross - net;
+      }
+      subtotalMinor += net;
+      taxMinor += tax;
+    }
+    const discountMinor = clampMinor(toMinor(toNum(data.discount_amount ?? data.discountAmount)), subtotalMinor + taxMinor);
+    const totalMinor = Math.max(0, subtotalMinor + taxMinor - discountMinor);
+
+    const existingName = String(data.name || '').trim().slice(0, 64);
+    const existing = existingName ? db.prepare("SELECT id FROM invoices WHERE id=? AND status='DRAFT'").get(existingName) : null;
+    const id = existing?.id || crypto.randomUUID();
+    const number = existing ? (db.prepare('SELECT number FROM invoices WHERE id=?').get(id)?.number || `DRAFT-${id.slice(0, 8).toUpperCase()}`) : `DRAFT-${id.slice(0, 8).toUpperCase()}`;
+    const shiftId = String(data.posa_pos_opening_shift || data.shift_id || '').trim().slice(0, 64) || null;
+    const terminalId = String(data.terminal_id || 'POS-01').trim().slice(0, 32);
+
+    if (existing) {
+      db.prepare(`UPDATE invoices SET customer_id=?,customer_name=?,subtotal=?,discount_amount=?,tax_amount=?,total=?,notes=?,shift_id=?,terminal_id=?,updated_by=?,updated_at=datetime('now') WHERE id=?`)
+        .run(customerId, customerName, toMajor(subtotalMinor), toMajor(discountMinor), toMajor(taxMinor), toMajor(totalMinor), String(data.notes || '').slice(0, 1000), shiftId, terminalId, req.user?.username || null, id);
+    } else {
+      db.prepare(`INSERT INTO invoices (id,number,customer_id,customer_name,subtotal,discount_amount,tax_amount,total,paid_amount,remaining_amount,status,currency,notes,shift_id,terminal_id,created_by)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .run(id, number, customerId, customerName, toMajor(subtotalMinor), toMajor(discountMinor), toMajor(taxMinor), toMajor(totalMinor), 0, toMajor(totalMinor), 'DRAFT', String(data.currency || getSetting('currency', 'SAR')).slice(0, 10), String(data.notes || '').slice(0, 1000), shiftId, terminalId, req.user?.username || null);
+    }
+
+    // Persist draft children so get_invoice / finalize can reload them.
+    db.transaction(() => {
+      db.prepare('DELETE FROM invoice_items WHERE invoice_id=?').run(id);
+      db.prepare('DELETE FROM payments WHERE invoice_id=?').run(id);
+      const insertItem = db.prepare(`INSERT INTO invoice_items (id,invoice_id,product_id,product_name,name_ar,barcode,qty,unit_price,discount,tax_rate,tax_amount,total,uom,warehouse_id,free_qty,is_free_item) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+      for (const it of restItems) {
+        const product = db.prepare('SELECT id,code,name,name_ar,barcode,unit_price,tax_rate FROM products WHERE id=? OR code=? LIMIT 1').get(it.productId, it.productId);
+        if (!product) continue;
+        const qty = toNum(it.qty, 1);
+        const price = it.unitPrice != null ? toNum(it.unitPrice) : toNum(product.unit_price);
+        const discountMinor = clampMinor(toMinor(it.discount), toMinor(qty * price));
+        const taxRate = it.taxRate != null ? toNum(it.taxRate) : toNum(product.tax_rate, defaultTaxRate());
+        const lineGross = toMinor(qty * price) - discountMinor;
+        let net = lineGross;
+        let tax = pctOf(lineGross, taxRate);
+        if (taxInclusive && taxRate > 0) {
+          net = Math.round((lineGross * 100) / (100 + taxRate));
+          tax = lineGross - net;
+        }
+        const wh = it.warehouseId || 'W-01';
+        insertItem.run(
+          crypto.randomUUID(), id, product.id, product.name, product.name_ar || '', product.barcode || '',
+          qty, price, toMajor(discountMinor), taxRate, toMajor(tax), toMajor(net + tax),
+          String(it.uom || 'Unit').slice(0, 20), wh, Number(it.freeQty) || 0, it.isFreeItem ? 1 : 0,
+        );
+      }
+      const insertPayment = db.prepare('INSERT INTO payments (id,invoice_id,method,amount,reference) VALUES (?,?,?,?,?)');
+      for (const p of payments) {
+        insertPayment.run(crypto.randomUUID(), id, p.method, p.amount, p.reference || '');
+      }
+    })();
+
+    const inv = db.prepare('SELECT * FROM invoices WHERE id=?').get(id);
+    const doc = {
+      ...mapInvoiceRowToDoc(inv),
+      docstatus: 0,
+      status: 'DRAFT',
+      items: rawItems,
+      payments,
+      grand_total: inv.total,
+      pos_profile: data.pos_profile || 'POS',
+      customer: customerId || 'WALK-IN',
+      is_pos: 1,
+      update_stock: 1,
+    };
+    req.audit?.('invoice.draft', { invoiceId: id });
+    return res.json({ message: doc, data: doc });
+  } catch (e) {
+    return frappeError(res, mapErrorStatus(e, 400), 'ValidationError', String(e.message || 'فشل حفظ المسودة').slice(0, 300));
+  }
+});
+
+def('DyPOS.api.invoices.submit_invoice', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  try {
+    const invoice = parseMaybeJson(params.invoice) || {};
+    const data = parseMaybeJson(params.data) || {};
+    const source = (invoice && Object.keys(invoice).length ? invoice : (data && Object.keys(data).length ? data : params)) || {};
+    const rawItems = Array.isArray(source.items) ? source.items
+      : Array.isArray(data.items) ? data.items
+        : Array.isArray(params.items) ? params.items
+          : [];
+    if (!rawItems.length) return frappeError(res, 400, 'ValidationError', 'سلة فارغة');
+
+    const customerIdRaw = String(source.customer || source.customerId || data.customer || params.customer || '').trim();
+    let customerId = customerIdRaw || null;
+    let customerName = String(source.customer_name || data.customer_name || '').trim();
+    if (customerId && customerId !== 'WALK-IN') {
+      const crow = db.prepare('SELECT id, name FROM customers WHERE id=?').get(customerId);
+      if (crow) customerName = customerName || crow.name;
+    } else {
+      customerId = customerIdRaw && customerIdRaw !== 'WALK-IN' ? customerIdRaw : null;
+    }
+    if (!customerName) customerName = customerId ? (db.prepare('SELECT name FROM customers WHERE id=?').get(customerId)?.name || 'Walk-in Customer') : 'Walk-in Customer';
+
+    let payments = mapPaymentsFromFrappe(source.payments || data.payments || params.payments || []);
+    if (!payments.length && (params.mode_of_payment || params.amount != null)) {
+      payments = mapPaymentsFromFrappe([{ mode_of_payment: params.mode_of_payment || 'CASH', amount: params.amount }]);
+    }
+    const draftId = String(source.name || invoice.name || data.name || '').trim().slice(0, 64) || null;
+    const isDraft = draftId ? Boolean(db.prepare("SELECT id FROM invoices WHERE id=? AND status='DRAFT'").get(draftId)) : false;
+
+    const payload = {
+      items: rawItems,
+      payments,
+      customerId,
+      customerName,
+      warehouseId: source.warehouse || data.warehouse || params.warehouse || 'W-01',
+      shiftId: source.posa_pos_opening_shift || source.shift_id || data.shift_id || '',
+      terminalId: source.terminal_id || data.terminal_id || 'POS-01',
+      discountAmount: toNum(source.discount_amount ?? data.discount_amount ?? params.discount_amount),
+      couponCode: source.coupon_code || data.coupon_code || '',
+      currency: source.currency || data.currency || getSetting('currency', 'SAR'),
+      notes: source.notes || data.notes || '',
+      idempotencyKey: data.idempotencyKey || source.idempotencyKey || params.idempotencyKey || '',
+      change_amount: toNum(data.change_amount ?? params.change_amount),
+      write_off_amount: toNum(data.write_off_amount ?? params.write_off_amount),
+      existingId: isDraft ? draftId : null,
+      name: isDraft ? draftId : null,
+    };
+
+    const out = createOrFinalizeSale(req, payload);
+    req.audit?.('invoice.submit', { invoiceId: out.id, total: out.total, status: out.status });
+    return res.json({ message: out, data: out });
+  } catch (e) {
+    return frappeError(res, mapErrorStatus(e, 400), 'ValidationError', String(e.message || 'فشل إرسال الفاتورة').slice(0, 300));
+  }
+});
+
+def('DyPOS.api.invoices.get_invoice', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const id = String(params.invoice_name || params.name || params.invoice || params.id || '').trim().slice(0, 64);
+  if (!id) return frappeError(res, 400, 'ValidationError', 'invoice_name مطلوب');
+  const full = loadInvoiceFull(id);
+  if (!full) return frappeError(res, 404, 'NotFoundError', 'الفاتورة غير موجودة');
+  const doc = mapInvoiceRowToDoc(full.inv, full.items, full.pays);
+  return res.json({ message: doc, ...doc });
+});
+
+def('DyPOS.api.invoices.apply_offers', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  try {
+    const invoiceData = parseMaybeJson(params.invoice_data) || {};
+    const selected = parseMaybeJson(params.selected_offers) || [];
+    const selectedList = (Array.isArray(selected) ? selected : [selected]).map((s) => String(s)).filter(Boolean);
+    const rawItems = Array.isArray(invoiceData.items) ? invoiceData.items : [];
+    if (!rawItems.length) return frappeError(res, 400, 'ValidationError', 'items مطلوبة');
+
+    const customerId = String(invoiceData.customer || '').trim() || null;
+    const headerDiscountIn = toNum(invoiceData.discount_amount);
+
+    let subtotal = 0;
+    const lines = [];
+    for (const it of rawItems) {
+      const code = String(it.item_code || it.productId || '').trim();
+      const qty = toNum(it.qty ?? it.quantity, 1);
+      const rate = toNum(it.rate ?? it.unitPrice);
+      const priceListRate = toNum(it.price_list_rate, rate);
+      const lineDisc = toNum(it.discount_amount);
+      const lineNet = Math.max(0, qty * priceListRate - lineDisc);
+      subtotal += lineNet;
+      lines.push({ item_code: code, qty, rate, price_list_rate: priceListRate, discount_amount: lineDisc, amount: lineNet, ref: it });
+    }
+    subtotal = Math.round(subtotal * 100) / 100;
+    const totalQty = lines.reduce((a, l) => a + l.qty, 0);
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    let boughtBefore = false;
+    if (customerId) {
+      boughtBefore = Boolean(db.prepare(`SELECT 1 FROM invoices WHERE customer_id=? AND status IN ('PAID','PARTIAL','UNPAID') LIMIT 1`).get(customerId));
+    }
+
+    const offers = db.prepare(`SELECT * FROM offers WHERE is_active=1 AND (valid_from IS NULL OR substr(valid_from,1,10)<=?) AND (valid_to IS NULL OR substr(valid_to,1,10)>=?)`).all(todayStr, todayStr);
+    const byName = new Map(offers.map((o) => [o.name, o]));
+    const byId = new Map(offers.map((o) => [o.id, o]));
+
+    const outItems = rawItems.map((it) => ({
+      item_code: it.item_code,
+      item_name: it.item_name,
+      qty: toNum(it.qty ?? it.quantity, 1),
+      rate: toNum(it.rate),
+      price_list_rate: toNum(it.price_list_rate, toNum(it.rate)),
+      discount_amount: toMinor(toNum(it.discount_amount)),
+      discount_percentage: toNum(it.discount_percentage),
+      amount: toMinor(toNum(it.amount)),
+      uom: it.uom,
+      warehouse: it.warehouse,
+      is_free_item: Number(it.is_free_item) || 0,
+      pricing_rules: it.pricing_rules || null,
+    }));
+
+    const freeItems = [];
+    const appliedRules = [];
+    let headerDiscount = 0;
+    let applyDiscountOn = null;
+
+    const activeNames = selectedList.length ? selectedList : offers.filter((o) => Number(o.one_time_per_customer) !== 1 || !boughtBefore).map((o) => o.name);
+
+    for (const key of activeNames) {
+      const offer = byName.get(key) || byId.get(key) || offers.find((o) => String(o.id) === key || String(o.name) === key);
+      if (!offer) continue;
+      if (Number(offer.one_time_per_customer) === 1 && boughtBefore) continue;
+      if (Number(offer.min_amount) > 0 && subtotal < Number(offer.min_amount)) continue;
+      if (Number(offer.min_qty) > 0 && totalQty < Number(offer.min_qty)) continue;
+
+      if (offer.type === 'PERCENT') {
+        let off = (subtotal * Number(offer.value)) / 100;
+        if (Number(offer.max_amount) > 0) off = Math.min(off, Number(offer.max_amount));
+        off = Math.round(Math.min(Math.max(off, 0), subtotal) * 100) / 100;
+        if (off > 0) {
+          appliedRules.push(offer.name);
+          // Apply as line discounts proportionally when no transaction rule flag.
+          headerDiscount += off;
+          applyDiscountOn = 'Grand Total';
+        }
+      } else if (offer.type === 'FIXED') {
+        const off = Math.round(Math.min(Number(offer.value), subtotal) * 100) / 100;
+        if (off > 0) {
+          appliedRules.push(offer.name);
+          headerDiscount += off;
+          applyDiscountOn = 'Grand Total';
+        }
+      } else if (offer.type === 'BXGY') {
+        const buy = Math.max(1, Math.floor(Number(offer.min_qty) || 1));
+        const free = Math.max(1, Math.floor(Number(offer.value) || 1));
+        let any = false;
+        for (const ln of lines) {
+          const sets = Math.floor(ln.qty / buy);
+          if (sets <= 0) continue;
+          let freeQty = sets * free;
+          if (Number(offer.max_qty) > 0) freeQty = Math.min(freeQty, Number(offer.max_qty));
+          if (freeQty > 0) {
+            freeItems.push({ item_code: ln.item_code, qty: freeQty, rate: 0, is_free_item: 1, offer_name: offer.name });
+            any = true;
+          }
+        }
+        if (any) appliedRules.push(offer.name);
+      }
+    }
+
+    // Coupon from invoice_data.coupon_code → header discount (non-cumulative with offers beyond subtotal).
+    if (invoiceData.coupon_code) {
+      const code = String(invoiceData.coupon_code).trim().toUpperCase();
+      const c = db.prepare('SELECT * FROM coupons WHERE code=?').get(code);
+      if (c) {
+        const r = computeCouponDiscount(c, subtotal);
+        if (r.ok) {
+          headerDiscount += r.discount;
+          applyDiscountOn = applyDiscountOn || 'Grand Total';
+          if (!appliedRules.includes(code)) appliedRules.push(code);
+        }
+      }
+    }
+
+    headerDiscount = Math.round(Math.min(headerDiscount + 0, subtotal) * 100) / 100;
+    if (headerDiscountIn > 0 && headerDiscount === 0) {
+      headerDiscount = headerDiscountIn;
+      applyDiscountOn = applyDiscountOn || 'Grand Total';
+    }
+
+    return res.json({
+      message: {
+        items: outItems,
+        free_items: freeItems,
+        applied_pricing_rules: appliedRules,
+        discount_amount: toMinor(headerDiscount),
+        apply_discount_on: applyDiscountOn,
+        subtotal: toMinor(subtotal),
+        success: true,
+      },
+    });
+  } catch (e) {
+    return frappeError(res, mapErrorStatus(e, 400), 'ValidationError', String(e.message || 'فشل تطبيق العروض').slice(0, 300));
+  }
+});
+
+def('DyPOS.api.invoices.cleanup_old_drafts', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const hours = Math.min(Math.max(toNum(params.max_age_hours, 1), 0.01), 720);
+  try {
+    const upd = db.transaction(() => {
+      const stale = db.prepare(`SELECT id FROM invoices WHERE status='DRAFT' AND created_at < datetime('now', ?)`)
+        .all(`-${hours} hours`);
+      for (const row of stale) {
+        db.prepare('DELETE FROM invoice_items WHERE invoice_id=?').run(row.id);
+        db.prepare('DELETE FROM payments WHERE invoice_id=?').run(row.id);
+        db.prepare('DELETE FROM invoices WHERE id=?').run(row.id);
+      }
+      return stale.length;
+    })();
+    return res.json({ message: { deleted: upd || 0, max_age_hours: hours } });
+  } catch (e) {
+    return res.json({ message: { deleted: 0, error: String(e.message).slice(0, 120) } });
+  }
+});
+
+// ── Partial payments ────────────────────────────────────────────────────
+function unpaidInvoiceRow(r) {
+  return {
+    name: r.id,
+    id: r.id,
+    invoice_name: r.id,
+    doctype: 'Sales Invoice',
+    customer: r.customer_id || 'WALK-IN',
+    customer_name: r.customer_name,
+    grand_total: r.total,
+    total: r.total,
+    outstanding_amount: r.remaining_amount,
+    total_outstanding: r.remaining_amount,
+    paid_amount: r.paid_amount,
+    status: r.status,
+    number: r.number,
+    posting_date: String(r.created_at || '').slice(0, 10),
+    creation: r.created_at,
+    modified: r.updated_at || r.created_at,
+  };
+}
+
+def('DyPOS.api.partial_payments.get_unpaid_invoices', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const limit = Math.min(Math.max(Number(params.limit) || 100, 1), 200);
+  try {
+    const rows = db.prepare(
+      `SELECT * FROM invoices WHERE status IN ('UNPAID','PARTIAL') AND remaining_amount > 0.01 ORDER BY created_at DESC LIMIT ?`
+    ).all(limit);
+    return res.json({ message: rows.map(unpaidInvoiceRow) });
+  } catch {
+    return res.json({ message: [] });
+  }
+});
+
+def('DyPOS.api.partial_payments.get_unpaid_summary', (_p, req, res) => {
+  if (!requireUser(req, res)) return;
+  try {
+    const row = db.prepare(
+      `SELECT COUNT(*) as count, COALESCE(SUM(remaining_amount),0) as total_outstanding, COALESCE(SUM(paid_amount),0) as total_paid
+       FROM invoices WHERE status IN ('UNPAID','PARTIAL') AND remaining_amount > 0.01`
+    ).get();
+    return res.json({ message: { count: row?.count || 0, total_outstanding: row?.total_outstanding || 0, total_paid: row?.total_paid || 0 } });
+  } catch {
+    return res.json({ message: { count: 0, total_outstanding: 0, total_paid: 0 } });
+  }
+});
+
+def('DyPOS.api.partial_payments.get_partial_paid_invoices', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const limit = Math.min(Math.max(Number(params.limit) || 50, 1), 200);
+  try {
+    const rows = db.prepare(
+      `SELECT * FROM invoices WHERE status='PARTIAL' AND remaining_amount > 0.01 ORDER BY created_at DESC LIMIT ?`
+    ).all(limit);
+    return res.json({ message: rows.map(unpaidInvoiceRow) });
+  } catch {
+    return res.json({ message: [] });
+  }
+});
+
+def('DyPOS.api.partial_payments.get_partial_payment_summary', (_p, req, res) => {
+  if (!requireUser(req, res)) return;
+  try {
+    const row = db.prepare(
+      `SELECT COUNT(*) as count, COALESCE(SUM(remaining_amount),0) as total_outstanding, COALESCE(SUM(paid_amount),0) as total_paid
+       FROM invoices WHERE status='PARTIAL' AND remaining_amount > 0.01`
+    ).get();
+    return res.json({ message: { count: row?.count || 0, total_outstanding: row?.total_outstanding || 0, total_paid: row?.total_paid || 0 } });
+  } catch {
+    return res.json({ message: { count: 0, total_outstanding: 0, total_paid: 0 } });
+  }
+});
+
+def('DyPOS.api.partial_payments.get_partial_payment_details', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const id = String(params.invoice_name || params.name || '').trim().slice(0, 64);
+  if (!id) return frappeError(res, 400, 'ValidationError', 'invoice_name مطلوب');
+  const full = loadInvoiceFull(id);
+  if (!full) return frappeError(res, 404, 'NotFoundError', 'الفاتورة غير موجودة');
+  const doc = mapInvoiceRowToDoc(full.inv, full.items, full.pays);
+  return res.json({ message: doc, ...doc });
+});
+
+def('DyPOS.api.partial_payments.add_payment_to_partial_invoice', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  try {
+    const id = String(params.invoice_name || params.name || '').trim().slice(0, 64);
+    if (!id) return frappeError(res, 400, 'ValidationError', 'invoice_name مطلوب');
+    const paymentsIn = parseMaybeJson(params.payments) || [];
+    const list = mapPaymentsFromFrappe(paymentsIn);
+    if (!list.length) return frappeError(res, 400, 'ValidationError', 'payments مطلوبة');
+
+    const out = db.transaction(() => {
+      const inv = db.prepare('SELECT * FROM invoices WHERE id=?').get(id);
+      if (!inv) throw Object.assign(new Error('الفاتورة غير موجودة'), { statusCode: 404 });
+      if (['PAID', 'VOIDED', 'RETURNED', 'DRAFT'].includes(inv.status)) {
+        throw Object.assign(new Error(inv.status === 'PAID' ? 'الفاتورة مدفوعة بالفعل' : 'لا يمكن الدفع على هذه الفاتورة'), { statusCode: 400 });
+      }
+      let paidMinor = toMinor(inv.paid_amount);
+      const totalMinor = toMinor(inv.total);
+      for (const p of list) {
+        const amt = toNum(p.amount);
+        if (!(amt > 0) || amt > 10_000_000) throw Object.assign(new Error('المبلغ أكبر من صفر'), { statusCode: 400 });
+        const pm = String(p.method || 'CASH').toUpperCase().slice(0, 20);
+        db.prepare('INSERT INTO payments (id,invoice_id,method,amount,reference) VALUES (?,?,?,?,?)')
+          .run(crypto.randomUUID(), inv.id, pm, amt, String(p.reference || '').slice(0, 128));
+        paidMinor += toMinor(amt);
+      }
+      const paidCapped = Math.min(paidMinor, totalMinor);
+      const remaining = Math.max(0, totalMinor - paidCapped);
+      const status = remaining <= 1 ? 'PAID' : 'PARTIAL';
+      db.prepare(`UPDATE invoices SET paid_amount=?,remaining_amount=?,status=?,paid_at=COALESCE(paid_at,?),updated_by=?,updated_at=datetime('now') WHERE id=? AND status NOT IN ('PAID','VOIDED','RETURNED')`)
+        .run(toMajor(paidCapped), toMajor(remaining), status, status === 'PAID' ? new Date().toISOString() : null, req.user?.username || null, inv.id);
+      if (inv.customer_id && remaining < toMinor(inv.remaining_amount)) {
+        const released = toMajor(Math.max(0, toMinor(inv.remaining_amount) - remaining));
+        if (released > 0) {
+          db.prepare('UPDATE customers SET credit_used=MAX(0,credit_used-?),updated_at=datetime(\'now\') WHERE id=?').run(released, inv.customer_id);
+        }
+      }
+      try { appendChain(inv.id, { number: inv.number, total: inv.total, status, action: 'PAY' }); } catch { /* ignore */ }
+      const fresh = db.prepare('SELECT * FROM invoices WHERE id=?').get(inv.id);
+      return mapInvoiceRowToDoc(fresh, db.prepare('SELECT * FROM invoice_items WHERE invoice_id=?').all(inv.id), db.prepare('SELECT * FROM payments WHERE invoice_id=?').all(inv.id));
+    })();
+
+    req.audit?.('invoice.partial_pay', { invoiceId: id, status: out.status });
+    return res.json({ message: out, ...out });
+  } catch (e) {
+    return frappeError(res, mapErrorStatus(e, 400), 'ValidationError', String(e.message || 'فشل الدفع').slice(0, 300));
+  }
+});
+
+// ── Shifts: check / closing data / history ──────────────────────────────
+def('DyPOS.api.shifts.check_opening_shift', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  try {
+    const terminal = String(params.terminal_id || params.terminalId || params.pos_profile || '').trim().slice(0, 32);
+    const row = terminal
+      ? (db.prepare("SELECT * FROM shifts WHERE terminal_id=? AND status='OPEN' LIMIT 1").get(terminal)
+        || db.prepare("SELECT * FROM shifts WHERE status='OPEN' ORDER BY opened_at DESC LIMIT 1").get())
+      : db.prepare("SELECT * FROM shifts WHERE status='OPEN' ORDER BY opened_at DESC LIMIT 1").get();
+    if (!row) return res.json({ message: null });
+    const settings = allSettings();
+    const posProfile = {
+      name: row.terminal_id || 'POS',
+      pos_profile: row.terminal_id || 'POS',
+      company: settings.business_name || 'DyPOS',
+      warehouse: 'W-01',
+      currency: settings.currency || 'SAR',
+    };
+    const message = {
+      server_now: new Date().toISOString(),
+      pos_opening_shift: {
+        name: row.id,
+        id: row.id,
+        doctype: 'POS Opening Shift',
+        period_start_date: row.opened_at,
+        opening_cash: row.opening_cash,
+        opening_cash_details: [{ denomination: '', amount: row.opening_cash, total: row.opening_cash }],
+        status: row.status,
+        terminal_id: row.terminal_id,
+        created_by: row.opened_by,
+      },
+      pos_profile: posProfile,
+      company: settings.business_name || 'DyPOS',
+    };
+    return res.json({ message });
+  } catch (e) {
+    return frappeError(res, mapErrorStatus(e, 500), 'ServerError', String(e.message || 'خطأ').slice(0, 200));
+  }
+});
+
+def('DyPOS.api.shifts.get_closing_shift_data', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  try {
+    const opening = parseMaybeJson(params.opening_shift) || {};
+    const shiftId = String(opening.name || opening.id || params.shift_id || params.shift || '').trim().slice(0, 64);
+    const shift = shiftId ? db.prepare('SELECT * FROM shifts WHERE id=?').get(shiftId)
+      : db.prepare("SELECT * FROM shifts WHERE status='OPEN' ORDER BY opened_at DESC LIMIT 1").get();
+    if (!shift) return frappeError(res, 404, 'NotFoundError', 'الوردية غير موجودة');
+    const stats = db.prepare(`SELECT COUNT(*) as orders_count, COALESCE(SUM(total),0) as total_sales, COALESCE(SUM(paid_amount),0) as paid_total FROM invoices WHERE shift_id=? AND status IN ('PAID','PARTIAL')`).get(shift.id);
+    const payments = db.prepare(`SELECT p.method, COALESCE(SUM(p.amount),0) as total, COUNT(*) as count FROM payments p JOIN invoices i ON p.invoice_id=i.id WHERE i.shift_id=? AND i.status IN ('PAID','PARTIAL') GROUP BY p.method`).all(shift.id);
+    const cashTotal = payments.filter((p) => p.method === 'CASH').reduce((a, p) => a + toNum(p.total), 0);
+    const expected = Math.round((toNum(shift.opening_cash) + cashTotal) * 100) / 100;
+    const settings = allSettings();
+    return res.json({
+      message: {
+        shift_id: shift.id,
+        name: shift.id,
+        status: shift.status,
+        period_start_date: shift.opened_at,
+        opening_cash: shift.opening_cash,
+        expected_cash: expected,
+        total_sales: stats.total_sales,
+        total_orders: stats.orders_count,
+        orders_count: stats.orders_count,
+        paid_total: stats.paid_total,
+        payments,
+        pos_profile: { name: shift.terminal_id || 'POS', pos_profile: shift.terminal_id || 'POS', company: settings.business_name || 'DyPOS', warehouse: 'W-01' },
+        company: settings.business_name || 'DyPOS',
+        opening_shift: shift,
+      },
+    });
+  } catch (e) {
+    return frappeError(res, mapErrorStatus(e, 404), 'NotFoundError', String(e.message || 'الوردية غير موجودة').slice(0, 200));
+  }
+});
+
+def('DyPOS.api.shifts.get_shift_history', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  try {
+    const filters = parseMaybeJson(params.filters) || {};
+    const limit = Math.min(Math.max(Number(params.limit) || 50, 1), 200);
+    const offset = Math.max(Number(params.offset) || 0, 0);
+    let where = '1=1';
+    const sql = [];
+    const status = String(filters.status || '').toUpperCase();
+    if (status === 'OPEN' || status === 'CLOSED') { where += ' AND status=?'; sql.push(status); }
+    const terminal = String(filters.terminal || filters.terminal_id || '').slice(0, 32);
+    if (terminal) { where += ' AND terminal_id=?'; sql.push(terminal); }
+    const fromDate = String(filters.from_date || '').slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) { where += ' AND opened_at >= ?'; sql.push(`${fromDate} 00:00:00`); }
+    const toDate = String(filters.to_date || '').slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(toDate)) { where += ' AND opened_at <= ?'; sql.push(`${toDate} 23:59:59`); }
+
+    const totalRow = db.prepare(`SELECT COUNT(*) as c FROM shifts WHERE ${where}`).get(...sql);
+    const rows = db.prepare(`SELECT * FROM shifts WHERE ${where} ORDER BY opened_at DESC LIMIT ? OFFSET ?`).all(...sql, limit, offset);
+    const mapped = rows.map((r) => ({
+      name: r.id,
+      id: r.id,
+      doctype: 'POS Closing Shift',
+      status: r.status,
+      period_start_date: r.opened_at,
+      period_end_date: r.closed_at,
+      opening_cash: r.opening_cash,
+      closing_cash: r.closing_cash,
+      expected_cash: r.expected_cash,
+      difference: r.variance,
+      cash_diff: r.variance,
+      sales_total: r.total_sales,
+      total_sales: r.total_sales,
+      orders_count: r.orders_count,
+      terminal_id: r.terminal_id,
+      opened_by: r.opened_by,
+      closed_by: r.closed_by,
+    }));
+    const totals = {
+      total_sales: mapped.reduce((a, r) => a + toNum(r.sales_total), 0),
+      total_cash_diff: mapped.reduce((a, r) => a + toNum(r.difference), 0),
+      total_shifts: totalRow?.c || mapped.length,
+    };
+    return res.json({ message: { rows: mapped, totals, total: totalRow?.c || 0, limit, offset, hasMore: offset + mapped.length < (totalRow?.c || 0) } });
+  } catch (e) {
+    return frappeError(res, mapErrorStatus(e, 400), 'ValidationError', String(e.message || 'خطأ').slice(0, 200));
+  }
+});
+
+// Enhance create_opening_shift response for useShift onSuccess shape when balance_details present
+const _origCreateOpening = handlers.get('DyPOS.api.shifts.create_opening_shift')?.handler;
+if (_origCreateOpening) {
+  def('DyPOS.api.shifts.create_opening_shift', (params, req, res) => {
+    // Prefer Frappe-style balance_details / pos_profile payload.
+    const balance = parseMaybeJson(params.balance_details);
+    const openingCash = params.opening_cash != null ? toNum(params.opening_cash)
+      : params.cash_amount != null ? toNum(params.cash_amount)
+        : Array.isArray(balance) ? toNum(balance[0]?.opening_amount ?? balance[0]?.amount)
+          : toNum(params.openingCash);
+    const terminalId = String(params.pos_profile || params.terminal_id || params.terminalId || 'POS-01').slice(0, 32);
+    const company = String(params.company || allSettings().business_name || 'DyPOS').slice(0, 200);
+
+    if (!requireUser(req, res)) return;
+    try {
+      const existing = db.prepare('SELECT id FROM shifts WHERE terminal_id=? AND status=?').get(terminalId, 'OPEN');
+      if (existing) return frappeError(res, 409, 'ValidationError', 'يوجد وردية مفتوحة بالفعل');
+      const id = crypto.randomUUID();
+      db.prepare('INSERT INTO shifts (id,terminal_id,opened_by,opening_cash,status) VALUES (?,?,?,?,?)')
+        .run(id, terminalId, req.user.fullName || req.user.username, openingCash, 'OPEN');
+      req.audit?.('shift.open', { shiftId: id, terminalId });
+      const settings = allSettings();
+      const message = {
+        shift_id: id,
+        name: id,
+        terminal_id: terminalId,
+        opening_cash: openingCash,
+        status: 'OPEN',
+        pos_opening_shift: {
+          name: id,
+          id,
+          doctype: 'POS Opening Shift',
+          period_start_date: new Date().toISOString(),
+          opening_cash: openingCash,
+          status: 'OPEN',
+          terminal_id: terminalId,
+        },
+        pos_profile: {
+          name: terminalId,
+          pos_profile: terminalId,
+          company,
+          warehouse: 'W-01',
+          currency: settings.currency || 'SAR',
+        },
+        company,
+      };
+      return res.json({ message });
+    } catch (e) {
+      return frappeError(res, mapErrorStatus(e, 400), 'ValidationError', String(e.message || 'فشل فتح الوردية').slice(0, 200));
+    }
+  });
+}
+
+// ── Customers: create ───────────────────────────────────────────────────
+def('DyPOS.api.customers.create_customer', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  try {
+    const name = String(params.customer_name || params.name || '').trim().slice(0, 200);
+    if (!name) return frappeError(res, 400, 'ValidationError', 'اسم العميل مطلوب');
+    const phone = String(params.mobile_no || params.phone || '').trim().slice(0, 32);
+    if (phone && !/^[+\d][\d\s-]{5,30}$/.test(phone)) return frappeError(res, 400, 'ValidationError', 'رقم الجوال غير صالح');
+    const email = String(params.email_id || params.email || '').trim().slice(0, 128);
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return frappeError(res, 400, 'ValidationError', 'البريد الإلكتروني غير صالح');
+
+    const id = crypto.randomUUID();
+    db.prepare(`INSERT INTO customers (id,name,phone,email,tax_number,loyalty_tier,credit_limit,address,created_by) VALUES (?,?,?,?,?,?,?,?,?)`)
+      .run(id, name, phone || null, email || null, String(params.tax_number || '').trim().slice(0, 64) || null,
+        'BRONZE', Math.max(0, toNum(params.credit_limit)),
+        String([params.custom_district, params.custom_governorate, params.territory].filter(Boolean).join('، ')).slice(0, 500),
+        req.user?.username || null);
+    req.audit?.('customer.create', { customerId: id });
+    const row = db.prepare('SELECT * FROM customers WHERE id=?').get(id);
+    const message = {
+      ...mapCustomer(row),
+      name: id,
+      customer_name: name,
+      customer: id,
+      mobile_no: phone,
+      email_id: email,
+      customer_group: String(params.customer_group || '').slice(0, 64),
+      territory: String(params.territory || '').slice(0, 64),
+      success: true,
+    };
+    return res.json({ message });
+  } catch (e) {
+    return frappeError(res, mapErrorStatus(e, 400), 'ValidationError', String(e.message || 'فشل إنشاء العميل').slice(0, 200));
+  }
+});
+
+// ── Auth: session verify / extend ───────────────────────────────────────
+def('DyPOS.api.auth.verify_session_password', async (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const password = String(params.password || params.pwd || '');
+  if (!password) return frappeError(res, 400, 'ValidationError', 'كلمة المرور مطلوبة');
+  try {
+    const user = db.prepare('SELECT * FROM users WHERE id=? OR username=? LIMIT 1').get(req.user.id, req.user.username);
+    if (!user) return res.json({ message: { verified: false, message: 'المستخدم غير موجود' } });
+    let ok = false;
+    try { ok = await verifyPasswordAsync(password, user.password_hash); } catch { ok = false; }
+    if (!ok) return res.json({ message: { verified: false, message: 'كلمة المرور غير صحيحة' } });
+    return res.json({ message: { verified: true, message: 'تم التحقق بنجاح' } });
+  } catch (e) {
+    return frappeError(res, mapErrorStatus(e, 500), 'ServerError', String(e.message || 'خطأ').slice(0, 200));
+  }
+});
+
+def('DyPOS.api.auth.extend_session', (_p, req, res) => {
+  if (!requireUser(req, res)) return;
+  // Sliding session: issue a fresh token for the same user (rotates jti).
+  try {
+    const user = db.prepare('SELECT * FROM users WHERE id=? AND is_active=1').get(req.user.id);
+    if (!user) return frappeError(res, 404, 'NotFoundError', 'المستخدم غير موجود');
+    if (req.token) {
+      try { revokeToken(req.token); } catch { /* best-effort */ }
+    }
+    const token = generateToken(user);
+    setAuthCookies(res, token, {
+      username: user.username,
+      fullName: user.full_name,
+    });
+    req.audit?.('auth.extend', { userId: user.id });
+    return res.json({ message: { extended: true, token } });
+  } catch (e) {
+    return frappeError(res, mapErrorStatus(e, 500), 'ServerError', String(e.message || 'خطأ').slice(0, 200));
+  }
+});
+
+// ── Offers: active coupons + validate ───────────────────────────────────
+def('DyPOS.api.offers.get_active_coupons', (_p, req, res) => {
+  if (!requireUser(req, res)) return;
+  try {
+    const t = new Date().toISOString().slice(0, 10);
+    const rows = db.prepare(
+      `SELECT id, code, discount_type, discount, max_discount, min_purchase, max_uses, used_count, valid_from, valid_to, is_active
+       FROM coupons WHERE is_active=1 AND (valid_from IS NULL OR valid_from<=?) AND (valid_to IS NULL OR valid_to>=?)
+       ORDER BY created_at DESC LIMIT 100`
+    ).all(t, t);
+    const mapped = rows.map((c) => ({
+      ...c,
+      name: c.code,
+      coupon_name: c.code,
+      coupon_code: c.code,
+      doctype: 'POS Coupon',
+    }));
+    return res.json({ message: mapped });
+  } catch {
+    return res.json({ message: [] });
+  }
+});
+
+def('DyPOS.api.offers.validate_coupon', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const code = String(params.coupon_code || params.code || '').trim().toUpperCase().slice(0, 64);
+  if (!code) return frappeError(res, 400, 'ValidationError', 'الكود مطلوب');
+  try {
+    const c = db.prepare('SELECT * FROM coupons WHERE code=?').get(code);
+    if (!c) return frappeError(res, 404, 'NotFoundError', 'الكوبون غير موجود');
+    // subtotal unknown here — validate structure only; amount applied at cart/submit.
+    const t = new Date().toISOString().slice(0, 10);
+    if (c.valid_from && String(c.valid_from).slice(0, 10) > t) return frappeError(res, 400, 'ValidationError', 'الكوبون لم يبدأ بعد');
+    if (c.valid_to && String(c.valid_to).slice(0, 10) < t) return frappeError(res, 400, 'ValidationError', 'الكوبون منتهي');
+    if (Number(c.max_uses) > 0 && Number(c.used_count) >= Number(c.max_uses)) return frappeError(res, 400, 'ValidationError', 'تجاوز حد الاستخدام');
+    if (Number(c.is_active) !== 1) return frappeError(res, 400, 'ValidationError', 'الكوبون غير نشط');
+    return res.json({
+      message: {
+        valid: true,
+        coupon: { ...c, name: c.code, coupon_code: c.code },
+        coupon_code: c.code,
+        discount_type: c.discount_type,
+        discount: c.discount,
+        max_discount: c.max_discount,
+        min_purchase: c.min_purchase,
+      },
+    });
+  } catch (e) {
+    return frappeError(res, mapErrorStatus(e, 400), 'ValidationError', String(e.message || 'خطأ').slice(0, 200));
+  }
+});
+
+// ── Sync (adapter uses dypos.api.sync.pull / push) ──────────────────────
+def('DyPOS.api.sync.pull', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const checkpoint = Math.max(parseInt(params.checkpoint, 10) || 0, 0);
+  const limit = Math.min(Math.max(parseInt(params.limit, 10) || 500, 1), 2000);
+  try {
+    const rows = db.prepare('SELECT * FROM sync_log WHERE id>? AND status=? ORDER BY id ASC LIMIT ?')
+      .all(checkpoint, 'PENDING', limit);
+    const newCheckpoint = rows.length ? rows[rows.length - 1].id : checkpoint;
+    return res.json({ message: { changes: rows, checkpoint: newCheckpoint, hasMore: rows.length === limit } });
+  } catch (e) {
+    return frappeError(res, mapErrorStatus(e, 500), 'ServerError', String(e.message || 'خطأ').slice(0, 200));
+  }
+});
+
+def('DyPOS.api.sync.push', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  if (!['ADMIN', 'MANAGER'].includes(req.user?.role)) {
+    return frappeError(res, 403, 'PermissionError', 'صلاحية غير كافية — الدفع للإدارة فقط');
+  }
+  const changes = parseMaybeJson(params.changes) || [];
+  if (!Array.isArray(changes)) return frappeError(res, 400, 'ValidationError', 'changes يجب أن تكون مصفوفة');
+  if (changes.length > 1000) return frappeError(res, 400, 'ValidationError', 'الدفعة تتجاوز 1000 عنصر');
+  const results = [];
+  for (const ch of changes) {
+    try {
+      const idemKey = ch?.idempotencyKey != null ? String(ch.idempotencyKey).trim().slice(0, 128) : '';
+      if (idemKey) {
+        const prior = db.prepare("SELECT id FROM sync_log WHERE idempotency_key=? AND status='SYNCED' LIMIT 1").get(idemKey);
+        if (prior) {
+          results.push({ id: ch.id, status: 'SYNCED', deduped: true });
+          continue;
+        }
+      }
+      if (ch?.entity_type === 'PRODUCT' && ch?.action === 'UPSERT') {
+        const p = typeof ch.payload === 'string' ? JSON.parse(ch.payload || '{}') : (ch.payload || {});
+        if (!p.id || !p.code || !p.name) throw new Error('بيانات صنف ناقصة');
+        db.prepare(`INSERT INTO products (id,code,name,name_ar,barcode,unit_price,cost,tax_rate,uom,category,brand,is_active) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+          ON CONFLICT(id) DO UPDATE SET name=excluded.name,name_ar=excluded.name_ar,barcode=excluded.barcode,unit_price=excluded.unit_price,cost=excluded.cost,tax_rate=excluded.tax_rate,uom=excluded.uom,category=excluded.category,brand=excluded.brand,is_active=excluded.is_active,updated_at=datetime('now')`)
+          .run(String(p.id).slice(0, 64), String(p.code).slice(0, 64), String(p.name).slice(0, 200), String(p.nameAr || '').slice(0, 200), String(p.barcode || '').slice(0, 64) || null, Number(p.unitPrice) || 0, Number(p.cost) || 0, Number(p.taxRate) || 15, String(p.uom || 'Unit').slice(0, 20), String(p.category || '').slice(0, 64), String(p.brand || '').slice(0, 64), p.isActive === false ? 0 : 1);
+      } else if (ch?.entity_type === 'STOCK' && ch?.action === 'UPSERT') {
+        const s = typeof ch.payload === 'string' ? JSON.parse(ch.payload || '{}') : (ch.payload || {});
+        if (!s.productId || !s.warehouseId) throw new Error('بيانات مخزون ناقصة');
+        db.prepare('INSERT OR IGNORE INTO warehouses (id,name) VALUES (?,?)').run(String(s.warehouseId).slice(0, 32), String(s.warehouseId).slice(0, 32));
+        db.prepare(`INSERT INTO stock_levels (product_id,warehouse_id,qty) VALUES (?,?,?) ON CONFLICT(product_id,warehouse_id) DO UPDATE SET qty=excluded.qty,updated_at=datetime('now')`)
+          .run(String(s.productId).slice(0, 64), String(s.warehouseId).slice(0, 32), Number(s.qty) || 0);
+      } else if (String(ch?.entity_type || '').toUpperCase() === 'INVOICE') {
+        throw new Error('مزامنة الفواتير غير مدعومة بعد — أعد إرسال البيع عبر POST /api/invoices');
+      } else {
+        throw new Error(`نوع مزامنة غير مدعوم: ${String(ch?.entity_type || '?').slice(0, 32)}/${String(ch?.action || '?').slice(0, 32)}`);
+      }
+      if (ch?.id != null) {
+        db.prepare(`UPDATE sync_log SET status='SYNCED',synced_at=datetime('now'),
+          idempotency_key=CASE WHEN ?<>'' THEN ? ELSE idempotency_key END
+          WHERE id=?`).run(idemKey, idemKey || null, ch.id);
+      }
+      results.push({ id: ch?.id, status: 'SYNCED' });
+    } catch (e) {
+      results.push({ id: ch?.id, status: 'FAILED', error: String(e.message || '').slice(0, 200) });
+    }
+  }
+  return res.json({ message: { results, pushed: results.filter((r) => r.status === 'SYNCED').length, failed: results.filter((r) => r.status === 'FAILED').length } });
+});
+
+// ── Lowercase dypos.* aliases (frappe adapter uses dypos.api.*) ─────────
+for (const [key, entry] of [...handlers.entries()]) {
+  if (key.startsWith('DyPOS.')) {
+    const lower = `dypos${key.slice(5)}`;
+    if (!handlers.has(lower)) handlers.set(lower, entry);
+  }
+}
+// Bare/frappe login aliases used by adapters
+if (!handlers.has('dypos.api.auth.login') && handlers.has('DyPOS.api.auth.login')) {
+  handlers.set('dypos.api.auth.login', handlers.get('DyPOS.api.auth.login'));
+}
 
 // ── Catch-all dispatcher ─────────────────────────────────────────────────
 function dispatch(methodPath, req, res) {
