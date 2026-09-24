@@ -47,7 +47,7 @@
 | معيار | النتيجة | التفاصيل |
 |--------|---------|-----------|
 | **اختبارات الواجهة الأمامية** | 552/552 ✅ | Vitest + jsdom + Vue Test Utils |
-| **اختبارات الخادم** | 282/282 ✅ | Node.js test runner + SQLite |
+| **اختبارات الخادم** | 362/362 ✅ | Node.js test runner + SQLite |
 | **التدقيق الأمني (Biome)** | 0 تحذيرات ✅ | Frontend + Backend |
 | **فحص التبعيات (npm audit)** | High+ ✅ | CI gate مفعل |
 | **Content Security Policy** | Strict ✅ | بدون `unsafe-inline`، Hash-based |
@@ -279,7 +279,7 @@ DyPOS **نظام مستقل ولا يفرض نظامًا خارجيًا محدد
 | **Backend** | Node.js 22+, Express, SQLite / Postgres, Zod |
 | **Auth** | JWT + HttpOnly Cookies + CSRF |
 | **Real-time** | Server-Sent Events (SSE) |
-| **Testing** | Vitest (552 tests), Node test runner (282 tests) |
+| **Testing** | Vitest (552 tests), Node test runner (362 tests) |
 | **Lint/Format** | Biome (zero warnings) |
 | **CI/CD** | GitHub Actions + Cloudflare Pages |
 | **Observability** | Pino structured logs, Request-ID tracing |

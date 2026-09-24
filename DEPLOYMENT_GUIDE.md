@@ -75,4 +75,4 @@ npx wrangler deploy --name dypos-pos --assets .pages-site --compatibility-date 2
 - **Deploy:** push to `main` → GitHub Actions → `wrangler deploy` → live verify
 - **Live:** `https://dypos.smartportssoft.com/` serves Worker `dypos-pos`
   (bundle hash changes every build; verified by `?v=1.36.0` + `version.json`)
-- **Tests:** server 334/334 · POS quality gate green · biome 0 errors · pg parity OK
+- **Tests:** server 362/362 · POS 552/552 · method contract 105/105 · biome 0 errors · pg parity OK

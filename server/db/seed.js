@@ -21,18 +21,28 @@ console.log('[DyPOS] Seeding...');
 const adminPassword = process.env.DYPOS_ADMIN_PASSWORD || crypto.randomBytes(12).toString('base64url').slice(0, 16) + 'Aa1!';
 const cashierPassword = process.env.DYPOS_CASHIER_PASSWORD || crypto.randomBytes(12).toString('base64url').slice(0, 16) + 'Aa1!';
 
-// Default admin
-const adminId = uuid();
-const adminHash = bcrypt.hashSync(adminPassword, 12);
-db.prepare('INSERT OR IGNORE INTO users (id,username,password_hash,full_name,role,must_change_password) VALUES (?,?,?,?,?,?)').run(adminId, 'admin', adminHash, 'مدير النظام', 'ADMIN', 1);
+// Default admin (idempotent: re-runs never print a password that isn't set)
+const adminExisting = db.prepare('SELECT id FROM users WHERE username=?').get('admin');
+if (!adminExisting) {
+  const adminId = uuid();
+  const adminHash = bcrypt.hashSync(adminPassword, 12);
+  db.prepare('INSERT INTO users (id,username,password_hash,full_name,role,must_change_password) VALUES (?,?,?,?,?,?)').run(adminId, 'admin', adminHash, 'مدير النظام', 'ADMIN', 1);
+  console.log(`[DyPOS] │  Admin:    admin / ${adminPassword}             `);
+} else {
+  console.log('[DyPOS] │  Admin admin exists — password unchanged        │');
+}
 
-// Default cashier
-db.prepare('INSERT OR IGNORE INTO users (id,username,password_hash,full_name,role,must_change_password) VALUES (?,?,?,?,?,?)').run(uuid(), 'cashier', bcrypt.hashSync(cashierPassword, 12), 'كاشير', 'CASHIER', 1);
+// Default cashier (same idempotency contract)
+const cashierExisting = db.prepare('SELECT id FROM users WHERE username=?').get('cashier');
+if (!cashierExisting) {
+  db.prepare('INSERT INTO users (id,username,password_hash,full_name,role,must_change_password) VALUES (?,?,?,?,?,?)').run(uuid(), 'cashier', bcrypt.hashSync(cashierPassword, 12), 'كاشير', 'CASHIER', 1);
+  console.log(`[DyPOS] │  Cashier:  cashier / ${cashierPassword}         `);
+} else {
+  console.log('[DyPOS] │  Cashier exists — password unchanged            │');
+}
 
 console.log('[DyPOS] ┌─────────────────────────────────────────────────┐');
 console.log('[DyPOS] │  Default credentials (change immediately!):     │');
-console.log(`[DyPOS] │  Admin:    admin / ${adminPassword}             `);
-console.log(`[DyPOS] │  Cashier:  cashier / ${cashierPassword}         `);
 console.log('[DyPOS] │  Both accounts require password change on login │');
 console.log('[DyPOS] └─────────────────────────────────────────────────┘');
 
@@ -52,12 +62,14 @@ const products = [
 ];
 
 const insertProduct = db.prepare('INSERT OR IGNORE INTO products (id,code,name,name_ar,barcode,unit_price,cost,tax_rate,category) VALUES (?,?,?,?,?,?,?,?,?)');
+const productIdByCode = db.prepare('SELECT id FROM products WHERE code=?');
 const insertStock = db.prepare('INSERT OR IGNORE INTO stock_levels (product_id,warehouse_id,qty) VALUES (?,?,?)');
 
 for (const p of products) {
-  const id = uuid();
-  insertProduct.run(id, p.code, p.name, p.nameAr, p.barcode, p.unitPrice, p.cost, p.taxRate, p.category);
-  insertStock.run(id, 'W-01', 100);
+  insertProduct.run(uuid(), p.code, p.name, p.nameAr, p.barcode, p.unitPrice, p.cost, p.taxRate, p.category);
+  // Resolve the canonical id (re-runs must stock the EXISTING row, never an orphan)
+  const pid = productIdByCode.get(p.code)?.id;
+  if (pid) insertStock.run(pid, 'W-01', 100);
 }
 
 // Sample customers
@@ -72,9 +84,10 @@ for (const c of customers) {
   insertCustomer.run(uuid(), c.name, c.phone, c.loyaltyTier, c.loyaltyPoints || 0, c.creditLimit || 0);
 }
 
-// Sample coupons
+// Sample coupons (canonical types: PCT | FIXED)
+try { db.prepare(`UPDATE coupons SET discount_type='FIXED' WHERE discount_type='AMOUNT'`).run(); } catch { /* coupons table edge */ }
 db.prepare('INSERT OR IGNORE INTO coupons (id,code,discount_type,discount,min_purchase,max_uses) VALUES (?,?,?,?,?,?)').run(uuid(), 'WELCOME10', 'PCT', 10, 0, 100);
-db.prepare('INSERT OR IGNORE INTO coupons (id,code,discount_type,discount,min_purchase,max_uses) VALUES (?,?,?,?,?,?)').run(uuid(), 'FLAT5', 'AMOUNT', 5, 20, 50);
+db.prepare('INSERT OR IGNORE INTO coupons (id,code,discount_type,discount,min_purchase,max_uses) VALUES (?,?,?,?,?,?)').run(uuid(), 'FLAT5', 'FIXED', 5, 20, 50);
 
 console.log('[DyPOS] ✓ Seed complete: admin, cashier, 8 products, 3 customers, 2 coupons');
 console.log('[DyPOS] ⚠ Remember to change default passwords immediately after first login!');

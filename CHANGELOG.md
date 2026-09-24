@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- موجة SEC: دخول `/api/method/login` يشارك قفل اسم المستخدم + حد رشّ IP، `password_hash` لا يغادر `frappe.client.*` أبدًا، نطاق مستأجر fail-closed في كل قوائم الـ method مع حراس بالمعرف، إصلاح XSS في التمييز، telemetry آمن ESM، trust-proxy افتراضي 0، metrics مرفوض افتراضيًا في الإنتاج.
+- موجة FUNC (35 معالج method جديدًا، العقد 105/105): المرتجعات end-to-end عبر `submit_invoice` بنفس `applyInvoiceReturn`، فحص مزامنة `offline_id`، ائتمان/محفظة/حسابات/أعلام، كوبونات وعروض CRUD، إدارة الأصناف، التوفر بالمستودعات، batch-serial، استردادات لمرة واحدة، تحديث الإعدادات والمستودع، شهادة QZ + توقيع SHA-512، المتغيرات، أنواع `POS Coupon/Shifts`، ودعم `order_by` في `get_list`.
+- عمليات: `npm run contract` + بوابته في سير النشر، DDL مرجعي لأجهزة/نمو (`schema.js`)، إصلاح `seed` (أنواع الكوبونات، مخزون يتيم، كلمات مرور عند إعادة التشغيل).
+### Verified
+- خلفية 362/362 · واجهة 552/552 · biome نظيف · parity `ok:true` · CI والنشر أخضر والتحقق الحي سليم.
 
 ## [1.36.0] - 2026-09-22 — حملة الترقية النهائية: Real-time، تحصين أمني، Observability، وخروج أُحادي
 ### Added
