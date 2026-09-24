@@ -26,16 +26,16 @@ gh secret set CLOUDFLARE_ACCOUNT_ID    # Account ID من لوحة Cloudflare (Ov
 gh secret set CF_ZONE_ID               # Zone ID لتنقية كاش إجبارية بعد كل نشر
 ```
 
-### ربط النطاق بالـ Worker (مرة واحدة بعد أول نشر)
-التوكن لا يملك `Zone → Workers Routes Edit` ولا `DNS Edit`، فلا يمكن ربط
-`dypos.smartportssoft.com/*` عبر API. بعد أول نشر ناجح للـ Worker:
+### ربط النطاق بالـ Worker ✅ (تم 2026-09-24)
+النطاق `dypos.smartportssoft.com/*` مربوط بالـ Worker `dypos-pos`
+(Zone Workers Routes). أُضيف تلقائيًا في `wrangler.toml` `[[routes]]`
+في كل نشر. إن انتهى التوكن أو تغيّر:
 
 1. لوحة Cloudflare → Workers & Pages → `dypos-pos` → Settings → **Routes**
-2. أضف: `dypos.smartportssoft.com/*` → Zone: `smartportssoft.com`
-3. إن ظهر تعارض مع DNS/سجلات Pages القديمة: أزل نطاق `dypos` من مشروع Pages
-   السابق ثم أعد الإضافة (أو أضف صلاحية `Workers Routes Edit` للتوكن وأعد التشغيل).
+2. تأكد من: `dypos.smartportssoft.com/*` → Zone: `smartportssoft.com`
+3. أو أضف صلاحية `Zone → Workers Routes Edit` للتوكن ثم `gh workflow run deploy-cloudflare.yml`
 
-بدون هذه الخطوة يستمر الموقع الحي على القديم (`index-FF_1PWVh.js`) رغم نجاح deploy.
+بدون هذا الربط يبقى الموقع الحي على القديم (`index-FF_1PWVh.js`) رغم نجاح deploy.
 
 ### تشغيل يدوي
 ```bash
@@ -109,17 +109,12 @@ After deployment, verify:
 - Service Worker at https://dypos.smartportssoft.com/sw.js
 - Arabic RTL support works
 
-## Version Info
-- **Version:** `1.18.0`
-- **Build:** `1.18.0`
-- **Date:** September 16, 2026
+## Version Info (حالي)
+- **Version:** `1.36.0` (single source: root `package.json`)
+- **Date:** September 24, 2026
 - **Framework:** Vue 3 + Chart.js + frappe-ui
-- **PWA:** Yes (Offline support, manifest, service worker)
-- **Package:** `dist-deploy/pos-package-1.18.0.zip` (71 files, Jinja 0, ?v=1.18.0 cache-busted)
-- **Bundle:** `assets/DyPOS/pos/assets/index-BhIo9O6U.js` (571KB) — replaces stale live `index-BtwtUPYI.js`
-- **Fix:** live `pos.html` was serving raw Jinja (`{% for key in boot %}`) with no
-  cache-busting — this package strips Jinja and adds `?v=1.18.0`
-- **Tests:** 343/343 passed (POS) + 17/17 (server) — build clean, package smoke-tested locally
-- **Deploy:** copy package to ORIGIN → run `ORIGIN-DEPLOY.bat` as Admin →
-  verify `LOCAL BUILD 1.18.0 OK` + `LIVE VERSION 1.18.0 OK` + bundle `200` + CSP OK →
-  purge Cloudflare cache (Everything, or the 3 URLs: `pos.html`, `assets/DyPOS/pos/*`, `sw.js`)
+- **PWA:** Yes (SW root scope via Worker assets)
+- **Deploy:** push to `main` → GitHub Actions → `wrangler deploy` → live verify
+- **Live:** `https://dypos.smartportssoft.com/` serves Worker `dypos-pos`
+  (bundle hash changes every build; verified by `?v=1.36.0` + `version.json`)
+- **Tests:** server 334/334 · POS quality gate green · biome 0 errors · pg parity OK
