@@ -30,6 +30,8 @@ export function newIdempotencyKey() {
 /** Retryable? Network/timeout/abort/5xx/429 → yes. 4xx (validation) → no. */
 export function isRetryableError(error) {
 	if (!error) return false
+	// Known-offline verdicts never retry (see apiWrapper fast-fail).
+	if (error?.offline === true) return false
 	const msg = String(error?.message || error || "").toLowerCase()
 	if (
 		/network|timeout|abort|econn|etimedout|fetch failed|load failed/i.test(msg)

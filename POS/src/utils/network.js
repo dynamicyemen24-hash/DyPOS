@@ -95,6 +95,8 @@ const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504])
 /** True when a caller may retry after a short backoff. */
 export function isRetryable(error) {
 	if (!error) return false
+	// Known-offline verdicts never retry: the radio state, not luck, decides.
+	if (error?.offline === true) return false
 	if (isNetworkError(error)) return true
 	const status = extractStatus(error)
 	return status != null && RETRYABLE_STATUSES.has(status)

@@ -179,8 +179,11 @@ export default defineConfig({
 				background_color: "#ffffff",
 				display: "standalone",
 				lang: "ar",
-				scope: "/assets/DyPOS/pos/",
-				start_url: "/assets/DyPOS/pos/",
+				// Installable cashier app: scope MUST cover every route (/,
+				// /account/login, /pos). A scope of /assets/… or /pos traps
+				// the installed app outside its own pages (blank/bounce).
+				scope: "/",
+				start_url: "/",
 				icons: [
 					{
 						src: "/assets/DyPOS/pos/android-chrome-192x192.png",

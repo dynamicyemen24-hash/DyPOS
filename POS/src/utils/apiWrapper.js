@@ -12,6 +12,37 @@ const log = logger.create("ApiWrapper")
 
 const DEFAULT_TIMEOUT_MS = 15000
 
+/**
+ * Offline fast-fail (offline-first cashier UX).
+ *
+ * When the device radios report offline, EVERY network attempt is doomed:
+ * waiting out 15s timeouts × retries before telling the cashier wastes up
+ * to a minute per tap. Fail in milliseconds with an Arabic offline error so
+ * the UI drops to queue/cache mode instantly. PIN login and cached sales
+ * never touch this path.
+ */
+function isDefinitelyOffline() {
+	try {
+		if (typeof navigator !== "undefined" && navigator.onLine === false) {
+			return true
+		}
+	} catch {
+		/* non-browser bundling — assume online */
+	}
+	return false
+}
+
+function offlineError(method) {
+	const err = new Error(
+		"لا يوجد اتصال بالإنترنت — سيُحفظ العمل محليًا ويُزامَن لاحقًا",
+	)
+	err.code = "OFFLINE"
+	err.status = 0
+	err.offline = true
+	err.method = method
+	return err
+}
+
 // Request ID storage (module-level for correlation across calls)
 let currentRequestId = null
 
@@ -66,6 +97,7 @@ export async function call(method, params, opts = {}) {
 
 	const exec = () =>
 		dedupeInFlight(idempotencyKey || "", async () => {
+			if (isDefinitelyOffline()) throw offlineError(method)
 			try {
 				// Pass request ID via headers option to frappeCall
 				const result = await withTimeout(
@@ -109,7 +141,8 @@ export async function call(method, params, opts = {}) {
 	if (!idempotencyKey) {
 		return retryIdempotent(exec, {
 			retries,
-			shouldRetry: (e) => !isCSRFApiError(e) && isRetryableError(e),
+			shouldRetry: (e) =>
+				!e?.offline && !isCSRFApiError(e) && isRetryableError(e),
 			onRetry: ({ attempt, delayMs }) =>
 				log.warn("Retrying API call", {
 					method,
@@ -121,7 +154,8 @@ export async function call(method, params, opts = {}) {
 	}
 	return retryIdempotent(exec, {
 		retries,
-		shouldRetry: (e) => !isCSRFApiError(e) && isRetryableError(e),
+		shouldRetry: (e) =>
+			!e?.offline && !isCSRFApiError(e) && isRetryableError(e),
 		onRetry: ({ attempt, delayMs }) =>
 			log.warn("Retrying idempotent API call", {
 				method,
