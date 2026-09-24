@@ -7,7 +7,69 @@
  * DYPOS_BACKEND_URL Worker variable (e.g. https://api.example.com), keeping
  * cookies + Arabic error shapes intact end-to-end.
  * Everything else is served from Static Assets (SPA fallback included).
+ *
+ * Security headers: with a custom Worker script Cloudflare ignores the
+ * `_headers` file for Worker-handled responses, so the Worker attaches the
+ * policy itself. The CSP value is generated per build (hashes of the actual
+ * inline blocks) by scripts/build-pages-site.mjs → .pages-site/csp.mjs.
  */
+
+// Fail-closed minimal policy until the assembler injects the real one.
+let CSP_POLICY = "default-src 'self'; frame-ancestors 'none'";
+try {
+  const generated = await import('./.pages-site/csp.mjs');
+  if (generated && typeof generated.CSP_POLICY === 'string' && generated.CSP_POLICY) {
+    CSP_POLICY = generated.CSP_POLICY;
+  }
+} catch {
+  // Assembly not run (local wrangler dev) — minimal policy, never nothing.
+}
+
+const BASELINE_HEADERS = {
+  'x-content-type-options': 'nosniff',
+  'x-frame-options': 'DENY',
+  'referrer-policy': 'strict-origin-when-cross-origin',
+  'permissions-policy':
+    'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), xr-spatial-tracking=(), gyroscope=(), magnetometer=(), accelerometer=(), autoplay=(), display-capture()',
+};
+
+const MUST_REVALIDATE = new Set([
+  '/index.html',
+  '/pos.html',
+  '/offline.html',
+  '/manifest.webmanifest',
+  '/sw.js',
+  '/version.json',
+]);
+
+/** Hashed build output (index-HASH.js) is immutable; entry files revalidate. */
+function cacheControlFor(pathname) {
+  const base = pathname.split('/').pop() || '';
+  if (MUST_REVALIDATE.has(pathname) || MUST_REVALIDATE.has(`/${base}`)) {
+    return 'public, max-age=0, must-revalidate';
+  }
+  if (/-[A-Za-z0-9_-]{6,}\.(js|css|woff2?|ttf|png|jpe?g|svg|ico|webp)$/.test(base)) {
+    return 'public, max-age=31536000, immutable';
+  }
+  return 'public, max-age=0, must-revalidate';
+}
+
+function withSecurityHeaders(response, url) {
+  const pathname = url.pathname;
+  const contentType = response.headers.get('content-type') || '';
+  const headers = new Headers(response.headers);
+  for (const [k, v] of Object.entries(BASELINE_HEADERS)) {
+    if (!headers.has(k)) headers.set(k, v);
+  }
+  headers.set('cache-control', cacheControlFor(pathname));
+  if (contentType.includes('text/html')) {
+    headers.set('content-security-policy', CSP_POLICY);
+  }
+  if (pathname.endsWith('/sw.js') || pathname === '/sw.js') {
+    headers.set('Service-Worker-Allowed', '/');
+  }
+  return new Response(response.body, { status: response.status, headers });
+}
 const HOP_HEADERS = new Set([
   'connection',
   'keep-alive',
@@ -82,14 +144,20 @@ async function proxyApi(request, env) {
 
 export default {
   async fetch(request, env) {
+    let url = null;
     try {
-      const url = new URL(request.url);
-      if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
-        return await proxyApi(request, env);
-      }
+      url = new URL(request.url);
     } catch {
-      // Fall through to static assets on malformed URLs.
+      return env.ASSETS.fetch(request);
     }
-    return env.ASSETS.fetch(request);
+    if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
+      return await proxyApi(request, env);
+    }
+    const response = await env.ASSETS.fetch(request);
+    try {
+      return withSecurityHeaders(response, url);
+    } catch {
+      return response;
+    }
   },
 };
