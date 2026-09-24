@@ -25,6 +25,8 @@
 						v-for="(row, index) in sortedRows"
 						:key="index"
 						class="border-t border-gray-100 hover:bg-gray-50"
+						:class="rowClickable ? 'cursor-pointer' : ''"
+						@click="rowClickable && $emit('row-click', row)"
 					>
 						<td
 							v-for="column in columns"
@@ -32,7 +34,9 @@
 							class="px-6 py-3 text-sm whitespace-nowrap"
 							:class="cellClass(column)"
 						>
-							{{ formatCell(row, column) }}
+							<slot :name="`col-${column.key}`" :row="row" :value="row[column.key]">
+								{{ formatCell(row, column) }}
+							</slot>
 						</td>
 					</tr>
 					<tr v-if="!sortedRows.length">
@@ -56,10 +60,13 @@ import {
 } from "../../core/formatters/reportFormatters"
 
 const props = defineProps({
-	/** [{ key, label, format: "text"|"number"|"currency"|"percent"|"date", sortable? }] */
+	/** [{ key, label, format: "text"|"number"|"currency"|"percent"|"date", sortable?, compute? }] */
 	columns: { type: Array, required: true },
 	rows: { type: Array, default: () => [] },
+	rowClickable: { type: Boolean, default: false },
 })
+
+defineEmits(["row-click"])
 
 const sortKey = ref(null)
 const sortAsc = ref(true)
@@ -81,14 +88,20 @@ function toggleSort(key) {
 	}
 }
 
+function cellValue(row, column) {
+	if (typeof column.compute === "function") return column.compute(row)
+	return row?.[column.key]
+}
+
 const sortedRows = computed(() => {
 	const rows = [...props.rows]
 	if (!sortKey.value) return rows
 	const key = sortKey.value
+	const column = props.columns.find((c) => c.key === key)
 	const direction = sortAsc.value ? 1 : -1
 	return rows.sort((a, b) => {
-		const left = a[key]
-		const right = b[key]
+		const left = cellValue(a, column || { key })
+		const right = cellValue(b, column || { key })
 		if (typeof left === "number" && typeof right === "number")
 			return (left - right) * direction
 		return String(left ?? "").localeCompare(String(right ?? "")) * direction
@@ -96,7 +109,7 @@ const sortedRows = computed(() => {
 })
 
 function formatCell(row, column) {
-	const value = row?.[column.key]
+	const value = cellValue(row, column)
 	const formatter = FORMATTERS[column.format] || FORMATTERS.text
 	return formatter(value)
 }

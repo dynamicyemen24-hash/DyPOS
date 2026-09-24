@@ -35,6 +35,7 @@ New Sale
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
+import { useRouter } from "vue-router"
 
 import { FeatherIcon } from "frappe-ui"
 
@@ -76,6 +77,8 @@ import {
 	resolveScanIntent,
 	searchProductIndex,
 } from "@/utils/smartSearch"
+
+const router = useRouter()
 
 /* ============================================================================
  * Props
@@ -1277,6 +1280,11 @@ async function printLastInvoice() {
 	await handlePrintInvoice(invoiceId)
 }
 
+/** Navigate to Stock Management page. */
+function goToStockManagement() {
+	router.push({ name: "StockManagement" })
+}
+
 /* ============================================================================
  * Returns
  * ========================================================================== */
@@ -1625,6 +1633,15 @@ watch(
                     @click="printLastInvoice"
                 >
                     <FeatherIcon name="printer" class="h-[18px] w-[18px]" />
+                </button>
+                <button
+                    type="button"
+                    class="dy-pos-header-action"
+                    :title="__('إدارة المخزون')"
+                    :aria-label="__('إدارة المخزون')"
+                    @click="goToStockManagement"
+                >
+                    <FeatherIcon name="package" class="h-[18px] w-[18px]" />
                 </button>
             </template>
         </POSHeader>

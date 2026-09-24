@@ -15,6 +15,7 @@ const ROUTE_NAMES = Object.freeze({
 	FORGOT_PASSWORD: "ForgotPassword",
 	RESET_PASSWORD: "ResetPassword",
 	NOT_FOUND: "NotFound",
+	STOCK_MANAGEMENT: "StockManagement",
 })
 
 const ROUTE_TITLES = Object.freeze({
@@ -24,6 +25,7 @@ const ROUTE_TITLES = Object.freeze({
 	[ROUTE_NAMES.FORGOT_PASSWORD]: "استعادة كلمة المرور",
 	[ROUTE_NAMES.RESET_PASSWORD]: "تعيين كلمة مرور جديدة",
 	Reports: "التقارير",
+	[ROUTE_NAMES.STOCK_MANAGEMENT]: "إدارة المخزون",
 	landing: "DyPOS",
 	[ROUTE_NAMES.NOT_FOUND]: "صفحة غير موجودة",
 })
@@ -152,6 +154,15 @@ const routes = [
 		path: "/reports",
 		name: "Reports",
 		component: () => import("@/components/reports/DashboardPage.vue"),
+		meta: {
+			[ROUTE_META.requiresAuth]: true,
+		},
+	},
+
+	{
+		path: "/stock",
+		name: ROUTE_NAMES.STOCK_MANAGEMENT,
+		component: () => import("@/components/reports/StockManagement.vue"),
 		meta: {
 			[ROUTE_META.requiresAuth]: true,
 		},
