@@ -9,29 +9,33 @@ push إلى main (أو تشغيل يدوي)
    → yarn install (POS)
    → npm run verify            (بوابة الجودة: اختبارات + noConsole)
    → yarn build                (مثبّت على إصدار package.json — لا طوابع زمنية)
-   → node scripts/build-pages-site.mjs   (تجميع موقع Pages: إزالة Jinja + ?v= + SW root scope + 404)
-   → wrangler pages deploy     (Cloudflare Pages، مشروع CF_PAGES_PROJECT أو dypos-pos)
-   → تحقق حي: version.json + pos.html على dypos.smartportssoft.com
+   → node scripts/build-pages-site.mjs   (تجميع الموقع: إزالة Jinja + ?v= + SW root scope)
+   → rm -f .pages-site/_redirects        (SPA عبر not_found_handling في Worker)
+   → wrangler deploy --assets .pages-site (Cloudflare Workers Static Assets → dypos-pos)
+   → تحقق حي: version.json + الحزمة الرئيسية على dypos.smartportssoft.com
 ```
+
+> **مسار Pages القديم مهجور:** التوكن الحالي يملك `Workers Scripts` فقط وليس `Pages:Edit`.
+> النشر يتم كـ Worker بأصول ثابتة (`wrangler.toml` + `worker.js`).
 
 ### مطلوب مرة واحدة (أنت فقط — التوكن لا يُكتب في المستودع أبدًا)
 ```bash
-gh secret set CLOUDFLARE_API_TOKEN     # توكن Cloudflare بصلاحية Cloudflare Pages: Edit
+gh secret set CLOUDFLARE_API_TOKEN     # توكن: Workers Scripts Edit (بدون قيود IP)
 gh secret set CLOUDFLARE_ACCOUNT_ID    # Account ID من لوحة Cloudflare (Overview)
 # اختياري:
 gh secret set CF_ZONE_ID               # Zone ID لتنقية كاش إجبارية بعد كل نشر
-gh variable set CF_PAGES_PROJECT --body dypos-pos   # إن كان اسم المشروع مختلفًا
 ```
 
-### ملاحظتا تحقق مهمتان
-1. **بعد أول نشر آلي**: إذا نجحت خطوة النشر لكن فشل «Live verify»، فالنطاق
-   `dypos.smartportssoft.com` مرتبط بمشروع/مصدر آخر. الحل: لوحة Cloudflare →
-   Workers & Pages → `dypos-pos` → Custom domains → أضف
-   `dypos.smartportssoft.com` (وأزل الربط من المشروع الذي يحمله الآن —
-   الجذر الحالي يخدم موقع Dycos التعريفي).
-2. نشر Pages يستبدل محتوى المشروع بالكامل: صفحة الجذر على هذا النطاق ستصبح
-   تطبيق DyPOS نفسه (`/` و`/pos.html` كلاهما يعمل)، وصفحة Dycos التعريفية
-   تبقى على نطاقها `dycos.smartportssoft.com` (route في `wrangler.toml` الخاص بها).
+### ربط النطاق بالـ Worker (مرة واحدة بعد أول نشر)
+التوكن لا يملك `Zone → Workers Routes Edit` ولا `DNS Edit`، فلا يمكن ربط
+`dypos.smartportssoft.com/*` عبر API. بعد أول نشر ناجح للـ Worker:
+
+1. لوحة Cloudflare → Workers & Pages → `dypos-pos` → Settings → **Routes**
+2. أضف: `dypos.smartportssoft.com/*` → Zone: `smartportssoft.com`
+3. إن ظهر تعارض مع DNS/سجلات Pages القديمة: أزل نطاق `dypos` من مشروع Pages
+   السابق ثم أعد الإضافة (أو أضف صلاحية `Workers Routes Edit` للتوكن وأعد التشغيل).
+
+بدون هذه الخطوة يستمر الموقع الحي على القديم (`index-FF_1PWVh.js`) رغم نجاح deploy.
 
 ### تشغيل يدوي
 ```bash
@@ -39,11 +43,12 @@ gh workflow run deploy-cloudflare.yml          # من أي مكان
 gh run watch                                    # أو: gh run list --workflow=deploy-cloudflare.yml
 ```
 
-### نشر محلي بديل (Pages بدون CI)
+### نشر محلي بديل (Worker بدون CI)
 ```bash
-yarn --cwd POS build && DyPOS_BUILD_VERSION=$(node -p "require('./package.json').version")
+yarn --cwd POS build
 node scripts/build-pages-site.mjs
-npx wrangler@3 pages deploy .pages-site --project-name dypos-pos --branch main
+rm -f .pages-site/_redirects
+npx wrangler deploy --name dypos-pos --assets .pages-site --compatibility-date 2026-09-24
 ```
 
 ---
