@@ -1,5 +1,5 @@
 # ── Build stage (frontend) ──
-FROM node:20-alpine AS frontend-builder
+FROM node:25-alpine AS frontend-builder
 WORKDIR /app/pos-src
 
 # Install frontend dependencies and build (deterministic when lockfile exists)
@@ -11,7 +11,7 @@ COPY POS/ ./
 RUN npm run build
 
 # ── Production stage (backend) ──
-FROM node:22-alpine AS backend
+FROM node:25-alpine AS backend
 WORKDIR /app
 
 # tini = proper PID1 (reaps zombies, forwards SIGTERM for graceful shutdown)
