@@ -791,3 +791,10 @@ CREATE INDEX IF NOT EXISTS idx_expenses_cat ON expenses(category, date DESC);
 -- ── v22: partial returns — cumulative returned qty per invoice line ──
 ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS returned_qty REAL NOT NULL DEFAULT 0;
 INSERT INTO schema_version (version, description) VALUES (22, 'partial returns: returned_qty per invoice line') ON CONFLICT DO NOTHING;
+
+-- ── v23: promotions plane tenant isolation (offers + coupons) ──
+ALTER TABLE offers ADD COLUMN IF NOT EXISTS tenant_id TEXT;
+ALTER TABLE coupons ADD COLUMN IF NOT EXISTS tenant_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_offers_tenant ON offers(tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_coupons_tenant ON coupons(tenant_id, is_active);
+INSERT INTO schema_version (version, description) VALUES (23, 'offers + coupons tenant isolation') ON CONFLICT DO NOTHING;
