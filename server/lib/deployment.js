@@ -5,9 +5,9 @@
  * Database migration safety, health checks, traffic switching
  */
 
+import { Router } from 'express';
 import { logger } from './logger.js';
 import { getTracer } from './telemetry.js';
-import { acquireMigrationLock, releaseMigrationLock, applyMigration, validateMigration } from './migration-guard.js';
 
 const log = logger.create('Deployment');
 const tracer = getTracer('dypos.deployment');
@@ -184,7 +184,7 @@ class DeploymentManager {
    * Check all registered health checks
    */
   async checkAllHealthy() {
-    for (const [name, check] of this.healthChecks) {
+    for (const [, check] of this.healthChecks) {
       try {
         const healthy = await check();
         if (!healthy) return false;
@@ -303,7 +303,7 @@ export async function rollingDeploy(workers, options = {}) {
   const {
     batchSize = 1,
     healthCheckInterval = 5000,
-    maxConcurrentRollouts = 1,
+    maxConcurrentRollouts: _maxConcurrentRollouts = 1,
   } = options;
 
   const results = [];
@@ -390,9 +390,9 @@ export async function canaryDeploy(options = {}) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 export function createDeploymentRoutes() {
-  const router = (await import('express')).Router();
+  const router = Router();
 
-  router.get('/status', (req, res) => {
+  router.get('/status', (_req, res) => {
     res.json(deploymentManager.getState());
   });
 
@@ -406,7 +406,7 @@ export function createDeploymentRoutes() {
     }
   });
 
-  router.post('/rollback', async (req, res) => {
+  router.post('/rollback', async (_req, res) => {
     try {
       await deploymentManager.rollback();
       res.json({ rolledBack: true });
@@ -415,7 +415,7 @@ export function createDeploymentRoutes() {
     }
   });
 
-  router.get('/health', async (req, res) => {
+  router.get('/health', async (_req, res) => {
     const healthy = await deploymentManager.checkAllHealthy();
     res.json({ healthy, state: deploymentManager.state });
   });

@@ -146,6 +146,11 @@ jobs:
           LIVE_HTML=$(curl -fsS "$SITE/" || true)
           BUNDLE=$(echo "$LIVE_HTML" | grep -o 'assets/index-[A-Za-z0-9_-]*\.js?v='"$VERSION" | head -1 || true)
           echo "index bundle → ${BUNDLE:-MISSING}"
+          # Reject known-stale bundle from the pre-1.36 method-router deploy.
+          if echo "$BUNDLE" | grep -q 'index-FF_1PWVh'; then
+            echo "::warning::Live site still serves STALE bundle index-FF_1PWVh.js. Worker dypos-pos deployed, but dypos.smartportssoft.com is bound to another origin. One-time fix: Cloudflare dashboard → Workers & Pages → dypos-pos → Settings → Routes → add dypos.smartportssoft.com/*."
+            BUNDLE=""
+          fi
           {
             echo "## Live verification"
             echo "- expected: $VERSION"
@@ -155,5 +160,5 @@ jobs:
           if echo "$LIVE_JSON" | grep -q "$VERSION" && [ -n "$BUNDLE" ]; then
             echo "✅ LIVE $VERSION VERIFIED — customers are on the new build."
           else
-            echo "::warning::Live site does NOT serve $VERSION yet. Worker dypos-pos deployed, but dypos.smartportssoft.com is still bound to another origin (Pages/old deploy). One-time fix: Cloudflare dashboard → Workers & Pages → dypos-pos → Settings → Routes → add dypos.smartportssoft.com/*  (requires Zone Workers Routes Edit on the token, or do it once in the UI)."
+            echo "::warning::Live site does NOT serve the fresh $VERSION build yet. Worker dypos-pos deployed; domain route still points at the old origin."
           fi

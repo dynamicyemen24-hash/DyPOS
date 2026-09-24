@@ -74,7 +74,7 @@ export function getMigrationLock() {
  * Validate migration safety before applying
  */
 export function validateMigration(migration) {
-  const { sql, rollbackSql, version } = migration;
+  const { sql, rollbackSql, version: _version } = migration;
 
   const issues = [];
   const warnings = [];

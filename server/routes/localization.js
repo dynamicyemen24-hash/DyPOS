@@ -139,7 +139,7 @@ router.get('/get_app_translations', ah(async (req, res) => {
   res.json({ message: translations });
 }));
 
-router.get('/get_allowed_locales', ah(async (req, res) => {
+router.get('/get_allowed_locales', ah(async (_req, res) => {
   res.json({ message: ALLOWED_LOCALES });
 }));
 
@@ -149,7 +149,7 @@ router.get('/get_user_language', authMiddleware, ah(async (req, res) => {
   res.json({ message: locale });
 }));
 
-router.get('/get_locale_names', ah(async (req, res) => {
+router.get('/get_locale_names', ah(async (_req, res) => {
   res.json({ message: LOCALE_NAMES });
 }));
 

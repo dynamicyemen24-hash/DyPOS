@@ -5,12 +5,11 @@
  * Integration: OpenTelemetry for metrics, audit for changes
  */
 
+import { Router } from 'express';
 import { db } from '../db/schema.js';
-import { logger } from './logger.js';
 import { getTracer } from './telemetry.js';
 import { writeAuditEntry } from './audit.js';
 
-const log = logger.create('FeatureFlags');
 const tracer = getTracer('dypos.feature-flags');
 
 const FLAGS_TABLE = 'feature_flags';
@@ -173,7 +172,7 @@ export function deleteFlag(key, userId = 'system') {
  * Evaluate flag for user context
  */
 export function evaluateFlag(key, context = {}) {
-  const { userId, tenantId, sessionId, requestId, attributes = {} } = context;
+  const { userId, tenantId, sessionId, requestId: _requestId, attributes = {} } = context;
 
   return tracer.startActiveSpan('feature_flag.evaluate', async (span) => {
     try {
@@ -218,7 +217,7 @@ export function evaluateFlag(key, context = {}) {
       if (flag.targeting_rules && Object.keys(flag.targeting_rules).length) {
         const matched = evaluateTargetingRules(flag.targeting_rules, attributes);
         if (matched) {
-          const variant = flag.variants && flag.variants[matched] ? matched : flag.default_variant;
+          const variant = flag.variants?.[matched] ? matched : flag.default_variant;
           recordExposure(key, variant, context);
           span.setAttribute('flag.variant', variant);
           span.setAttribute('flag.reason', 'targeting_rule');
@@ -401,7 +400,7 @@ export function getFlagAnalytics(key, timeRange = '24h') {
  * Middleware for Express
  */
 export function featureFlagMiddleware() {
-  return async (req, res, next) => {
+  return async (req, _res, next) => {
     req.featureFlags = {
       evaluate: (key, attributes) => evaluateFlag(key, {
         userId: req.user?.id,
@@ -423,9 +422,9 @@ export function featureFlagMiddleware() {
  * Express route for flag management
  */
 export function createFlagRoutes() {
-  const router = (await import('express')).Router();
+  const router = Router();
 
-  router.get('/', (req, res) => res.json(getAllFlags()));
+  router.get('/', (_req, res) => res.json(getAllFlags()));
   router.get('/:key', (req, res) => {
     const flag = getFlag(req.params.key);
     if (!flag) return res.status(404).json({ error: 'Flag not found' });

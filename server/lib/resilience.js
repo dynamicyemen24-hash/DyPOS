@@ -204,7 +204,7 @@ export async function withRetry(fn, options = {}) {
     backoffMultiplier = 2,
     jitter = 0.1,
     retryable = () => true,
-    onRetry = (attempt, error, delay) => {},
+    onRetry = (_attempt, _error, _delay) => {},
   } = options;
 
   let lastError;
