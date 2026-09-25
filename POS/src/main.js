@@ -78,6 +78,7 @@ import {
 } from "frappe-ui"
 
 import "./index.css"
+import "./styles/brand/variables.css"
 
 /* =============================================================================
    Runtime guards
@@ -959,6 +960,93 @@ function createDyPOSApplication() {
 }
 
 /* =============================================================================
+   Offline-first detection
+   ============================================================================= */
+
+const OFFLINE_DETECTION_TIMEOUT_MS = 3000
+
+let isOfflineMode = false
+
+async function detectOfflineMode() {
+	if (!isBrowser) return false
+
+	try {
+		const controller = new AbortController()
+		const timeoutId = setTimeout(
+			() => controller.abort(),
+			OFFLINE_DETECTION_TIMEOUT_MS,
+		)
+
+		const response = await fetch("/api/method/DyPOS.api.ping", {
+			method: "GET",
+			cache: "no-store",
+			credentials: "same-origin",
+			signal: controller.signal,
+		})
+
+		clearTimeout(timeoutId)
+
+		if (response.ok) {
+			log.info("Backend reachable — online mode")
+			return false
+		}
+
+		if (response.status === 503) {
+			log.info("Backend unavailable (503) — offline mode")
+			return true
+		}
+
+		log.warn(`Backend responded with ${response.status} — treating as offline`)
+		return true
+	} catch (error) {
+		if (error.name === "AbortError" || error.name === "TimeoutError") {
+			log.info("Backend ping timeout — offline mode")
+		} else {
+			log.info("Backend unreachable — offline mode", error?.message || error)
+		}
+		return true
+	}
+}
+
+/**
+ * Initialize offline-only systems (IndexedDB, local data, offline queue)
+ * Called when backend is unavailable — NO network requests allowed.
+ */
+async function initializeOfflineSystems() {
+	if (!isBrowser) return
+
+	try {
+		log.info("Initializing offline systems...")
+
+		// Initialize offline DB (Dexie) - this happens automatically on import
+		const db = await import("./services/db").then((m) => m.default)
+		// Open the database connection
+		await db.open().catch((error) => {
+			log.warn("Offline DB open failed", error)
+		})
+
+		// Initialize offline numbering (for invoice numbers)
+		await import("./services/offline-numbering").catch((error) => {
+			log.warn("Offline numbering init failed", error)
+		})
+
+		// Initialize stock reservations (local only)
+		await import("./services/stock-reservations").catch((error) => {
+			log.warn("Local stock reservations init failed", error)
+		})
+
+		// Initialize offline store and sync queue
+		await import("./services/offline-store").catch((error) => {
+			log.warn("Offline store init failed", error)
+		})
+
+		log.info("Offline systems initialized")
+	} catch (error) {
+		log.error("Offline systems initialization failed", error)
+	}
+}
+
+/* =============================================================================
    Application initialization
    ============================================================================= */
 
@@ -977,6 +1065,17 @@ async function initializeApp() {
 
 	try {
 		log.info("Starting DyPOS application")
+
+		/* ---------------------------------------------------------------------
+		   Offline-first: detect backend availability BEFORE any network calls
+		   ------------------------------------------------------------------ */
+		isOfflineMode = await detectOfflineMode()
+
+		if (isOfflineMode) {
+			log.info("OFFLINE MODE: Skipping all network initialization")
+			// Make offline mode globally accessible
+			window.__DYPOS_OFFLINE__ = true
+		}
 
 		/* ---------------------------------------------------------------------
 		   Create application
@@ -998,21 +1097,26 @@ async function initializeApp() {
 		setupCSRFRefreshListener()
 
 		/* ---------------------------------------------------------------------
-		   Authentication
+		   Authentication — SKIP in offline mode
 		   ------------------------------------------------------------------ */
 
-		const csrfPromise = initializeCSRF()
-		const userPromise = initializeUser()
+		let user = null
 
-		const [, user] = await Promise.all([csrfPromise, userPromise])
+		if (!isOfflineMode) {
+			const csrfPromise = initializeCSRF()
+			const userPromise = initializeUser()
 
-		session.user = user
+			const [, resolvedUser] = await Promise.all([csrfPromise, userPromise])
 
-		log.info(
-			`User authentication resolved: ${
-				session.user ? "authenticated" : "guest"
-			}`,
-		)
+			user = resolvedUser
+
+			log.info(
+				`User authentication resolved: ${user ? "authenticated" : "guest"}`,
+			)
+		} else {
+			log.info("Offline mode: skipping authentication, continuing as guest")
+			session.user = null
+		}
 
 		/* ---------------------------------------------------------------------
 		   Router
@@ -1048,17 +1152,32 @@ async function initializeApp() {
 		 * Bootstrap data runs after the application is mounted.
 		 *
 		 * This guarantees the shell can render immediately.
+		 * SKIP all network-dependent initialization in offline mode.
 		 */
-		if (user) {
+		if (user && !isOfflineMode) {
 			void preloadBootstrapData(user)
 			initializePlatformSync(user)
 			void initializeRealtimeSync()
+		} else if (isOfflineMode) {
+			log.info(
+				"Offline mode: skipping bootstrap data, platform sync, realtime sync",
+			)
+			// Initialize offline-only systems (IndexedDB, local data)
+			void initializeOfflineSystems()
 		}
 
-		initializeIdleWarmup()
+		// Performance & device monitoring (safe in both modes)
 		initializePerformanceMonitoring()
 		initializeDeviceAdaptation()
-		initializeScheduledCSRFRefresh()
+
+		// SKIP network-dependent timers in offline mode
+		if (!isOfflineMode) {
+			initializeIdleWarmup()
+			initializeScheduledCSRFRefresh()
+		} else {
+			log.info("Offline mode: skipping idle warmup and scheduled CSRF refresh")
+		}
+
 		initPrintStyles()
 		initializePrintSpool()
 

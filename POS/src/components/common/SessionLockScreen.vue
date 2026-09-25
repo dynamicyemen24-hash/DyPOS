@@ -151,7 +151,7 @@ import { ref, watch, nextTick } from "vue"
 import { FeatherIcon } from "frappe-ui"
 import { useSessionLock } from "@/composables/useSessionLock"
 import { useOfflineStatus } from "@/composables/useOfflineStatus"
-import { session } from "@/data/session"
+import { session as piniaSession } from "@/stores/session"
 import { cleanupUserSession } from "@/utils/sessionCleanup"
 
 const { isLocked, isVerifying, verifyError, lockedUser, unlock } =
@@ -180,7 +180,7 @@ async function handleUnlock() {
 	if (result.sessionExpired) {
 		// Session expired — full logout
 		await cleanupUserSession()
-		session.logout.submit()
+		await piniaSession.logout()
 		return
 	}
 
@@ -194,7 +194,7 @@ async function handleUnlock() {
 
 async function handleSignOut() {
 	await cleanupUserSession()
-	session.logout.submit()
+	await piniaSession.logout()
 }
 </script>
 

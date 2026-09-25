@@ -31,11 +31,14 @@ import smartPortsBg from "@/assets/smart-ports-og.jpg"
 
 import ShiftOpeningDialog from "@/components/ShiftOpeningDialog.vue"
 import DyButton from "@/components/ui/DyButton.vue"
+import PasswordStrengthBar from "@/components/reports/dashboards/core/PasswordStrengthBar.vue"
 
 import { session } from "@/stores/session"
 import { goToForgotPassword } from "@/router"
 import { useSessionLock } from "@/composables/useSessionLock"
 import { useSessionTimeout } from "@/composables/useSessionTimeout"
+import { useReducedMotion } from "@/composables/useReducedMotion"
+import { useMediaQuery } from "@/composables/useMediaQuery"
 import {
 	usePinAuth,
 	isPinValid,
@@ -47,7 +50,7 @@ import {
 
 import { cleanupUserSession, normalizeAuthError } from "@/utils/auth"
 import { ensureCSRFToken } from "@/utils/csrf"
-import { offlineWorker } from "@/utils/offlineWorker"
+import { offlineWorker } from "@/utils/offline/workerClient"
 import { logger } from "@/utils/logger"
 import { enhancedLoginRateLimiter } from "@/utils/rateLimiterEnhanced"
 import {
@@ -60,6 +63,8 @@ import {
 	installSecurityMonitor,
 	checkSessionSecurity,
 } from "@/utils/securityHardening"
+import { offlineState } from "@/utils/offline/offlineState"
+import { offlineWorker as offlineWorkerClient } from "@/utils/offline/workerClient"
 
 /* ============================================================================
  * Props / Emits
@@ -187,6 +192,176 @@ function installSessionSecurityMonitor() {
 			if (status === "absolute_timeout") handleSessionAbsoluteTimeout()
 		}
 	}, 60 * 1000)
+}
+
+/* ============================================================================
+ * Offline Detection & Offline Login Support
+ * ============================================================================ */
+
+const OFFLINE_DETECTION_TIMEOUT_MS = 3000
+const isOfflineMode = ref(false)
+const offlineDetected = ref(false)
+
+async function detectOfflineMode() {
+	if (!isBrowser) return false
+
+	try {
+		const controller = new AbortController()
+		const timeoutId = setTimeout(
+			() => controller.abort(),
+			OFFLINE_DETECTION_TIMEOUT_MS,
+		)
+
+		const response = await fetch("/api/method/DyPOS.api.ping", {
+			method: "GET",
+			cache: "no-store",
+			credentials: "same-origin",
+			signal: controller.signal,
+		})
+
+		clearTimeout(timeoutId)
+
+		if (response.ok) {
+			log.info("Backend reachable — online mode")
+			return false
+		}
+
+		if (response.status === 503) {
+			log.info("Backend unavailable (503) — offline mode")
+			return true
+		}
+
+		log.warn(`Backend responded with ${response.status} — treating as offline`)
+		return true
+	} catch (error) {
+		if (error.name === "AbortError" || error.name === "TimeoutError") {
+			log.info("Backend ping timeout — offline mode")
+		} else {
+			log.info("Backend unreachable — offline mode", error?.message || error)
+		}
+		return true
+	}
+}
+
+async function detectAndSetOfflineMode() {
+	isOfflineMode.value = await detectOfflineMode()
+	offlineDetected.value = true
+
+	if (isOfflineMode.value) {
+		log.info("OFFLINE MODE: Enabling offline login")
+		// Initialize offline systems
+		await initializeOfflineSystems()
+		window.__DYPOS_OFFLINE__ = true
+	} else {
+		log.info("ONLINE MODE: Backend reachable")
+	}
+	return isOfflineMode.value
+}
+
+async function initializeOfflineSystems() {
+	if (!isBrowser) return
+
+	try {
+		log.info("Initializing offline systems...")
+
+		// Initialize offline DB (Dexie) - this happens automatically on import
+		const db = await import("@/services/db").then((m) => m.default)
+		// Open the database connection
+		await db.open().catch((error) => {
+			log.warn("Offline DB open failed", error)
+		})
+
+		// Initialize offline numbering (for invoice numbers)
+		await import("@/services/offline-numbering").catch((error) => {
+			log.warn("Offline numbering init failed", error)
+		})
+
+		// Initialize stock reservations (local only)
+		await import("@/services/stock-reservations").catch((error) => {
+			log.warn("Local stock reservations init failed", error)
+		})
+
+		// Initialize offline store and sync queue
+		await import("@/services/offline-store").catch((error) => {
+			log.warn("Offline store init failed", error)
+		})
+
+		log.info("Offline systems initialized")
+	} catch (error) {
+		log.error("Offline systems initialization failed", error)
+	}
+}
+
+/**
+ * Attempt local authentication using IndexedDB when offline
+ * Falls back to online authentication if online
+ */
+async function attemptLocalLogin(email, password) {
+	if (!isOfflineMode.value) {
+		return { success: false, reason: "Online mode - use server authentication" }
+	}
+
+	try {
+		// Import the offline database
+		const db = await import("@/services/db").then((m) => m.default)
+
+		// Find user by email in local database
+		const users = await db.users
+			.where("email")
+			.equals(email.value.trim().toLowerCase())
+			.toArray()
+
+		if (users.length === 0) {
+			return { success: false, error: "المستخدم غير موجود محليًا" }
+		}
+
+		const user = users[0]
+
+		// Verify password - in production, compare hashed passwords
+		// For now, we'll check against a stored hash or use a simple comparison
+		// In production, you'd use bcrypt or similar
+		const storedHash = user.password_hash
+		if (!storedHash) {
+			return { success: false, error: "كلمة المرور غير محددة محليًا" }
+		}
+
+		// For demo purposes, we'll do a simple check
+		// In production, use bcrypt.compare(password, storedHash)
+		const encoder = new TextEncoder()
+		const data = encoder.encode(password.value)
+		const hashBuffer = await crypto.subtle.digest("SHA-256", data)
+		const hashArray = Array.from(new Uint8Array(hashBuffer))
+		const hashHex = hashBuffer
+			.map((b) => b.toString(16).padStart(2, "0"))
+			.join("")
+
+		// Simple comparison - in production use bcrypt
+		if (storedHash === hashHex || storedHash === password.value) {
+			// Login successful - create local session
+			session.user = user.email
+			session.isLoggedIn = true
+
+			// Store session in localStorage for persistence
+			localStorage.setItem(
+				"dypos_user_session",
+				JSON.stringify({
+					email: user.email,
+					full_name: user.full_name,
+					user_id: user.id,
+					role: user.role,
+					loginTime: Date.now(),
+				}),
+			)
+
+			log.info("Offline login successful for:", user.email)
+			return { success: true, user }
+		}
+
+		return { success: false, error: "كلمة المرور غير صحيحة" }
+	} catch (error) {
+		log.error("Offline login failed:", error)
+		return { success: false, error: error.message || "فشل تسجيل الدخول المحلي" }
+	}
 }
 
 /* ============================================================================
@@ -345,8 +520,37 @@ const contextItems = computed(() => {
 })
 
 /* ============================================================================
+ * Accessibility & Responsive
+ * ============================================================================ */
+
+const reducedMotion = useReducedMotion()
+const prefersDark = useMediaQuery("(prefers-color-scheme: dark)")
+const isMobile = useMediaQuery("(max-width: 768px)")
+
+/* ============================================================================
+ * Password Strength
+ * ============================================================================ */
+
+const passwordStrength = computed(() => {
+	const pwd = password.value
+	if (!pwd) return { level: 0, label: "", color: "" }
+	let score = 0
+	if (pwd.length >= 6) score++
+	if (pwd.length >= 10) score++
+	if (/[A-Z]/.test(pwd)) score++
+	if (/[0-9]/.test(pwd)) score++
+	if (/[^A-Za-z0-9]/.test(pwd)) score++
+
+	if (score <= 2)
+		return { level: score, label: "ضعيف", color: "var(--dy-crimson-600)" }
+	if (score <= 3)
+		return { level: score, label: "متوسط", color: "var(--dy-amber-600)" }
+	return { level: score, label: "قوي", color: "var(--dy-mint-600)" }
+})
+
+/* ============================================================================
  * Runtime Helpers
- * ========================================================================== */
+ * ============================================================================ */
 
 function setRuntimeState(state, message = "") {
 	runtimeState.value = state
@@ -523,25 +727,64 @@ async function submitLogin() {
 			await prepareRuntime()
 		}
 
-		await session.login({
-			usr: sanitizeForInput(email.value.trim()),
-			pwd: sanitizeForInput(password.value),
-		})
+		// Detect offline mode before attempting login
+		if (!offlineDetected.value) {
+			await detectAndSetOfflineMode()
+		}
 
-		loginRateLimiter.recordSuccess()
-		sessionReady.value = true
-		authenticationCompleted.value = true
+		const loginResult = null
 
-		sessionTimeout.start(30 * 60 * 1000)
-		installSessionSecurityMonitor()
+		if (isOfflineMode.value) {
+			// Attempt offline login
+			log.info("Attempting offline login...")
+			const offlineResult = await attemptLocalLogin(email, password)
 
-		logger?.info?.("DyPOS authentication completed")
+			if (offlineResult.success) {
+				loginRateLimiter.recordSuccess()
+				sessionReady.value = true
+				authenticationCompleted.value = true
 
-		handleAuthSuccess({ stage: "login" })
+				sessionTimeout.start(30 * 60 * 1000)
+				installSessionSecurityMonitor()
 
-		emit("authenticated")
+				logger?.info?.("DyPOS offline authentication completed")
 
-		await bootstrapAuthenticatedSession()
+				handleAuthSuccess({ stage: "offline_login" })
+
+				emit("authenticated")
+
+				await bootstrapAuthenticatedSession()
+				return
+			} else {
+				loginError.value = offlineResult.error || "فشل تسجيل الدخول المحلي"
+				throw new Error(offlineResult.error || "فشل تسجيل الدخول المحلي")
+			}
+		} else {
+			// Online mode - use server authentication
+			if (!csrfReady.value && isOnline.value) {
+				await prepareRuntime()
+			}
+
+			await session.login({
+				usr: sanitizeForInput(email.value.trim()),
+				pwd: sanitizeForInput(password.value),
+			})
+
+			loginRateLimiter.recordSuccess()
+			sessionReady.value = true
+			authenticationCompleted.value = true
+
+			sessionTimeout.start(30 * 60 * 1000)
+			installSessionSecurityMonitor()
+
+			logger?.info?.("DyPOS authentication completed")
+
+			handleAuthSuccess({ stage: "login" })
+
+			emit("authenticated")
+
+			await bootstrapAuthenticatedSession()
+		}
 	} catch (error) {
 		authenticationCompleted.value = false
 
@@ -954,14 +1197,28 @@ function goToRegister() {
 </script>
 
 <template>
-    <main
-        class="dy-login"
-        :class="{
-            'dy-login--busy': isSubmitting,
-            'dy-login--locked': sessionLocked,
-        }"
-        dir="rtl"
-    >
+	<main
+		class="dy-login"
+		:class="{
+			'dy-login--busy': isSubmitting,
+			'dy-login--locked': sessionLocked,
+			'dy-login--offline': isOfflineMode,
+			'dy-login--mobile': isMobile,
+			'dy-login--reduced-motion': reducedMotion,
+			'dy-login--dark': prefersDark,
+		}"
+		dir="rtl"
+	>
+		<!-- Offline Indicator -->
+		<div
+			v-if="isOfflineMode && offlineDetected"
+			class="dy-login__offline-banner"
+			role="status"
+			aria-live="polite"
+		>
+			<FeatherIcon name="wifi-off" :size="16" aria-hidden="true" />
+			<span>وضع عدم الاتصال — سيتم تسجيل الدخول محليًا</span>
+		</div>
         <!-- =================================================================
              Brand / Context Panel
              =============================================================== -->
@@ -1258,10 +1515,21 @@ function goToRegister() {
                                 :disabled="isSubmitting"
                                 required
                                 spellcheck="false"
-                                aria-describedby="dypos-login-error"
+                                aria-describedby="dypos-login-email-error"
                                 @input="clearLoginError"
                             />
                         </div>
+
+                        <span
+                            v-if="!email.value && isSubmitting"
+                            id="dypos-login-email-error"
+                            class="dy-login__field-error"
+                            role="alert"
+                            aria-live="polite"
+                        >
+                            <FeatherIcon name="alert-circle" :size="14" aria-hidden="true" />
+                            البريد الإلكتروني مطلوب
+                        </span>
                     </div>
 
                     <!-- Password -->
@@ -1276,7 +1544,23 @@ function goToRegister() {
                             >
                                 كلمة المرور
                             </label>
+
+                            <span
+                                v-if="password.value"
+                                class="dy-login__strength"
+                                :style="{ color: passwordStrength.color }"
+                                aria-live="polite"
+                            >
+                                {{ passwordStrength.label }}
+                            </span>
                         </div>
+
+                        <PasswordStrengthBar
+                            v-if="password.value"
+                            :password="password"
+                            :show-label="false"
+                            aria-label="قوة كلمة المرور"
+                        />
 
                         <div
                             class="dy-login__input-wrap"
@@ -1293,6 +1577,7 @@ function goToRegister() {
                                 ref="passwordInput"
                                 v-model="password"
                                 class="dy-login__input dy-login__input--password"
+                                :class="{ 'dy-login__input--error': !password.value && isSubmitting }"
                                 :type="
                                     showPassword
                                         ? 'text'
@@ -1303,7 +1588,8 @@ function goToRegister() {
                                 placeholder="أدخل كلمة المرور"
                                 :disabled="isSubmitting"
                                 required
-                                aria-describedby="dypos-login-error"
+                                aria-invalid="!!(!password.value && isSubmitting)"
+                                aria-describedby="dypos-login-password-error"
                                 @input="clearLoginError"
                             />
 
@@ -1315,11 +1601,7 @@ function goToRegister() {
                                         ? 'إخفاء كلمة المرور'
                                         : 'إظهار كلمة المرور'
                                 "
-                                :title="
-                                    showPassword
-                                        ? 'إخفاء كلمة المرور'
-                                        : 'إظهار كلمة المرور'
-                                "
+                                :aria-pressed="showPassword"
                                 :disabled="isSubmitting"
                                 @click="
                                     showPassword =
@@ -1336,6 +1618,17 @@ function goToRegister() {
                                 />
                             </button>
                         </div>
+
+                        <span
+                            v-if="!password.value && isSubmitting"
+                            id="dypos-login-password-error"
+                            class="dy-login__field-error"
+                            role="alert"
+                            aria-live="polite"
+                        >
+                            <FeatherIcon name="alert-circle" :size="14" aria-hidden="true" />
+                            كلمة المرور مطلوبة
+                        </span>
                     </div>
 
                     <!-- Form options -->
@@ -2957,8 +3250,186 @@ function goToRegister() {
 }
 
 .dy-login__timeout-logout:hover {
-    background: var(--dy-surface);
-    border-color: var(--dy-crimson-500);
-    color: var(--dy-crimson-600);
+	background: var(--dy-surface);
+	border-color: var(--dy-crimson-500);
+	color: var(--dy-crimson-600);
+}
+
+/* =============================================================================
+   Offline Indicator
+   ============================================================================= */
+
+.dy-login__offline-banner {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+
+	padding: 10px 16px;
+
+	background: rgb(var(--dy-amber-c-500) / 0.12);
+	border-bottom: 1px solid rgb(var(--dy-amber-c-500) / 0.24);
+
+	color: var(--dy-amber-700);
+
+	font-size: 0.82rem;
+	font-weight: 600;
+
+	animation: dy-slide-down var(--dy-dur-standard) var(--dy-ease-standard);
+}
+
+@keyframes dy-slide-down {
+	from {
+		opacity: 0;
+		transform: translateY(-100%);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+/* =============================================================================
+   Input Error State
+   ============================================================================= */
+
+.dy-login__input--error + .dy-login__password-toggle {
+	color: var(--dy-crimson-600);
+}
+
+.dy-login__input-wrap:has(.dy-login__input--error) {
+	border-color: var(--dy-crimson-500);
+}
+
+.dy-login__input-wrap:has(.dy-login__input--error):focus-within {
+	border-color: var(--dy-crimson-500);
+	box-shadow: 0 0 0 3px rgb(var(--dy-crimson-c-500) / 0.12);
+}
+
+/* =============================================================================
+   Password Strength
+   ============================================================================= */
+
+.dy-login__strength {
+	font-size: 0.78rem;
+	font-weight: 700;
+}
+
+.dy-login__field-error {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+
+	color: var(--dy-crimson-600);
+
+	font-size: 0.78rem;
+	font-weight: 600;
+}
+
+/* =============================================================================
+   Offline Mode Variant
+   ============================================================================= */
+
+.dy-login--offline .dy-login__title::after {
+	content: " (غير متصل)";
+	color: var(--dy-amber-600);
+	font-weight: 600;
+	font-size: 0.9em;
+}
+
+/* =============================================================================
+   Reduced Motion Class
+   ============================================================================= */
+
+.dy-login--reduced-motion *,
+.dy-login--reduced-motion *::before,
+.dy-login--reduced-motion *::after {
+	animation-duration: 0.01ms !important;
+	transition-duration: 0.01ms !important;
+}
+
+/* =============================================================================
+   Dark Mode Enhancements
+   ============================================================================= */
+
+.dy-login--dark .dy-login__offline-banner {
+	background: rgb(var(--dy-amber-c-500) / 0.18);
+	border-bottom-color: rgb(var(--dy-amber-c-500) / 0.3);
+	color: var(--dy-amber-400);
+}
+
+.dy-login--dark .dy-login__input-wrap {
+	background: var(--dy-surface);
+	border-color: var(--dy-border);
+}
+
+.dy-login--dark .dy-login__input-wrap:focus-within {
+	box-shadow: 0 0 0 3px rgb(var(--dy-brand-c-500) / 0.18);
+}
+
+.dy-login--dark .dy-login__error {
+	background: rgb(var(--dy-crimson-c-500) / 0.12);
+	border-color: rgb(var(--dy-crimson-c-500) / 0.3);
+	color: var(--dy-crimson-400);
+}
+
+.dy-login--dark .dy-login__error-close:hover {
+	background: rgb(var(--dy-crimson-c-500) / 0.12);
+}
+
+.dy-login--dark .dy-login__rate-limit {
+	background: rgb(var(--dy-amber-c-500) / 0.12);
+	border-color: rgb(var(--dy-amber-c-500) / 0.3);
+	color: var(--dy-amber-400);
+}
+
+.dy-login--dark .dy-login__timeout-card {
+	background: var(--dy-surface);
+	box-shadow: 0 24px 64px rgb(0 0 0 / 0.5);
+}
+
+/* =============================================================================
+   Mobile Enhancements
+   ============================================================================= */
+
+@media (max-width: 768px) {
+	.dy-login--mobile .dy-login__panel-inner {
+		padding-inline: 24px;
+	}
+
+	.dy-login--mobile .dy-login__offline-banner {
+		font-size: 0.78rem;
+		padding: 8px 12px;
+	}
+}
+
+@media (max-width: 480px) {
+	.dy-login--mobile .dy-login__panel-inner {
+		padding-inline: 16px;
+	}
+
+	.dy-login--mobile .dy-login__title {
+		font-size: 1.6rem;
+	}
+
+	.dy-login--mobile .dy-login__submit {
+		width: 100%;
+	}
+}
+
+/* =============================================================================
+   Focus Visible Enhancement
+   ============================================================================= */
+
+.dy-login__input:focus-visible,
+.dy-login__password-toggle:focus-visible,
+.dy-login__forgot:focus-visible,
+.dy-login__remember input:focus-visible + .dy-login__checkbox {
+	outline: 2px solid var(--dy-accent);
+	outline-offset: 2px;
+}
+
+.dy-login__remember:focus-visible {
+	border-radius: var(--dy-radius-sm);
 }
 </style>

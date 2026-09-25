@@ -1,5 +1,6 @@
 import { logger } from "./logger"
 import { cleanupUserSession } from "@/utils/sessionCleanup"
+import { session as piniaSession } from "@/stores/session"
 import {
 	normalizeAuthError,
 	extractAuthStatus,
@@ -10,17 +11,6 @@ import {
 } from "@/utils/authErrors"
 
 const log = logger.create("Auth")
-/**
- * Auth facade — the single entry point for the authentication layer.
- *
- * Re-exports the low-level cleanup and classification helpers so consumers
- * (Login.vue, session store) never reach into implementation details.
- *
- * NOTE: the default export below needs REAL local bindings — shorthand
- * object properties are NOT re-exports. A missing import here throws
- * ReferenceError at module load and breaks every importer (this bricked
- * Login.vue entirely until fixed).
- */
 
 export { cleanupUserSession }
 
@@ -39,8 +29,7 @@ export {
  */
 export async function terminateSession() {
 	try {
-		const { session } = await import("@/data/session")
-		await session.logout.submit()
+		await piniaSession.logout()
 	} catch (error) {
 		log.warn("DyPOS session logout failed", error)
 		try {

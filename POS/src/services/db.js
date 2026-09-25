@@ -74,6 +74,12 @@ class DyPOSDb extends Dexie {
 			customerRequests:
 				"++id, requestNo, customerId, customerName, phone, source, status, total, note, createdAt, updatedAt, syncedAt, syncStatus, [status+createdAt]",
 		})
+
+		// v4: local users for offline authentication
+		this.version(4).stores({
+			users:
+				"++id, email, full_name, phone, company, role, password_hash, created_at, updated_at, [email+password_hash]",
+		})
 	}
 }
 

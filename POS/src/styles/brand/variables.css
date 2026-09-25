@@ -1,0 +1,629 @@
+/**
+ * DyPOS Brand Identity — CSS Custom Properties
+ * Generated from src/styles/brand/identity.js
+ * Apply at :root for light theme, [data-theme="dark"] for dark theme
+ */
+
+:root {
+  /* ============================================================================
+     BRAND COLOR SCALES
+     ============================================================================ */
+
+  /* Primary Brand — Deep Teal */
+  --dy-brand-50: #E6F2F2;
+  --dy-brand-100: #CCE5E5;
+  --dy-brand-200: #99CBCB;
+  --dy-brand-300: #66B2B2;
+  --dy-brand-400: #339999;
+  --dy-brand-500: #0D8080;
+  --dy-brand-600: #0D6E6E;
+  --dy-brand-700: #0A5252;
+  --dy-brand-800: #083C3C;
+  --dy-brand-900: #052626;
+  --dy-brand-950: #031313;
+
+  /* Accent — Warm Desert Gold */
+  --dy-accent-50: #FDF8F0;
+  --dy-accent-100: #FAF0DD;
+  --dy-accent-200: #F4E1BB;
+  --dy-accent-300: #EDD299;
+  --dy-accent-400: #E6C377;
+  --dy-accent-500: #DFB455;
+  --dy-accent-600: #C8A951;
+  --dy-accent-700: #A08841;
+  --dy-accent-800: #786631;
+  --dy-accent-900: #503318;
+  --dy-accent-950: #281A0C;
+
+  /* ============================================================================
+     SEMANTIC COLORS — Primary Actions
+     ============================================================================ */
+
+  /* Primary — Deep Teal */
+  --dy-primary: var(--dy-brand-600);
+  --dy-primary-hover: var(--dy-brand-700);
+  --dy-primary-active: var(--dy-brand-800);
+  --dy-primary-disabled: var(--dy-brand-200);
+  --dy-primary-soft: var(--dy-brand-100);
+  --dy-text-on-primary: var(--dy-text-on-primary);
+
+  /* Secondary — Subtle */
+  --dy-secondary: transparent;
+  --dy-secondary-hover: var(--dy-bg-overlay);
+  --dy-secondary-active: var(--dy-border);
+
+  /* Danger — Semantic Red */
+  --dy-danger: #C82A2A;
+  --dy-danger-hover: #A82222;
+  --dy-danger-active: #881A1A;
+  --dy-danger-disabled: var(--dy-brand-200);
+  --dy-danger-soft: #FDE8E8;
+
+  /* Accent — Desert Gold */
+  --dy-accent: var(--dy-accent-600);
+  --dy-accent-hover: var(--dy-accent-700);
+  --dy-accent-active: var(--dy-accent-800);
+  --dy-accent-disabled: var(--dy-accent-200);
+  --dy-accent-soft: var(--dy-accent-100);
+  --dy-text-on-accent: var(--dy-text-on-accent);
+
+  /* Status Colors */
+  --dy-success: #2E8B2E;
+  --dy-success-soft: #D4E8D4;
+  --dy-warning: #C8A02A;
+  --dy-warning-soft: #F4E8C8;
+  --dy-info: #2A94B8;
+  --dy-info-soft: #D0E8F0;
+  --dy-danger: #C82A2A;
+  --dy-danger-soft: #FDE8E8;
+
+  /* ============================================================================
+     BACKGROUNDS & SURFACES
+     ============================================================================ */
+
+  /* Page Backgrounds */
+  --dy-bg: #FEFEFE;
+  --dy-bg-raised: #FFFFFF;
+  --dy-bg-overlay: #F7FAFA;
+  --dy-bg-sunken: #EEF2F2;
+
+  /* Surface System */
+  --dy-surface: var(--dy-bg-raised);
+  --dy-surface-hover: var(--dy-bg-overlay);
+  --dy-surface-active: var(--dy-bg-sunken);
+
+  /* ============================================================================
+     TEXT COLORS
+     ============================================================================ */
+
+  --dy-text-primary: #0F1A1A;
+  --dy-text-secondary: #2D3A3A;
+  --dy-text-muted: #5A6E6E;
+  --dy-text-disabled: #8A9E9E;
+  --dy-text-inverse: #FFFFFF;
+  --dy-text-on-primary: #FFFFFF;
+  --dy-text-on-accent: #1A1508;
+  --dy-text-on-primary: #FFFFFF;
+
+  /* ============================================================================
+     BORDERS
+     ============================================================================ */
+
+  --dy-border: #D5DBDB;
+  --dy-border-strong: #B8C4C4;
+  --dy-border-focus: var(--dy-brand-600);
+
+  /* ============================================================================
+     FOCUS RING
+     ============================================================================ */
+
+  --dy-focus-ring: var(--dy-brand-600);
+  --dy-focus-ring-offset: #FFFFFF;
+  --dy-focus-ring-width: 2px;
+  --dy-focus-ring-offset-width: 2px;
+
+  /* ============================================================================
+     OVERLAY / MODAL
+     ============================================================================ */
+
+  --dy-overlay-backdrop: rgba(15, 26, 26, 0.45);
+  --dy-overlay-scrim: rgba(0, 0, 0, 0.55);
+
+  /* ============================================================================
+     TYPOGRAPHY
+     ============================================================================ */
+
+  /* Font Families */
+  --dy-font-sans: 'Cairo Variable', 'Noto Sans Arabic', system-ui, sans-serif;
+  --dy-font-arabic: 'Cairo Variable', 'Noto Sans Arabic', system-ui, sans-serif;
+  --dy-font-latin: 'Inter Variable', 'Inter', system-ui, sans-serif;
+  --dy-font-mono: 'JetBrains Mono Variable', 'Fira Code', monospace;
+  --dy-font-display: 'Cairo Variable', system-ui, sans-serif;
+  --dy-font-numbers: 'Cairo Variable', 'Tabular-nums', monospace;
+
+  /* Font Weights */
+  --dy-font-weight-thin: 100;
+  --dy-font-weight-extralight: 200;
+  --dy-font-weight-light: 300;
+  --dy-font-weight-normal: 400;
+  --dy-font-weight-medium: 500;
+  --dy-font-weight-semibold: 600;
+  --dy-font-weight-bold: 700;
+  --dy-font-weight-extrabold: 800;
+  --dy-font-weight-black: 900;
+
+  /* Arabic-specific weights */
+  --dy-font-weight-arabic-normal: 400;
+  --dy-font-weight-arabic-medium: 500;
+  --dy-font-weight-arabic-bold: 700;
+
+  /* Font Sizes — Fluid clamp() values */
+  --dy-font-size-2xs-min: 0.625rem;
+  --dy-font-size-2xs-max: 0.6875rem;
+  --dy-font-size-2xs-line: 1.5;
+
+  --dy-font-size-xs-min: 0.70rem;
+  --dy-font-size-xs-max: 0.75rem;
+  --dy-font-size-xs-line: 1.5;
+
+  --dy-font-size-sm-min: 0.81rem;
+  --dy-font-size-sm-max: 0.875rem;
+  --dy-font-size-sm-line: 1.6;
+
+  --dy-font-size-base-min: 0.94rem;
+  --dy-font-size-base-max: 1rem;
+  --dy-font-size-base-line: 1.7;
+
+  --dy-font-size-lg-min: 1.06rem;
+  --dy-font-size-lg-max: 1.125rem;
+  --dy-font-size-lg-line: 1.7;
+
+  --dy-font-size-xl-min: 1.25rem;
+  --dy-font-size-xl-max: 1.25rem;
+  --dy-font-size-xl-line: 1.6;
+
+  --dy-font-size-2xl-min: 1.5rem;
+  --dy-font-size-2xl-max: 1.5rem;
+  --dy-font-size-2xl-line: 1.5;
+
+  --dy-font-size-3xl-min: 1.875rem;
+  --dy-font-size-3xl-max: 1.875rem;
+  --dy-font-size-3xl-line: 1.4;
+
+  --dy-font-size-4xl-min: 2.25rem;
+  --dy-font-size-4xl-max: 2.25rem;
+  --dy-font-size-4xl-line: 1.3;
+
+  --dy-font-size-5xl-min: 3rem;
+  --dy-font-size-5xl-max: 3rem;
+  --dy-font-size-5xl-line: 1.2;
+
+  --dy-font-size-display-sm-min: 2.5rem;
+  --dy-font-size-display-sm-max: 3rem;
+  --dy-font-size-display-sm-line: 1.2;
+
+  --dy-font-size-display-md-min: 3.5rem;
+  --dy-font-size-display-md-max: 4rem;
+  --dy-font-size-display-md-line: 1.15;
+
+  --dy-font-size-display-lg-min: 4.5rem;
+  --dy-font-size-display-lg-max: 5rem;
+  --dy-font-size-display-lg-line: 1.1;
+
+  /* Line Heights */
+  --dy-line-height-tight: 1.2;
+  --dy-line-height-snug: 1.35;
+  --dy-line-height-normal: 1.7;
+  --dy-line-height-relaxed: 1.85;
+  --dy-line-height-loose: 2;
+  --dy-line-height-arabic: 1.8;
+
+  /* Letter Spacing */
+  --dy-letter-spacing-tighter: -0.03em;
+  --dy-letter-spacing-tight: -0.015em;
+  --dy-letter-spacing-normal: 0;
+  --dy-letter-spacing-wide: 0.02em;
+  --dy-letter-spacing-wider: 0.04em;
+  --dy-letter-spacing-widest: 0.08em;
+  --dy-letter-spacing-arabic: 0.01em;
+
+  /* ============================================================================
+     SPACING — 4px base unit
+     ============================================================================ */
+
+  --dy-spacing-px: 1px;
+  --dy-spacing-0_5: 0.125rem;  /* 2px */
+  --dy-spacing-1: 0.25rem;     /* 4px */
+  --dy-spacing-1_5: 0.375rem;  /* 6px */
+  --dy-spacing-2: 0.5rem;      /* 8px */
+  --dy-spacing-2_5: 0.625rem;  /* 10px */
+  --dy-spacing-3: 0.75rem;     /* 12px */
+  --dy-spacing-3_5: 0.875rem;  /* 14px */
+  --dy-spacing-4: 1rem;        /* 16px */
+  --dy-spacing-5: 1.25rem;     /* 20px */
+  --dy-spacing-6: 1.5rem;      /* 24px */
+  --dy-spacing-7: 1.75rem;     /* 28px */
+  --dy-spacing-8: 2rem;        /* 32px */
+  --dy-spacing-9: 2.25rem;     /* 36px */
+  --dy-spacing-10: 2.5rem;     /* 40px */
+  --dy-spacing-11: 2.75rem;    /* 44px */
+  --dy-spacing-12: 3rem;       /* 48px */
+  --dy-spacing-14: 3.5rem;     /* 56px */
+  --dy-spacing-16: 4rem;       /* 64px */
+  --dy-spacing-20: 5rem;       /* 80px */
+  --dy-spacing-24: 6rem;       /* 96px */
+  --dy-spacing-28: 7rem;       /* 112px */
+  --dy-spacing-32: 8rem;       /* 128px */
+
+  /* ============================================================================
+     BORDER RADIUS
+     ============================================================================ */
+
+  --dy-radius-none: 0;
+  --dy-radius-xs: 0.125rem;    /* 2px */
+  --dy-radius-sm: 0.25rem;     /* 4px */
+  --dy-radius-md: 0.375rem;    /* 6px */
+  --dy-radius-lg: 0.5rem;      /* 8px */
+  --dy-radius-xl: 0.75rem;     /* 12px */
+  --dy-radius-2xl: 1rem;       /* 16px */
+  --dy-radius-3xl: 1.5rem;     /* 24px */
+  --dy-radius-full: 9999px;
+  --dy-radius-pill: 9999px;
+
+  /* ============================================================================
+     ELEVATION / SHADOWS
+     ============================================================================ */
+
+  --dy-elevation-0: none;
+  --dy-elevation-1: 0 1px 2px 0 rgba(13, 38, 38, 0.04);
+  --dy-elevation-2: 0 1px 3px 0 rgba(13, 38, 38, 0.08), 0 1px 2px -1px rgba(13, 38, 38, 0.08);
+  --dy-elevation-3: 0 4px 6px -1px rgba(13, 38, 38, 0.08), 0 2px 4px -2px rgba(13, 38, 38, 0.08);
+  --dy-elevation-4: 0 10px 15px -3px rgba(13, 38, 38, 0.08), 0 4px 6px -4px rgba(13, 38, 38, 0.08);
+  --dy-elevation-5: 0 20px 25px -5px rgba(13, 38, 38, 0.08), 0 8px 10px -6px rgba(13, 38, 38, 0.08);
+  --dy-elevation-6: 0 25px 50px -12px rgba(13, 38, 38, 0.12);
+
+  /* Brand-colored shadows */
+  --dy-elevation-brand-1: 0 1px 2px 0 rgba(13, 110, 110, 0.15);
+  --dy-elevation-brand-2: 0 4px 8px 0 rgba(13, 110, 110, 0.2);
+  --dy-elevation-brand-3: 0 8px 16px 0 rgba(13, 110, 110, 0.25);
+
+  --dy-elevation-accent-1: 0 1px 2px 0 rgba(200, 169, 81, 0.2);
+  --dy-elevation-accent-2: 0 4px 8px 0 rgba(200, 169, 81, 0.3);
+
+  --dy-elevation-inner: inset 0 2px 4px 0 rgba(13, 38, 38, 0.05);
+
+  /* ============================================================================
+     MOTION / ANIMATION
+     ============================================================================ */
+
+  --dy-dur-instant: 0ms;
+  --dy-dur-whisper: 50ms;
+  --dy-dur-fast: 120ms;
+  --dy-dur-normal: 180ms;
+  --dy-dur-slow: 280ms;
+  --dy-dur-slower: 400ms;
+  --dy-dur-slowest: 600ms;
+
+  --dy-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+  --dy-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dy-ease-spring-gentle: cubic-bezier(0.34, 1.3, 0.64, 1);
+  --dy-ease-spring-playful: cubic-bezier(0.25, 1.5, 0.5, 1);
+  --dy-ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --dy-ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --dy-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Duration aliases */
+  --dy-dur-instant: 0ms;
+  --dy-dur-whisper: 50ms;
+  --dy-dur-fast: 120ms;
+  --dy-dur-normal: 180ms;
+  --dy-dur-slow: 280ms;
+  --dy-dur-slower: 400ms;
+  --dy-dur-slowest: 600ms;
+
+  --dy-ease-standard: var(--dy-ease-out-brand);
+  --dy-ease-out-brand: cubic-bezier(0.22, 1, 0.36, 1);
+  --dy-ease-in-brand: cubic-bezier(0.55, 0, 0.68, 0.55);
+  --dy-ease-in-out-brand: cubic-bezier(0.55, 0, 0.1, 1);
+  --dy-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dy-ease-spring-gentle: cubic-bezier(0.34, 1.3, 0.64, 1);
+  --dy-ease-spring-playful: cubic-bezier(0.25, 1.5, 0.5, 1);
+
+  /* ============================================================================
+     Z-INDEX
+     ============================================================================ */
+
+  --dy-z-base: 0;
+  --dy-z-dropdown: 100;
+  --dy-z-sticky: 200;
+  --dy-z-header: 300;
+  --dy-z-modal: 400;
+  --dy-z-popover: 500;
+  --dy-z-tooltip: 600;
+  --dy-z-toast: 700;
+  --dy-z-skip-link: 9999;
+
+  /* ============================================================================
+     TOUCH TARGETS
+     ============================================================================ */
+
+  --dy-touch-min: 48px;
+  --dy-touch-comfort: 56px;
+
+  /* ============================================================================
+     LAYOUT
+     ============================================================================ */
+
+  --dy-container-sm: 640px;
+  --dy-container-md: 768px;
+  --dy-container-lg: 1024px;
+  --dy-container-xl: 1280px;
+  --dy-container-2xl: 1400px;
+  --dy-container-3xl: 1600px;
+  --dy-container-full: 100%;
+
+  --dy-content-max-width: 1400px;
+  --dy-content-padding: 1.5rem;
+  --dy-content-padding-mobile: 1rem;
+
+  --dy-sidebar-width: 288px;
+  --dy-sidebar-collapsed: 80px;
+  --dy-sidebar-mobile: 320px;
+
+  --dy-header-height: 64px;
+  --dy-header-height-mobile: 56px;
+
+  --dy-toolbar-height: 56px;
+  --dy-toolbar-height-dense: 48px;
+
+  /* ============================================================================
+     BREAKPOINTS
+     ============================================================================ */
+
+  --dy-breakpoint-xs: 0;
+  --dy-breakpoint-sm: 640px;
+  --dy-breakpoint-md: 768px;
+  --dy-breakpoint-lg: 1024px;
+  --dy-breakpoint-xl: 1280px;
+  --dy-breakpoint-2xl: 1440px;
+  --dy-breakpoint-3xl: 1600px;
+
+  /* ============================================================================
+     GRID
+     ============================================================================ */
+
+  --dy-grid-columns: 12;
+  --dy-grid-gutter: 1.5rem;
+  --dy-grid-gutter-sm: 1rem;
+
+  /* ============================================================================
+     DENSITY
+     ============================================================================ */
+
+  --dy-density-compact-spacing: 0.7;
+  --dy-density-compact-font: 0.875;
+  --dy-density-compact-control: 30px;
+
+  --dy-density-comfortable-spacing: 1;
+  --dy-density-comfortable-font: 1;
+  --dy-density-comfortable-control: 40px;
+
+  --dy-density-spacious-spacing: 1.3;
+  --dy-density-spacious-font: 1.1;
+  --dy-density-spacious-control: 48px;
+
+  /* ============================================================================
+     TOUCH TARGETS
+     ============================================================================ */
+
+  --dy-touch-min: 48px;
+  --dy-touch-comfort: 56px;
+
+  /* ============================================================================
+     COMPONENT DEFAULTS
+     ============================================================================ */
+
+  /* Button */
+  --dy-btn-height-xs: 28px;
+  --dy-btn-height-sm: 32px;
+  --dy-btn-height-md: 40px;
+  --dy-btn-height-lg: 48px;
+  --dy-btn-height-xl: 56px;
+
+  --dy-btn-padding-xs: 0 10px;
+  --dy-btn-padding-sm: 0 12px;
+  --dy-btn-padding-md: 0 18px;
+  --dy-btn-padding-lg: 0 24px;
+  --dy-btn-padding-xl: 0 32px;
+
+  --dy-btn-gap: 8px;
+  --dy-btn-font-weight: 600;
+  --dy-btn-letter-spacing: 0.01em;
+
+  /* Input */
+  --dy-input-height-xs: 28px;
+  --dy-input-height-sm: 32px;
+  --dy-input-height-md: 40px;
+  --dy-input-height-lg: 48px;
+  --dy-input-height-xl: 56px;
+
+  --dy-input-padding: 0 12px;
+  --dy-input-placeholder-opacity: 0.45;
+
+  /* Card */
+  --dy-card-padding: 1.5rem;
+  --dy-card-gap: 1rem;
+
+  /* Table */
+  --dy-table-cell-padding: 12px 16px;
+  --dy-table-head-height: 48px;
+  --dy-table-row-height: 52px;
+  --dy-table-row-height-compact: 44px;
+
+  /* Modal */
+  --dy-modal-max-width: 560px;
+  --dy-modal-max-height: 90vh;
+  --dy-modal-padding: 1.5rem;
+
+  /* Toast */
+  --dy-toast-max-width: 400px;
+  --dy-toast-padding: 1rem 1.25rem;
+  --dy-toast-gap: 0.75rem;
+
+  /* ============================================================================
+     DARK THEME OVERRIDES
+     ============================================================================ */
+
+}
+
+[data-theme="dark"] {
+  /* Brand scales stay the same for brand recognition */
+
+  /* Inverted surfaces */
+  --dy-bg: #0D1414;
+  --dy-bg-raised: #141E1E;
+  --dy-bg-overlay: #1A2424;
+  --dy-bg-sunken: #0D1414;
+
+  /* Surface system */
+  --dy-surface: var(--dy-bg-raised);
+  --dy-surface-hover: var(--dy-bg-overlay);
+  --dy-surface-active: var(--dy-bg-sunken);
+
+  /* Text */
+  --dy-text-primary: #F0F5F5;
+  --dy-text-secondary: #B8C8C8;
+  --dy-text-muted: #7A8E8E;
+  --dy-text-disabled: #5A6E6E;
+  --dy-text-inverse: #0D1414;
+
+  /* Borders */
+  --dy-border: #2A3A3A;
+  --dy-border-strong: #3A4E4E;
+  --dy-border-focus: var(--dy-brand-400);
+
+  /* Focus ring */
+  --dy-focus-ring: var(--dy-brand-400);
+  --dy-focus-ring-offset: var(--dy-bg);
+
+  /* Overlay */
+  --dy-overlay-backdrop: rgba(0, 0, 0, 0.6);
+  --dy-overlay-scrim: rgba(0, 0, 0, 0.7);
+
+  /* Brand shadows in dark */
+  --dy-elevation-brand-1: 0 1px 2px 0 rgba(52, 180, 180, 0.25);
+  --dy-elevation-brand-2: 0 4px 8px 0 rgba(52, 180, 180, 0.35);
+  --dy-elevation-brand-3: 0 8px 16px 0 rgba(52, 180, 180, 0.45);
+
+  --dy-elevation-accent-1: 0 1px 2px 0 rgba(216, 185, 81, 0.3);
+  --dy-elevation-accent-2: 0 4px 8px 0 rgba(216, 185, 81, 0.4);
+
+  /* Focus ring */
+  --dy-focus-ring-offset: var(--dy-bg);
+
+  /* Overlay */
+  --dy-overlay-backdrop: rgba(0, 0, 0, 0.7);
+  --dy-overlay-scrim: rgba(0, 0, 0, 0.8);
+}
+
+/* ============================================================================
+   RTL SUPPORT
+   ============================================================================ */
+
+[dir="rtl"] {
+  /* Logical properties handled by CSS, no variable changes needed */
+}
+
+/* ============================================================================
+   HIGH CONTRAST MODE
+   ============================================================================ */
+
+@media (prefers-contrast: high) {
+  :root {
+    --dy-border: currentColor;
+    --dy-border-strong: currentColor;
+    --dy-focus-ring-width: 3px;
+    --dy-focus-ring-offset-width: 3px;
+  }
+}
+
+/* ============================================================================
+   REDUCED MOTION
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dy-dur-instant: 0ms;
+    --dy-dur-whisper: 0ms;
+    --dy-dur-fast: 0ms;
+    --dy-dur-normal: 0ms;
+    --dy-dur-slow: 0ms;
+    --dy-dur-slower: 0ms;
+    --dy-dur-slowest: 0ms;
+    --dy-ease-standard: linear;
+    --dy-ease-spring: linear;
+  }
+}
+
+/* ============================================================================
+   PRINT STYLES
+   ============================================================================ */
+
+@media print {
+  :root {
+    --dy-bg: #FFFFFF;
+    --dy-bg-raised: #FFFFFF;
+    --dy-text-primary: #000000;
+    --dy-text-secondary: #333333;
+    --dy-border: #CCCCCC;
+  }
+
+  [data-theme="dark"] {
+    --dy-bg: #FFFFFF;
+    --dy-bg-raised: #FFFFFF;
+    --dy-text-primary: #000000;
+  }
+}
+
+/* ============================================================================
+   UTILITY CLASSES (applied via Tailwind)
+   ============================================================================ */
+
+/* Focus visible styles */
+.dy-focus-visible:focus-visible {
+  outline: none;
+  ring: var(--dy-focus-ring-width) solid var(--dy-focus-ring);
+  ring-offset: var(--dy-focus-ring-offset-width);
+  ring-offset-color: var(--dy-focus-ring-offset);
+}
+
+/* Skip link */
+.dy-skip-link {
+  position: absolute;
+  top: var(--dy-spacing-4);
+  left: var(--dy-spacing-4);
+  z-index: var(--dy-z-skip-link);
+  padding: var(--dy-spacing-2) var(--dy-spacing-4);
+  background: var(--dy-primary);
+  color: var(--dy-text-on-primary);
+  border-radius: var(--dy-radius-md);
+  transform: translateY(-100%);
+  transition: transform var(--dy-dur-fast) var(--dy-ease-standard);
+}
+
+.dy-skip-link:focus {
+  transform: translateY(0);
+}
+
+/* Visually hidden (for screen readers) */
+.dy-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

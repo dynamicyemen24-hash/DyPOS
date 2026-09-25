@@ -339,10 +339,7 @@
 </template>
 
 <script setup>
-import {
-	DEFAULT_CURRENCY,
-	formatCurrency as formatCurrencyUtil,
-} from "@/utils/currency"
+import { DEFAULT_CURRENCY } from "@/utils/currency"
 import { logger } from "@/utils/logger"
 import { getInvoiceStatusColor } from "@/utils/invoice"
 import { usePOSSettingsStore } from "@/stores/posSettings"
@@ -360,7 +357,7 @@ const log = logger.create("PartialPayments")
 
 const posSettingsStore = usePOSSettingsStore()
 const { showSuccess, showError } = useToast()
-const { formatDate, formatTime } = useFormatters()
+const { formatCurrency, formatDate, formatTime } = useFormatters()
 
 const props = defineProps({
 	modelValue: Boolean,
@@ -490,10 +487,6 @@ async function handlePaymentCompleted(paymentData) {
 		console.error("[PartialPayments] Error adding payment:", error)
 		showError(error.message || __("Failed to add payment"))
 	}
-}
-
-function formatCurrency(amount) {
-	return formatCurrencyUtil(Number.parseFloat(amount || 0), props.currency)
 }
 
 function getPaymentSourceLabel(source) {

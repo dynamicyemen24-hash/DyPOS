@@ -1,8 +1,6 @@
-# DyPOS static site as Workers Static Assets.
-# Deploy: wrangler deploy (assets from .pages-site).
-# Domain route dypos.smartportssoft.com/* is attached on every deploy
-# (Zone Workers Routes Edit is on CLOUDFLARE_API_TOKEN; also bound once via
-# dashboard/API on 2026-09-24).
+# DyPOS PWA + API proxy
+# Deploy: wrangler deploy
+# Domain route dypos.smartportssoft.com/* attached via dashboard
 name = "dypos-pos"
 main = "worker.js"
 compatibility_date = "2026-09-24"
@@ -12,6 +10,9 @@ preview_urls = false
 [[routes]]
 pattern = "dypos.smartportssoft.com/*"
 zone_name = "smartportssoft.com"
+
+[vars]
+BACKEND_URL = "https://dypos-api.smartportssoft.com"
 
 [assets]
 directory = ".pages-site"

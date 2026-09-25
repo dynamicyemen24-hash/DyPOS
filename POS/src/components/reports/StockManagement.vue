@@ -1,148 +1,134 @@
 <template>
-  <DashboardLayout
+  <WorkShell
     title="إدارة المخزون"
     subtitle="إدارة الأصناف، المخزون، التحويلات، والتسوية"
+    :nav-items="navItems"
+    :breadcrumbs="breadcrumbs"
     :loading="loading"
     :error="error"
+    :empty="!isLoaded && !loading"
+    :empty-title="'لا توجد منتجات'"
+    :empty-description="'لم يتم العثور على منتجات مطابقة للفلاتر'"
     :has-data="isLoaded"
     :last-loaded="lastLoaded"
-    :auto-refresh="autoRefresh"
-    showBack
-    exportable
     @refresh="refresh"
-    @export="exportReport"
-    @toggle-auto-refresh="autoRefresh = !autoRefresh"
-    @back="goBack"
   >
-    <template #filters>
-      <div class="flex flex-wrap items-end gap-4">
-        <div class="flex-1 min-w-[200px]">
-          <FormControl
-            type="text"
+    <template #toolbar>
+      <WorkToolbar>
+        <template #start>
+          <WorkSearch
             v-model="searchQuery"
-            :placeholder="__('Search products...')"
-            @keydown.enter="loadProducts"
-          >
-            <template #prefix>
-              <FeatherIcon name="search" class="w-4 h-4 text-gray-500" />
-            </template>
-          </FormControl>
-        </div>
-        <SelectInput
-          v-model="filterWarehouse"
-          :options="warehouseOptions"
-          :placeholder="__('All Warehouses')"
-          class="w-48"
-        />
-        <SelectInput
-          v-model="filterCategory"
-          :options="categoryOptions"
-          :placeholder="__('All Categories')"
-          class="w-48"
-        />
-        <SelectInput
-          v-model="filterStockStatus"
-          :options="stockStatusOptions"
-          :placeholder="__('Stock Status')"
-          class="w-40"
-        />
-        <Button @click="loadProducts" variant="outline" :loading="loading">
-          <template #prefix>
-            <FeatherIcon name="refresh-cw" class="w-4 h-4" />
-          </template>
-          {{ __("Refresh") }}
-        </Button>
-        <Button @click="openImportExport" variant="outline">
-          <template #prefix>
-            <FeatherIcon name="file-text" class="w-4 h-4" />
-          </template>
-          {{ __("Import/Export") }}
-        </Button>
-        <Button @click="openStockTake" variant="outline">
-          <template #prefix>
-            <FeatherIcon name="clipboard" class="w-4 h-4" />
-          </template>
-          {{ __("Stock Take") }}
-        </Button>
-        <Button @click="openReorderManagement" variant="solid" theme="blue">
-          <template #prefix>
-            <FeatherIcon name="alert-triangle" class="w-4 h-4" />
-          </template>
-          {{ __("Reorder Alerts") }}
-        </Button>
-      </div>
+            placeholder="ابحث بالاسم أو الكود..."
+            :suggestions="searchSuggestions"
+            @search="onSearch"
+            @select="onSearchSelect"
+          />
+        </template>
+        <template #end>
+          <WorkActions
+            :primary-actions="primaryActions"
+            :secondary-actions="secondaryActions"
+            :overflow-actions="overflowActions"
+          />
+        </template>
+      </WorkToolbar>
+
+      <WorkFilters
+        v-model="filterModel"
+        :fields="filterFields"
+        :auto-apply="true"
+        @apply="onFiltersApply"
+        @reset="onFiltersReset"
+      />
     </template>
 
-    <KPISummary
-      class="mb-6"
-      :kpis="kpis"
-      :currency-ids="CURRENCY_IDS"
-    />
+    <!-- KPI Summary -->
+    <WorkCard variant="outlined" class="mb-6">
+      <KPISummary :kpis="kpis" :currency-ids="CURRENCY_IDS" />
+    </WorkCard>
 
+    <!-- Charts Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-      <ChartCard title="اتجاه قيمة المخزون" icon="trending-up" :loading="loading" :error="error" :is-empty="!stockValueTrend.length" aspectRatio="3/2">
-        <Line :data="stockValueChartData" :options="lineOptions" />
-      </ChartCard>
-
-      <ChartCard title="المخزون حسب التصنيف" icon="pie-chart" :loading="loading" :error="error" :is-empty="!categoryDistribution.length" aspectRatio="3/2">
-        <Doughnut :data="categoryChartData" :options="doughnutOptions" />
-      </ChartCard>
+      <WorkChart
+        type="line"
+        :data="stockValueChartData"
+        :options="lineOptions"
+        title="اتجاه قيمة المخزون"
+        aspect-ratio="3/2"
+        :loading="loading"
+        :is-empty="!stockValueTrend.length"
+      />
+      <WorkChart
+        type="doughnut"
+        :data="categoryChartData"
+        :options="doughnutOptions"
+        title="المخزون حسب التصنيف"
+        aspect-ratio="3/2"
+        :loading="loading"
+        :is-empty="!categoryDistribution.length"
+      />
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-      <ChartCard title="أعلى 10 بالقيمة" icon="dollar-sign" :loading="loading" :error="error" :is-empty="!topByValue.length" aspectRatio="3/2">
-        <Bar :data="topValueChartData" :options="barOptions" />
-      </ChartCard>
-
-      <ChartCard title="أعلى 10 بالكمية" icon="package" :loading="loading" :error="error" :is-empty="!topByQty.length" aspectRatio="3/2">
-        <Bar :data="topQtyChartData" :options="barOptions" />
-      </ChartCard>
-
-      <ChartCard title="اتجاه المخزون المنخفض" icon="alert-triangle" :loading="loading" :error="error" :is-empty="!lowStockTrend.length" aspectRatio="3/2">
-        <Line :data="lowStockChartData" :options="lineOptions" />
-      </ChartCard>
+      <WorkChart
+        type="bar"
+        :data="topValueChartData"
+        :options="barOptions"
+        title="أعلى 10 بالقيمة"
+        aspect-ratio="3/2"
+        :loading="loading"
+        :is-empty="!topByValue.length"
+      />
+      <WorkChart
+        type="bar"
+        :data="topQtyChartData"
+        :options="barOptions"
+        title="أعلى 10 بالكمية"
+        aspect-ratio="3/2"
+        :loading="loading"
+        :is-empty="!topByQty.length"
+      />
+      <WorkChart
+        type="line"
+        :data="lowStockChartData"
+        :options="lineOptions"
+        title="اتجاه المخزون المنخفض"
+        aspect-ratio="3/2"
+        :loading="loading"
+        :is-empty="!lowStockTrend.length"
+      />
     </div>
 
-    <h3 class="text-sm font-semibold text-gray-700 mb-3">{{ __("Products") }}</h3>
-    <div class="overflow-x-auto">
-      <ReportTable
+    <!-- Products Table -->
+    <WorkCard variant="outlined">
+      <template #header>
+        <h3 class="text-lg font-semibold text-gray-900">المنتجات</h3>
+      </template>
+      <WorkTable
         :columns="productColumns"
         :rows="paginatedProducts"
-        :row-clickable="true"
+        row-key="id"
+        row-clickable
+        selectable
+        :selected-rows="selectedRows"
+        @update:selected-rows="selectedRows = $event"
         @row-click="openProductDetails"
-      >
-        <template #col-status="{ row }">
-          <StockStatusBadge :qty="row.qty" :reserved="row.reserved_qty" :reorderPoint="row.reorder_point" />
-        </template>
-        <template #col-qty="{ row }">
-          <div class="flex items-center gap-2">
-            <span>{{ row.qty }}</span>
-            <span v-if="row.reserved_qty > 0" class="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded">R: {{ row.reserved_qty }}</span>
-          </div>
-        </template>
-        <template #col-actions="{ row }">
-          <div class="flex items-center gap-1">
-            <Button size="sm" variant="ghost" @click.stop="openAdjustment(row)" :aria-label="__('Adjust Stock')">
-              <FeatherIcon name="edit-2" class="w-4 h-4" />
-            </Button>
-            <Button size="sm" variant="ghost" @click.stop="openTransfer(row)" :aria-label="__('Transfer Stock')">
-              <FeatherIcon name="move" class="w-4 h-4" />
-            </Button>
-            <Button size="sm" variant="ghost" @click.stop="openHistory(row)" :aria-label="__('View History')">
-              <FeatherIcon name="clock" class="w-4 h-4" />
-            </Button>
-          </div>
-        </template>
-      </ReportTable>
-    </div>
+        :actions-column="actionsColumn"
+      />
+      <template #footer>
+        <WorkPagination
+          v-if="totalPages > 1"
+          :current-page="currentPage"
+          :total-pages="totalPages"
+          :page-size="pageSize"
+          :total-items="totalProducts"
+          @page-change="currentPage = $event"
+          @page-size-change="onPageSizeChange"
+        />
+      </template>
+    </WorkCard>
 
-    <Pagination
-      v-if="totalPages > 1"
-      :current-page="currentPage"
-      :total-pages="totalPages"
-      @page-change="currentPage = $event"
-    />
-
+    <!-- Dialogs -->
     <StockAdjustmentDialog
       v-if="selectedProduct"
       v-model="showAdjustmentDialog"
@@ -180,40 +166,49 @@
       :product="selectedProduct"
       :warehouses="models.warehouses"
     />
-  </DashboardLayout>
+  </WorkShell>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from "vue"
+import { ref, computed, watch, onMounted, nextTick } from "vue"
 import { Line, Bar, Doughnut } from "vue-chartjs"
 import { Button, FeatherIcon, FormControl } from "frappe-ui"
-import DashboardLayout from "./dashboards/core/DashboardLayout.vue"
-import ChartCard from "./dashboards/core/ChartCard.vue"
-import KPISummary from "./dashboards/core/KPISummary.vue"
-import ReportTable from "./ui/tables/ReportTable.vue"
-import Pagination from "../ui/Pagination.vue"
-import StockStatusBadge from "../ui/StockStatusBadge.vue"
-import SelectInput from "@/components/common/SelectInput.vue"
-import StockAdjustmentDialog from "../sale/StockAdjustmentDialog.vue"
-import StockTransferDialog from "../sale/StockTransferDialog.vue"
-import StockImportExportDialog from "../sale/StockImportExportDialog.vue"
-import StockTakeDialog from "../sale/StockTakeDialog.vue"
-import ReorderManagementDialog from "../sale/ReorderManagementDialog.vue"
-import StockHistoryDialog from "../sale/StockHistoryDialog.vue"
+import { t } from "@/utils/translation"
 import {
 	COLORS,
 	PALETTE,
 	currencyTick,
 	shortDate,
-} from "./dashboards/core/chartConfig"
-import { useDashboardData } from "./dashboards/core/useDashboardData"
+} from "@/components/reports/dashboards/core/chartConfig"
+import { useDashboardData } from "@/components/reports/dashboards/core/useDashboardData"
 import {
 	loadStockManagementData,
 	buildStockManagementModels,
 	clearStockManagementCache,
-} from "./dashboards/inventory/stockManagementData"
-import { useDashboardExport } from "./dashboards/core/useDashboardExport"
-import { useDashboardCache } from "./dashboards/core/useDashboardCache"
+} from "@/components/reports/dashboards/inventory/stockManagementData"
+import { useDashboardExport } from "@/components/reports/dashboards/core/useDashboardExport"
+import { useDashboardCache } from "@/components/reports/dashboards/core/useDashboardCache"
+import { debounce } from "@/utils/helpers"
+
+import WorkShell from "@/components/work/WorkShell.vue"
+import WorkToolbar from "@/components/work/WorkToolbar.vue"
+import WorkSearch from "@/components/work/WorkSearch.vue"
+import WorkActions from "@/components/work/WorkActions.vue"
+import WorkFilters from "@/components/work/WorkFilters.vue"
+import WorkFilterField from "@/components/work/WorkFilterField.vue"
+import WorkChart from "@/components/work/WorkChart.vue"
+import WorkTable from "@/components/work/WorkTable.vue"
+import WorkPagination from "@/components/work/WorkPagination.vue"
+import WorkCard from "@/components/ui/DyCard.vue"
+import WorkKPISummary from "@/components/reports/dashboards/core/KPISummary.vue"
+
+import StockStatusBadge from "@/components/ui/StockStatusBadge.vue"
+import StockAdjustmentDialog from "@/components/sale/StockAdjustmentDialog.vue"
+import StockTransferDialog from "@/components/sale/StockTransferDialog.vue"
+import StockImportExportDialog from "@/components/sale/StockImportExportDialog.vue"
+import StockTakeDialog from "@/components/sale/StockTakeDialog.vue"
+import ReorderManagementDialog from "@/components/sale/ReorderManagementDialog.vue"
+import StockHistoryDialog from "@/components/sale/StockHistoryDialog.vue"
 
 const CURRENCY_IDS = new Set(["stock-value"])
 
@@ -227,14 +222,48 @@ const filterTo = ref(today.toISOString().slice(0, 10))
 const autoRefresh = ref(false)
 
 const searchQuery = ref("")
-const filterWarehouse = ref("")
-const filterCategory = ref("")
-const filterStockStatus = ref("")
+const searchSuggestions = ref([])
+const filterModel = reactive({
+	search: "",
+	warehouse: "",
+	category: "",
+	stockStatus: "",
+})
+const filterFields = ref([
+	{
+		key: "search",
+		label: "البحث",
+		type: "text",
+		placeholder: "ابحث بالاسم أو الكود",
+	},
+	{
+		key: "warehouse",
+		label: "المستودع",
+		type: "select",
+		placeholder: "كل المستودعات",
+		options: [],
+	},
+	{
+		key: "category",
+		label: "التصنيف",
+		type: "select",
+		placeholder: "كل التصنيفات",
+		options: [],
+	},
+	{
+		key: "stockStatus",
+		label: "حالة المخزون",
+		type: "select",
+		placeholder: "كل الحالات",
+		options: [],
+	},
+])
 
 const pageSize = ref(50)
 const currentPage = ref(1)
 
 const selectedProduct = ref(null)
+const selectedRows = ref([])
 const showAdjustmentDialog = ref(false)
 const showTransferDialog = ref(false)
 const showImportExportDialog = ref(false)
@@ -352,14 +381,6 @@ const debouncedRefresh = debounce(refresh, 300)
 watch([filterFrom, filterTo], debouncedRefresh)
 onMounted(refresh)
 
-function debounce(fn, ms) {
-	let timer
-	return (...args) => {
-		clearTimeout(timer)
-		timer = setTimeout(() => fn(...args), ms)
-	}
-}
-
 const stockValueTrend = computed(() => models.value?.stockValueTrend || [])
 const categoryDistribution = computed(
 	() => models.value?.categoryDistribution || [],
@@ -372,7 +393,7 @@ const stockValueChartData = computed(() => ({
 	labels: stockValueTrend.value.map((d) => shortDate(d.date)),
 	datasets: [
 		{
-			label: __("Stock Value"),
+			label: t("Stock Value"),
 			data: stockValueTrend.value.map((d) => d.value),
 			borderColor: COLORS.primary,
 			backgroundColor: COLORS.primaryLight,
@@ -397,7 +418,7 @@ const topValueChartData = computed(() => ({
 	labels: topByValue.value.map((t) => t.code),
 	datasets: [
 		{
-			label: __("Value"),
+			label: t("Value"),
 			data: topByValue.value.map((t) => t.value),
 			backgroundColor: COLORS.primary,
 			borderRadius: 4,
@@ -410,7 +431,7 @@ const topQtyChartData = computed(() => ({
 	labels: topByQty.value.map((t) => t.code),
 	datasets: [
 		{
-			label: __("Qty"),
+			label: t("Qty"),
 			data: topByQty.value.map((t) => t.qty),
 			backgroundColor: COLORS.success,
 			borderRadius: 4,
@@ -423,7 +444,7 @@ const lowStockChartData = computed(() => ({
 	labels: lowStockTrend.value.map((d) => shortDate(d.date)),
 	datasets: [
 		{
-			label: __("Low Stock Count"),
+			label: t("Low Stock Count"),
 			data: lowStockTrend.value.map((d) => d.count),
 			borderColor: COLORS.danger,
 			backgroundColor: COLORS.dangerLight,
@@ -471,13 +492,21 @@ const stockStatusOptions = [
 	{ value: "overstocked", label: "زائد" },
 ]
 
+function onSearch(q) {
+	filterModel.search = q
+}
+
+function onSearchSelect(s) {
+	searchQuery.value = s.label
+}
+
 function loadProducts() {
 	load({
 		from: filterFrom.value,
 		to: filterTo.value,
-		warehouse: filterWarehouse.value,
-		category: filterCategory.value,
-		stockStatus: filterStockStatus.value,
+		warehouse: filterModel.warehouse,
+		category: filterModel.category,
+		stockStatus: filterModel.stockStatus,
 		search: searchQuery.value,
 	})
 }
@@ -511,5 +540,118 @@ function openHistory(product) {
 
 function openProductDetails(row) {
 	selectedProduct.value = row
+}
+
+function onFiltersApply(f) {
+	filterModel.warehouse = f.warehouse || ""
+	filterModel.category = f.category || ""
+	filterModel.stockStatus = f.stockStatus || ""
+	loadProducts()
+}
+
+function onFiltersReset() {
+	filterModel.warehouse = ""
+	filterModel.category = ""
+	filterModel.stockStatus = ""
+	loadProducts()
+}
+
+const navItems = ref([
+	{
+		id: "pos",
+		label: "نقطة البيع",
+		to: { name: "POSSale" },
+		icon: "shopping-cart",
+	},
+	{
+		id: "invoices",
+		label: "الفواتير",
+		to: { name: "WorkScreens", query: { screen: "invoices" } },
+		icon: "file-text",
+	},
+	{
+		id: "stock",
+		label: "المخزون",
+		to: { name: "StockManagement" },
+		icon: "package",
+	},
+	{
+		id: "reports",
+		label: "التقارير",
+		to: { name: "Reports" },
+		icon: "bar-chart-2",
+	},
+])
+
+const breadcrumbs = computed(() => [
+	{ label: "الرئيسية", to: { name: "POSSale" } },
+	{ label: "إدارة المخزون", current: true },
+])
+
+const primaryActions = ref([
+	{
+		id: "adjustment",
+		label: "تسوية",
+		icon: "edit-2",
+		variant: "primary",
+		handler: () => {},
+	},
+])
+
+const secondaryActions = ref([
+	{
+		id: "import-export",
+		label: "استيراد/تصدير",
+		icon: "file-text",
+		variant: "ghost",
+		handler: openImportExport,
+	},
+	{
+		id: "stock-take",
+		label: "جرد المخزون",
+		icon: "clipboard",
+		variant: "ghost",
+		handler: openStockTake,
+	},
+])
+
+const overflowActions = ref([
+	{
+		id: "reorder",
+		label: "تنبيهات إعادة الطلب",
+		icon: "alert-triangle",
+		handler: openReorderManagement,
+	},
+])
+
+const actionsColumn = {
+	actions: [
+		{
+			id: "adjust",
+			icon: "edit-2",
+			variant: "ghost",
+			handler: openAdjustment,
+			label: "تسوية",
+		},
+		{
+			id: "transfer",
+			icon: "move",
+			variant: "ghost",
+			handler: openTransfer,
+			label: "نقل",
+		},
+		{
+			id: "history",
+			icon: "clock",
+			variant: "ghost",
+			handler: openHistory,
+			label: "سجل",
+		},
+	],
+}
+
+function onPageSizeChange(size) {
+	pageSize.value = size
+	currentPage.value = 1
 }
 </script>

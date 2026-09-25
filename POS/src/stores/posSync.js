@@ -227,6 +227,45 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 	}
 
 	/**
+	 * Sync pending invoices to a runtime-chosen destination.
+	 * @param {Object|null} destination - null/local = same-origin legacy path.
+	 * @param {string|null} token - bearer token for remote destinations.
+	 */
+	async function syncPendingTo(destination = null, token = null) {
+		if (isOffline.value) {
+			showWarning(__("Cannot sync while offline"))
+			return { success: 0, failed: 0, skipped: 0, errors: [] }
+		}
+
+		isSyncing.value = true
+		try {
+			const result = await syncOfflineInvoices({ destination, token })
+			await updatePendingCount()
+
+			if (result.success > 0) {
+				showSuccess(__("{0} invoice(s) synced successfully", [result.success]))
+				await loadPendingInvoices()
+			}
+			if (result.failed > 0) {
+				const first =
+					result.errors[0]?.error?.message || result.errors[0]?.error
+				showError(
+					first
+						? __("Sync failed: {0}", [String(first).slice(0, 160)])
+						: __("Sync failed"),
+				)
+			}
+
+			return result
+		} catch (error) {
+			log.error("Sync to destination failed", error)
+			throw error
+		} finally {
+			isSyncing.value = false
+		}
+	}
+
+	/**
 	 * Sync all pending invoices with user feedback
 	 * @returns {Object} Sync result with success/failed counts
 	 * @deprecated Dead write path — see store note above.
@@ -447,6 +486,7 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 		updatePendingCount,
 		deleteOfflineInvoice,
 		syncAllPending,
+		syncPendingTo,
 		preloadDataForOffline,
 		checkOfflineCacheAvailability,
 		checkCacheReady,

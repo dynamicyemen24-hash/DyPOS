@@ -119,6 +119,7 @@ export function translate(
 
 /** Alias for translate function */
 export const __ = translate
+export const t = __
 
 /**
  * Determines the preferred locale for the current session.

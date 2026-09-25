@@ -1,0 +1,111 @@
+﻿node.exe : .\scripts\check-bundle-size.mjs:10:55 lint/style/useNodejsImportProtocol  FIXABLE  
+ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+At line:1 char:1
++ & "C:\nvm4w\nodejs/node.exe" "C:\Users\GSERPSYS24\AppData\Roaming\npm ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (.\scripts\check...ΓöüΓöüΓöüΓöüΓöü:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+  ├ù A Node.js builtin module should be imported with the node: protocol.
+  
+     8 Γöé  * Budget: BUNDLE_BUDGET_KB env (default 900). Current: ~600KB gzip.
+     9 Γöé  */
+  > 10 Γöé import { readdirSync, readFileSync, existsSync } from "fs"
+       Γöé                                                       ^^^^
+    11 Γöé import { join, dirname } from "path"
+    12 Γöé import { fileURLToPath } from "url"
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+     8  8 Γöé    * Budget: BUNDLE_BUDGET_KB env (default 900). Current: ~600KB gzip.
+     9  9 Γöé    */
+    10    Γöé - import┬╖{┬╖readdirSync,┬╖readFileSync,┬╖existsSync┬╖}┬╖from┬╖"fs"
+       10 Γöé + import┬╖{┬╖readdirSync,┬╖readFileSync,┬╖existsSync┬╖}┬╖from┬╖"node:fs"
+    11 11 Γöé   import { join, dirname } from "path"
+    12 12 Γöé   import { fileURLToPath } from "url"
+  
+
+.\scripts\check-bundle-size.mjs:11:31 lint/style/useNodejsImportProtocol  FIXABLE  
+ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+
+  ├ù A Node.js builtin module should be imported with the node: protocol.
+  
+     9 Γöé  */
+    10 Γöé import { readdirSync, readFileSync, existsSync } from "fs"
+  > 11 Γöé import { join, dirname } from "path"
+       Γöé                               ^^^^^^
+    12 Γöé import { fileURLToPath } from "url"
+    13 Γöé import { gzipSync } from "zlib"
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+     9  9 Γöé    */
+    10 10 Γöé   import { readdirSync, readFileSync, existsSync } from "fs"
+    11    Γöé - import┬╖{┬╖join,┬╖dirname┬╖}┬╖from┬╖"path"
+       11 Γöé + import┬╖{┬╖join,┬╖dirname┬╖}┬╖from┬╖"node:path"
+    12 12 Γöé   import { fileURLToPath } from "url"
+    13 13 Γöé   import { gzipSync } from "zlib"
+  
+
+.\scripts\check-bundle-size.mjs:12:31 lint/style/useNodejsImportProtocol  FIXABLE  
+ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+
+  ├ù A Node.js builtin module should be imported with the node: protocol.
+  
+    10 Γöé import { readdirSync, readFileSync, existsSync } from "fs"
+    11 Γöé import { join, dirname } from "path"
+  > 12 Γöé import { fileURLToPath } from "url"
+       Γöé                               ^^^^^
+    13 Γöé import { gzipSync } from "zlib"
+    14 Γöé 
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+    10 10 Γöé   import { readdirSync, readFileSync, existsSync } from "fs"
+    11 11 Γöé   import { join, dirname } from "path"
+    12    Γöé - import┬╖{┬╖fileURLToPath┬╖}┬╖from┬╖"url"
+       12 Γöé + import┬╖{┬╖fileURLToPath┬╖}┬╖from┬╖"node:url"
+    13 13 Γöé   import { gzipSync } from "zlib"
+    14 14 Γöé   
+  
+
+.\scripts\check-bundle-size.mjs:13:26 lint/style/useNodejsImportProtocol  FIXABLE  
+ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+
+  ├ù A Node.js builtin module should be imported with the node: protocol.
+  
+    11 Γöé import { join, dirname } from "path"
+    12 Γöé import { fileURLToPath } from "url"
+  > 13 Γöé import { gzipSync } from "zlib"
+       Γöé                          ^^^^^^
+    14 Γöé 
+    15 Γöé const dir = join(
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+    11 11 Γöé   import { join, dirname } from "path"
+    12 12 Γöé   import { fileURLToPath } from "url"
+    13    Γöé - import┬╖{┬╖gzipSync┬╖}┬╖from┬╖"zlib"
+       13 Γöé + import┬╖{┬╖gzipSync┬╖}┬╖from┬╖"node:zlib"
+    14 14 Γöé   
+    15 15 Γöé   const dir = join(
+  
+
+Checked 430 files in 380ms. No fixes applied.
+Found 4 errors.
+check ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓö
+üΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓ
+öüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+
+  ├ù Some errors were emitted while running checks.
+  
+

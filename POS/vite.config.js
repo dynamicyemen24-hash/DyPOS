@@ -145,7 +145,7 @@ export default defineConfig({
 					"public",
 					"pos",
 				),
-				emptyOutDir: true,
+				emptyOutDir: false,
 				sourcemap: enableSourceMap,
 			},
 		}),
@@ -179,11 +179,8 @@ export default defineConfig({
 				background_color: "#ffffff",
 				display: "standalone",
 				lang: "ar",
-				// Installable cashier app: scope MUST cover every route (/,
-				// /account/login, /pos). A scope of /assets/… or /pos traps
-				// the installed app outside its own pages (blank/bounce).
-				scope: "/",
-				start_url: "/",
+				scope: "/assets/DyPOS/pos/",
+				start_url: "/assets/DyPOS/pos/",
 				icons: [
 					{
 						src: "/assets/DyPOS/pos/android-chrome-192x192.png",
@@ -317,7 +314,7 @@ export default defineConfig({
 	build: {
 		chunkSizeWarningLimit: 500,
 		outDir: path.resolve(import.meta.dirname, "..", "DyPOS", "public", "pos"),
-		emptyOutDir: true,
+		emptyOutDir: false,
 		// es2022: top-level await in src/adapters/index.js (backend selector).
 		// Baseline 2026: Chrome/Edge 89+, Firefox 89+, Safari 15+ — كل أجهزة الكاشير الحديثة.
 		target: "es2022",

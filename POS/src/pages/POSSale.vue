@@ -42,6 +42,7 @@ import { FeatherIcon } from "frappe-ui"
 import POSHeader from "@/components/pos/POSHeader.vue"
 import SmartCashierDock from "@/components/pos/SmartCashierDock.vue"
 import SyncStatusIndicator from "@/components/pos/SyncStatusIndicator.vue"
+import SyncCenterDialog from "@/components/sale/SyncCenterDialog.vue"
 import AutocompleteSelect from "@/components/common/AutocompleteSelect.vue"
 import IconButton from "@/components/ui/IconButton.vue"
 import DyButton from "@/components/ui/DyButton.vue"
@@ -222,6 +223,9 @@ const POS_SHORTCUTS = Object.freeze([
 ])
 
 const showClearCartDialog = ref(false)
+
+/** Sync Center dialog (runtime destination picker). */
+const showSyncCenter = ref(false)
 
 const showPaymentPanel = ref(false)
 
@@ -1623,7 +1627,7 @@ watch(
         >
             <!-- مؤشر حالة المزامنة الحي (معلّق/متصل/مزامنة أولية) -->
             <template #actions>
-                <SyncStatusIndicator />
+                <SyncStatusIndicator @click="showSyncCenter = true" />
                 <button
                     v-if="allowPrintLastInvoice"
                     type="button"
@@ -3580,6 +3584,12 @@ watch(
                 </span>
             </div>
         </Teleport>
+
+        <!-- =================================================================
+             Sync Center — runtime destination picker + manual sync
+             =============================================================== -->
+
+        <SyncCenterDialog v-model="showSyncCenter" />
     </div>
 </template>
 

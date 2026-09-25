@@ -1,369 +1,364 @@
 /**
- * DyPOS Resilience Patterns — Circuit Breaker, Retry, Timeout, Bulkhead
- * 
- * Production-grade fault tolerance for external dependencies
+ * Enterprise Resilience Patterns
+ * Circuit Breaker, Retry with Backoff, Bulkhead, Timeout
  */
 
-import { logger } from './logger.js';
-import { getTracer } from './telemetry.js';
+import { logger, childSafe } from "./logger.js"
 
-const log = logger.create('Resilience');
+const log = childSafe({ component: "Resilience" })
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Circuit Breaker States
-// ──────────────────────────────────────────────────────────────────────────────
+// ============================================================================
+// CIRCUIT BREAKER
+// ============================================================================
 
-export const CircuitState = {
-  CLOSED: 'closed',     // Normal operation, requests pass through
-  OPEN: 'open',         // Failing, requests fail fast
-  HALF_OPEN: 'half_open', // Testing if service recovered
-};
+const circuits = new Map()
 
-class CircuitBreaker {
-  constructor(name, options = {}) {
-    this.name = name;
-    this.state = CircuitState.CLOSED;
-    this.failureCount = 0;
-    this.successCount = 0;
-    this.lastFailureTime = null;
-    this.lastStateChange = Date.now();
-
-    // Configurable thresholds
-    this.failureThreshold = options.failureThreshold || 5;
-    this.successThreshold = options.successThreshold || 2;
-    this.timeout = options.timeout || 30000; // ms before trying half-open
-    this.halfOpenRequests = 0;
-    this.maxHalfOpenRequests = options.maxHalfOpenRequests || 3;
-
-    // Metrics
-    this.totalRequests = 0;
-    this.totalFailures = 0;
-    this.totalSuccesses = 0;
-    this.totalRejected = 0;
-
-    this.tracer = getTracer('dypos.resilience');
-  }
-
-  async execute(operation) {
-    this.totalRequests++;
-
-    if (this.state === CircuitState.OPEN) {
-      if (Date.now() - this.lastFailureTime >= this.timeout) {
-        this.transitionToHalfOpen();
-      } else {
-        this.totalRejected++;
-        const error = new Error(`Circuit breaker ${this.name} is OPEN`);
-        error.code = 'CIRCUIT_OPEN';
-        error.circuitName = this.name;
-        throw error;
-      }
-    }
-
-    if (this.state === CircuitState.HALF_OPEN) {
-      if (this.halfOpenRequests >= this.maxHalfOpenRequests) {
-        this.totalRejected++;
-        const error = new Error(`Circuit breaker ${this.name} half-open limit reached`);
-        error.code = 'CIRCUIT_HALF_OPEN_LIMIT';
-        throw error;
-      }
-      this.halfOpenRequests++;
-    }
-
-    return this.tracer.startActiveSpan(`circuit.${this.name}`, async (span) => {
-      span.setAttribute('circuit.name', this.name);
-      span.setAttribute('circuit.state', this.state);
-
-      try {
-        const result = await operation();
-        this.onSuccess();
-        span.setStatus({ code: 0 }); // OK
-        return result;
-      } catch (error) {
-        this.onFailure();
-        span.setStatus({ code: 2, message: error.message }); // ERROR
-        span.recordException(error);
-        throw error;
-      } finally {
-        span.end();
-      }
-    });
-  }
-
-  onSuccess() {
-    this.totalSuccesses++;
-    this.failureCount = 0;
-
-    if (this.state === CircuitState.HALF_OPEN) {
-      this.successCount++;
-      if (this.successCount >= this.successThreshold) {
-        this.transitionToClosed();
-      }
-    }
-  }
-
-  onFailure() {
-    this.totalFailures++;
-    this.failureCount++;
-    this.successCount = 0;
-    this.lastFailureTime = Date.now();
-
-    if (this.state === CircuitState.HALF_OPEN) {
-      this.transitionToOpen();
-    } else if (this.state === CircuitState.CLOSED && this.failureCount >= this.failureThreshold) {
-      this.transitionToOpen();
-    }
-  }
-
-  transitionToOpen() {
-    this.state = CircuitState.OPEN;
-    this.lastStateChange = Date.now();
-    log.warn('Circuit breaker OPENED', {
-      name: this.name,
-      failureCount: this.failureCount,
-      threshold: this.failureThreshold,
-    });
-  }
-
-  transitionToHalfOpen() {
-    this.state = CircuitState.HALF_OPEN;
-    this.successCount = 0;
-    this.halfOpenRequests = 0;
-    this.lastStateChange = Date.now();
-    log.info('Circuit breaker HALF_OPEN', { name: this.name });
-  }
-
-  transitionToClosed() {
-    this.state = CircuitState.CLOSED;
-    this.failureCount = 0;
-    this.successCount = 0;
-    this.lastStateChange = Date.now();
-    log.info('Circuit breaker CLOSED', { name: this.name });
-  }
-
-  getStats() {
-    return {
-      name: this.name,
-      state: this.state,
-      failureCount: this.failureCount,
-      successCount: this.successCount,
-      totalRequests: this.totalRequests,
-      totalFailures: this.totalFailures,
-      totalSuccesses: this.totalSuccesses,
-      totalRejected: this.totalRejected,
-      uptime: Date.now() - this.lastStateChange,
-      lastFailure: this.lastFailureTime,
-    };
-  }
-
-  reset() {
-    this.state = CircuitState.CLOSED;
-    this.failureCount = 0;
-    this.successCount = 0;
-    this.halfOpenRequests = 0;
-    this.lastFailureTime = null;
-    this.lastStateChange = Date.now();
-  }
+/**
+ * Get or create a circuit breaker
+ * @param {string} name - Unique name for the circuit
+ * @param {Object} options
+ * @returns {Object}
+ */
+export function getCircuitBreaker(name, options = {}) {
+	if (!circuits.has(name)) {
+		circuits.set(name, {
+			name,
+			failureThreshold: options.failureThreshold ?? 5,
+			successThreshold: options.successThreshold ?? 2,
+			timeout: options.timeout ?? 30000, // 30s before half-open
+			state: "closed",
+			failures: 0,
+			successes: 0,
+			lastFailure: 0,
+			nextAttempt: 0,
+		})
+	}
+	return circuits.get(name)
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Registry
-// ──────────────────────────────────────────────────────────────────────────────
+/**
+ * Execute operation with circuit breaker protection
+ * @param {string} circuitName
+ * @param {Function} operation
+ * @param {Object} options
+ * @returns {Promise}
+ */
+export async function withCircuitBreaker(circuitName, operation, options = {}) {
+	const circuit = getCircuitBreaker(circuitName)
+	const now = Date.now()
 
-const circuits = new Map();
+	// Check if circuit is open
+	if (circuit.state === "open") {
+		if (now < circuit.nextAttempt) {
+			const err = new Error(`Circuit ${circuitName} is OPEN`)
+			err.code = "CIRCUIT_OPEN"
+			err.circuit = circuitName
+			throw err
+		}
+		// Transition to half-open
+		circuit.state = "half-open"
+		circuit.successes = 0
+		log.warn(`Circuit ${circuitName} entering HALF-OPEN`)
+	}
 
-export function getCircuitBreaker(name, options) {
-  if (!circuits.has(name)) {
-    circuits.set(name, new CircuitBreaker(name, options));
-  }
-  return circuits.get(name);
+	try {
+		const result = await operation()
+		onSuccess(circuit)
+		return result
+	} catch (error) {
+		onFailure(circuit, error)
+		if (options.fallback) {
+			log.debug(`Circuit ${circuitName} fallback triggered`)
+			return options.fallback()
+		}
+		throw error
+	}
 }
 
-export function getAllCircuitStats() {
-  const stats = {};
-  for (const [name, circuit] of circuits) {
-    stats[name] = circuit.getStats();
-  }
-  return stats;
+function onSuccess(circuit) {
+	circuit.failures = 0
+	if (circuit.state === "half-open") {
+		circuit.successes++
+		if (circuit.successes >= circuit.successThreshold) {
+			circuit.state = "closed"
+			log.info(`Circuit ${circuit.name} CLOSED`)
+		}
+	}
 }
 
-export function resetAllCircuits() {
-  for (const circuit of circuits.values()) {
-    circuit.reset();
-  }
+function onFailure(circuit, error) {
+	circuit.failures++
+	circuit.lastFailure = Date.now()
+	circuit.successes = 0
+
+	if (circuit.state === "half-open") {
+		circuit.state = "open"
+		circuit.nextAttempt = Date.now() + circuit.timeout
+		log.warn(`Circuit ${circuit.name} OPEN after half-open failure`)
+	} else if (circuit.failures >= circuit.failureThreshold) {
+		circuit.state = "open"
+		circuit.nextAttempt = Date.now() + circuit.timeout
+		log.warn(`Circuit ${circuit.name} OPEN after ${circuit.failures} failures`)
+	}
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Retry with Exponential Backoff
-// ──────────────────────────────────────────────────────────────────────────────
-
-export async function withRetry(fn, options = {}) {
-  const {
-    maxAttempts = 3,
-    baseDelay = 100,
-    maxDelay = 5000,
-    backoffMultiplier = 2,
-    jitter = 0.1,
-    retryable = () => true,
-    onRetry = (_attempt, _error, _delay) => {},
-  } = options;
-
-  let lastError;
-  let delay = baseDelay;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      return await fn(attempt);
-    } catch (error) {
-      lastError = error;
-
-      if (attempt === maxAttempts || !retryable(error)) {
-        throw error;
-      }
-
-      const jitterAmount = delay * jitter * Math.random();
-      const actualDelay = Math.min(delay + jitterAmount, maxDelay);
-
-      onRetry(attempt, error, actualDelay);
-
-      await new Promise(resolve => setTimeout(resolve, actualDelay));
-      delay *= backoffMultiplier;
-    }
-  }
-
-  throw lastError;
+/** Get all circuit statuses */
+export function getCircuitStatuses() {
+	const statuses = {}
+	for (const [name, circuit] of circuits) {
+		statuses[name] = {
+			state: circuit.state,
+			failures: circuit.failures,
+			nextAttempt: circuit.nextAttempt,
+		}
+	}
+	return statuses
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Timeout Wrapper
-// ──────────────────────────────────────────────────────────────────────────────
-
-export function withTimeout(promise, ms, label = 'operation') {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => {
-      const timer = setTimeout(() => {
-        const error = new Error(`${label} timed out after ${ms}ms`);
-        error.code = 'TIMEOUT';
-        error.timeout = ms;
-        reject(error);
-      }, ms);
-      // Store timer for cleanup
-      promise._timeoutTimer = timer;
-    }),
-  ]).finally(() => {
-    if (promise._timeoutTimer) {
-      clearTimeout(promise._timeoutTimer);
-    }
-  });
+/** Manually reset a circuit */
+export function resetCircuit(name) {
+	const circuit = circuits.get(name)
+	if (circuit) {
+		circuit.state = "closed"
+		circuit.failures = 0
+		circuit.successes = 0
+		log.info(`Circuit ${name} manually reset`)
+	}
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Bulkhead (Concurrency Limiter)
-// ──────────────────────────────────────────────────────────────────────────────
+// ============================================================================
+// RETRY WITH EXPONENTIAL BACKOFF + JITTER
+// ============================================================================
 
-export class Bulkhead {
-  constructor(name, maxConcurrent = 10, maxQueue = 100) {
-    this.name = name;
-    this.maxConcurrent = maxConcurrent;
-    this.maxQueue = maxQueue;
-    this.current = 0;
-    this.queue = [];
-    this.stats = { total: 0, rejected: 0, completed: 0, failed: 0 };
-  }
-
-  async execute(fn) {
-    this.stats.total++;
-
-    if (this.current >= this.maxConcurrent) {
-      if (this.queue.length >= this.maxQueue) {
-        this.stats.rejected++;
-        throw new Error(`Bulkhead ${this.name} queue full`);
-      }
-
-      // Wait for slot
-      return new Promise((resolve, reject) => {
-        this.queue.push({ resolve, reject, fn });
-      });
-    }
-
-    this.current++;
-    try {
-      const result = await fn();
-      this.stats.completed++;
-      return result;
-    } catch (error) {
-      this.stats.failed++;
-      throw error;
-    } finally {
-      this.current--;
-      this.processQueue();
-    }
-  }
-
-  processQueue() {
-    while (this.current < this.maxConcurrent && this.queue.length > 0) {
-      const { resolve, reject, fn } = this.queue.shift();
-      this.current++;
-      fn().then(resolve).catch(reject).finally(() => {
-        this.current--;
-        this.processQueue();
-      });
-    }
-  }
-
-  getStats() {
-    return { ...this.stats, current: this.current, queued: this.queue.length };
-  }
+const DEFAULT_RETRY_OPTIONS = {
+	maxAttempts: 3,
+	baseDelay: 1000,
+	maxDelay: 30000,
+	jitter: 0.3,
+	retryable: (error) => {
+		const code = error?.code
+		const status = error?.status || error?.response?.status
+		return (
+			code === "ECONNREFUSED" ||
+			code === "ETIMEDOUT" ||
+			code === "ENOTFOUND" ||
+			code === "ECONNRESET" ||
+			code === "CIRCUIT_OPEN" ||
+			(status >= 500 && status < 600) ||
+			status === 429 ||
+			error?.name === "TimeoutError" ||
+			error?.name === "AbortError"
+		)
+	},
+	onRetry: (attempt, error) => {
+		log.debug(`Retry attempt ${attempt}`, { error: error?.message })
+	},
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Composite Resilience Wrapper
-// ──────────────────────────────────────────────────────────────────────────────
+/**
+ * Execute with retry logic
+ * @param {Function} operation
+ * @param {Object} options
+ * @returns {Promise}
+ */
+export async function withRetry(operation, options = {}) {
+	const opts = { ...DEFAULT_RETRY_OPTIONS, ...options }
+	let lastError
 
-export async function resilientCall(fn, options = {}) {
-  const {
-    circuitBreaker,
-    retry,
-    timeout,
-    bulkhead,
-    fallback,
-  } = options;
+	for (let attempt = 1; attempt <= opts.maxAttempts; attempt++) {
+		try {
+			return await operation()
+		} catch (error) {
+			lastError = error
 
-  let operation = fn;
+			if (attempt === opts.maxAttempts || !opts.retryable(error)) {
+				throw error
+			}
 
-  // Wrap with bulkhead
-  if (bulkhead) {
-    const bh = bulkhead instanceof Bulkhead ? bulkhead : new Bulkhead(bulkhead.name, bulkhead.maxConcurrent);
-    const originalOp = operation;
-    operation = () => bh.execute(originalOp);
-  }
+			opts.onRetry(attempt, error)
 
-  // Wrap with timeout
-  if (timeout) {
-    const originalOp = operation;
-    operation = () => withTimeout(originalOp(), timeout.ms, timeout.label);
-  }
+			const delay = Math.min(
+				opts.baseDelay * 2 ** (attempt - 1) * (1 + (Math.random() - 0.5) * 2 * opts.jitter),
+				opts.maxDelay,
+			)
 
-  // Wrap with retry
-  if (retry) {
-    const originalOp = operation;
-    operation = () => withRetry(originalOp, retry);
-  }
+			await sleep(delay)
+		}
+	}
 
-  // Wrap with circuit breaker
-  if (circuitBreaker) {
-    const cb = circuitBreaker instanceof CircuitBreaker ? circuitBreaker : getCircuitBreaker(circuitBreaker.name, circuitBreaker.options);
-    const originalOp = operation;
-    operation = () => cb.execute(originalOp);
-  }
+	throw lastError
+}
 
-  try {
-    return await operation();
-  } catch (error) {
-    if (fallback) {
-      log.info('Executing fallback', { error: error.message });
-      return await fallback(error);
-    }
-    throw error;
-  }
+function sleep(ms) {
+	return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+// ============================================================================
+// TIMEOUT WRAPPER
+// ============================================================================
+
+/**
+ * Wrap promise with timeout
+ * @param {Promise} promise
+ * @param {number} ms
+ * @param {string} operationName
+ * @returns {Promise}
+ */
+export function withTimeout(promise, ms, operationName = "operation") {
+	return Promise.race([
+		promise,
+		new Promise((_, reject) => {
+			const id = setTimeout(() => {
+				const err = new Error(`${operationName} timeout after ${ms}ms`)
+				err.code = "TIMEOUT"
+				err.timeout = ms
+				reject(err)
+			}, ms)
+			promise.finally(() => clearTimeout(id))
+		}),
+	])
+}
+
+// ============================================================================
+// BULKHEAD (CONCURRENCY LIMIT)
+// ============================================================================
+
+const bulkheads = new Map()
+
+/**
+ * Get or create bulkhead
+ * @param {string} name
+ * @param {Object} options
+ */
+export function getBulkhead(name, options = {}) {
+	if (!bulkheads.has(name)) {
+		bulkheads.set(name, {
+			maxConcurrent: options.maxConcurrent ?? 10,
+			queueLimit: options.queueLimit ?? 100,
+			running: 0,
+			queued: 0,
+			queue: [],
+		})
+	}
+	return bulkheads.get(name)
+}
+
+/**
+ * Execute with concurrency limit
+ * @param {string} bulkheadName
+ * @param {Function} operation
+ * @returns {Promise}
+ */
+export function withBulkhead(bulkheadName, operation) {
+	const bh = getBulkhead(bulkheadName)
+
+	return new Promise((resolve, reject) => {
+		const execute = () => {
+			bh.running++
+			bh.queued--
+
+			Promise.resolve()
+				.then(operation)
+				.then(resolve)
+				.catch(reject)
+				.finally(() => {
+					bh.running--
+					processQueue()
+				})
+		}
+
+		const processQueue = () => {
+			if (bh.queue.length > 0 && bh.running < bh.maxConcurrent) {
+				const next = bh.queue.shift()
+				if (next) next()
+			}
+		}
+
+		if (bh.running < bh.maxConcurrent) {
+			execute()
+		} else if (bh.queued < bh.queueLimit) {
+			bh.queued++
+			bh.queue.push(execute)
+		} else {
+			const err = new Error(`Bulkhead ${bulkheadName} queue full`)
+			err.code = "BULKHEAD_FULL"
+			reject(err)
+		}
+	})
+}
+
+/** Get bulkhead status */
+export function getBulkheadStatus(name) {
+	const bh = bulkheads.get(name)
+	if (!bh) return null
+	return {
+		running: bh.running,
+		queued: bh.queued,
+		maxConcurrent: bh.maxConcurrent,
+		queueLimit: bh.queueLimit,
+	}
+}
+
+// ============================================================================
+// COMPOSITE: CIRCUIT BREAKER + RETRY + TIMEOUT + BULKHEAD
+// ============================================================================
+
+/**
+ * Execute with full resilience stack
+ * @param {Function} operation
+ * @param {Object} options
+ * @returns {Promise}
+ */
+export async function resilient(operation, options = {}) {
+	const {
+		circuit = "default",
+		retry = {},
+		timeout = 30000,
+		bulkhead = "default",
+	} = options
+
+	let fn = operation
+
+	// Wrap with timeout
+	if (timeout !== false) {
+		const t = timeout
+		const original = fn
+		fn = () => withTimeout(original(), t, circuit)
+	}
+
+	// Wrap with retry
+	if (retry !== false) {
+		const r = retry
+		const original = fn
+		fn = () => withRetry(original, r)
+	}
+
+	// Wrap with circuit breaker
+	if (circuit !== false) {
+		const c = circuit
+		const original = fn
+		fn = () => withCircuitBreaker(c, original)
+	}
+
+	// Wrap with bulkhead
+	if (bulkhead !== false) {
+		const b = bulkhead
+		const original = fn
+		fn = () => withBulkhead(b, original)
+	}
+
+	return fn()
+}
+
+export default {
+	getCircuitBreaker,
+	withCircuitBreaker,
+	getCircuitStatuses,
+	resetCircuit,
+	withRetry,
+	withTimeout,
+	getBulkhead,
+	withBulkhead,
+	getBulkheadStatus,
+	resilient,
 }

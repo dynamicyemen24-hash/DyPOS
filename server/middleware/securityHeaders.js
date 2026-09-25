@@ -44,31 +44,33 @@ export function securityHeaders(options = {}) {
   const frappeOrigin = String(options.frappeOrigin ?? process.env.DYPOS_FRAPPE_ORIGIN ?? '').trim();
   const allowCode = options.coop !== false && !frappeOrigin && String(process.env.DYPOS_COOP || '1') !== '0';
 
-  // CSP — strict whitelist. Scripts: self + blob (Vue runtime). Styles:
-  // unsafe-inline (legacy inline style bindings). Everything else locked down.
-  const connectSrc = ["'self'", ...toOriginWhitelist(splitOrigins(frappeOrigin)), ...apiOrigins];
-  if (!connectSrc.some((o) => o.startsWith('http'))) connectSrc.push('https:', 'wss:');
-  const frameAncestors = ["'self'", ...toOriginWhitelist(splitOrigins(frappeOrigin))];
-  const csp = [
-    "default-src 'self'",
-    `script-src 'self' blob:`,
-    `style-src 'self' 'unsafe-inline'`,
-    `img-src 'self' data: blob: https:`,
-    `font-src 'self' data: https://fonts.gstatic.com`,
-    `connect-src ${connectSrc.join(' ')}`,
-    `media-src 'self' blob:`,
-    `object-src 'none'`,
-    `base-uri 'self'`,
-    `form-action 'self'`,
-    `frame-ancestors ${frameAncestors.join(' ')}`,
-    'upgrade-insecure-requests',
-  ].join('; ');
-
   return function securityHeadersMiddleware(req, res, next) {
     if (isProduction()) {
       res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
     }
-    res.setHeader('Content-Security-Policy', csp);
+    // Skip CSP if already set by nonce middleware
+    if (!res.getHeader('Content-Security-Policy')) {
+      const apiOrigins = toOriginWhitelist(splitOrigins(options.apiOrigins ?? process.env.DYPOS_API_ORIGIN));
+      const frappeOrigin = String(options.frappeOrigin ?? process.env.DYPOS_FRAPPE_ORIGIN ?? '').trim();
+      const connectSrc = ["'self'", ...toOriginWhitelist(splitOrigins(frappeOrigin)), ...apiOrigins];
+      if (!connectSrc.some((o) => o.startsWith('http'))) connectSrc.push('https:', 'wss:');
+      const frameAncestors = ["'self'", ...toOriginWhitelist(splitOrigins(frappeOrigin))];
+      const csp = [
+        "default-src 'self'",
+        `script-src 'self' blob:`,
+        `style-src 'self' 'unsafe-inline'`,
+        `img-src 'self' data: blob: https:`,
+        `font-src 'self' data: https://fonts.gstatic.com`,
+        `connect-src ${connectSrc.join(' ')}`,
+        `media-src 'self' blob:`,
+        `object-src 'none'`,
+        `base-uri 'self'`,
+        `form-action 'self'`,
+        `frame-ancestors ${frameAncestors.join(' ')}`,
+        'upgrade-insecure-requests',
+      ].join('; ');
+      res.setHeader('Content-Security-Policy', csp);
+    }
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader(

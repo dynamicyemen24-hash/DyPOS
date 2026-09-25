@@ -16,7 +16,7 @@
   -->
 
 <script setup>
-import { ref, computed, onMounted } from "vue"
+import { ref, computed, onMounted, onUnmounted, watch } from "vue"
 
 import { FeatherIcon } from "frappe-ui"
 
@@ -31,6 +31,8 @@ import { session } from "@/stores/session"
 import { normalizeArabic } from "@/utils/arabic"
 import { logger } from "@/utils/logger"
 import { useSessionTimeout } from "@/composables/useSessionTimeout"
+import { useReducedMotion } from "@/composables/useReducedMotion"
+import { useMediaQuery } from "@/composables/useMediaQuery"
 
 /* ============================================================================
  * Props
@@ -158,6 +160,139 @@ const hasErrors = computed(() => {
 })
 
 /* ============================================================================
+ * Offline Detection & Registration
+ * ============================================================================ */
+
+const isBrowser = typeof window !== "undefined"
+const OFFLINE_DETECTION_TIMEOUT_MS = 3000
+
+const isOfflineMode = ref(false)
+const offlineDetected = ref(false)
+const showOfflineIndicator = ref(false)
+
+const log = logger.create("Register")
+
+async function detectOfflineMode() {
+	if (!isBrowser) return false
+
+	try {
+		const controller = new AbortController()
+		const timeoutId = setTimeout(
+			() => controller.abort(),
+			OFFLINE_DETECTION_TIMEOUT_MS,
+		)
+
+		const response = await fetch("/api/method/DyPOS.api.ping", {
+			method: "GET",
+			cache: "no-store",
+			credentials: "same-origin",
+			signal: controller.signal,
+		})
+
+		clearTimeout(timeoutId)
+
+		if (response.ok) {
+			log.info("Backend reachable — online mode")
+			return false
+		}
+
+		if (response.status === 503) {
+			log.info("Backend unavailable (503) — offline mode")
+			return true
+		}
+
+		log.warn(`Backend responded with ${response.status} — treating as offline`)
+		return true
+	} catch (error) {
+		if (error.name === "AbortError" || error.name === "TimeoutError") {
+			log.info("Backend ping timeout — offline mode")
+		} else {
+			log.info("Backend unreachable — offline mode", error?.message || error)
+		}
+		return true
+	}
+}
+
+async function detectAndSetOfflineMode() {
+	isOfflineMode.value = await detectOfflineMode()
+	offlineDetected.value = true
+
+	if (isOfflineMode.value) {
+		log.info("OFFLINE MODE: Enabling offline registration")
+		showOfflineIndicator.value = true
+		await initializeOfflineSystems()
+		window.__DYPOS_OFFLINE__ = true
+	} else {
+		log.info("ONLINE MODE: Backend reachable")
+	}
+	return isOfflineMode.value
+}
+
+async function initializeOfflineSystems() {
+	if (!isBrowser) return
+
+	try {
+		log.info("Initializing offline systems...")
+
+		const db = await import("@/services/db").then((m) => m.default)
+		await db.open().catch((error) => {
+			log.warn("Offline DB open failed", error)
+		})
+
+		log.info("Offline systems initialized")
+	} catch (error) {
+		log.error("Offline systems initialization failed", error)
+	}
+}
+
+async function hashPassword(password) {
+	const encoder = new TextEncoder()
+	const data = encoder.encode(password)
+	const hashBuffer = await crypto.subtle.digest("SHA-256", data)
+	const hashArray = Array.from(new Uint8Array(hashBuffer))
+	return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("")
+}
+
+async function attemptOfflineRegistration(userData) {
+	if (!isOfflineMode.value) {
+		return { success: false, reason: "Online mode - use server registration" }
+	}
+
+	try {
+		const db = await import("@/services/db").then((m) => m.default)
+
+		const existingUsers = await db.users
+			.where("email")
+			.equals(userData.email.toLowerCase())
+			.toArray()
+		if (existingUsers.length > 0) {
+			return { success: false, error: "المستخدم موجود بالفعل محليًا" }
+		}
+
+		const passwordHash = await hashPassword(userData.password)
+
+		const newUser = {
+			email: userData.email.toLowerCase(),
+			full_name: userData.fullName,
+			phone: userData.phone || "",
+			company: userData.company || "",
+			role: "POS User",
+			password_hash: passwordHash,
+			created_at: new Date().toISOString(),
+			updated_at: new Date().toISOString(),
+		}
+
+		await db.users.add(newUser)
+
+		log.info("Offline registration successful for:", userData.email)
+		return { success: true, user: newUser }
+	} catch (error) {
+		log.error("Offline registration failed:", error)
+		return { success: false, error: error.message || "فشل التسجيل المحلي" }
+	}
+}
+
+/* ============================================================================
  * Helpers
  * ============================================================================ */
 
@@ -188,29 +323,58 @@ async function submitRegistration() {
 			: ""
 		const companyValue = normalizeValue(companyName.value)
 
-		if (typeof frappe !== "undefined" && frappe.call) {
-			await frappe.call({
-				method: "frappe.auth.register",
-				args: {
-					full_name: name,
+		let result
+
+		if (isOfflineMode.value) {
+			result = await attemptOfflineRegistration({
+				fullName: name,
+				email: emailValue,
+				password: password.value,
+				phone: phoneValue,
+				company: companyValue,
+			})
+		} else {
+			// Online mode - use local API endpoint for registration
+			try {
+				const response = await fetch("/api/method/DyPOS.api.auth.register", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						full_name: name,
+						email: emailValue,
+						password: password.value,
+						phone: phoneValue,
+						company: companyValue,
+					}),
+				})
+				if (response.ok) {
+					result = { success: true }
+				} else {
+					const err = await response.json().catch(() => ({}))
+					throw new Error(err.message || "Registration failed")
+				}
+			} catch {
+				// Fallback to local registration if API unavailable
+				const localResult = await attemptOfflineRegistration({
+					fullName: name,
 					email: emailValue,
 					password: password.value,
 					phone: phoneValue,
 					company: companyValue,
-				},
-			})
-		} else {
-			const { session: sessionModule } = await import("@/data/session")
-			await sessionModule.session.login.submit({
-				usr: emailValue,
-				pwd: password.value,
-			})
+				})
+				result = localResult
+			}
 		}
 
-		registerSuccess.value = true
-		emit("registered")
-
-		logger?.info?.("DyPOS subscriber registered successfully")
+		if (result.success) {
+			registerSuccess.value = true
+			emit("registered")
+			log.info("DyPOS subscriber registered successfully", {
+				offline: isOfflineMode.value,
+			})
+		} else {
+			throw new Error(result.error || "Registration failed")
+		}
 	} catch (error) {
 		registerSuccess.value = false
 
@@ -221,13 +385,21 @@ async function submitRegistration() {
 
 		registerError.value = errorMessage
 
-		logger?.warn?.("DyPOS registration failed", error)
+		log.warn("DyPOS registration failed", error)
 
 		emit("error", error)
 	} finally {
 		isSubmitting.value = false
 	}
 }
+
+/* ============================================================================
+ * Accessibility & Responsive
+ * ============================================================================ */
+
+const reducedMotion = useReducedMotion()
+const prefersDark = useMediaQuery("(prefers-color-scheme: dark)")
+const isMobile = useMediaQuery("(max-width: 768px)")
 
 /* ============================================================================
  * Keyboard
@@ -243,23 +415,59 @@ function handleGlobalKeydown(event) {
  * Lifecycle
  * ============================================================================ */
 
-onMounted(() => {
+onMounted(async () => {
 	window.addEventListener("keydown", handleGlobalKeydown)
 	emailInput.value?.focus?.()
 	sessionTimeout.init()
+
+	await detectAndSetOfflineMode()
+
+	window.addEventListener("online", () => {
+		if (isOfflineMode.value) {
+			log.info("Connection restored — switching to online mode")
+			isOfflineMode.value = false
+			showOfflineIndicator.value = false
+		}
+	})
+
+	window.addEventListener("offline", () => {
+		if (!isOfflineMode.value) {
+			log.info("Connection lost — switching to offline mode")
+			isOfflineMode.value = true
+			showOfflineIndicator.value = true
+		}
+	})
 })
 
 onUnmounted(() => {
 	sessionTimeout.destroy()
+	window.removeEventListener("keydown", handleGlobalKeydown)
 })
 </script>
 
 <template>
 	<main
 		class="dy-register"
-		:class="{ 'dy-register--busy': isSubmitting }"
+		:class="{
+			'dy-register--busy': isSubmitting,
+			'dy-register--offline': isOfflineMode,
+			'dy-register--mobile': isMobile,
+			'dy-register--reduced-motion': reducedMotion,
+			'dy-register--dark': prefersDark,
+		}"
 		dir="rtl"
 	>
+		<!-- Offline Indicator -->
+		<div
+			v-if="showOfflineIndicator && offlineDetected"
+			class="dy-register__offline-banner"
+			role="status"
+			aria-live="polite"
+		>
+			<FeatherIcon name="wifi-off" :size="16" aria-hidden="true" />
+			<span>وضع عدم الاتصال — سيتم حفظ الحساب محليًا</span>
+		</div>
+
 		<!-- =================================================================
              Brand Panel
              =========================================================== -->
@@ -473,7 +681,7 @@ onUnmounted(() => {
 							for="dypos-register-name"
 							class="dy-register__label"
 						>
-							الاسم الكامل <span class="dy-register__required">*</span>
+							الاسم الكامل <span class="dy-register__required" aria-hidden="true">*</span>
 						</label>
 
 						<div class="dy-register__input-wrap">
@@ -489,6 +697,7 @@ onUnmounted(() => {
 								ref="fullNameInput"
 								v-model="fullName"
 								class="dy-register__input"
+								:class="{ 'dy-register__input--error': fullNameError }"
 								type="text"
 								dir="rtl"
 								placeholder="أدخل اسمك الكامل"
@@ -496,13 +705,20 @@ onUnmounted(() => {
 								required
 								spellcheck="false"
 								@input="clearErrors"
+								aria-invalid="!!fullNameError"
+								aria-describedby="dypos-register-name-error"
+								autocomplete="name"
 							/>
 						</div>
 
 						<span
 							v-if="fullNameError"
+							id="dypos-register-name-error"
 							class="dy-register__field-error"
+							role="alert"
+							aria-live="polite"
 						>
+							<FeatherIcon name="alert-circle" :size="14" aria-hidden="true" />
 							{{ fullNameError }}
 						</span>
 					</div>
@@ -514,7 +730,7 @@ onUnmounted(() => {
 							for="dypos-register-email"
 							class="dy-register__label"
 						>
-							البريد الإلكتروني <span class="dy-register__required">*</span>
+							البريد الإلكتروني <span class="dy-register__required" aria-hidden="true">*</span>
 						</label>
 
 						<div class="dy-register__input-wrap">
@@ -530,6 +746,7 @@ onUnmounted(() => {
 								ref="emailInput"
 								v-model="email"
 								class="dy-register__input"
+								:class="{ 'dy-register__input--error': emailError }"
 								type="email"
 								inputmode="email"
 								dir="ltr"
@@ -538,13 +755,20 @@ onUnmounted(() => {
 								required
 								spellcheck="false"
 								@input="clearErrors"
+								aria-invalid="!!emailError"
+								aria-describedby="dypos-register-email-error"
+								autocomplete="email"
 							/>
 						</div>
 
 						<span
 							v-if="emailError"
+							id="dypos-register-email-error"
 							class="dy-register__field-error"
+							role="alert"
+							aria-live="polite"
 						>
+							<FeatherIcon name="alert-circle" :size="14" aria-hidden="true" />
 							{{ emailError }}
 						</span>
 					</div>
@@ -557,13 +781,14 @@ onUnmounted(() => {
 								for="dypos-register-password"
 								class="dy-register__label"
 							>
-								كلمة المرور <span class="dy-register__required">*</span>
+								كلمة المرور <span class="dy-register__required" aria-hidden="true">*</span>
 							</label>
 
 							<span
 								v-if="password.value"
 								class="dy-register__strength"
 								:style="{ color: passwordStrength.color }"
+								aria-live="polite"
 							>
 								{{ passwordStrength.label }}
 							</span>
@@ -573,6 +798,7 @@ onUnmounted(() => {
 							v-if="password.value"
 							:password="password"
 							:show-label="false"
+							aria-label="قوة كلمة المرور"
 						/>
 
 						<div class="dy-register__input-wrap">
@@ -587,6 +813,7 @@ onUnmounted(() => {
 								id="dypos-register-password"
 								v-model="password"
 								class="dy-register__input"
+								:class="{ 'dy-register__input--error': passwordError }"
 								:type="showPassword ? 'text' : 'password'"
 								dir="ltr"
 								placeholder="6 أحرف على الأقل"
@@ -594,6 +821,9 @@ onUnmounted(() => {
 								required
 								spellcheck="false"
 								@input="clearErrors"
+								aria-invalid="!!passwordError"
+								aria-describedby="dypos-register-password-error"
+								autocomplete="new-password"
 							/>
 
 							<button
@@ -604,6 +834,7 @@ onUnmounted(() => {
 										? 'إخفاء كلمة المرور'
 										: 'إظهار كلمة المرور'
 								"
+								:aria-pressed="showPassword"
 								:disabled="isSubmitting"
 								@click="showPassword = !showPassword"
 							>
@@ -616,8 +847,12 @@ onUnmounted(() => {
 
 						<span
 							v-if="passwordError"
+							id="dypos-register-password-error"
 							class="dy-register__field-error"
+							role="alert"
+							aria-live="polite"
 						>
+							<FeatherIcon name="alert-circle" :size="14" aria-hidden="true" />
 							{{ passwordError }}
 						</span>
 					</div>
@@ -629,7 +864,7 @@ onUnmounted(() => {
 							for="dypos-register-confirm"
 							class="dy-register__label"
 						>
-							تأكيد كلمة المرور <span class="dy-register__required">*</span>
+							تأكيد كلمة المرور <span class="dy-register__required" aria-hidden="true">*</span>
 						</label>
 
 						<div class="dy-register__input-wrap">
@@ -644,6 +879,7 @@ onUnmounted(() => {
 								id="dypos-register-confirm"
 								v-model="confirmPassword"
 								class="dy-register__input"
+								:class="{ 'dy-register__input--error': confirmPasswordError }"
 								:type="showConfirmPassword ? 'text' : 'password'"
 								dir="ltr"
 								placeholder="أعد كتابة كلمة المرور"
@@ -651,6 +887,9 @@ onUnmounted(() => {
 								required
 								spellcheck="false"
 								@input="clearErrors"
+								aria-invalid="!!confirmPasswordError"
+								aria-describedby="dypos-register-confirm-error"
+								autocomplete="new-password"
 							/>
 
 							<button
@@ -673,8 +912,12 @@ onUnmounted(() => {
 
 						<span
 							v-if="confirmPasswordError"
+							id="dypos-register-confirm-error"
 							class="dy-register__field-error"
+							role="alert"
+							aria-live="polite"
 						>
+							<FeatherIcon name="alert-circle" :size="14" aria-hidden="true" />
 							{{ confirmPasswordError }}
 						</span>
 					</div>
@@ -704,10 +947,11 @@ onUnmounted(() => {
 								type="tel"
 								inputmode="tel"
 								dir="ltr"
-								placeholder="05XXXXXXXX"
+								placeholder="0501234567"
 								:disabled="isSubmitting"
 								spellcheck="false"
 								@input="clearErrors"
+								autocomplete="tel"
 							/>
 						</div>
 					</div>
@@ -740,6 +984,7 @@ onUnmounted(() => {
 								:disabled="isSubmitting"
 								spellcheck="false"
 								@input="clearErrors"
+								autocomplete="organization"
 							/>
 						</div>
 					</div>
@@ -753,6 +998,8 @@ onUnmounted(() => {
 								type="checkbox"
 								:disabled="isSubmitting"
 								@change="clearErrors"
+								id="dypos-register-terms"
+								aria-describedby="dypos-register-terms-desc"
 							/>
 
 							<span
@@ -760,7 +1007,7 @@ onUnmounted(() => {
 								aria-hidden="true"
 							/>
 
-							<span>
+							<span id="dypos-register-terms-desc">
 								أوافق على
 								<a href="/terms" class="dy-register__link">
 									شروط الاستخدام
@@ -1441,5 +1688,162 @@ onUnmounted(() => {
 
 .dy-register__field {
 	margin-bottom: var(--dy-space-3);
+}
+
+/* =============================================================================
+   Offline Indicator
+   ============================================================================= */
+
+.dy-register__offline-banner {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+
+	padding: 10px 16px;
+
+	background: rgb(var(--dy-amber-c-500) / 0.12);
+	border-bottom: 1px solid rgb(var(--dy-amber-c-500) / 0.24);
+
+	color: var(--dy-amber-700);
+
+	font-size: 0.82rem;
+	font-weight: 600;
+
+	animation: dy-slide-down var(--dy-dur-standard) var(--dy-ease-standard);
+}
+
+@keyframes dy-slide-down {
+	from {
+		opacity: 0;
+		transform: translateY(-100%);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+/* =============================================================================
+   Input Error State
+   ============================================================================= */
+
+.dy-register__input--error + .dy-register__password-toggle {
+	color: var(--dy-crimson-600);
+}
+
+.dy-register__input-wrap:has(.dy-register__input--error) {
+	border-color: var(--dy-crimson-500);
+}
+
+.dy-register__input-wrap:has(.dy-register__input--error):focus-within {
+	border-color: var(--dy-crimson-500);
+	box-shadow: 0 0 0 3px rgb(var(--dy-crimson-c-500) / 0.12);
+}
+
+/* =============================================================================
+   Offline Mode Variant
+   ============================================================================= */
+
+.dy-register--offline .dy-register__panel {
+	background: var(--dy-bg);
+}
+
+.dy-register--offline .dy-register__title::after {
+	content: " (غير متصل)";
+	color: var(--dy-amber-600);
+	font-weight: 600;
+	font-size: 0.9em;
+}
+
+/* =============================================================================
+   Reduced Motion
+   ============================================================================= */
+
+.dy-register--reduced-motion *,
+.dy-register--reduced-motion *::before,
+.dy-register--reduced-motion *::after {
+	animation-duration: 0.01ms !important;
+	transition-duration: 0.01ms !important;
+}
+
+/* =============================================================================
+   Dark Mode Enhancements
+   ============================================================================= */
+
+.dy-register--dark .dy-register__offline-banner {
+	background: rgb(var(--dy-amber-c-500) / 0.18);
+	border-bottom-color: rgb(var(--dy-amber-c-500) / 0.3);
+	color: var(--dy-amber-400);
+}
+
+.dy-register--dark .dy-register__input-wrap {
+	background: var(--dy-surface);
+	border-color: var(--dy-border);
+}
+
+.dy-register--dark .dy-register__input-wrap:focus-within {
+	box-shadow: 0 0 0 3px rgb(var(--dy-brand-c-500) / 0.18);
+}
+
+.dy-register--dark .dy-register__error {
+	background: rgb(var(--dy-crimson-c-500) / 0.12);
+	border-color: rgb(var(--dy-crimson-c-500) / 0.3);
+	color: var(--dy-crimson-400);
+}
+
+.dy-register--dark .dy-register__error-close:hover {
+	background: rgb(var(--dy-crimson-c-500) / 0.12);
+}
+
+.dy-register--dark .dy-register__timeout-card {
+	background: var(--dy-surface);
+	box-shadow: 0 24px 64px rgb(0 0 0 / 0.5);
+}
+
+/* =============================================================================
+   Mobile Enhancements
+   ============================================================================= */
+
+@media (max-width: 768px) {
+	.dy-register--mobile .dy-register__panel-inner {
+		padding-inline: 24px;
+	}
+
+	.dy-register--mobile .dy-register__offline-banner {
+		font-size: 0.78rem;
+		padding: 8px 12px;
+	}
+}
+
+@media (max-width: 480px) {
+	.dy-register--mobile .dy-register__panel-inner {
+		padding-inline: 16px;
+	}
+
+	.dy-register--mobile .dy-register__title {
+		font-size: 1.6rem;
+	}
+
+	.dy-register--mobile .dy-register__submit {
+		width: 100%;
+	}
+}
+
+/* =============================================================================
+   Focus Visible Enhancement
+   ============================================================================= */
+
+.dy-register__input:focus-visible,
+.dy-register__password-toggle:focus-visible,
+.dy-register__back:focus-visible,
+.dy-register__link:focus-visible,
+.dy-register__checkbox-label:focus-visible {
+	outline: 2px solid var(--dy-accent);
+	outline-offset: 2px;
+}
+
+.dy-register__checkbox-label:focus-visible {
+	border-radius: var(--dy-radius-sm);
 }
 </style>

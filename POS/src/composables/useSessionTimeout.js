@@ -1,6 +1,6 @@
 import { ref, onMounted, onUnmounted, watch } from "vue"
-import { call } from "@/utils/apiWrapper"
 import { logger } from "@/utils/logger"
+import { session } from "@/stores/session"
 
 const DEFAULT_WARNING_MS = 5 * 60 * 1000
 const DEFAULT_SESSION_MS = 30 * 60 * 1000
@@ -46,10 +46,9 @@ export function useSessionTimeout({
 
 	function startSessionDetection() {
 		stopWatcher = watch(
-			() =>
-				typeof window !== "undefined" ? window.frappe?.session?.user : null,
-			(user) => {
-				if (!user && isSessionActive.value) {
+			() => session.isLoggedIn,
+			(loggedIn) => {
+				if (!loggedIn && isSessionActive.value) {
 					stopCountdown()
 					isSessionActive.value = false
 					showWarning.value = false
@@ -64,14 +63,14 @@ export function useSessionTimeout({
 		isExtending.value = true
 
 		try {
-			await call("DyPOS.api.auth.extend_session")
+			await session.refresh()
 			sessionExpiry = Date.now() + sessionDurationMs
 			showWarning.value = false
 			timeRemaining.value = sessionDurationMs
 			isExtending.value = false
 			startCountdown()
 			onExtend?.()
-			logger?.info?.("Session extended")
+			logger?.info?.("Session extended locally")
 		} catch (error) {
 			isExtending.value = false
 			logger?.warn?.("Failed to extend session", error)
@@ -184,7 +183,7 @@ export function createSessionTimeoutManager(options = {}) {
 		if (state.isExtending.value) return
 		state.isExtending.value = true
 		try {
-			await call("DyPOS.api.auth.extend_session")
+			await session.refresh()
 			expiryTime = Date.now() + (sessionDurationMs || DEFAULT_SESSION_MS)
 			state.showWarning.value = false
 			state.isExtending.value = false

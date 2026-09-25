@@ -1027,10 +1027,7 @@
 import InvoiceFilters from "@/components/invoices/InvoiceFilters.vue"
 import { useInvoiceFilters } from "@/composables/useInvoiceFilters"
 import { useInvoiceFiltersStore } from "@/stores/invoiceFilters"
-import {
-	DEFAULT_CURRENCY,
-	formatCurrency as formatCurrencyUtil,
-} from "@/utils/currency"
+import { DEFAULT_CURRENCY } from "@/utils/currency"
 import { getInvoiceStatusColor } from "@/utils/invoice"
 import { useFormatters } from "@/composables/useFormatters"
 import { useToast } from "@/composables/useToast"
@@ -1053,7 +1050,7 @@ const PaymentDialog = defineAsyncComponent(
 
 const log = logger.create("InvoiceManagement")
 const { showSuccess, showError } = useToast()
-const { formatDate, formatDateTime, formatTime } = useFormatters()
+const { formatCurrency, formatDate, formatDateTime, formatTime } = useFormatters()
 
 const props = defineProps({
 	modelValue: Boolean,
@@ -1447,10 +1444,6 @@ async function handlePaymentCompleted(paymentData) {
 		console.error("Error adding payment:", error)
 		showError(error.message || __("Failed to add payment"))
 	}
-}
-
-function formatCurrency(amount) {
-	return formatCurrencyUtil(Number.parseFloat(amount || 0), props.currency)
 }
 
 function formatPaymentModes(invoice) {

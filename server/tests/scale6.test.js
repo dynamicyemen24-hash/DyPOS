@@ -109,9 +109,9 @@ describe('Currencies & UoMs', () => {
     assert.strictEqual(cross.status, 400);
   });
   it('invoices reject unknown currency/uom', async () => {
-    const c1 = await req('POST', '/api/invoices', { items: [{ productId: prodId, qty: 1 }], currency: 'XXX' }, admin);
+    const c1 = await req('POST', '/api/invoices', { items: [{ productId: prodId, qty: 1 }], currency: 'INVALID' }, admin);
     assert.strictEqual(c1.status, 400);
-    const c2 = await req('POST', '/api/invoices', { items: [{ productId: prodId, qty: 1, uom: 'XXX' }] }, admin);
+    const c2 = await req('POST', '/api/invoices', { items: [{ productId: prodId, qty: 1, uom: 'INVALID' }] }, admin);
     assert.strictEqual(c2.status, 400);
     const ok = await req('POST', '/api/invoices', { items: [{ productId: prodId, qty: 1, uom: 'PCS' }], currency: 'USD' }, admin);
     assert.strictEqual(ok.status, 201);

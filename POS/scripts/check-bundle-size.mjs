@@ -7,10 +7,10 @@
  * Run AFTER `vite build` (reads ../DyPOS/public/pos/assets).
  * Budget: BUNDLE_BUDGET_KB env (default 900). Current: ~600KB gzip.
  */
-import { readdirSync, readFileSync, existsSync } from "fs"
-import { join, dirname } from "path"
-import { fileURLToPath } from "url"
-import { gzipSync } from "zlib"
+import { readdirSync, readFileSync, existsSync } from "node:fs"
+import { join, dirname } from "node:path"
+import { fileURLToPath } from "node:url"
+import { gzipSync } from "node:zlib"
 
 const dir = join(
 	dirname(fileURLToPath(import.meta.url)),

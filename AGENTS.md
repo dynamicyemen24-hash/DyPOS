@@ -40,6 +40,16 @@ npx biome check src/<touched-file>
 6. **No secrets in repo**: tokens via env/secrets only; QZ keys stay under
    gitignored `server/uploads/qz/` (0600). Never commit `*.db`, `uploads/`, `dev-dist/`.
 7. **Arabic UX**: user-facing strings, errors, audit notes in Arabic.
+8. **Offline-First PWA (Installable)**: The POS MUST work 100% offline as an
+   installable mobile/desktop app. Zero network calls on startup.
+   - IndexedDB (Dexie) is the local database — all sales, stock, customers cached.
+   - Service Worker precaches ALL assets (HTML, JS, CSS, fonts, images).
+   - Background sync queue persists pending operations to IndexedDB.
+   - Offline invoice numbering (POS-{branch}-{terminal}-{date}-{seq}).
+   - Stock reservations prevent overselling across terminals offline.
+   - Auto-sync when backend reachesable (SQLite on server).
+   - `npm run build` produces installable PWA at `DyPOS/public/pos/`.
+   - Cloudflare Pages deployment serves the PWA with proper headers.
 
 ## Gotchas
 

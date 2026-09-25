@@ -1,68 +1,76 @@
-import router from "@/router"
-import { createResource } from "frappe-ui"
-import { computed, reactive } from "vue"
-import { logger } from "@/utils/logger"
-
-const log = logger.create("Session")
-
-import { ensureCSRFToken } from "@/utils/csrf"
+import { reactive, computed } from "vue"
 import { cleanupUserSession } from "@/utils/sessionCleanup"
-import { userResource, userData } from "./user"
+import { logger } from "@/utils/logger"
+import router from "@/router"
 
-export function sessionUser() {
-	const cookies = new URLSearchParams(document.cookie.split("; ").join("&"))
-	let _sessionUser = cookies.get("user_id")
-	if (_sessionUser === "Guest") {
-		_sessionUser = null
+const log = logger.create("LocalSession")
+
+// Lazy-loaded Pinia session to avoid initialization order issues
+let _piniaSession = null
+function getPiniaSession() {
+	if (!_piniaSession) {
+		try {
+			// Dynamic import to avoid circular dependency and Pinia initialization issues
+			const { useSessionStore } = require("@/stores/session")
+			_piniaSession = useSessionStore()
+		} catch {
+			// Fallback for test environments without Pinia
+			_piniaSession = {
+				user: null,
+				isLoggedIn: false,
+				async login() { return null },
+				async logout() {},
+				async refresh() {},
+			}
+		}
 	}
-	return _sessionUser
+	return _piniaSession
+}
+
+/**
+ * Local session management — completely offline, no Frappe dependency.
+ * Uses Pinia session store as the source of truth.
+ */
+export function sessionUser() {
+	return getPiniaSession().user
 }
 
 export const session = reactive({
-	login: createResource({
-		url: "login",
-		makeParams({ email, password }) {
-			return {
-				usr: email,
-				pwd: password,
-			}
-		},
-		async onSuccess(data) {
-			// Initialize CSRF token immediately after successful login
-			await ensureCSRFToken()
+	async login(credentials) {
+		const { email, password } = credentials || {}
+		if (!email || !password) {
+			throw new Error("بيانات الدخول ناقصة")
+		}
 
-			await userResource.reload()
+		const piniaSession = getPiniaSession()
+		await piniaSession.login({ usr: email, pwd: password })
 
-			// Refresh userData from cookies after login
-			// The auto-refresh interval will also pick this up, but we do it immediately for responsiveness
-			userData.refresh()
+		session.user = piniaSession.user
+		session.login.reset()
+		return { success: true }
+	},
 
-			session.user = sessionUser()
-			session.login.reset()
-			// Don't redirect here - let the Login page watcher handle navigation
-			// This prevents conflicts with the shift opening dialog flow
+	async logout() {
+		try {
+			const piniaSession = getPiniaSession()
+			await piniaSession.logout()
+		} catch (error) {
+			log.warn("Session logout error:", error)
+		}
+
+		await cleanupUserSession()
+		session.user = null
+		router.replace({ name: "Login" })
+	},
+
+	user: null,
+	isLoggedIn: computed(() => getPiniaSession().isLoggedIn),
+
+	login: {
+		reset() {
+			// No-op for local session
 		},
-		onError(error) {
-			log.error("Login error:", error)
-		},
-	}),
-	logout: createResource({
-		url: "logout",
-		async onSuccess() {
-			await cleanupUserSession()
-			userResource.reset()
-			session.user = sessionUser()
-			router.replace({ name: "Login" })
-		},
-		async onError(error) {
-			log.error("Logout error:", error)
-			// Even if logout fails on server, clear local session
-			await cleanupUserSession()
-			userResource.reset()
-			session.user = null
-			router.replace({ name: "Login" })
-		},
-	}),
-	user: sessionUser(),
-	isLoggedIn: computed(() => !!session.user),
+	},
 })
+
+export default session

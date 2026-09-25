@@ -1,0 +1,541 @@
+﻿node.exe : .\scripts\check-bundle-size.mjs:10:55 lint/style/useNodejsImportProtocol  FIXABLE  
+ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+At line:1 char:1
++ & "C:\nvm4w\nodejs/node.exe" "C:\Users\GSERPSYS24\AppData\Roaming\npm ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (.\scripts\check...ΓöüΓöüΓöüΓöüΓöü:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+  ├ù A Node.js builtin module should be imported with the node: protocol.
+  
+     8 Γöé  * Budget: BUNDLE_BUDGET_KB env (default 900). Current: ~600KB gzip.
+     9 Γöé  */
+  > 10 Γöé import { readdirSync, readFileSync, existsSync } from "fs"
+       Γöé                                                       ^^^^
+    11 Γöé import { join, dirname } from "path"
+    12 Γöé import { fileURLToPath } from "url"
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+     8  8 Γöé    * Budget: BUNDLE_BUDGET_KB env (default 900). Current: ~600KB gzip.
+     9  9 Γöé    */
+    10    Γöé - import┬╖{┬╖readdirSync,┬╖readFileSync,┬╖existsSync┬╖}┬╖from┬╖"fs"
+       10 Γöé + import┬╖{┬╖readdirSync,┬╖readFileSync,┬╖existsSync┬╖}┬╖from┬╖"node:fs"
+    11 11 Γöé   import { join, dirname } from "path"
+    12 12 Γöé   import { fileURLToPath } from "url"
+  
+
+.\scripts\check-bundle-size.mjs:11:31 lint/style/useNodejsImportProtocol  FIXABLE  
+ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+
+  ├ù A Node.js builtin module should be imported with the node: protocol.
+  
+     9 Γöé  */
+    10 Γöé import { readdirSync, readFileSync, existsSync } from "fs"
+  > 11 Γöé import { join, dirname } from "path"
+       Γöé                               ^^^^^^
+    12 Γöé import { fileURLToPath } from "url"
+    13 Γöé import { gzipSync } from "zlib"
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+     9  9 Γöé    */
+    10 10 Γöé   import { readdirSync, readFileSync, existsSync } from "fs"
+    11    Γöé - import┬╖{┬╖join,┬╖dirname┬╖}┬╖from┬╖"path"
+       11 Γöé + import┬╖{┬╖join,┬╖dirname┬╖}┬╖from┬╖"node:path"
+    12 12 Γöé   import { fileURLToPath } from "url"
+    13 13 Γöé   import { gzipSync } from "zlib"
+  
+
+.\scripts\check-bundle-size.mjs:12:31 lint/style/useNodejsImportProtocol  FIXABLE  
+ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+
+  ├ù A Node.js builtin module should be imported with the node: protocol.
+  
+    10 Γöé import { readdirSync, readFileSync, existsSync } from "fs"
+    11 Γöé import { join, dirname } from "path"
+  > 12 Γöé import { fileURLToPath } from "url"
+       Γöé                               ^^^^^
+    13 Γöé import { gzipSync } from "zlib"
+    14 Γöé 
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+    10 10 Γöé   import { readdirSync, readFileSync, existsSync } from "fs"
+    11 11 Γöé   import { join, dirname } from "path"
+    12    Γöé - import┬╖{┬╖fileURLToPath┬╖}┬╖from┬╖"url"
+       12 Γöé + import┬╖{┬╖fileURLToPath┬╖}┬╖from┬╖"node:url"
+    13 13 Γöé   import { gzipSync } from "zlib"
+    14 14 Γöé   
+  
+
+.\scripts\check-bundle-size.mjs:13:26 lint/style/useNodejsImportProtocol  FIXABLE  
+ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+
+  ├ù A Node.js builtin module should be imported with the node: protocol.
+  
+    11 Γöé import { join, dirname } from "path"
+    12 Γöé import { fileURLToPath } from "url"
+  > 13 Γöé import { gzipSync } from "zlib"
+       Γöé                          ^^^^^^
+    14 Γöé 
+    15 Γöé const dir = join(
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+    11 11 Γöé   import { join, dirname } from "path"
+    12 12 Γöé   import { fileURLToPath } from "url"
+    13    Γöé - import┬╖{┬╖gzipSync┬╖}┬╖from┬╖"zlib"
+       13 Γöé + import┬╖{┬╖gzipSync┬╖}┬╖from┬╖"node:zlib"
+    14 14 Γöé   
+    15 15 Γöé   const dir = join(
+  
+
+.\src\components\ui\DyCard.vue:45:5 parse ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓö
+üΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+
+  ├ù Expected a property, a shorthand property, a getter, a setter, or a method but instead found 
+'`dy-card--accent-${props.accentColor'.
+  
+    43 Γöé   { "dy-card--interactive": props.interactive },
+    44 Γöé   { "dy-card--accent": props.accent },
+  > 45 Γöé   { `dy-card--accent-${props.accentColor}`: props.accent },
+       Γöé     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    46 Γöé   { "dy-card--hoverable": props.hoverable && props.interactive },
+    47 Γöé ])
+  
+  i Expected a property, a shorthand property, a getter, a setter, or a method here.
+  
+    42 Γöé   `dy-card--padding-${props.padding}`,
+    43 Γöé   { "dy-card--interactive": props.interactive },
+  > 44 Γöé   { "dy-card--accent": props.accent },
+       Γöé                             ^^^^^^^^^^
+  > 45 Γöé   { `dy-card--accent-${props.accentColor}`: props.accent },
+       Γöé   ^^^^^^^^^^^^^^^^^^^^^^^
+    46 Γöé   { "dy-card--hoverable": props.hoverable && props.interactive },
+    47 Γöé ])
+  
+
+.\src\components\ui\DyCard.vue:45:43 parse ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓ
+öüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+
+  ├ù unterminated template literal
+  
+    43 Γöé   { "dy-card--interactive": props.interactive },
+    44 Γöé   { "dy-card--accent": props.accent },
+  > 45 Γöé   { `dy-card--accent-${props.accentColor}`: props.accent },
+       Γöé                                           ^^^^^^^^^^^^^^^^^
+  > 46 Γöé   { "dy-card--hoverable": props.hoverable && props.interactive },
+        ...
+  > 54 Γöé }))
+  > 55 Γöé </script>
+       Γöé ^
+    56 Γöé 
+    57 Γöé <template>
+  
+
+.\src\components\ui\DyCard.vue:55:1 parse ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓö
+üΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+
+  ├ù expected `]` but instead the file ends
+  
+    53 Γöé   "aria-describedby": props.ariaDescribedBy || undefined,
+    54 Γöé }))
+  > 55 Γöé </script>
+       Γöé 
+    56 Γöé 
+    57 Γöé <template>
+  
+  i the file ends here
+  
+    51 Γöé   tabindex: props.interactive ? 0 : undefined,
+    52 Γöé   "aria-label": props.ariaLabel || undefined,
+  > 53 Γöé   "aria-describedby": props.ariaDescribedBy || undefined,
+       Γöé                                                
+    54 Γöé }))
+    55 Γöé </script>
+  
+
+.\src\components\ui\DyCard.vue:44:29 parse ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓ
+öüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+
+  ├ù Expected a property, a shorthand property, a getter, a setter, or a method but instead found 
+'`dy-card--accent-${props.accentColor'.
+  
+    42 Γöé   `dy-card--padding-${props.padding}`,
+    43 Γöé   { "dy-card--interactive": props.interactive },
+  > 44 Γöé   { "dy-card--accent": props.accent },
+       Γöé                             ^^^^^^^^^^
+  > 45 Γöé   { `dy-card--accent-${props.accentColor}`: props.accent },
+       Γöé   ^^^^^^^^^^^^^^^^^^^^^^^
+    46 Γöé   { "dy-card--hoverable": props.hoverable && props.interactive },
+    47 Γöé ])
+  
+  i Expected a property, a shorthand property, a getter, a setter, or a method here.
+  
+    42 Γöé   `dy-card--padding-${props.padding}`,
+    43 Γöé   { "dy-card--interactive": props.interactive },
+  > 44 Γöé   { "dy-card--accent": props.accent },
+       Γöé                             ^^^^^^^^^^
+  > 45 Γöé   { `dy-card--accent-${props.accentColor}`: props.accent },
+       Γöé   ^^^^^^^^^^^^^^^^^^^^^^^
+    46 Γöé   { "dy-card--hoverable": props.hoverable && props.interactive },
+    47 Γöé ])
+  
+
+.\src\components\ui\DyCard.vue:45:28 parse ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓ
+öüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+
+  ├ù unterminated template literal
+  
+    43 Γöé   { "dy-card--interactive": props.interactive },
+    44 Γöé   { "dy-card--accent": props.accent },
+  > 45 Γöé   { `dy-card--accent-${props.accentColor}`: props.accent },
+       Γöé                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  > 46 Γöé   { "dy-card--hoverable": props.hoverable && props.interactive },
+        ...
+  > 52 Γöé   "aria-label": props.ariaLabel || undefined,
+  > 53 Γöé   "aria-describedby": props.ariaDescribedBy || undefined,
+       Γöé   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    54 Γöé }))
+    55 Γöé </script>
+  
+
+.\src\components\ui\DyCard.vue:53:48 parse ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓ
+öüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+
+  ├ù expected `]` but instead the file ends
+  
+    51 Γöé   tabindex: props.interactive ? 0 : undefined,
+    52 Γöé   "aria-label": props.ariaLabel || undefined,
+  > 53 Γöé   "aria-describedby": props.ariaDescribedBy || undefined,
+       Γöé                                                
+    54 Γöé }))
+    55 Γöé </script>
+  
+  i the file ends here
+  
+    51 Γöé   tabindex: props.interactive ? 0 : undefined,
+    52 Γöé   "aria-label": props.ariaLabel || undefined,
+  > 53 Γöé   "aria-describedby": props.ariaDescribedBy || undefined,
+       Γöé                                                
+    54 Γöé }))
+    55 Γöé </script>
+  
+
+.\src\components\ui\DyCard.vue format ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+
+  ├ù Code formatting aborted due to parsing errors. To format code with errors, enable the 
+'formatter.formatWithErrors' option.
+  
+
+.\src\components\work\WorkSearch.vue format ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+
+  ├ù Formatter would have printed the following content:
+  
+    114 114 Γöé   
+    115 115 Γöé   const props = defineProps({
+    116     Γöé - ┬╖┬╖modelValue:┬╖{┬╖type:┬╖String,┬╖default:┬╖""┬╖},
+    117     Γöé - ┬╖┬╖label:┬╖{┬╖type:┬╖String,┬╖default:┬╖""┬╖},
+    118     Γöé - ┬╖┬╖placeholder:┬╖{┬╖type:┬╖String,┬╖default:┬╖"search"┬╖},
+    119     Γöé - 
+┬╖┬╖size:┬╖{┬╖type:┬╖String,┬╖default:┬╖"md",┬╖validator:┬╖(v)┬╖=>┬╖["sm",┬╖"md",┬╖"lg"].includes(v)┬╖},
+    120     Γöé - ┬╖┬╖disabled:┬╖{┬╖type:┬╖Boolean,┬╖default:┬╖false┬╖},
+    121     Γöé - ┬╖┬╖loading:┬╖{┬╖type:┬╖Boolean,┬╖default:┬╖false┬╖},
+    122     Γöé - ┬╖┬╖/**┬╖Debounce┬╖ms┬╖*/
+    123     Γöé - ┬╖┬╖debounce:┬╖{┬╖type:┬╖Number,┬╖default:┬╖300┬╖},
+    124     Γöé - ┬╖┬╖/**┬╖Suggestions┬╖array┬╖*/
+    125     Γöé - ┬╖┬╖suggestions:┬╖{
+    126     Γöé - ┬╖┬╖┬╖┬╖type:┬╖Array,
+    127     Γöé - ┬╖┬╖┬╖┬╖default:┬╖()┬╖=>┬╖[],
+    128     Γöé - ┬╖┬╖┬╖┬╖//┬╖[{┬╖id,┬╖label,┬╖description?,┬╖icon?,┬╖badge?┬╖}]
+    129     Γöé - ┬╖┬╖},
+    130     Γöé - ┬╖┬╖/**┬╖Footer┬╖text┬╖*/
+    131     Γöé - ┬╖┬╖suggestionsFooter:┬╖{┬╖type:┬╖String,┬╖default:┬╖""┬╖},
+    132     Γöé - ┬╖┬╖/**┬╖Input┬╖type┬╖*/
+    133     Γöé - ┬╖┬╖type:┬╖{┬╖type:┬╖String,┬╖default:┬╖"search"┬╖},
+    134     Γöé - ┬╖┬╖/**┬╖Clearable┬╖*/
+    135     Γöé - ┬╖┬╖clearable:┬╖{┬╖type:┬╖Boolean,┬╖default:┬╖true┬╖},
+        116 Γöé + ΓåÆ modelValue:┬╖{┬╖type:┬╖String,┬╖default:┬╖""┬╖},
+        117 Γöé + ΓåÆ label:┬╖{┬╖type:┬╖String,┬╖default:┬╖""┬╖},
+        118 Γöé + ΓåÆ placeholder:┬╖{┬╖type:┬╖String,┬╖default:┬╖"search"┬╖},
+        119 Γöé + ΓåÆ size:┬╖{
+        120 Γöé + ΓåÆ ΓåÆ type:┬╖String,
+        121 Γöé + ΓåÆ ΓåÆ default:┬╖"md",
+        122 Γöé + ΓåÆ ΓåÆ validator:┬╖(v)┬╖=>┬╖["sm",┬╖"md",┬╖"lg"].includes(v),
+        123 Γöé + ΓåÆ },
+        124 Γöé + ΓåÆ disabled:┬╖{┬╖type:┬╖Boolean,┬╖default:┬╖false┬╖},
+        125 Γöé + ΓåÆ loading:┬╖{┬╖type:┬╖Boolean,┬╖default:┬╖false┬╖},
+        126 Γöé + ΓåÆ /**┬╖Debounce┬╖ms┬╖*/
+        127 Γöé + ΓåÆ debounce:┬╖{┬╖type:┬╖Number,┬╖default:┬╖300┬╖},
+        128 Γöé + ΓåÆ /**┬╖Suggestions┬╖array┬╖*/
+        129 Γöé + ΓåÆ suggestions:┬╖{
+        130 Γöé + ΓåÆ ΓåÆ type:┬╖Array,
+        131 Γöé + ΓåÆ ΓåÆ default:┬╖()┬╖=>┬╖[],
+        132 Γöé + ΓåÆ ΓåÆ //┬╖[{┬╖id,┬╖label,┬╖description?,┬╖icon?,┬╖badge?┬╖}]
+        133 Γöé + ΓåÆ },
+        134 Γöé + ΓåÆ /**┬╖Footer┬╖text┬╖*/
+        135 Γöé + ΓåÆ suggestionsFooter:┬╖{┬╖type:┬╖String,┬╖default:┬╖""┬╖},
+        136 Γöé + ΓåÆ /**┬╖Input┬╖type┬╖*/
+        137 Γöé + ΓåÆ type:┬╖{┬╖type:┬╖String,┬╖default:┬╖"search"┬╖},
+        138 Γöé + ΓåÆ /**┬╖Clearable┬╖*/
+        139 Γöé + ΓåÆ clearable:┬╖{┬╖type:┬╖Boolean,┬╖default:┬╖true┬╖},
+    136 140 Γöé   })
+    137 141 Γöé   
+    138     Γöé - const┬╖emit┬╖=┬╖defineEmits(["update:modelValue",┬╖"search",┬╖"select",┬╖"clear",┬╖"focus",┬╖"blur"])
+        142 Γöé + const┬╖emit┬╖=┬╖defineEmits([
+        143 Γöé + ΓåÆ "update:modelValue",
+        144 Γöé + ΓåÆ "search",
+        145 Γöé + ΓåÆ "select",
+        146 Γöé + ΓåÆ "clear",
+        147 Γöé + ΓåÆ "focus",
+        148 Γöé + ΓåÆ "blur",
+        149 Γöé + ])
+    139 150 Γöé   
+    140 151 Γöé   const inputId = `work-search-${Math.random().toString(36).slice(2)}`
+    ┬╖┬╖┬╖┬╖┬╖┬╖┬╖ Γöé 
+    149 160 Γöé   
+    150 161 Γöé   const optionIds = computed(() =>
+    151     Γöé - ┬╖┬╖suggestions.value.map((_,┬╖i)┬╖=>┬╖`${listboxId}-option-${i}`)
+        162 Γöé + ΓåÆ suggestions.value.map((_,┬╖i)┬╖=>┬╖`${listboxId}-option-${i}`),
+    152 163 Γöé   )
+    153 164 Γöé   
+    154 165 Γöé   function handleInput(e) {
+    155     Γöé - ┬╖┬╖const┬╖value┬╖=┬╖e.target.value
+    156     Γöé - ┬╖┬╖if┬╖(composing.value)┬╖return
+    157     Γöé - ┬╖┬╖emit("update:modelValue",┬╖value)
+    158     Γöé - ┬╖┬╖clearTimeout(debounceTimer)
+    159     Γöé - ┬╖┬╖debounceTimer┬╖=┬╖setTimeout(()┬╖=>┬╖{
+    160     Γöé - ┬╖┬╖┬╖┬╖emit("search",┬╖value)
+    161     Γöé - ┬╖┬╖┬╖┬╖suggestionsOpen.value┬╖=┬╖true
+    162     Γöé - ┬╖┬╖┬╖┬╖highlightedIndex.value┬╖=┬╖-1
+    163     Γöé - ┬╖┬╖},┬╖props.debounce)
+        166 Γöé + ΓåÆ const┬╖value┬╖=┬╖e.target.value
+        167 Γöé + ΓåÆ if┬╖(composing.value)┬╖return
+        168 Γöé + ΓåÆ emit("update:modelValue",┬╖value)
+        169 Γöé + ΓåÆ clearTimeout(debounceTimer)
+        170 Γöé + ΓåÆ debounceTimer┬╖=┬╖setTimeout(()┬╖=>┬╖{
+        171 Γöé + ΓåÆ ΓåÆ emit("search",┬╖value)
+        172 Γöé + ΓåÆ ΓåÆ suggestionsOpen.value┬╖=┬╖true
+        173 Γöé + ΓåÆ ΓåÆ highlightedIndex.value┬╖=┬╖-1
+        174 Γöé + ΓåÆ },┬╖props.debounce)
+    164 175 Γöé   }
+    165 176 Γöé   
+    166 177 Γöé   function handleFocus() {
+    167     Γöé - ┬╖┬╖focused.value┬╖=┬╖true
+    168     Γöé - ┬╖┬╖if┬╖(props.suggestions.length)┬╖suggestionsOpen.value┬╖=┬╖true
+    169     Γöé - ┬╖┬╖emit("focus")
+        178 Γöé + ΓåÆ focused.value┬╖=┬╖true
+        179 Γöé + ΓåÆ if┬╖(props.suggestions.length)┬╖suggestionsOpen.value┬╖=┬╖true
+        180 Γöé + ΓåÆ emit("focus")
+    170 181 Γöé   }
+    171 182 Γöé   
+    172 183 Γöé   function handleBlur(e) {
+    173     Γöé - ┬╖┬╖focused.value┬╖=┬╖false
+    174     Γöé - ┬╖┬╖//┬╖Delay┬╖to┬╖allow┬╖click┬╖on┬╖suggestion
+    175     Γöé - ┬╖┬╖setTimeout(()┬╖=>┬╖{
+    176     Γöé - ┬╖┬╖┬╖┬╖suggestionsOpen.value┬╖=┬╖false
+    177     Γöé - ┬╖┬╖┬╖┬╖highlightedIndex.value┬╖=┬╖-1
+    178     Γöé - ┬╖┬╖},┬╖150)
+    179     Γöé - ┬╖┬╖emit("blur")
+        184 Γöé + ΓåÆ focused.value┬╖=┬╖false
+        185 Γöé + ΓåÆ //┬╖Delay┬╖to┬╖allow┬╖click┬╖on┬╖suggestion
+        186 Γöé + ΓåÆ setTimeout(()┬╖=>┬╖{
+        187 Γöé + ΓåÆ ΓåÆ suggestionsOpen.value┬╖=┬╖false
+        188 Γöé + ΓåÆ ΓåÆ highlightedIndex.value┬╖=┬╖-1
+        189 Γöé + ΓåÆ },┬╖150)
+        190 Γöé + ΓåÆ emit("blur")
+    180 191 Γöé   }
+    181 192 Γöé   
+    182 193 Γöé   function handleKeydown(e) {
+    183     Γöé - ┬╖┬╖const┬╖maxIndex┬╖=┬╖props.suggestions.length┬╖-┬╖1
+        194 Γöé + ΓåÆ const┬╖maxIndex┬╖=┬╖props.suggestions.length┬╖-┬╖1
+    184 195 Γöé   
+    185     Γöé - ┬╖┬╖switch┬╖(e.key)┬╖{
+    186     Γöé - ┬╖┬╖┬╖┬╖case┬╖"ArrowDown":
+    187     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖e.preventDefault()
+    188     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖highlightedIndex.value┬╖=┬╖Math.min(highlightedIndex.value┬╖+┬╖1,┬╖maxIndex)
+    189     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖break
+    190     Γöé - ┬╖┬╖┬╖┬╖case┬╖"ArrowUp":
+    191     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖e.preventDefault()
+    192     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖highlightedIndex.value┬╖=┬╖Math.max(highlightedIndex.value┬╖-┬╖1,┬╖-1)
+    193     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖break
+    194     Γöé - ┬╖┬╖┬╖┬╖case┬╖"Enter":
+    195     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖if┬╖(highlightedIndex.value┬╖>=┬╖0┬╖&&┬╖props.suggestions[highlightedIndex.value])┬╖{
+    196     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖┬╖┬╖e.preventDefault()
+    197     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖┬╖┬╖selectSuggestion(props.suggestions[highlightedIndex.value])
+    198     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖}┬╖else┬╖{
+    199     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖┬╖┬╖emit("search",┬╖props.modelValue)
+    200     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖}
+    201     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖break
+    202     Γöé - ┬╖┬╖┬╖┬╖case┬╖"Escape":
+    203     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖suggestionsOpen.value┬╖=┬╖false
+    204     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖highlightedIndex.value┬╖=┬╖-1
+    205     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖wrapperRef.value?.querySelector("input")?.blur()
+    206     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖break
+    207     Γöé - ┬╖┬╖┬╖┬╖case┬╖"Tab":
+    208     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖suggestionsOpen.value┬╖=┬╖false
+    209     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖highlightedIndex.value┬╖=┬╖-1
+    210     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖break
+    211     Γöé - ┬╖┬╖}
+        196 Γöé + ΓåÆ switch┬╖(e.key)┬╖{
+        197 Γöé + ΓåÆ ΓåÆ case┬╖"ArrowDown":
+        198 Γöé + ΓåÆ ΓåÆ ΓåÆ e.preventDefault()
+        199 Γöé + ΓåÆ ΓåÆ ΓåÆ highlightedIndex.value┬╖=┬╖Math.min(highlightedIndex.value┬╖+┬╖1,┬╖maxIndex)
+        200 Γöé + ΓåÆ ΓåÆ ΓåÆ break
+        201 Γöé + ΓåÆ ΓåÆ case┬╖"ArrowUp":
+        202 Γöé + ΓåÆ ΓåÆ ΓåÆ e.preventDefault()
+  90 more lines truncated
+  
+
+.\src\components\work\permissions.js:242:3 lint/complexity/noUselessSwitchCase  FIXABLE  
+ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+
+  ├ù Useless case clause.
+  
+    240 Γöé 			el.hidden = permState === PermissionState.UNAUTHORIZED
+    241 Γöé 			break
+  > 242 Γöé 		case "visible":
+        Γöé 		^^^^^^^^^^^^^^^
+    243 Γöé 		default:
+    244 Γöé 			el.hidden =
+  
+  i because the default clause is present:
+  
+    241 Γöé 			break
+    242 Γöé 		case "visible":
+  > 243 Γöé 		default:
+        Γöé 		^^^^^^^^
+  > 244 Γöé 			el.hidden =
+  > 245 Γöé 				permState === PermissionState.HIDDEN ||
+  > 246 Γöé 				permState === PermissionState.UNAUTHORIZED
+  > 247 Γöé 			break
+        Γöé 			^^^^^
+    248 Γöé 	}
+    249 Γöé }
+  
+  i Unsafe fix: Remove the useless case.
+  
+    240 240 Γöé   			el.hidden = permState === PermissionState.UNAUTHORIZED
+    241 241 Γöé   			break
+    242     Γöé - ΓåÆ ΓåÆ case┬╖"visible":
+    243 242 Γöé   		default:
+    244 243 Γöé   			el.hidden =
+  
+
+.\src\components\work\WorkBreadcrumb.vue format ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓö
+üΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+
+  ├ù Formatter would have printed the following content:
+  
+     57  57 Γöé   
+     58  58 Γöé   const props = defineProps({
+     59     Γöé - ┬╖┬╖/**┬╖Manual┬╖breadcrumb┬╖items┬╖*/
+     60     Γöé - ┬╖┬╖items:┬╖{
+     61     Γöé - ┬╖┬╖┬╖┬╖type:┬╖Array,
+     62     Γöé - ┬╖┬╖┬╖┬╖default:┬╖()┬╖=>┬╖[],
+     63     Γöé - ┬╖┬╖┬╖┬╖//┬╖[{┬╖label,┬╖to?,┬╖current?┬╖}]
+     64     Γöé - ┬╖┬╖},
+     65     Γöé - ┬╖┬╖/**┬╖Auto-generate┬╖from┬╖route┬╖*/
+     66     Γöé - ┬╖┬╖auto:┬╖{┬╖type:┬╖Boolean,┬╖default:┬╖true┬╖},
+     67     Γöé - ┬╖┬╖/**┬╖Hide┬╖on┬╖mobile┬╖*/
+     68     Γöé - ┬╖┬╖hideOnMobile:┬╖{┬╖type:┬╖Boolean,┬╖default:┬╖false┬╖},
+     69     Γöé - ┬╖┬╖/**┬╖Compact┬╖mode┬╖*/
+     70     Γöé - ┬╖┬╖compact:┬╖{┬╖type:┬╖Boolean,┬╖default:┬╖false┬╖},
+     71     Γöé - ┬╖┬╖/**┬╖Home┬╖route┬╖*/
+     72     Γöé - ┬╖┬╖homeRoute:┬╖{┬╖type:┬╖[String,┬╖Object],┬╖default:┬╖{┬╖name:┬╖"POSSale"┬╖}┬╖},
+     73     Γöé - ┬╖┬╖/**┬╖Home┬╖label┬╖*/
+     74     Γöé - ┬╖┬╖homeLabel:┬╖{┬╖type:┬╖String,┬╖default:┬╖"home"┬╖},
+         59 Γöé + ΓåÆ /**┬╖Manual┬╖breadcrumb┬╖items┬╖*/
+         60 Γöé + ΓåÆ items:┬╖{
+         61 Γöé + ΓåÆ ΓåÆ type:┬╖Array,
+Checked 426 files in 353ms. No fixes applied.
+Found 14 errors.
+         62 Γöé + ΓåÆ ΓåÆ default:┬╖()┬╖=>┬╖[],
+         63 Γöé + ΓåÆ ΓåÆ //┬╖[{┬╖label,┬╖to?,┬╖current?┬╖}]
+         64 Γöé + ΓåÆ },
+         65 Γöé + ΓåÆ /**┬╖Auto-generate┬╖from┬╖route┬╖*/
+         66 Γöé + ΓåÆ auto:┬╖{┬╖type:┬╖Boolean,┬╖default:┬╖true┬╖},
+         67 Γöé + ΓåÆ /**┬╖Hide┬╖on┬╖mobile┬╖*/
+         68 Γöé + ΓåÆ hideOnMobile:┬╖{┬╖type:┬╖Boolean,┬╖default:┬╖false┬╖},
+         69 Γöé + ΓåÆ /**┬╖Compact┬╖mode┬╖*/
+         70 Γöé + ΓåÆ compact:┬╖{┬╖type:┬╖Boolean,┬╖default:┬╖false┬╖},
+         71 Γöé + ΓåÆ /**┬╖Home┬╖route┬╖*/
+         72 Γöé + ΓåÆ homeRoute:┬╖{┬╖type:┬╖[String,┬╖Object],┬╖default:┬╖{┬╖name:┬╖"POSSale"┬╖}┬╖},
+         73 Γöé + ΓåÆ /**┬╖Home┬╖label┬╖*/
+         74 Γöé + ΓåÆ homeLabel:┬╖{┬╖type:┬╖String,┬╖default:┬╖"home"┬╖},
+     75  75 Γöé   })
+     76  76 Γöé   
+    ┬╖┬╖┬╖┬╖┬╖┬╖┬╖ Γöé 
+     80  80 Γöé   
+     81  81 Γöé   const separatorIcon = computed(() =>
+     82     Γöé - ┬╖┬╖direction┬╖===┬╖"rtl"┬╖?┬╖"chevron-left"┬╖:┬╖"chevron-right"
+         82 Γöé + ΓåÆ direction┬╖===┬╖"rtl"┬╖?┬╖"chevron-left"┬╖:┬╖"chevron-right",
+     83  83 Γöé   )
+     84  84 Γöé   
+     85  85 Γöé   const breadcrumbs = computed(() => {
+     86     Γöé - ┬╖┬╖if┬╖(props.items.length)┬╖return┬╖props.items
+         86 Γöé + ΓåÆ if┬╖(props.items.length)┬╖return┬╖props.items
+     87  87 Γöé   
+     88     Γöé - ┬╖┬╖if┬╖(!props.auto)┬╖return┬╖[]
+         88 Γöé + ΓåÆ if┬╖(!props.auto)┬╖return┬╖[]
+     89  89 Γöé   
+     90     Γöé - ┬╖┬╖const┬╖crumbs┬╖=┬╖[]
+     91     Γöé - ┬╖┬╖const┬╖matched┬╖=┬╖route.matched.filter(m┬╖=>┬╖m.meta?.breadcrumb┬╖!==┬╖false)
+         90 Γöé + ΓåÆ const┬╖crumbs┬╖=┬╖[]
+         91 Γöé + ΓåÆ const┬╖matched┬╖=┬╖route.matched.filter((m)┬╖=>┬╖m.meta?.breadcrumb┬╖!==┬╖false)
+     92  92 Γöé   
+     93     Γöé - ┬╖┬╖if┬╖(props.homeLabel┬╖&&┬╖route.name┬╖!==┬╖"POSSale")┬╖{
+     94     Γöé - ┬╖┬╖┬╖┬╖crumbs.push({┬╖label:┬╖props.homeLabel,┬╖to:┬╖props.homeRoute┬╖})
+     95     Γöé - ┬╖┬╖}
+         93 Γöé + ΓåÆ if┬╖(props.homeLabel┬╖&&┬╖route.name┬╖!==┬╖"POSSale")┬╖{
+         94 Γöé + ΓåÆ ΓåÆ crumbs.push({┬╖label:┬╖props.homeLabel,┬╖to:┬╖props.homeRoute┬╖})
+         95 Γöé + ΓåÆ }
+     96  96 Γöé   
+     97     Γöé - ┬╖┬╖for┬╖(const┬╖match┬╖of┬╖matched)┬╖{
+     98     Γöé - ┬╖┬╖┬╖┬╖const┬╖meta┬╖=┬╖match.meta
+     99     Γöé - ┬╖┬╖┬╖┬╖if┬╖(meta.breadcrumb┬╖===┬╖false)┬╖continue
+    100     Γöé - ┬╖┬╖┬╖┬╖const┬╖label┬╖=┬╖meta.breadcrumb┬╖||┬╖meta.title┬╖||┬╖match.name
+    101     Γöé - ┬╖┬╖┬╖┬╖if┬╖(!label)┬╖continue
+    102     Γöé - ┬╖┬╖┬╖┬╖crumbs.push({
+    103     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖label,
+    104     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖to:┬╖match.path┬╖===┬╖"/"┬╖?┬╖undefined┬╖:┬╖{┬╖path:┬╖match.path┬╖},
+    105     Γöé - ┬╖┬╖┬╖┬╖┬╖┬╖current:┬╖match┬╖===┬╖matched[matched.length┬╖-┬╖1],
+    106     Γöé - ┬╖┬╖┬╖┬╖})
+    107     Γöé - ┬╖┬╖}
+         97 Γöé + ΓåÆ for┬╖(const┬╖match┬╖of┬╖matched)┬╖{
+         98 Γöé + ΓåÆ ΓåÆ const┬╖meta┬╖=┬╖match.meta
+         99 Γöé + ΓåÆ ΓåÆ if┬╖(meta.breadcrumb┬╖===┬╖false)┬╖continue
+        100 Γöé + ΓåÆ ΓåÆ const┬╖label┬╖=┬╖meta.breadcrumb┬╖||┬╖meta.title┬╖||┬╖match.name
+        101 Γöé + ΓåÆ ΓåÆ if┬╖(!label)┬╖continue
+        102 Γöé + ΓåÆ ΓåÆ crumbs.push({
+        103 Γöé + ΓåÆ ΓåÆ ΓåÆ label,
+        104 Γöé + ΓåÆ ΓåÆ ΓåÆ to:┬╖match.path┬╖===┬╖"/"┬╖?┬╖undefined┬╖:┬╖{┬╖path:┬╖match.path┬╖},
+        105 Γöé + ΓåÆ ΓåÆ ΓåÆ current:┬╖match┬╖===┬╖matched[matched.length┬╖-┬╖1],
+        106 Γöé + ΓåÆ ΓåÆ })
+        107 Γöé + ΓåÆ }
+    108 108 Γöé   
+    109     Γöé - ┬╖┬╖return┬╖crumbs
+        109 Γöé + ΓåÆ return┬╖crumbs
+    110 110 Γöé   })
+    111 111 Γöé   </script>
+  
+
+check ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓö
+üΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓ
+öüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+
+  ├ù Some errors were emitted while running checks.
+  
+

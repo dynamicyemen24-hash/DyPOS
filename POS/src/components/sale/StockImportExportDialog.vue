@@ -1,178 +1,95 @@
 <template>
   <Transition name="fade">
-    <div v-if="show" class="fixed inset-0 bg-black bg-opacity-50 z-[300]" @click.self="handleClose">
+    <div
+      v-if="show"
+      class="fixed inset-0 bg-black bg-opacity-50 z-[300]"
+      @click.self="handleClose"
+    >
       <div class="fixed inset-0 flex items-center justify-center p-4">
-        <div class="w-full max-w-2xl bg-white shadow-xl rounded-xl overflow-hidden flex flex-col">
-          <div class="flex items-center justify-between border-b px-4 py-3">
+        <div class="w-full max-w-4xl h-[90vh] max-h-[90vh] bg-white shadow-xl rounded-xl overflow-hidden flex flex-col">
+          <!-- Header -->
+          <div class="flex items-center justify-between border-b px-4 py-3 bg-gray-50">
             <div class="flex items-center gap-2">
-              <FeatherIcon name="file-text" class="w-5 h-5 text-indigo-600" />
-              <h2 class="text-lg font-semibold text-gray-900">{{ __("استيراد وتصدير المخزون") }}</h2>
+              <FeatherIcon name="clipboard-list" class="w-5 h-5 text-indigo-600" />
+              <h2 class="text-lg font-semibold text-gray-900">{{ __("الجرد الفعلي للمخزون") }}</h2>
             </div>
-            <Button variant="ghost" size="sm" @click="handleClose" icon="x" />
+            <div class="flex items-center gap-2">
+              <span class="text-sm text-gray-500">
+                {{ __("العملة") }}: {{ selectedCurrency }}
+              </span>
+              <span class="text-sm text-gray-500">
+                {{ __("وحدة القياس") }}: {{ selectedUom }}
+              </span>
+              <Button variant="ghost" size="sm" @click="handleClose" icon="x" />
+            </div>
           </div>
 
-          <div class="flex-1 overflow-y-auto p-4">
-            <div class="mb-6">
-              <div class="flex gap-2 mb-4 border-b">
-                <button
-                  v-for="tab in tabs"
-                  :key="tab.value"
-                  @click="activeTab = tab.value"
-                  :class="[
-                    'flex-1 py-2 px-4 text-sm font-medium rounded-t-lg transition-colors',
-                    activeTab === tab.value
-                      ? 'border-b-2 border-indigo-600 text-indigo-600'
-                      : 'text-gray-500 hover:text-gray-700'
-                  ]"
-                >
-                  {{ tab.label }}
-                </button>
+          <!-- Two-page Navigation -->
+          <div class="border-b px-4">
+            <nav class="flex gap-1" role="tablist" aria-label="صفحات الجرد">
+              <button
+                v-for="page in pages"
+                :key="page.value"
+                @click="activePage = page.value"
+                :class="[
+                  'flex-1 py-3 px-4 text-sm font-medium rounded-t-lg transition-colors border-b-2',
+                  activePage === page.value
+                    ? 'border-indigo-600 text-indigo-600 bg-indigo-50'
+                    : 'text-gray-500 hover:text-gray-700 border-transparent hover:border-gray-300'
+                ]"
+                role="tab"
+                :aria-selected="activePage === page.value"
+                :aria-controls="`panel-${page.value}`"
+                :tabindex="activePage === page.value ? 0 : -1"
+              >
+                <FeatherIcon :name="page.icon" class="w-4 h-4 inline-block ml-1" />
+                {{ page.label }}
+              </button>
+            </nav>
+          </div>
+
+          <!-- Page Content -->
+          <div class="flex-1 overflow-hidden">
+            <Transition name="fade" mode="out-in">
+              <div
+                v-if="activePage === 'instructions'"
+                id="panel-instructions"
+                role="tabpanel"
+                aria-labelledby="tab-instructions"
+                class="h-full overflow-y-auto p-4"
+              >
+                <InstructionsPage
+                  :warehouses="warehouses"
+                  :currencies="currencies"
+                  :uoms="uoms"
+                  :selected-currency="selectedCurrency"
+                  :selected-uom="selectedUom"
+                  @currency-change="selectedCurrency = $event"
+                  @uom-change="selectedUom = $event"
+                />
               </div>
 
-              <div v-if="activeTab === 'import'" class="space-y-4">
-                <div class="p-4 bg-blue-50 rounded-lg">
-                  <h4 class="font-medium text-gray-900 mb-2">{{ __("استيراد بيانات المخزون") }}</h4>
-                  <p class="text-sm text-gray-600 mb-3">{{ __("ارفع ملف CSV أو JSON بالأعمدة: product_code، warehouse_id، qty") }}</p>
-                  <div class="flex items-center gap-2">
-                    <Button variant="outline" @click="downloadImportTemplate">
-                      <template #prefix>
-                        <FeatherIcon name="download" class="w-4 h-4" />
-                      </template>
-                      {{ __("تنزيل القالب") }}
-                    </Button>
-                    <Button variant="solid" @click="fileInput.click()">
-                      <template #prefix>
-                        <FeatherIcon name="upload" class="w-4 h-4" />
-                      </template>
-                      {{ __("اختيار ملف") }}
-                    </Button>
-                    <input ref="fileInput" type="file" accept=".csv,.json" class="hidden" @change="handleFileSelect" />
-                  </div>
-                </div>
-
-                <div v-if="previewData" class="space-y-3">
-                  <div class="flex items-center justify-between">
-                    <h5 class="font-medium">{{ __("معاينة") }} ({{ previewData.length }} {{ __("صف") }})</h5>
-                    <Button size="sm" variant="danger" @click="clearPreview">{{ __("مسح") }}</Button>
-                  </div>
-                  <div class="max-h-64 overflow-auto border rounded">
-                    <table class="w-full text-sm">
-                      <thead class="bg-gray-50 sticky top-0">
-                        <tr>
-                          <th class="p-2 text-right">{{ __("كود الصنف") }}</th>
-                          <th class="p-2 text-right">{{ __("المستودع") }}</th>
-                          <th class="p-2 text-right">{{ __("الكمية") }}</th>
-                          <th class="p-2 text-center">{{ __("الحالة") }}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr v-for="(row, i) in previewData.slice(0, 20)" :key="i" :class="row.valid ? '' : 'bg-red-50'">
-                          <td class="p-2">{{ row.product_code }}</td>
-                          <td class="p-2">{{ row.warehouse_id || "W-01" }}</td>
-                          <td class="p-2 text-right">{{ row.qty }}</td>
-                          <td class="p-2 text-center">
-                            <Badge :theme="row.valid ? 'green' : 'red'" size="xs">
-                              {{ row.valid ? __("صالح") : row.error }}
-                            </Badge>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                    <p v-if="previewData.length > 20" class="text-xs text-gray-500 text-center py-2">
-                      ... و {{ previewData.length - 20 }} {{ __("أخرى") }}
-                    </p>
-                  </div>
-                  <div class="flex justify-end gap-2 pt-2">
-                    <Button variant="outline" @click="dryRunImport" :loading="importing">
-                      {{ __("معاينة فقط") }}
-                    </Button>
-                    <Button variant="solid" @click="executeImport" :loading="importing" :disabled="!hasValidRows">
-                      {{ __("استيراد") }}
-                    </Button>
-                  </div>
-                </div>
+              <div
+                v-else
+                id="panel-items"
+                role="tabpanel"
+                aria-labelledby="tab-items"
+                class="h-full overflow-hidden"
+              >
+                <ItemsTablePage
+                  :warehouses="warehouses"
+                  :categories="categories"
+                  :currencies="currencies"
+                  :uoms="uoms"
+                  :selected-currency="selectedCurrency"
+                  :selected-uom="selectedUom"
+                  @currency-change="selectedCurrency = $event"
+                  @uom-change="selectedUom = $event"
+                  @export="executeExport"
+                  @import="handleImportClick"
+                />
               </div>
-
-              <div v-if="activeTab === 'export'" class="space-y-4">
-                <div class="p-4 bg-green-50 rounded-lg">
-                  <h4 class="font-medium text-gray-900 mb-2">{{ __("تصدير بيانات المخزون") }}</h4>
-                  <p class="text-sm text-gray-600 mb-4">{{ __("تنزيل مستويات المخزون الحالية بصيغة CSV أو JSON") }}</p>
-
-                  <div class="space-y-4">
-                    <div>
-                      <label class="block text-sm font-medium text-gray-700 mb-1">{{ __("الصيغة") }}</label>
-                      <div class="flex gap-2">
-                        <label class="flex items-center gap-2 cursor-pointer p-3 border rounded-lg" :class="{ 'border-indigo-500 bg-indigo-50': exportFormat === 'csv' }">
-                          <input type="radio" v-model="exportFormat" value="csv" class="text-indigo-600" />
-                          <span class="text-sm">CSV</span>
-                        </label>
-                        <label class="flex items-center gap-2 cursor-pointer p-3 border rounded-lg" :class="{ 'border-indigo-500 bg-indigo-50': exportFormat === 'json' }">
-                          <input type="radio" v-model="exportFormat" value="json" class="text-indigo-600" />
-                          <span class="text-sm">JSON</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label class="block text-sm font-medium text-gray-700 mb-1">{{ __("الأعمدة") }}</label>
-                      <div class="flex flex-wrap gap-2">
-                        <label v-for="col in availableColumns" :key="col" class="flex items-center gap-1 cursor-pointer text-sm">
-                          <input type="checkbox" :value="col" v-model="exportColumns" class="text-indigo-600" />
-                          {{ col }}
-                        </label>
-                      </div>
-                    </div>
-
-                    <Button variant="solid" @click="executeExport" :loading="exporting" class="w-full">
-                      <template #prefix>
-                        <FeatherIcon name="download" class="w-4 h-4" />
-                      </template>
-                      {{ __("تصدير") }}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              <div v-if="activeTab === 'history'" class="space-y-4">
-                <h4 class="font-medium text-gray-900">{{ __("سجل التصدير الأخير") }}</h4>
-                <div v-if="historyLoading" class="flex justify-center py-8">
-                  <LoadingIndicator class="w-6 h-6" />
-                </div>
-                <div v-else class="overflow-auto max-h-96 border rounded">
-                  <table class="w-full text-sm">
-                    <thead class="bg-gray-50 sticky top-0">
-                      <tr>
-                        <th class="p-2 text-right">{{ __("التاريخ") }}</th>
-                        <th class="p-2 text-right">{{ __("النوع") }}</th>
-                        <th class="p-2 text-right">{{ __("الكيان") }}</th>
-                        <th class="p-2 text-right">{{ __("الصفوف") }}</th>
-                        <th class="p-2 text-right">{{ __("الحالة") }}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr v-for="h in importExportHistory" :key="h.id">
-                        <td class="p-2">{{ formatDateTime(h.created_at) }}</td>
-                        <td class="p-2">
-                          <Badge :theme="h.kind === 'import' ? 'blue' : 'green'">
-                            {{ h.kind === "import" ? __("استيراد") : __("تصدير") }}
-                          </Badge>
-                        </td>
-                        <td class="p-2">{{ h.entity }}</td>
-                        <td class="p-2 text-right">{{ h.count }}</td>
-                        <td class="p-2">
-                          <Badge :theme="h.status === 'DONE' ? 'green' : h.status === 'FAILED' ? 'red' : 'yellow'">
-                            {{ h.status }}
-                          </Badge>
-                        </td>
-                      </tr>
-                      <tr v-if="!importExportHistory.length">
-                        <td colspan="5" class="p-4 text-center text-gray-500">{{ __("لا يوجد سجل") }}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
+            </Transition>
           </div>
         </div>
       </div>
@@ -186,8 +103,29 @@ import { Badge, Button, FeatherIcon, LoadingIndicator } from "frappe-ui"
 import { useToast } from "@/composables/useToast"
 import { apiGet, apiPost, apiPostRaw, apiDownload } from "@/utils/restApi"
 import { logger } from "@/utils/logger"
+import {
+	formatMoney,
+	formatQty,
+	downloadBlob,
+	formatDateTime,
+} from "@/utils/uom"
+import {
+	PRICING_POLICIES,
+	TAX_RULES,
+	ROUNDING_RULES,
+	VALUATION_METHODS,
+	INVENTORY_POLICIES,
+	SALES_POLICIES,
+	PURCHASE_POLICIES,
+	ZATCA_CONFIG,
+} from "@/utils/uom"
 
-const log = logger.create("StockImportExportDialog")
+import InstructionsPage from "./StockCountInstructionsPage.vue"
+import ItemsTablePage from "./StockCountItemsTablePage.vue"
+import StepCard from "./StepCard.vue"
+import ShortcutKey from "./ShortcutKey.vue"
+
+const log = logger.create("StockCountDialog")
 
 const props = defineProps({
 	modelValue: Boolean,
@@ -197,62 +135,149 @@ const props = defineProps({
 
 const emit = defineEmits(["update:modelValue"])
 
-const { showSuccess, showError } = useToast()
+const { showSuccess, showError, showInfo } = useToast()
 
 const show = computed({
 	get: () => props.modelValue,
 	set: (val) => emit("update:modelValue", val),
 })
 
-const activeTab = ref("import")
-const fileInput = ref(null)
+// Active page: 'instructions' | 'items'
+const activePage = ref("instructions")
 
-const tabs = [
-	{ value: "import", label: "استيراد" },
-	{ value: "export", label: "تصدير" },
-	{ value: "history", label: "السجل" },
+const pages = [
+	{ value: "instructions", label: "تعليمات الجرد", icon: "book-open" },
+	{ value: "items", label: "جدول الأصناف", icon: "clipboard-list" },
 ]
 
-const previewData = ref(null)
-const selectedFile = ref(null)
-const importing = ref(false)
+// Multi-currency & UoM support
+const currencies = ref([
+	{ code: "SAR", symbol: "ر.س", name: "ريال سعودي", rate: 1, isBase: true },
+	{ code: "USD", symbol: "$", name: "دولار أمريكي", rate: 3.75 },
+	{ code: "EUR", symbol: "€", name: "يورو", rate: 4.05 },
+])
 
+const uoms = ref([
+	{
+		code: "PCS",
+		name: "قطعة",
+		nameAr: "قطعة",
+		factor: 1,
+		isBase: true,
+		type: "count",
+	},
+	{ code: "BOX", name: "صندوق", nameAr: "صندوق", factor: 12, type: "count" },
+	{ header: "CTN", name: "كرتون", nameAr: "كرتون", factor: 24, type: "count" },
+	{ code: "KG", name: "كيلوغرام", nameAr: "كجم", factor: 1, type: "weight" },
+	{ code: "G", name: "جرام", nameAr: "جم", factor: 0.001, type: "weight" },
+	{ code: "M", name: "متر", nameAr: "متر", factor: 1, type: "length" },
+	{ code: "CM", name: "سنتيمتر", nameAr: "سم", factor: 0.01, type: "length" },
+	{ code: "L", name: "لتر", nameAr: "لتر", factor: 1, type: "volume" },
+	{ code: "ML", name: "مليلتر", nameAr: "مل", factor: 0.001, type: "volume" },
+	{ code: "M2", name: "متر مربع", nameAr: "م²", factor: 1, type: "area" },
+	{ code: "M3", name: "متر مكعب", nameAr: "م³", factor: 1, type: "volume" },
+])
+
+const selectedCurrency = ref("SAR")
+const selectedUom = ref("PCS")
+
+// Computed for currency/UoM display
+const selectedCurrencyObj = computed(
+	() =>
+		currencies.value.find((c) => c.code === selectedCurrency.value) ||
+		currencies.value[0],
+)
+const selectedUomObj = computed(
+	() => uoms.value.find((u) => u.code === selectedUom.value) || uoms.value[0],
+)
+
+// Loading states
+const loading = ref(false)
+const exporting = ref(false)
+
+// For import functionality
+const fileInput = ref(null)
+const previewData = ref(null)
+const importing = ref(false)
+const selectedFile = ref(null)
+
+// Export options
 const exportFormat = ref("csv")
 const exportColumns = ref([
 	"product_id",
+	"product_code",
+	"product_name",
 	"warehouse_id",
+	"warehouse_name",
 	"qty",
 	"reserved_qty",
-	"allocated_qty",
+	"available_qty",
+	"uom",
+	"currency",
+	"unit_cost",
+	"stock_value",
 	"updated_at",
 ])
+
 const availableColumns = [
 	"product_id",
+	"product_code",
+	"product_name",
+	"product_name_ar",
 	"warehouse_id",
+	"warehouse_name",
 	"qty",
 	"reserved_qty",
+	"available_qty",
 	"allocated_qty",
+	"uom",
+	"currency",
+	"unit_cost",
+	"unit_price",
+	"stock_value",
+	"reorder_point",
 	"updated_at",
 ]
-const exporting = ref(false)
 
-const hasValidRows = computed(
-	() => previewData.value?.some((r) => r.valid) ?? false,
-)
+const exportColumnsModel = ref([...availableColumns])
 
+// History
 const importExportHistory = ref([])
 const historyLoading = ref(false)
 
-async function downloadImportTemplate() {
-	const headers = ["product_code", "warehouse_id", "qty", "reason"]
-	const csv = [
-		headers.join(","),
-		"PROD-001,W-01,10,Restock",
-		"PROD-002,W-01,-5,Damage",
-	].join("\n")
-	downloadBlob(csv, "text/csv", "stock_import_template.csv")
+// Watch for currency/UoM changes to convert displayed values
+watch([selectedCurrency, selectedUom], () => {
+	// Items will auto-update via computed properties
+})
+
+function handleClose() {
+	show.value = false
 }
 
+// Download template
+function downloadImportTemplate() {
+	const headers = [
+		"product_code",
+		"warehouse_id",
+		"qty",
+		"uom",
+		"currency",
+		"unit_cost",
+		"reason",
+		"reference",
+		"batch_number",
+		"expiry_date",
+	]
+	const csv = [
+		headers.join(","),
+		"PROD-001,W-01,100,PCS,SAR,25.50,Opening Balance,OB-2024-001,BATCH-001,2025-12-31",
+		"PROD-002,W-01,50,BOX,SAR,15.75,Opening Balance,OB-2024-002,BATCH-002,2025-06-30",
+		"PROD-003,W-02,25,KG,SAR,120.00,Transfer In,TRF-001,,",
+	].join("\n")
+	downloadBlob(csv, "text/csv", "stock_count_import_template.csv")
+}
+
+// File handling
 function handleFileSelect(event) {
 	const file = event.target.files?.[0]
 	if (!file) return
@@ -338,17 +363,39 @@ function validateRows(rows) {
 			row.warehouse_id || row.warehouseId || "",
 		).trim()
 		const qty = Number(row.qty)
+		const uom = String(row.uom || "PCS")
+			.trim()
+			.toUpperCase()
+		const currency = String(row.currency || "SAR")
+			.trim()
+			.toUpperCase()
+		const unit_cost = Number(row.unit_cost || row.unitCost || 0)
 		const reason = String(row.reason || "").trim()
+		const reference = String(row.reference || "").trim()
+		const batch_number = String(
+			row.batch_number || row.batchNumber || "",
+		).trim()
+		const expiry_date = String(row.expiry_date || row.expiryDate || "").trim()
 
 		if (!product_code) errors.push("product_code required")
+		if (!warehouse_id) errors.push("warehouse_id required")
 		if (!Number.isFinite(qty)) errors.push("qty must be a number")
+		if (!uoms.value.find((u) => u.code === uom)) errors.push("invalid uom")
+		if (!currencies.value.find((c) => c.code === currency))
+			errors.push("invalid currency")
 
 		return {
 			index: i,
 			product_code,
 			warehouse_id: warehouse_id || "W-01",
 			qty,
-			reason: reason || "Import",
+			uom: uom || "PCS",
+			currency: currency || "SAR",
+			unit_cost: isNaN(unit_cost) ? 0 : unit_cost,
+			reason: reason || "Count",
+			reference: reference || "Count",
+			batch_number: batch_number || "",
+			expiry_date: expiry_date || "",
 			valid: errors.length === 0,
 			error: errors.join(", "),
 		}
@@ -361,76 +408,39 @@ function clearPreview() {
 	if (fileInput.value) fileInput.value.value = ""
 }
 
-async function dryRunImport() {
-	if (!previewData.value) return
-	importing.value = true
-	try {
-		const validRows = previewData.value.filter((r) => r.valid).map(toApiRow)
-		await apiPostRaw(
-			"/import/stock?dryRun=1",
-			JSON.stringify(validRows),
-			"application/json",
-		)
-		showSuccess(`معاينة ناجحة: ${validRows.length} صف صالح`)
-	} catch (error) {
-		log.error("Dry run failed", error)
-		showError(error.message || "فشلت المعاينة")
-	} finally {
-		importing.value = false
-	}
-}
-
-function toApiRow(row) {
-	return {
-		productCode: row.product_code,
-		warehouseId: row.warehouse_id || "W-01",
-		qty: Number(row.qty),
-	}
-}
-
-async function executeImport() {
-	if (!previewData.value) return
-	importing.value = true
-	try {
-		const validRows = previewData.value.filter((r) => r.valid).map(toApiRow)
-		const result = await apiPost("/import/stock", validRows)
-		showSuccess(
-			`تم الاستيراد: ${result.created ?? 0} جديد، ${result.updated ?? 0} محدث`,
-		)
-		previewData.value = null
-		if (fileInput.value) fileInput.value.value = ""
-		loadHistory()
-	} catch (error) {
-		log.error("Import failed", error)
-		showError(error.message || "فشل الاستيراد")
-	} finally {
-		importing.value = false
-	}
-}
-
+// Export
 async function executeExport() {
-	const fields = exportColumns.value.length
-		? exportColumns.value.join(",")
+	const fields = exportColumnsModel.value.length
+		? exportColumnsModel.value.join(",")
 		: undefined
 	exporting.value = true
 	try {
 		const res = await apiDownload("/export/stock", {
 			format: exportFormat.value,
 			limit: 10000,
+			currency: selectedCurrency.value,
+			uom: selectedUom.value,
 			...(fields ? { fields } : {}),
 		})
 		const text = await res.text()
 		const ext = exportFormat.value === "json" ? "json" : "csv"
 		const mime = exportFormat.value === "json" ? "application/json" : "text/csv"
-		downloadBlob(text, mime, `stock_export_${Date.now()}.${ext}`)
-		showSuccess("تم تصدير المخزون بنجاح")
-		loadHistory()
+		downloadBlob(
+			text,
+			mime,
+			`stock_count_${selectedCurrency.value}_${selectedUom.value}_${Date.now()}.${ext}`,
+		)
+		showSuccess("تم تصدير بيانات الجرد بنجاح")
 	} catch (error) {
 		log.error("Export failed", error)
 		showError(error.message || "فشل التصدير")
 	} finally {
 		exporting.value = false
 	}
+}
+
+async function handleImportClick() {
+	if (fileInput.value) fileInput.value.click()
 }
 
 async function loadHistory() {
@@ -458,22 +468,92 @@ async function loadHistory() {
 	}
 }
 
-function formatDateTime(iso) {
-	if (!iso) return "-"
-	return new Date(iso).toLocaleString("ar-SA")
+// Import functions (kept from original)
+async function dryRunImport() {
+	if (!previewData.value) return
+	importing.value = true
+	try {
+		const validRows = previewData.value.filter((r) => r.valid).map(toApiRow)
+		await apiPostRaw(
+			"/import/stock?dryRun=1",
+			JSON.stringify(validRows),
+			"application/json",
+		)
+		showSuccess(`معاينة ناجحة: ${validRows.length} صف صالح`)
+	} catch (error) {
+		log.error("Dry run failed", error)
+		showError(error.message || "فشلت المعاينة")
+	} finally {
+		importing.value = false
+	}
 }
 
-function downloadBlob(content, type, filename) {
-	const blob = new Blob([content], { type })
-	const url = URL.createObjectURL(blob)
-	const a = document.createElement("a")
-	a.href = url
-	a.download = filename
-	a.click()
-	URL.revokeObjectURL(url)
+function toApiRow(row) {
+	return {
+		productCode: row.product_code,
+		warehouseId: row.warehouse_id || "W-01",
+		qty: Number(row.qty),
+		uom: row.uom || "PCS",
+		currency: row.currency || "SAR",
+		unitCost: Number(row.unit_cost || 0),
+	}
 }
 
-function handleClose() {
-	show.value = false
+async function executeImport() {
+	if (!previewData.value) return
+	importing.value = true
+	try {
+		const validRows = previewData.value.filter((r) => r.valid).map(toApiRow)
+		const result = await apiPost("/import/stock", validRows)
+		showSuccess(
+			`تم الاستيراد: ${result.created ?? 0} جديد، ${result.updated ?? 0} محدث`,
+		)
+		previewData.value = null
+		if (fileInput.value) fileInput.value.value = ""
+	} catch (error) {
+		log.error("Import failed", error)
+		showError(error.message || "فشل الاستيراد")
+	} finally {
+		importing.value = false
+	}
 }
 </script>
+
+<style scoped>
+/* Fade transition */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* Tab navigation */
+button[role="tab"]:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: -2px;
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .fade-enter-active,
+  .fade-leave-active {
+    transition: none !important;
+  }
+}
+
+/* RTL support */
+:dir(rtl) {
+  .text-right {
+    text-align: right;
+  }
+  .text-left {
+    text-align: left;
+  }
+}
+</style>

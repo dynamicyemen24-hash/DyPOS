@@ -67,7 +67,10 @@ import { ah, isSqliteLockError } from './lib/async.js';
 import { createRateStore } from './lib/rate-store.js';
 import { VERSION } from './lib/version.js';
 import { logger } from './lib/logger.js';
+import { createLogger } from './lib/structuredLog.js';
+import { registerService, registerHealthCheck, initialize, deepHealthCheck, isReady, shutdown } from './lib/lifecycle.js';
 import { registerSecurityHeaders } from './middleware/securityHeaders.js';
+import { cspNonceMiddleware, buildCspWithNonce } from './middleware/cspNonce.js';
 import { registerEnvGuard } from './middleware/envGuard.js';
 import { registerSseRoutes } from './lib/realtime.js';
 import { registerAuditRoutes } from './routes/audit.js';
@@ -158,6 +161,95 @@ if (isProduction) {
   }
 }
 
+// Register core services with lifecycle manager
+registerService({
+  name: "database",
+  required: true,
+  init: async () => { /* already migrated */ },
+  health: async () => {
+    const h = await checkDbHealth();
+    return { healthy: h.healthy, details: h };
+  },
+  shutdown: async () => {
+    try { db.close(); console.log('[DyPOS] Database connection closed.'); } catch (e) { console.error('[DyPOS] Error closing database:', e.message); }
+  },
+});
+
+registerService({
+  name: "webhook-dispatcher",
+  required: false,
+  init: async () => { startDispatcher(); },
+  health: async () => ({ healthy: true }),
+  shutdown: async () => { /* dispatcher has its own cleanup */ },
+});
+
+registerService({
+  name: "sse-hub",
+  required: false,
+  init: async () => { /* SSE routes registered */ },
+  health: async () => ({ healthy: true }),
+  shutdown: async () => { /* cleanup */ },
+});
+
+// Register health checks
+registerHealthCheck("database", async () => {
+  const h = await checkDbHealth();
+  return { healthy: h.healthy, details: h };
+});
+
+registerHealthCheck("outbox", async () => {
+  try {
+    const row = db.prepare(`SELECT COUNT(*) as pending, SUM(CASE WHEN status='DEAD' THEN 1 ELSE 0 END) as dead FROM webhook_outbox WHERE status IN ('PENDING','DEAD')`).get();
+    return { healthy: true, details: { pending: Number(row?.pending) || 0, dead: Number(row?.dead) || 0 } };
+  } catch (e) {
+    return { healthy: false, error: e.message };
+  }
+});
+
+registerHealthCheck("stock", async () => {
+  try {
+    const lowThreshold = Math.max(Number(process.env.DYPOS_LOW_STOCK_THRESHOLD) || 5, 0);
+    const row = db.prepare('SELECT COUNT(*) as low FROM stock_levels WHERE qty<=?').get(lowThreshold);
+    return { healthy: true, details: { low_count: Number(row?.low) || 0, threshold: lowThreshold } };
+  } catch (e) {
+    return { healthy: false, error: e.message };
+  }
+});
+
+registerHealthCheck("disk", async () => {
+  try {
+    const { statfsSync } = await import('node:fs');
+    const dataDir = process.env.DYPOS_DB_PATH && process.env.DYPOS_DB_PATH !== ':memory:'
+      ? dirname(process.env.DYPOS_DB_PATH)
+      : join(__dirname, 'data');
+    const st = statfsSync(dataDir);
+    if (st && typeof st.bfree === 'number') {
+      return { healthy: true, details: { free_mb: Math.round((Number(st.bfree) * Number(st.bsize)) / 1048576) } };
+    }
+    return { healthy: true, details: { error: 'unavailable' } };
+  } catch (e) {
+    return { healthy: false, error: e.message };
+  }
+});
+
+registerHealthCheck("memory", async () => {
+  const mem = process.memoryUsage();
+  const heapUsagePercent = (mem.heapUsed / mem.heapTotal) * 100;
+  return {
+    healthy: heapUsagePercent < 90,
+    details: { rss_mb: Math.round(mem.rss / 1048576), heap_mb: Math.round(mem.heapUsed / 1048576), heap_usage_percent: Math.round(heapUsagePercent) }
+  };
+});
+
+// Initialize lifecycle only when server starts (not during test imports)
+let _lifecycleInitialized = false;
+async function ensureLifecycleInitialized() {
+  if (!_lifecycleInitialized) {
+    await initialize();
+    _lifecycleInitialized = true;
+  }
+}
+
 // Request-ID + structured request logger (skips health probes to save I/O)
 // + X-Response-Time for LB observability at millions-of-requests scale.
 function requestLogger(req, res, next) {
@@ -195,24 +287,12 @@ app.set(
     : (Number(trustProxyRaw) || (trustProxyRaw === 'true' ? 1 : false)),
 );
 
-// Security headers (CSP hardened)
+// CSP Nonce Middleware — generates per-request nonce for CSP style-src
+app.use(cspNonceMiddleware());
+
+// Security headers (CSP with nonce)
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "blob:"],
-      styleSrc: ["'self'", "'unsafe-inline'"], // TODO: replace with nonce/hash when Vue build supports it
-      imgSrc: ["'self'", "data:", "blob:", "https:"],
-      fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
-      connectSrc: ["'self'", "https:", "wss:"],
-      mediaSrc: ["'self'", "blob:"],
-      objectSrc: ["'none'"],
-      baseUri: ["'self'"],
-      formAction: ["'self'"],
-      frameAncestors: ["'self'"],
-      upgradeInsecureRequests: [],
-    },
-  },
+  contentSecurityPolicy: false, // We'll set CSP manually with nonce
   crossOriginEmbedderPolicy: false,
   hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
   xssFilter: true,
@@ -220,24 +300,19 @@ app.use(helmet({
   hidePoweredBy: true,
 }));
 
-// CORS — never wildcard with credentials
-const corsOrigin = process.env.DYPOS_CORS_ORIGIN
-  ? process.env.DYPOS_CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean)
-  : (isProduction ? [] : ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8080']);
-
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    if (corsOrigin.includes(origin)) return callback(null, true);
-    console.warn(`[DyPOS] CORS blocked origin: ${origin}`);
-    return callback(new Error('Not allowed by CORS'), false);
-  },
-  credentials: true,
-  maxAge: 86400,
-}));
-
-// Campaign hardening: CSP/HSTS/nosniff/Permissions-Policy/COOP + no-store API.
-registerSecurityHeaders(app);
+// Dynamic CSP with nonce
+app.use((req, res, next) => {
+  const nonce = res.locals?.cspNonce;
+  if (nonce) {
+    const csp = buildCspWithNonce(nonce, {
+      apiOrigins: process.env.DYPOS_API_ORIGIN,
+      frappeOrigin: process.env.DYPOS_FRAPPE_ORIGIN,
+      isProduction,
+    });
+    res.setHeader('Content-Security-Policy', csp);
+  }
+  next();
+});
 
 // Realtime SSE hub — MUST mount BEFORE compression: gzip would buffer SSE
 // frames and break live delivery. JWT-authed per-tenant stream with heartbeat
@@ -288,50 +363,19 @@ app.use((req, _res, next) => {
 
 // Deep health check + readiness (DB + cache + outbox + memory — SRE standard)
 app.get('/api/health', ah(async (_req, res) => {
-  const dbHealth = await checkDbHealth();
-  let outbox = null;
-  try {
-    const row = db.prepare(`SELECT COUNT(*) as pending, SUM(CASE WHEN status='DEAD' THEN 1 ELSE 0 END) as dead FROM webhook_outbox WHERE status IN ('PENDING','DEAD')`).get();
-    outbox = { pending: Number(row?.pending) || 0, dead: Number(row?.dead) || 0 };
-    try {
-      const { outboxPending, outboxDead } = await import('./middleware/metrics.js');
-      outboxPending.set(outbox.pending);
-      outboxDead.set(outbox.dead);
-    } catch { /* gauges best-effort */ }
-  } catch { outbox = { error: 'unavailable' }; }
-  const mem = process.memoryUsage();
-  let disk = null;
-  try {
-    const { statfsSync } = await import('node:fs');
-    const dataDir = process.env.DYPOS_DB_PATH && process.env.DYPOS_DB_PATH !== ':memory:'
-      ? dirname(process.env.DYPOS_DB_PATH)
-      : join(__dirname, 'data');
-    const st = statfsSync(dataDir);
-    if (st && typeof st.bfree === 'number') {
-      disk = { free_mb: Math.round((Number(st.bfree) * Number(st.bsize)) / 1048576) };
-    }
-  } catch { disk = { error: 'unavailable' }; }
-  const lowThreshold = Math.max(Number(process.env.DYPOS_LOW_STOCK_THRESHOLD) || 5, 0);
-  let stock = null;
-  try {
-    const row = db.prepare('SELECT COUNT(*) as low FROM stock_levels WHERE qty<=?').get(lowThreshold);
-    stock = { low_count: Number(row?.low) || 0, threshold: lowThreshold };
-    try {
-      const { stockLow } = await import('./middleware/metrics.js');
-      stockLow.set(stock.low_count);
-    } catch { /* gauges best-effort */ }
-  } catch { stock = { error: 'unavailable' }; }
-  const status = dbHealth.healthy ? 'ok' : 'degraded';
-  return res.status(dbHealth.healthy ? 200 : 503).json({
-    status, version: VERSION, uptime: Math.round(process.uptime()),
-    timestamp: new Date().toISOString(), database: dbHealth,
-    cache: cacheStats(),
-    outbox,
-    stock,
-    disk,
-    memory: { rss_mb: Math.round(mem.rss / 1048576), heap_mb: Math.round(mem.heapUsed / 1048576) },
-    node_version: process.version, env: isProduction ? 'production' : 'development',
-  });
+  const health = await deepHealthCheck();
+  const response = { ...health, version: VERSION, status: health.healthy ? 'ok' : 'degraded' };
+  // Backward compat: include database at top level
+  if (health.checks?.database) {
+    response.database = health.checks.database;
+  }
+  // Backward compat for scale tests - extract details for cache, memory, outbox, stock, disk
+  response.cache = health.checks?.cache?.details || cacheStats();
+  response.memory = health.checks?.memory?.details || health.checks?.memory;
+  response.outbox = health.checks?.outbox?.details || health.checks?.outbox;
+  response.stock = health.checks?.stock?.details || health.checks?.stock;
+  response.disk = health.checks?.disk?.details || health.checks?.disk;
+  return res.status(health.healthy ? 200 : 503).json(response);
 }));
 // Fleet version visibility: every API response carries the running build
 // so any terminal can detect drift without a separate version call.
@@ -359,8 +403,13 @@ app.get('/api/metrics', ah(async (req, res, next) => {
   return metricsHandler(req, res, next);
 }));
 app.get('/api/ready', ah(async (_req, res) => {
-  const h = await checkDbHealth();
-  if (!h.healthy) return res.status(503).json({ ready: false, reason: h.error });
+  const dbHealth = await checkDbHealth();
+  if (!dbHealth.healthy) return res.status(503).json({ ready: false, reason: dbHealth.error });
+  // If lifecycle is initialized, also check deep health
+  if (isReady()) {
+    const health = await deepHealthCheck();
+    if (!health.healthy) return res.status(503).json({ ready: false, reason: health.checks });
+  }
   return res.json({ ready: true, version: VERSION });
 }));
 
@@ -481,9 +530,13 @@ let _server = null;
  * imported (argv[1] is entrypoint.js), which left production Docker
  * containers migrated but deaf — no listener, failing healthchecks.
  */
-export function start() {
+export async function start() {
   if (_server) return _server;
   if (IS_CLUSTER_PRIMARY) return null; // primary only supervises workers
+
+  // Initialize lifecycle on first start
+  await ensureLifecycleInitialized();
+
   _server = app.listen(PORT, HOST, () => {
     console.log(`[DyPOS] Server v${VERSION} running on http://${HOST}:${PORT} (worker ${process.pid})`);
     console.log(`[DyPOS] Health: http://${HOST}:${PORT}/api/health`);
@@ -518,15 +571,13 @@ export function start() {
     console.log(`[DyPOS] Scheduled online backups every ${backupHours}h (retention: DYPOS_BACKUP_RETENTION, S3: DYPOS_BACKUP_S3).`);
   }
 
-  // Graceful shutdown
+// Graceful shutdown via lifecycle manager
   const gracefulShutdown = (signal) => {
     console.log(`[DyPOS] Received ${signal}. Shutting down gracefully...`);
     _server.close(() => {
-      console.log('[DyPOS] Server closed. Closing database connection...');
-      try { db.close(); console.log('[DyPOS] Database connection closed.'); }
-      catch (e) { console.error('[DyPOS] Error closing database:', e.message); }
-      process.exit(0);
+      console.log('[DyPOS] HTTP server closed');
     });
+    shutdown(signal).then(() => process.exit(0)).catch(() => process.exit(1));
     setTimeout(() => {
       console.error('[DyPOS] Could not close connections in time, force shutting down');
       process.exit(1);
@@ -548,7 +599,7 @@ export function start() {
   // Sync throws (timer callbacks, route middleware mistakes, driver edge) leave
   // the process in unknown state. Same policy as rejections: in production we
   // close the DB and die so the supervisor restarts clean, never serving
-  // traffic on a poisoned loop. In dev/test we keep the handler (avoid killing
+  // traffic on a possibly-poisoned loop. In dev/test we keep the handler (avoid killing
   // the REPL/test runner) but still log loudly.
   process.on('uncaughtException', (err) => {
     logger.error({ error: err?.message, stack: err?.stack }, '[DyPOS] Uncaught Exception');

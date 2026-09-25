@@ -5,6 +5,12 @@ import { db } from "./db"
 import { offlineState } from "./offlineState"
 import { removeOfflineReceiptPayload } from "./offlineReceiptCache"
 import { generateOfflineId } from "./uuid"
+import { pushInvoiceToDestination } from "@/services/sync-remote"
+import {
+	LOCAL_DESTINATION_ID,
+	listDestinations,
+	touchDestination,
+} from "@/services/sync-destinations"
 
 // Re-export for backwards compatibility
 export { generateOfflineId }
@@ -119,14 +125,21 @@ export const saveOfflineInvoice = async (invoiceData) => {
 }
 
 /**
- * Get all pending (unsynced) offline invoices
+ * Get all pending (unsynced) offline invoices.
+ * @param {string|null} [destId] - when set (non-local), pending means "not
+ *   yet synced TO THAT destination" (per-destination `syncedTo` map).
+ *   Default (null/local) keeps the legacy `synced` flag semantics.
  * @returns {Promise<Array>}
  */
-export const getOfflineInvoices = async () => {
+export const getOfflineInvoices = async (destId = null) => {
 	try {
-		return await db.invoice_queue
-			.filter((inv) => !inv.synced && !inv.superseded)
+		const rows = await db.invoice_queue
+			.filter((inv) => !inv.superseded)
 			.toArray()
+		if (!destId || destId === LOCAL_DESTINATION_ID) {
+			return rows.filter((inv) => !inv.synced)
+		}
+		return rows.filter((inv) => !inv.syncedTo?.[destId])
 	} catch (error) {
 		log.error("Failed to get offline invoices", error)
 		return []
@@ -254,18 +267,54 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 // ============================================================================
 
 /**
+ * Pure per-destination sync marking (unit-tested without Dexie).
+ * @returns Dexie update object for the queue record.
+ */
+export function applySyncedTo(record, destId, serverName, invoiceId) {
+	const id = destId || LOCAL_DESTINATION_ID
+	const prev =
+		record && typeof record.syncedTo === "object" && record.syncedTo
+			? record.syncedTo
+			: {}
+	const syncedTo = {
+		...prev,
+		[id]: {
+			serverName: serverName || null,
+			invoiceId: invoiceId || null,
+			at: Date.now(),
+		},
+	}
+	const update = { syncedTo }
+	if (id === LOCAL_DESTINATION_ID) {
+		// Legacy contract: the default path keeps the flat flags.
+		update.synced = true
+		update.server_invoice = serverName || null
+	}
+	return update
+}
+
+/**
  * Mark an invoice as synced in the local database and drop its cached
  * receipt payload — once the invoice exists on the server, print/detail
  * lookups should go through the normal server path.
  * @param {number} id - Invoice queue ID
  * @param {string} serverInvoice - Server invoice name
  * @param {string} [offlineId] - pos_offline_<uuid> cache key to evict
+ * @param {string} [destId] - destination id (default/local keeps legacy flags)
+ * @param {string} [invoiceId] - remote invoice UUID for the per-dest map
  */
-const markInvoiceSynced = async (id, serverInvoice, offlineId) => {
-	await db.invoice_queue.update(id, {
-		synced: true,
-		server_invoice: serverInvoice,
-	})
+const markInvoiceSynced = async (
+	id,
+	serverInvoice,
+	offlineId,
+	destId = null,
+	invoiceId = null,
+) => {
+	const prev = await db.invoice_queue.get(id).catch(() => null)
+	await db.invoice_queue.update(
+		id,
+		applySyncedTo(prev, destId, serverInvoice, invoiceId),
+	)
 	if (offlineId) removeOfflineReceiptPayload(offlineId)
 }
 
@@ -328,14 +377,52 @@ const normalizeInvoiceForSync = (invoiceData, offlineId) => ({
 /**
  * Sync a single invoice to the server with retry for in-progress errors
  * @param {Object} invoice - Invoice queue record
- * @param {number} retryCount - Current retry attempt (for in-progress waits)
+ * @param {Object} [opts] - { destination?, token?, retryCount? }. A remote
+ *   destination routes through the idempotent REST push + per-destination
+ *   marking; omitted destination keeps the legacy same-origin path.
  * @returns {Promise<{status: 'success'|'skipped'|'failed', error?: Error}>}
  */
-const syncInvoiceToServer = async (invoice, retryCount = 0) => {
+const syncInvoiceToServer = async (invoice, opts = {}) => {
+	const { destination = null, token = null } = opts
+	const retryCount = Number(opts.retryCount) || 0
+	const isRemote =
+		destination &&
+		destination.id !== LOCAL_DESTINATION_ID &&
+		destination.baseUrl
 	const MAX_IN_PROGRESS_RETRIES = 3
 	const IN_PROGRESS_WAIT_MS = 2000 // Wait 2 seconds between retries
 
 	const offlineId = invoice.offline_id || invoice.data?.offline_id
+
+	if (isRemote) {
+		// Remote branch/cloud path: idempotent REST push (offline_id is the
+		// idempotency key) with per-destination marking. No same-origin
+		// pre-check — the server dedupes by idempotency key instead.
+		const pushed = await pushInvoiceToDestination(invoice, destination, {
+			token,
+		})
+		if (!pushed.ok) {
+			const err = new Error(pushed.message)
+			err.code = pushed.code
+			err.needsLogin = pushed.needsLogin === true
+			err.missing = pushed.missing
+			throw err
+		}
+		await markInvoiceSynced(
+			invoice.id,
+			pushed.serverName,
+			offlineId,
+			destination.id,
+			pushed.invoiceId,
+		)
+		log.success("Invoice synced to destination", {
+			id: invoice.id,
+			offline_id: offlineId,
+			destination: destination.id,
+			sales_invoice: pushed.serverName,
+		})
+		return { status: pushed.deduped ? "skipped" : "success" }
+	}
 
 	// Pre-sync deduplication check
 	if (offlineId) {
@@ -379,7 +466,7 @@ const syncInvoiceToServer = async (invoice, retryCount = 0) => {
 				retry: retryCount + 1,
 			})
 			await sleep(IN_PROGRESS_WAIT_MS)
-			return syncInvoiceToServer(invoice, retryCount + 1)
+			return syncInvoiceToServer(invoice, { retryCount: retryCount + 1 })
 		}
 
 		// Re-throw other errors
@@ -396,26 +483,36 @@ const syncInvoiceToServer = async (invoice, retryCount = 0) => {
  * @deprecated Dead write path — zero live importers. Live sync runs in
  *   `services/sync-core.runSyncCycle` over `syncQueue`. Do not add new callers.
  */
-export const syncOfflineInvoices = async () => {
+export const syncOfflineInvoices = async (opts = {}) => {
+	const destination = opts.destination || null
+	const destId =
+		destination && destination.id !== LOCAL_DESTINATION_ID
+			? destination.id
+			: null
 	if (isOffline()) {
 		log.debug("Cannot sync while offline")
 		return { success: 0, failed: 0, skipped: 0, errors: [] }
 	}
 
 	return await syncMutex.withLock(async () => {
-		const pendingInvoices = await getOfflineInvoices()
+		const pendingInvoices = await getOfflineInvoices(destId)
 
 		if (!pendingInvoices.length) {
 			return { success: 0, failed: 0, skipped: 0, errors: [] }
 		}
 
-		log.info(`Starting sync of ${pendingInvoices.length} invoice(s)`)
+		log.info(
+			`Starting sync of ${pendingInvoices.length} invoice(s)${destId ? ` to ${destId}` : ""}`,
+		)
 
 		const result = { success: 0, failed: 0, skipped: 0, errors: [] }
 
 		for (const invoice of pendingInvoices) {
 			try {
-				const syncResult = await syncInvoiceToServer(invoice)
+				const syncResult = await syncInvoiceToServer(invoice, {
+					destination,
+					token: opts.token,
+				})
 
 				if (syncResult.status === "success") {
 					result.success++
@@ -425,19 +522,21 @@ export const syncOfflineInvoices = async () => {
 			} catch (error) {
 				log.error("Failed to sync invoice", { id: invoice.id, error })
 
-				// Check for duplicate error from server
-				const { isDuplicate, invoiceName } = checkDuplicateError(error)
-				if (isDuplicate) {
-					await markInvoiceSynced(
-						invoice.id,
-						invoiceName,
-						invoice.offline_id || invoice.data?.offline_id,
-					)
-					log.debug("Invoice is duplicate, marked as synced", {
-						id: invoice.id,
-					})
-					result.skipped++
-					continue
+				if (!destId) {
+					// Legacy same-origin path: a duplicate means "already there".
+					const { isDuplicate, invoiceName } = checkDuplicateError(error)
+					if (isDuplicate) {
+						await markInvoiceSynced(
+							invoice.id,
+							invoiceName,
+							invoice.offline_id || invoice.data?.offline_id,
+						)
+						log.debug("Invoice is duplicate, marked as synced", {
+							id: invoice.id,
+						})
+						result.skipped++
+						continue
+					}
 				}
 
 				// Handle genuine failure
@@ -456,6 +555,21 @@ export const syncOfflineInvoices = async () => {
 		// Cleanup old synced invoices
 		await cleanupSyncedInvoices()
 
+		if (destId) {
+			touchDestination(destId, {
+				lastSyncAt: new Date().toISOString(),
+				lastError:
+					result.failed > 0
+						? String(
+								result.errors[0]?.error?.message ||
+									result.errors[0]?.error ||
+									"فشل",
+							).slice(0, 200)
+						: null,
+				lastSyncedCount: result.success + result.skipped,
+			})
+		}
+
 		log.info("Sync completed", {
 			success: result.success,
 			skipped: result.skipped,
@@ -467,12 +581,27 @@ export const syncOfflineInvoices = async () => {
 }
 
 /**
- * Clean up synced invoices older than configured days
+ * Clean up synced invoices older than configured days.
+ * Multi-destination rule: a row is deleted only when it is legacy-synced
+ * AND synced to every currently configured remote destination — a new
+ * branch must still receive history, never silently lose it.
  */
 const cleanupSyncedInvoices = async () => {
 	const cutoff = Date.now() - SYNC_CONFIG.CLEANUP_AGE_DAYS * 24 * 60 * 60 * 1000
+	let remoteIds = []
+	try {
+		remoteIds = listDestinations()
+			.map((d) => d?.id)
+			.filter((id) => id && id !== LOCAL_DESTINATION_ID)
+	} catch {
+		remoteIds = []
+	}
 	await db.invoice_queue
-		.filter((inv) => inv.synced && inv.timestamp < cutoff)
+		.filter((inv) => {
+			if (!inv.synced || inv.timestamp >= cutoff) return false
+			const syncedTo = inv.syncedTo || {}
+			return remoteIds.every((id) => syncedTo[id])
+		})
 		.delete()
 }
 

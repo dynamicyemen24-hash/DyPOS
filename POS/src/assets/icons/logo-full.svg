@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <!-- DyPOS Logo - Full mark -->
+  <circle cx="100" cy="100" r="90" stroke-width="3"/>
+  <path d="M70 100h60M100 70v60" stroke-width="3"/>
+  <circle cx="100" cy="100" r="25" fill="currentColor" opacity="0.1"/>
+  <!-- Geometric accent dots -->
+  <circle cx="145" cy="55" r="4" fill="currentColor" opacity="0.3"/>
+  <circle cx="165" cy="145" r="3" fill="currentColor" opacity="0.2"/>
+  <circle cx="45" cy="165" r="3" fill="currentColor" opacity="0.2"/>
+  <circle cx="35" cy="35" r="4" fill="currentColor" opacity="0.3"/>
+</svg>

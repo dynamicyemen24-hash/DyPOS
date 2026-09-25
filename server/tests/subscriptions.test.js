@@ -67,7 +67,7 @@ describe('Subscription plans (master data)', () => {
     const huge = await req('POST', '/api/subscriptions/plans', { name: 'Huge', price: 2_000_000 }, admin, A);
     assert.strictEqual(huge.status, 400);
 
-    const badCur = await req('POST', '/api/subscriptions/plans', { name: 'Cur', price: 10, currency: 'XXX' }, admin, A);
+    const badCur = await req('POST', '/api/subscriptions/plans', { name: 'Cur', price: 10, currency: 'INVALID' }, admin, A);
     assert.strictEqual(badCur.status, 400);
 
     const badInterval = await req('POST', '/api/subscriptions/plans', { name: 'Int', price: 10, intervalDays: 0 }, admin, A);
