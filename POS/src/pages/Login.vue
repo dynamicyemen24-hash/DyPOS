@@ -67,6 +67,7 @@ import {
 } from "@/utils/securityHardening"
 import { offlineState } from "@/utils/offline/offlineState"
 import { offlineWorker as offlineWorkerClient } from "@/utils/offline/workerClient"
+import { userRepository } from "@/repositories/userRepository"
 
 /* ============================================================================
  * Props / Emits
@@ -295,8 +296,8 @@ async function initializeOfflineSystems() {
 }
 
 /**
- * Attempt local authentication using IndexedDB when offline
- * Falls back to online authentication if online
+ * Attempt local authentication using the user repository (Dexie `users`).
+ * Falls back to online authentication if online.
  */
 async function attemptLocalLogin(email, password) {
 	if (!isOfflineMode.value) {
@@ -304,62 +305,30 @@ async function attemptLocalLogin(email, password) {
 	}
 
 	try {
-		// Import the offline database
-		const db = await import("@/services/db").then((m) => m.default)
+		const result = await userRepository.authenticate(
+			email.value,
+			password.value,
+		)
+		if (!result.success) return result
 
-		// Find user by email in local database
-		const users = await db.users
-			.where("email")
-			.equals(email.value.trim().toLowerCase())
-			.toArray()
+		const user = result.user
+		// Login successful - create local session
+		session.user = user.email
 
-		if (users.length === 0) {
-			return { success: false, error: "المستخدم غير موجود محليًا" }
-		}
+		// Store session in localStorage for persistence
+		localStorage.setItem(
+			"dypos_user_session",
+			JSON.stringify({
+				email: user.email,
+				full_name: user.full_name,
+				user_id: user.id,
+				role: user.role,
+				loginTime: Date.now(),
+			}),
+		)
 
-		const user = users[0]
-
-		// Verify password - in production, compare hashed passwords
-		// For now, we'll check against a stored hash or use a simple comparison
-		// In production, you'd use bcrypt or similar
-		const storedHash = user.password_hash
-		if (!storedHash) {
-			return { success: false, error: "كلمة المرور غير محددة محليًا" }
-		}
-
-		// For demo purposes, we'll do a simple check
-		// In production, use bcrypt.compare(password, storedHash)
-		const encoder = new TextEncoder()
-		const data = encoder.encode(password.value)
-		const hashBuffer = await crypto.subtle.digest("SHA-256", data)
-		const hashArray = Array.from(new Uint8Array(hashBuffer))
-		const hashHex = hashBuffer
-			.map((b) => b.toString(16).padStart(2, "0"))
-			.join("")
-
-		// Simple comparison - in production use bcrypt
-		if (storedHash === hashHex || storedHash === password.value) {
-			// Login successful - create local session
-			session.user = user.email
-			session.isLoggedIn = true
-
-			// Store session in localStorage for persistence
-			localStorage.setItem(
-				"dypos_user_session",
-				JSON.stringify({
-					email: user.email,
-					full_name: user.full_name,
-					user_id: user.id,
-					role: user.role,
-					loginTime: Date.now(),
-				}),
-			)
-
-			log.info("Offline login successful for:", user.email)
-			return { success: true, user }
-		}
-
-		return { success: false, error: "كلمة المرور غير صحيحة" }
+		log.info("Offline login successful for:", user.email)
+		return { success: true, user }
 	} catch (error) {
 		log.error("Offline login failed:", error)
 		return { success: false, error: error.message || "فشل تسجيل الدخول المحلي" }

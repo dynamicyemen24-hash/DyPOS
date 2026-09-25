@@ -33,6 +33,7 @@ import { logger } from "@/utils/logger"
 import { useReducedMotion } from "@/composables/useReducedMotion"
 import { useMediaQuery } from "@/composables/useMediaQuery"
 import { endpoints } from "@/utils/apiEndpoints"
+import { userRepository } from "@/repositories/userRepository"
 
 /* ============================================================================
  * Props
@@ -240,47 +241,22 @@ async function initializeOfflineSystems() {
 	}
 }
 
-async function hashPassword(password) {
-	const encoder = new TextEncoder()
-	const data = encoder.encode(password)
-	const hashBuffer = await crypto.subtle.digest("SHA-256", data)
-	const hashArray = Array.from(new Uint8Array(hashBuffer))
-	return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("")
-}
-
 async function attemptOfflineRegistration(userData) {
 	if (!isOfflineMode.value) {
 		return { success: false, reason: "Online mode - use server registration" }
 	}
 
 	try {
-		const db = await import("@/services/db").then((m) => m.default)
-
-		const existingUsers = await db.users
-			.where("email")
-			.equals(userData.email.toLowerCase())
-			.toArray()
-		if (existingUsers.length > 0) {
-			return { success: false, error: "المستخدم موجود بالفعل محليًا" }
-		}
-
-		const passwordHash = await hashPassword(userData.password)
-
-		const newUser = {
-			email: userData.email.toLowerCase(),
-			full_name: userData.fullName,
+		const user = await userRepository.create({
+			fullName: normalizeValue(userData.fullName),
+			email: normalizeValue(userData.email),
+			password: userData.password,
 			phone: userData.phone || "",
-			company: userData.company || "",
-			role: "POS User",
-			password_hash: passwordHash,
-			created_at: new Date().toISOString(),
-			updated_at: new Date().toISOString(),
-		}
-
-		await db.users.add(newUser)
+			company: userData.company ? normalizeValue(userData.company) : "",
+		})
 
 		log.info("Offline registration successful for:", userData.email)
-		return { success: true, user: newUser }
+		return { success: true, user }
 	} catch (error) {
 		log.error("Offline registration failed:", error)
 		return { success: false, error: error.message || "فشل التسجيل المحلي" }

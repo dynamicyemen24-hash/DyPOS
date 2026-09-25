@@ -14,10 +14,20 @@
 - [x] Edge API Worker (`worker-api.js`) with canonical `/api/*` + legacy `/api/method/*` compatibility
 - [x] Central endpoint map (`src/utils/apiEndpoints.js`)
 
+## Done (v1.37.0, repositories Phase 1)
+
+- [x] `src/repositories/` foundation: `base.js` (CRUD + `runTransaction`),
+  `userRepository` (normalize/hash/create/verify/authenticate),
+  `saleRepository` (OPEN → COMPLETED → VOIDED, atomic payments, no empty
+  sales, void-keeps-row), `inventoryRepository` (availability = stock −
+  active reservations, checkout validation).
+- [x] Triplicated credential logic consolidated: Login/Register/data-session
+  all delegate to `userRepository` (covered by `tests/repositories.test.js`).
+
 ## Next (in order)
 
-1. Repository layer: `Product/Customer/Inventory/Sale/Payment/Shift/User/
-   Settings/Audit/Sync` repositories over Dexie; UI stops importing `db` directly.
+1. Repository layer (continued): Product/Customer/Shift/Settings/Audit/Sync
+   repositories over Dexie; UI stops importing `db` directly.
 2. Domain services: move pricing/tax/discount/checkout rules out of Vue
    components into `CheckoutService → Pricing → Tax → Inventory → Payment`.
 3. Atomic checkout transaction + crash tests (power loss during/after payment).

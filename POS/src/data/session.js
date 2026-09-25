@@ -2,6 +2,7 @@ import { reactive, computed } from "vue"
 import { cleanupUserSession } from "@/utils/sessionCleanup"
 import { logger } from "@/utils/logger"
 import { endpoints } from "@/utils/apiEndpoints"
+import { userRepository } from "@/repositories/userRepository"
 import router from "@/router"
 
 const log = logger.create("LocalSession")
@@ -38,23 +39,6 @@ export function sessionUser() {
 		/* non-browser bundling */
 	}
 	return null
-}
-
-async function sha256Hex(password) {
-	const data = new TextEncoder().encode(password)
-	const digest = await crypto.subtle.digest("SHA-256", data)
-	return Array.from(new Uint8Array(digest))
-		.map((b) => b.toString(16).padStart(2, "0"))
-		.join("")
-}
-
-async function findLocalUser(email) {
-	const db = await import("@/services/db").then((m) => m.default)
-	const users = await db.users
-		.where("email")
-		.equals(String(email).trim().toLowerCase())
-		.toArray()
-	return users[0] || null
 }
 
 function persistSession(user) {
@@ -122,20 +106,13 @@ export const session = reactive({
 				return session.user
 			}
 
-			// 2) Local Dexie users table.
-			const user = await findLocalUser(cleanEmail)
-			if (!user) {
-				throw new Error("المستخدم غير موجود محليًا")
-			}
-			if (!user.password_hash) {
-				throw new Error("كلمة المرور غير محددة محليًا")
-			}
-			const hash = await sha256Hex(String(password))
-			if (user.password_hash !== hash && user.password_hash !== password) {
-				throw new Error("كلمة المرور غير صحيحة")
+			// 2) Local users table via the user repository.
+			const result = await userRepository.authenticate(cleanEmail, password)
+			if (!result.success) {
+				throw new Error(result.error || "فشل تسجيل الدخول المحلي")
 			}
 
-			persistSession(user)
+			persistSession(result.user)
 			session.login.reset()
 			log.info("Local login successful", cleanEmail)
 			return session.user
