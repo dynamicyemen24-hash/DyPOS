@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.37.0] - 2026-09-25 — حملة الكفاءة والجودة: Offline-First ناضج، PWA مخفّضة، وإنتاج عالمي
+### Added
+- Offline-First: إزالة اعتمادات Frappe التشغيلية (الجلسة، الترجمة، اللغة، CSRF، المستخدم) واستبدالها بطبقة محلية؛ بدء التشغيل لا ينتظر أي شبكة.
+- منبّه انتهاء الجلسة أُزيل من شاشات الضيوف (Login/Register/Forgot/Reset)؛ `useSessionTimeout` صريح `start()` فقط.
+- PWA مزدوجة البناء (`build` للتضمين + `build:pages` للجذر)؛ النطاق يتبع القاعدة — خطأ الـ scope مستحيل.
+- تقليم مخرجات البناء الحتمي (`prune-pages-output.mjs`): precache من 729 مدخلًا/29MB إلى ~98 مدخلًا/4MB.
+- حزم ترجمة محلية (`public/locales/ar|en.json`) وخريطة endpoints مركزية (`apiEndpoints.js`).
+- Worker API موسّع (canonical `/api/*` + توافق legacy) على `dypos.smartportssoft.com/api/*` مع D1.
+- اختبارات انحدار جديدة (`offlineFirst.test.js`: endpoints/session-timeout/ترجمة).
+### Verified
+- واجهة 603/603 · خادم 365/365 · biome نظيف · parity `ok:true` · عقد 105/105 · ميزانية الحزمة 831KB ≤ 900KB.
+
 ## [Unreleased]
 ### Added
 - موجة SEC: دخول `/api/method/login` يشارك قفل اسم المستخدم + حد رشّ IP، `password_hash` لا يغادر `frappe.client.*` أبدًا، نطاق مستأجر fail-closed في كل قوائم الـ method مع حراس بالمعرف، إصلاح XSS في التمييز، telemetry آمن ESM، trust-proxy افتراضي 0، metrics مرفوض افتراضيًا في الإنتاج.

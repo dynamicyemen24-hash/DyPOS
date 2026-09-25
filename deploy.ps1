@@ -24,7 +24,7 @@ function Write-Error($msg) {
     Write-Host "❌ $msg" -ForegroundColor Red
 }
 
-Write-Header "DyPOS v1.36.0 - Offline-First PWA Deploy"
+Write-Header "DyPOS v1.37.0 - Offline-First PWA Deploy"
 
 # 1. Run tests
 if (-not $SkipTests) {

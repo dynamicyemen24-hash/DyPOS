@@ -1,7 +1,7 @@
 # AGENTS.md — Repo conventions for AI coding agents
 
 > This repo is Arabic-first (UI, messages, commit bodies) with English code.
-> Production: https://dypos.smartportssoft.com/ · Version single source: `1.36.0`
+> Production: https://dypos.smartportssoft.com/ · Version single source: `1.37.0`
 > (root `package.json` + `POS/package.json` + `server/package.json` + `server/lib/version.js`).
 
 ## Shell (Windows PowerShell 5.1 — win32)

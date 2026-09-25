@@ -24,7 +24,7 @@ export default {
 		try {
 			// Health check
 			if (path === '/api/health' || path === '/health') {
-				return jsonResponse({ status: 'ok', version: '1.36.0', timestamp: new Date().toISOString() }, corsHeaders);
+				return jsonResponse({ status: 'ok', version: '1.37.0', timestamp: new Date().toISOString() }, corsHeaders);
 			}
 
 			if (path === '/api/ready' || path === '/ready') {

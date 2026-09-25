@@ -593,7 +593,7 @@ def('DyPOS.api.localization.get_locale_names', (_p, _r, res) =>
 def('get_locale_names', (_p, _r, res) => res.json({ message: LOCALE_NAMES }));
 
 // ── Ping / health ────────────────────────────────────────────────────────
-const pingPayload = () => ({ message: { pong: true, time: Date.now(), version: process.env.npm_package_version || '1.36.0' } });
+const pingPayload = () => ({ message: { pong: true, time: Date.now(), version: process.env.npm_package_version || '1.37.0' } });
 def('DyPOS.api.ping', (_p, _r, res) => res.json(pingPayload()));
 def('DyPOS.api.utilities.ping', (_p, _r, res) => res.json(pingPayload()));
 def('DyPOS.api.health', (_p, _r, res) => res.json({ message: { status: 'ok' } }));
