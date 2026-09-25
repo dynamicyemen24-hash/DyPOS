@@ -129,7 +129,11 @@ export async function initDeviceAdaptation(options = {}) {
 		trackViewport()
 
 		// Server view of this UA (cheap, same-origin, cached per session reload).
+		// Offline-first: skip entirely when radios report offline.
 		try {
+			if (typeof navigator !== "undefined" && navigator.onLine === false) {
+				throw new Error("offline — skipping device probe")
+			}
 			const res = await fetch("/api/device", {
 				method: "GET",
 				cache: "no-store",

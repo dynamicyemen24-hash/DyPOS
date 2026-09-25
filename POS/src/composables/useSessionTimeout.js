@@ -1,4 +1,4 @@
-import { ref, onMounted, onUnmounted, watch } from "vue"
+import { ref, watch } from "vue"
 import { logger } from "@/utils/logger"
 import { session } from "@/stores/session"
 
@@ -100,6 +100,8 @@ export function useSessionTimeout({
 	}
 
 	function init() {
+		stopCountdown()
+		stopWarning()
 		sessionExpiry = Date.now() + sessionDurationMs
 		showWarning.value = false
 		timeRemaining.value = sessionDurationMs
@@ -109,6 +111,32 @@ export function useSessionTimeout({
 			showWarning.value = true
 			startCountdown()
 		}, sessionDurationMs - warningBeforeMs)
+
+		startSessionDetection()
+	}
+
+	/**
+	 * Start (or restart) the authenticated session timer.
+	 * Used by Login.vue after a successful login. Guest pages must never
+	 * call this — the session popup must not appear before login.
+	 */
+	function start(durationMs) {
+		stopCountdown()
+		stopWarning()
+		const duration =
+			Number(durationMs) > 0 ? Number(durationMs) : sessionDurationMs
+		sessionExpiry = Date.now() + duration
+		showWarning.value = false
+		timeRemaining.value = duration
+		isSessionActive.value = true
+
+		warningTimer = setTimeout(
+			() => {
+				showWarning.value = true
+				startCountdown()
+			},
+			Math.max(0, duration - warningBeforeMs),
+		)
 
 		startSessionDetection()
 	}
@@ -124,8 +152,9 @@ export function useSessionTimeout({
 		showWarning.value = false
 	}
 
-	onMounted(init)
-	onUnmounted(destroy)
+	// NOTE: no auto onMounted(init) — guest pages (Login/Register/Forgot/Reset)
+	// must not start session timers. Authenticated flows call start()/init()
+	// explicitly after login.
 
 	return {
 		showWarning,
@@ -135,6 +164,7 @@ export function useSessionTimeout({
 		extendSession,
 		dismissWarning,
 		init,
+		start,
 		destroy,
 	}
 }

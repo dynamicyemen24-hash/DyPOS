@@ -1,0 +1,15 @@
+{
+  "app.name": "DyPOS",
+  "auth.login": "تسجيل الدخول",
+  "auth.register": "إنشاء حساب",
+  "auth.email": "البريد الإلكتروني",
+  "auth.password": "كلمة المرور",
+  "auth.offline_mode": "وضع عدم الاتصال",
+  "pos.title": "نقطة البيع",
+  "pos.checkout": "الدفع",
+  "pos.cart_empty": "السلة فارغة",
+  "common.retry": "إعادة المحاولة",
+  "common.close": "إغلاق",
+  "common.save": "حفظ",
+  "common.cancel": "إلغاء"
+}

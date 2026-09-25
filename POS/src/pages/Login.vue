@@ -26,6 +26,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 
 import { FeatherIcon } from "frappe-ui"
 
+import { endpoints } from "@/utils/apiEndpoints"
+
 import DyPOSLogo from "@/assets/DyPOSLogo.png"
 import smartPortsBg from "@/assets/smart-ports-og.jpg"
 
@@ -212,7 +214,7 @@ async function detectOfflineMode() {
 			OFFLINE_DETECTION_TIMEOUT_MS,
 		)
 
-		const response = await fetch("/api/method/DyPOS.api.ping", {
+		const response = await fetch(endpoints.ping, {
 			method: "GET",
 			cache: "no-store",
 			credentials: "same-origin",

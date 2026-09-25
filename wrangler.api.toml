@@ -1,0 +1,21 @@
+# DyPOS API Worker (Cloudflare Workers + D1)
+# Serves /api/* on dypos.smartportssoft.com; Pages serves the PWA shell.
+# Deploy: wrangler deploy -c wrangler.api.toml
+name = "dypos-api"
+main = "worker-api.js"
+compatibility_date = "2026-09-24"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+preview_urls = false
+
+[[routes]]
+pattern = "dypos.smartportssoft.com/api/*"
+zone_name = "smartportssoft.com"
+
+[[d1_databases]]
+binding = "dypos_db"
+database_name = "dypos-db"
+database_id = "fd8c365d-11a0-48af-906b-b4f302f36747"
+
+[vars]
+BACKEND_URL = "https://dypos-api.smartportssoft.com"

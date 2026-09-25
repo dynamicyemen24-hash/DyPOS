@@ -26,7 +26,6 @@ import { FeatherIcon } from "frappe-ui"
 import DyButton from "@/components/ui/DyButton.vue"
 
 import { usePasswordReset } from "@/composables/usePasswordReset"
-import { useSessionTimeout } from "@/composables/useSessionTimeout"
 import { normalizeArabic } from "@/utils/arabic"
 import { logger } from "@/utils/logger"
 
@@ -66,19 +65,7 @@ const emailInput = ref(null)
 const loginError = ref("")
 
 /* ============================================================================
- * Session Timeout
- * ========================================================================== */
-
-const sessionTimeout = useSessionTimeout({
-	warningBeforeMs: 5 * 60 * 1000,
-	sessionDurationMs: 30 * 60 * 1000,
-	onLogout: () => {
-		logger?.warn?.("Forgot-password session expired")
-	},
-})
-
-/* ============================================================================
- * Computed
+ * Computed (guest page: no session timer — expiry popup must never appear)
  * ========================================================================== */
 
 const brandBackground = computed(() => {
@@ -169,11 +156,10 @@ function handleGlobalKeydown(event) {
 onMounted(() => {
 	window.addEventListener("keydown", handleGlobalKeydown)
 	emailInput.value?.focus?.()
-	sessionTimeout.init()
 })
 
 onUnmounted(() => {
-	sessionTimeout.destroy()
+	window.removeEventListener("keydown", handleGlobalKeydown)
 })
 </script>
 

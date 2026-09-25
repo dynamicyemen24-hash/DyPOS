@@ -32,8 +32,6 @@ import {
 	usePasswordReset,
 } from "@/composables/usePasswordReset"
 
-import { useSessionTimeout } from "@/composables/useSessionTimeout"
-
 import { validatePassword, PASSWORD_MIN_LENGTH } from "@/utils/passwordPolicy"
 import { goToLogin } from "@/router"
 import { logger } from "@/utils/logger"
@@ -80,19 +78,7 @@ const tokenState = ref("checking") // checking | valid | missing | expired
 const newPwInput = ref(null)
 
 /* ============================================================================
- * Session Timeout
- * ========================================================================== */
-
-const sessionTimeout = useSessionTimeout({
-	warningBeforeMs: 5 * 60 * 1000,
-	sessionDurationMs: 30 * 60 * 1000,
-	onLogout: () => {
-		logger?.warn?.("Reset-password session expired")
-	},
-})
-
-/* ============================================================================
- * Token Lifecycle
+ * Token Lifecycle (guest page: no session timer)
  * ========================================================================== */
 
 function resolveToken() {
@@ -219,12 +205,11 @@ function handleGlobalKeydown(event) {
 onMounted(() => {
 	window.addEventListener("keydown", handleGlobalKeydown)
 	resolveToken()
-	sessionTimeout.init()
 	newPwInput.value?.focus?.()
 })
 
 onUnmounted(() => {
-	sessionTimeout.destroy()
+	window.removeEventListener("keydown", handleGlobalKeydown)
 })
 </script>
 

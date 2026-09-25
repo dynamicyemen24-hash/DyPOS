@@ -1,0 +1,7 @@
+# DyPOS PWA (Cloudflare Pages) - Static Assets
+# Pages deploy: wrangler pages deploy DyPOS/public/pos --project-name=dypos-pos
+
+# Pages config (static assets)
+name = "dypos-pos"
+pages_build_output_dir = "DyPOS/public/pos"
+compatibility_date = "2026-09-24"

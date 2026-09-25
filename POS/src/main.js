@@ -491,6 +491,17 @@ async function initializeCSRF() {
 		return false
 	}
 
+	// Offline-first: CSRF is only meaningful for same-origin server calls.
+	// Never spend startup time on it when the radios report offline.
+	try {
+		if (typeof navigator !== "undefined" && navigator.onLine === false) {
+			log.debug("Offline — skipping CSRF initialization")
+			return false
+		}
+	} catch {
+		/* assume online */
+	}
+
 	const existingToken = getCSRFTokenFromCookie()
 
 	if (existingToken) {
@@ -529,22 +540,12 @@ async function initializeCSRF() {
    ============================================================================= */
 
 /**
- * Resolve the current authenticated user.
+ * Resolve the current authenticated user (offline-first).
+ * Local session + cookies are authoritative. No network request is made
+ * here: a Frappe user fetch must never gate POS startup.
  */
 async function initializeUser() {
 	try {
-		if (!userResource.loading) {
-			await userResource.fetch()
-		}
-
-		/**
-		 * Some resource implementations expose promise, others resolve directly.
-		 * Awaiting undefined is safe.
-		 */
-		if (userResource.promise) {
-			await userResource.promise
-		}
-
 		const user = sessionUser()
 
 		return user || null
@@ -767,7 +768,7 @@ function initializeIdleWarmup() {
 	}
 
 	try {
-		void prefetchOnIdle(["/api/method/DyPOS.api.ping"]).catch((error) => {
+		void prefetchOnIdle(["/api/ping"]).catch((error) => {
 			log.debug("Idle connectivity warm-up failed", error)
 		})
 	} catch (error) {
@@ -977,7 +978,7 @@ async function detectOfflineMode() {
 			OFFLINE_DETECTION_TIMEOUT_MS,
 		)
 
-		const response = await fetch("/api/method/DyPOS.api.ping", {
+		const response = await fetch("/api/ping", {
 			method: "GET",
 			cache: "no-store",
 			credentials: "same-origin",
@@ -991,12 +992,9 @@ async function detectOfflineMode() {
 			return false
 		}
 
-		if (response.status === 503) {
-			log.info("Backend unavailable (503) — offline mode")
-			return true
-		}
-
-		log.warn(`Backend responded with ${response.status} — treating as offline`)
+		// Offline-first: any non-OK status (404 on static hosts, 503 from a
+		// down backend) means local mode. No warning spam at startup.
+		log.debug(`Backend unavailable (${response.status}) — offline mode`)
 		return true
 	} catch (error) {
 		if (error.name === "AbortError" || error.name === "TimeoutError") {

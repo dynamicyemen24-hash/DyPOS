@@ -1,5 +1,4 @@
 import router from "@/router"
-import { createResource } from "frappe-ui"
 import { computed, reactive } from "vue"
 
 const getCookie = (key) => {
@@ -31,16 +30,11 @@ export const userData = reactive({
 	},
 
 	getDisplayName() {
-		return (
-			this.fullName ||
-			window.frappe?.session?.user_fullname ||
-			window.frappe?.session?.user ||
-			"User"
-		)
+		return this.fullName || this.userId || "User"
 	},
 
 	getImageUrl() {
-		return this.userImage || window.frappe?.session?.user_image || null
+		return this.userImage || null
 	},
 
 	getInitials() {
@@ -74,12 +68,22 @@ export const useUserData = () => ({
 	refresh: () => userData.refresh(),
 })
 
-export const userResource = createResource({
-	url: "frappe.auth.get_logged_user",
-	cache: "User",
-	onError(error) {
-		if (error?.exc_type === "AuthenticationError") {
-			router.push({ name: "Login" })
-		}
+// Local-only user resource (offline-first).
+// Never hits the network: identity comes from the local session store +
+// login cookies. Any auth redirect is decided by the router guard, not here.
+export const userResource = {
+	loading: false,
+	promise: null,
+	data: null,
+	async fetch() {
+		userData.refresh()
+		return userData
 	},
-})
+	async reload() {
+		userData.refresh()
+		return userData
+	},
+	reset() {
+		// Local identity is cleared by cleanupUserSession(), not here.
+	},
+}

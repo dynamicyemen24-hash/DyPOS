@@ -22,9 +22,7 @@
  *
  * @module translation
  */
-import { createResource } from "frappe-ui"
 import { type App, ref } from "vue"
-import { call } from "./apiWrapper"
 import { translationCache } from "./offline/translationCache"
 import { logger } from "./logger"
 
@@ -175,12 +173,31 @@ function applyMessages(messages: Messages) {
 }
 
 /**
- * Fetches translations from Frappe API.
- * @returns Translation dictionary or null on failure
+ * Loads the bundled local translation dictionary (offline-first).
+ * Source: POS/public/locales/{locale}.json (precached by the PWA).
+ * The server is never required for the UI language.
+ * @returns Translation dictionary or null when no bundle exists
  */
-async function requestTranslations() {
-	const messages = await call("DyPOS.api.localization.get_app_translations", {})
-	return (messages as Messages) || null
+async function requestTranslations(locale?: string) {
+	try {
+		const target = (locale || getLocale()).toLowerCase()
+		const base =
+			(typeof import.meta !== "undefined" &&
+				(import.meta as unknown as { env?: { BASE_URL?: string } }).env
+					?.BASE_URL) ||
+			"/"
+		const res = await fetch(`${base}locales/${target}.json`, {
+			cache: "force-cache",
+			credentials: "same-origin",
+			headers: { Accept: "application/json" },
+		})
+		if (!res.ok) return null
+		const data = (await res.json()) as unknown
+		if (data && typeof data === "object") return data as Messages
+		return null
+	} catch {
+		return null
+	}
 }
 
 /**
@@ -214,7 +231,7 @@ async function loadLocale(locale: string, options: LoadOptions = {}) {
 
 	const entry = await translationCache.getFresh(
 		target,
-		() => requestTranslations(),
+		() => requestTranslations(target),
 		{
 			force: forceNetwork,
 		},
@@ -229,20 +246,15 @@ async function loadLocale(locale: string, options: LoadOptions = {}) {
 }
 
 /**
- * Fallback translation loader using frappe-ui's createResource.
- * Used when direct API calls fail (e.g., CORS issues, auth problems).
+ * Local fallback loader (offline-first).
+ * There is no server fallback: the bundled locale + IndexedDB cache +
+ * Arabic source strings are the complete language system.
  * @param locale - Locale code for logging
  */
 function fallbackFetch(locale?: string) {
-	createResource({
-		url: "DyPOS.api.localization.get_app_translations",
-		method: "GET",
-		cache: "translations",
-		auto: true,
-		transform: (messages: Messages) => applyMessages(messages),
-		onError: () =>
-			log.warn(`Failed to load translations for ${locale || FALLBACK_LOCALE}`),
-	})
+	log.debug(
+		`Local translations only for ${locale || FALLBACK_LOCALE}; no server fallback`,
+	)
 }
 
 /**

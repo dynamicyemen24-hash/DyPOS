@@ -1,6 +1,5 @@
 import { ref, computed, onMounted } from "vue"
 import { translationVersion, __ as serverTranslate } from "../utils/translation"
-import { call } from "../utils/apiWrapper"
 import { offlineState } from "../utils/offline/offlineState"
 import { logger } from "../utils/logger"
 import { useBootstrapStore } from "../stores/bootstrap"
@@ -76,28 +75,13 @@ export const SUPPORTED_LOCALES = {
 }
 
 /**
- * Fetch allowed locales from POS Settings
- * Caches result in localStorage for offline use
- * @returns {Promise<string[]|null>} Array of allowed locale codes or null if fetch fails
+ * Allowed locales (offline-first).
+ * The server list is optional enrichment: the bundled SUPPORTED_LOCALES
+ * plus any cached list are the source of truth. Never blocks startup.
+ * @returns {Promise<string[]|null>} Cached list or null
  */
 async function fetchAllowedLocalesFromServer() {
-	try {
-		const response = await call(
-			"DyPOS.api.localization.get_allowed_locales",
-			{},
-		)
-		if (response?.locales && Array.isArray(response.locales)) {
-			// Cache for offline use
-			localStorage.setItem(
-				ALLOWED_LOCALES_KEY,
-				JSON.stringify(response.locales),
-			)
-			return response.locales
-		}
-	} catch (error) {
-		log.warn("Failed to fetch allowed locales from server", error)
-	}
-	return null
+	return getCachedAllowedLocales()
 }
 
 /**
@@ -135,16 +119,8 @@ async function fetchLanguageFromServer() {
 		log.debug("Bootstrap store not available, fetching language from API")
 	}
 
-	// Fallback to direct API call
-	try {
-		const response = await call("DyPOS.api.localization.get_user_language", {})
-		if (response?.locale && SUPPORTED_LOCALES[response.locale]) {
-			log.info(`Fetched language from server: ${response.locale}`)
-			return response.locale
-		}
-	} catch (error) {
-		log.warn("Failed to fetch language from server", error)
-	}
+	// Offline-first: no server language fetch. The cached/explicit choice
+	// plus the Arabic default are authoritative.
 	return null
 }
 
@@ -305,14 +281,8 @@ export function useLocale() {
 		// Store preference in localStorage
 		localStorage.setItem(PREFARED_LANGUAGE_KEY, newLocale)
 
-		// Update Frappe user settings first (this changes the user's language in Frappe)
-		try {
-			await call("DyPOS.api.localization.change_user_language", {
-				locale: newLocale,
-			})
-		} catch (error) {
-			log.error("Failed to save language preference to Frappe:", error)
-		}
+		// Language preference is local-first (localStorage). A future sync
+		// layer may propagate it; it must never block the switch.
 
 		// Fetch new translations dynamically (no page reload needed)
 		// The API returns translations based on the user's current Frappe language setting

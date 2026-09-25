@@ -14,6 +14,19 @@ const appVersion = require("./package.json").version || "0.0.0"
 const buildVersion = process.env.DyPOS_BUILD_VERSION || Date.now().toString()
 const enableSourceMap = process.env.DyPOS_ENABLE_SOURCEMAP === "true"
 
+// Dual-target PWA:
+// - Frappe desk embed (default): base /assets/DyPOS/pos/, SW scope under it.
+// - Cloudflare Pages root (DYPOS_PAGES_BUILD=1): base /, SW scope /.
+// A root scope with a SW script nested under /assets/... is rejected by
+// browsers ("scope not under max scope allowed"), so scope must follow base.
+const isPagesBuild = process.env.DYPOS_PAGES_BUILD === "1"
+const pwaScope = isPagesBuild ? "/" : "/assets/DyPOS/pos/"
+const pwaStartUrl = isPagesBuild ? "/" : "/assets/DyPOS/pos/"
+const pwaNavigateFallback = isPagesBuild
+	? "/index.html"
+	: "/assets/DyPOS/pos/index.html"
+const pwaIconPrefix = isPagesBuild ? "/" : "/assets/DyPOS/pos/"
+
 /**
  * Post-build font cleanup.
  * 1) Removes the frappe-ui variable Inter fonts (Inter.var / Inter-Italic.var)
@@ -179,23 +192,23 @@ export default defineConfig({
 				background_color: "#ffffff",
 				display: "standalone",
 				lang: "ar",
-				scope: "/assets/DyPOS/pos/",
-				start_url: "/assets/DyPOS/pos/",
+				scope: pwaScope,
+				start_url: pwaStartUrl,
 				icons: [
 					{
-						src: "/assets/DyPOS/pos/android-chrome-192x192.png",
+						src: `${pwaIconPrefix}android-chrome-192x192.png`,
 						sizes: "192x192",
 						type: "image/png",
 						purpose: "any",
 					},
 					{
-						src: "/assets/DyPOS/pos/android-chrome-512x512.png",
+						src: `${pwaIconPrefix}android-chrome-512x512.png`,
 						sizes: "512x512",
 						type: "image/png",
 						purpose: "any maskable",
 					},
 					{
-						src: "/assets/DyPOS/pos/apple-touch-icon.png",
+						src: `${pwaIconPrefix}apple-touch-icon.png`,
 						sizes: "180x180",
 						type: "image/png",
 						purpose: "any",
@@ -203,9 +216,9 @@ export default defineConfig({
 				],
 			},
 			workbox: {
-				globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+				globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,json}"],
 				maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MB
-				navigateFallback: "/assets/DyPOS/pos/index.html",
+				navigateFallback: pwaNavigateFallback,
 				navigateFallbackDenylist: [/^\/api/, /^\/app/],
 				runtimeCaching: [
 					{
@@ -246,7 +259,7 @@ export default defineConfig({
 						},
 					},
 					{
-						urlPattern: /\/assets\/DyPOS\/pos\/.*/i,
+						urlPattern: /\/assets\/.*/i,
 						handler: "CacheFirst",
 						options: {
 							cacheName: "pos-assets-cache",
@@ -289,7 +302,10 @@ export default defineConfig({
 					{
 						urlPattern: ({ request, url }) =>
 							request.mode === "navigate" &&
-							url.pathname.startsWith("/assets/DyPOS/pos"),
+							(url.pathname === "/" ||
+								url.pathname.startsWith("/assets/DyPOS/pos") ||
+								url.pathname.startsWith("/account/") ||
+								url.pathname.startsWith("/pos")),
 						handler: "NetworkFirst",
 						options: {
 							cacheName: "pos-page-cache",

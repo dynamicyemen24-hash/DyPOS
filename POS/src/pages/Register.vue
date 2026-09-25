@@ -30,9 +30,9 @@ import { goToLogin } from "@/router"
 import { session } from "@/stores/session"
 import { normalizeArabic } from "@/utils/arabic"
 import { logger } from "@/utils/logger"
-import { useSessionTimeout } from "@/composables/useSessionTimeout"
 import { useReducedMotion } from "@/composables/useReducedMotion"
 import { useMediaQuery } from "@/composables/useMediaQuery"
+import { endpoints } from "@/utils/apiEndpoints"
 
 /* ============================================================================
  * Props
@@ -69,13 +69,8 @@ const emailInput = ref(null)
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
 
-const sessionTimeout = useSessionTimeout({
-	warningBeforeMs: 5 * 60 * 1000,
-	sessionDurationMs: 30 * 60 * 1000,
-	onLogout: () => {
-		logger?.warn?.("Registration session expired")
-	},
-})
+// Guest page: no session timer. The session-expiry popup must never appear
+// before login.
 
 /* ============================================================================
  * Computed
@@ -182,7 +177,7 @@ async function detectOfflineMode() {
 			OFFLINE_DETECTION_TIMEOUT_MS,
 		)
 
-		const response = await fetch("/api/method/DyPOS.api.ping", {
+		const response = await fetch(endpoints.ping, {
 			method: "GET",
 			cache: "no-store",
 			credentials: "same-origin",
@@ -418,7 +413,6 @@ function handleGlobalKeydown(event) {
 onMounted(async () => {
 	window.addEventListener("keydown", handleGlobalKeydown)
 	emailInput.value?.focus?.()
-	sessionTimeout.init()
 
 	await detectAndSetOfflineMode()
 
@@ -440,7 +434,6 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-	sessionTimeout.destroy()
 	window.removeEventListener("keydown", handleGlobalKeydown)
 })
 </script>
@@ -563,36 +556,6 @@ onUnmounted(() => {
 						العودة إلى تسجيل الدخول
 					</a>
 				</header>
-
-				<!-- Session Timeout Warning -->
-
-				<Transition name="dy-fade">
-					<div
-						v-if="sessionTimeout.showWarning"
-						class="dy-register__timeout"
-						role="alertdialog"
-						aria-modal="true"
-					>
-						<div class="dy-register__timeout-card">
-							<h3>ستنتهي الجلسة قريباً</h3>
-							<p>
-								يتبقى
-								{{ Math.ceil(sessionTimeout.timeRemaining / 1000) }}
-								ثانية.
-							</p>
-							<div class="dy-register__timeout-actions">
-								<DyButton
-									variant="primary"
-									size="sm"
-									:loading="sessionTimeout.isExtending"
-									@click="sessionTimeout.extendSession()"
-								>
-									تمديد الجلسة
-								</DyButton>
-							</div>
-						</div>
-					</div>
-				</Transition>
 
 				<!-- Success -->
 
@@ -1639,50 +1602,6 @@ onUnmounted(() => {
 }
 
 /* =============================================================================
-   Session Timeout Warning
-   ============================================================================= */
-
-.dy-register__timeout {
-	position: fixed;
-	inset: 0;
-	z-index: 9999;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	background: rgb(0 0 0 / 0.5);
-}
-
-.dy-register__timeout-card {
-	width: min(100%, 420px);
-	padding: 24px;
-	background: var(--dy-bg);
-	border-radius: var(--dy-radius-xl);
-	box-shadow: 0 24px 64px rgb(0 0 0 / 0.3);
-	text-align: center;
-}
-
-.dy-register__timeout-card h3 {
-	margin: 0;
-	color: var(--dy-text-strong);
-	font-size: 1.1rem;
-	font-weight: 800;
-}
-
-.dy-register__timeout-card p {
-	margin: 12px 0;
-	color: var(--dy-text-secondary);
-	font-size: 0.9rem;
-	line-height: 1.8;
-}
-
-.dy-register__timeout-actions {
-	display: flex;
-	gap: 12px;
-	justify-content: center;
-	margin-top: 16px;
-}
-
-/* =============================================================================
    Password Strength Bar
    ============================================================================= */
 
@@ -1794,11 +1713,6 @@ onUnmounted(() => {
 
 .dy-register--dark .dy-register__error-close:hover {
 	background: rgb(var(--dy-crimson-c-500) / 0.12);
-}
-
-.dy-register--dark .dy-register__timeout-card {
-	background: var(--dy-surface);
-	box-shadow: 0 24px 64px rgb(0 0 0 / 0.5);
 }
 
 /* =============================================================================

@@ -4,7 +4,8 @@ const log = logger.create("CSRF")
 
 const CSRF_COOKIE = "csrf_token"
 const CSRF_PLACEHOLDER = "{{ csrf_token }}"
-const CSRF_TOKEN_ENDPOINT = "/api/method/DyPOS.api.utilities.get_csrf_token"
+const CSRF_TOKEN_ENDPOINT = "/api/csrf_token"
+const CSRF_LEGACY_ENDPOINT = "/api/method/DyPOS.api.utilities.get_csrf_token"
 
 let refreshPromise = null
 let lastKnownToken = null
@@ -68,38 +69,65 @@ export function getCSRFTokenFromCookie() {
 	return token
 }
 
+function isOfflineFastFail() {
+	try {
+		if (typeof navigator !== "undefined" && navigator.onLine === false) {
+			return true
+		}
+	} catch {
+		/* non-browser — assume online */
+	}
+	return false
+}
+
 async function fetchCSRFToken() {
+	// Offline-first: never waste a network round-trip when radios say offline.
+	if (isOfflineFastFail()) {
+		const err = new Error("offline — skipping CSRF refresh")
+		err.offline = true
+		throw err
+	}
 	// Use raw fetch (not frappeRequest) to avoid circular dependency:
 	// - This function is called when CSRF token is invalid
 	// - frappeRequest is wrapped with CSRF auto-refresh
 	// - Using frappeRequest here would cause infinite loop
-	// GET requests to @frappe.whitelist() endpoints don't require CSRF tokens
-	const response = await fetch(CSRF_TOKEN_ENDPOINT, {
-		method: "GET",
-		credentials: "include", // Include session cookies
-		cache: "no-store", // Bypass service worker cache for CSRF token refresh
-		headers: {
-			Accept: "application/json",
-			"X-Frappe-Site-Name": window.location.hostname,
-		},
-	})
-
-	let data = null
-	const contentType = response.headers.get("content-type") || ""
-	if (contentType.includes("application/json")) {
+	const tryEndpoints = [CSRF_TOKEN_ENDPOINT, CSRF_LEGACY_ENDPOINT]
+	let lastError = null
+	for (const endpoint of tryEndpoints) {
 		try {
-			data = await response.json()
+			const response = await fetch(endpoint, {
+				method: "GET",
+				credentials: "include", // Include session cookies
+				cache: "no-store", // Bypass service worker cache for CSRF token refresh
+				headers: {
+					Accept: "application/json",
+				},
+			})
+			if (response.status === 404 || response.status === 503) {
+				lastError = new Error(`CSRF endpoint unavailable (${response.status})`)
+				lastError.status = response.status
+				continue
+			}
+			let data = null
+			const contentType = response.headers.get("content-type") || ""
+			if (contentType.includes("application/json")) {
+				try {
+					data = await response.json()
+				} catch (error) {
+					log.warn("Could not parse CSRF refresh response as JSON")
+				}
+			}
+			return { response, data }
 		} catch (error) {
-			log.warn("Could not parse CSRF refresh response as JSON")
+			lastError = error
 		}
 	}
-
-	return { response, data }
+	throw lastError || new Error("CSRF refresh unavailable")
 }
 
 function extractTokenFromResponse(data) {
-	// Frappe API response structure: { message: { csrf_token: "..." } }
-	return normalizeToken(data?.message?.csrf_token)
+	// Worker shape: { csrf_token: "..." } — legacy Frappe shape: { message: { csrf_token } }
+	return normalizeToken(data?.csrf_token || data?.message?.csrf_token)
 }
 
 export async function ensureCSRFToken({

@@ -1,0 +1,15 @@
+{
+  "app.name": "DyPOS",
+  "auth.login": "Login",
+  "auth.register": "Register",
+  "auth.email": "Email",
+  "auth.password": "Password",
+  "auth.offline_mode": "Offline mode",
+  "pos.title": "Point of Sale",
+  "pos.checkout": "Checkout",
+  "pos.cart_empty": "Cart is empty",
+  "common.retry": "Retry",
+  "common.close": "Close",
+  "common.save": "Save",
+  "common.cancel": "Cancel"
+}

@@ -64,6 +64,15 @@ export const useFeaturesStore = defineStore("features", () => {
 			isOffline.value = true
 			lastError.value = new Error(OFFLINE_ERROR_MESSAGE)
 		}
+		// Offline-first: radios say offline → defaults immediately, no fetch.
+		try {
+			if (typeof navigator !== "undefined" && navigator.onLine === false) {
+				applyDefaults()
+				return Promise.resolve(false)
+			}
+		} catch {
+			/* assume online */
+		}
 		const timer = setTimeout(() => {
 			if (epoch === initEpoch) applyDefaults()
 		}, FETCH_TIMEOUT_MS)
