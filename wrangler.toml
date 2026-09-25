@@ -2,20 +2,9 @@
 # Pages deploy: wrangler pages deploy DyPOS/public/pos --project-name=dypos-pos
 # Worker deploy: wrangler deploy
 
-# Pages config (static assets)
+# DyPOS PWA (Cloudflare Pages) — static assets only.
+# Pages deploy: wrangler pages deploy DyPOS/public/pos --project-name=dypos-pos
+# API Worker deploys separately via wrangler.api.toml (dypos-api).
 name = "dypos-pos"
 pages_build_output_dir = "DyPOS/public/pos"
-
-# Worker config (API)
-main = "worker-api.js"
-
 compatibility_date = "2026-09-24"
-compatibility_flags = ["nodejs_compat"]
-
-[[d1_databases]]
-binding = "dypos_db"
-database_name = "dypos-db"
-database_id = "fd8c365d-11a0-48af-906b-b4f302f36747"
-
-[vars]
-BACKEND_URL = "https://dypos-api.smartportssoft.com"
