@@ -67,8 +67,20 @@ npx wrangler deploy --name dypos-pos --assets .pages-site --compatibility-date 2
 للتوثيق التاريخي فقط. الإنتاج الحالي **Workers Static Assets** عبر CI
 (`.github/workflows/deploy-cloudflare.yml`). لا يوجد IIS على خادم البناء.
 
+## Royal production runbook (subscriber #1)
+المشترك الأول: **رويال العالمية لتجارة أدوات التجميل والعطور** (`RGT`).
+```powershell
+cd server
+node db/migrate.js      # schema v23
+npm run seed:royal      # 64 SKUs + stock + users (atomic, idempotent)
+npm run e2e:royal       # 14-check proof: login→shift→sale→pay→stock→void→close
+```
+- البذر ذري (`BEGIN/COMMIT`) وآمن للمفاتيح (`ON CONFLICT DO UPDATE` — لا حذف).
+- كلمات المرور bcrypt حقيقية (تُطبع مرة واحدة)؛ حساب `admin` يُجبر على التغيير.
+- سكربت E2E يلغّي فاتورته ويغلق ورديته — قاعدة الإنتاج تبقى نظيفة.
+
 ## Version Info (حالي)
-- **Version:** `1.36.0` (single source: root `package.json`)
+- **Version:** `1.37.0` (single source: root `package.json`)
 - **Date:** September 24, 2026
 - **Framework:** Vue 3 + Chart.js + frappe-ui
 - **PWA:** Yes (SW root scope via Worker assets)

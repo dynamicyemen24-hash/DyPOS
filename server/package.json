@@ -17,6 +17,8 @@
     "test:watch": "node --watch --import ./tests/setup.js \"tests/**/*.test.js\"",
     "migrate": "node db/migrate.js",
     "seed": "node db/seed.js",
+    "seed:royal": "node scripts/seed-royal-production.mjs",
+    "e2e:royal": "node scripts/e2e-royal.mjs",
     "backup": "node scripts/backup.mjs",
     "backup:verify": "node scripts/verify-restore.mjs",
     "load": "node scripts/load-test.mjs",
