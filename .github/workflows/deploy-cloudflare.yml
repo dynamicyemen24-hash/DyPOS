@@ -1,8 +1,16 @@
 name: Deploy to Cloudflare (production)
 
-# أي تعديل يُدمج في main يُبنى ويُنشر تلقائيًا إلى Cloudflare Workers Static Assets
-# (dypos.smartportssoft.com) ثم يتحقق حيًا أن العملاء يرون الإصدار الجديد.
-# مسار Pages القديم متروك كمرجع: التوكن الحالي يملك Workers Scripts فقط لا Pages:Edit.
+# أي تعديل يُدمج في main يُبنى ويُنشر تلقائيًا إلى مشروع Cloudflare Pages
+# (dypos-pos → dypos.smartportssoft.com) ثم يتحقق حيًا أن العملاء يرون الإصدار الجديد.
+#
+# لماذا Pages لا Workers: نطاق الإنتاج مُثبَت على مشروع Pages (تحقّقنا: رفع Pages
+# يدويًا يحدّث أصول النطاق، وروابط SPA العميقة تُرجع 200). ومسار Workers لم ينجح
+# ولا مرة (6 دفعات فاشلة)، وسبب التخلّي عنه أن التوكن آنذاك لم يكن يملك Pages:Edit.
+# إذن الهدف Pages، والتوكن اللازم يجب أن يملك Pages:Edit.
+#
+# التخطيط: `build:pages` (base "/"، ويمسح outDir) هو نفس البناء الذي يخدم الإنتاج
+# اليوم، وينتج `sw.js` في جذر النطاق بمدى "/" — وهو شرط تحكّم Service Worker
+# في النطاق كاملًا. وحجم الميزانية يُقرأ من المخرجات نفسها.
 on:
   push:
     branches:
@@ -18,7 +26,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Build → Worker deploy → live verify
+    name: Build → Pages deploy → live verify
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -55,26 +63,23 @@ jobs:
         working-directory: server
         run: npm run lint && npm run contract && npm run parity
 
+      # نفس البناء الذي يخدم الإنتاج: base "/" و sw.js في جذر النطاق، ويمسح
+      # outDir أولًا فلا تتراكم قطع قديمة في قائمة precache (انظر pruneStaleAssetsPlugin).
       - name: Build frontend (version-pinned, no timestamps)
         working-directory: POS
-        run: yarn build
+        run: npm run build:pages
         env:
           DyPOS_BUILD_VERSION: ${{ steps.ver.outputs.version }}
-          # Standalone Worker build is served at domain root (router base "/").
-          VITE_ROUTER_BASE: /
 
       # Efficiency gate: fail the deploy on bundle bloat (900KB gzip budget).
       - name: Bundle budget (gzip JS+CSS cap)
         working-directory: POS
         run: npm run size
 
-      - name: Assemble deploy site (Pages layout + Worker SPA)
-        run: node scripts/build-pages-site.mjs --out .pages-site
-
-      # Workers Static Assets يتكفّل بـ SPA عبر not_found_handling.
-      # ملف _redirects الخاص بـ Pages يرفضه wrangler (code 100324 infinite loop).
-      - name: Strip Pages-only _redirects (Worker SPA fallback is enough)
-        run: rm -f .pages-site/_redirects
+      # لا حاجة لتجميع موقع Worker: مخرجات build:pages هي موقع Pages كاملًا
+      # (index.html + assets/ + sw.js + _headers + locales/ + workers/).
+      # _redirects لا يُرفع: Pages يخدم fallback عبر قواعد النطاق، ووجود
+      # catch-all في الملف كان مصدر حلقة إعادة توجيه لا نهائية (code 100324).
 
       # ── Gate: the deploy runs only when the Cloudflare secrets exist. ──
       # Missing secrets = the build/assembly still prove themselves on every
@@ -108,7 +113,7 @@ jobs:
           CODE=$(printf '%s' "$RESP" | tail -n1)
           BODY=$(printf '%s' "$RESP" | sed '$d')
           if [ "$CODE" != "200" ] || ! printf '%s' "$BODY" | grep -q '"success"[[:space:]]*:[[:space:]]*true'; then
-            echo "::error::Cloudflare API token REJECTED (HTTP $CODE). The CLOUDFLARE_API_TOKEN secret is invalid, expired, or IP-restricted — Cloudflare returns 9106 'authentication failed' because GitHub Actions runners are NOT in the token's IP allowlist. Fix: Cloudflare dashboard → My Profile → API Tokens → create a token scoped to your account (Workers/Pages Edit) with NO IP address restriction, then run: gh secret set CLOUDFLARE_API_TOKEN  (CLOUDFLARE_ACCOUNT_ID already exists and is correct). Re-run this workflow."
+            echo "::error::Cloudflare API token REJECTED (HTTP $CODE). The CLOUDFLARE_API_TOKEN secret is invalid, expired, or IP-restricted — Cloudflare returns 9106 'authentication failed' because GitHub Actions runners are NOT in the token's IP allowlist. Fix: Cloudflare dashboard → My Profile → API Tokens → create a token scoped to your account with Cloudflare Pages:Edit and NO IP address restriction, then run: gh secret set CLOUDFLARE_API_TOKEN  (CLOUDFLARE_ACCOUNT_ID already exists and is correct). Re-run this workflow."
             echo "Cloudflare API response: $BODY"
             exit 1
           fi
@@ -116,39 +121,30 @@ jobs:
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
-      # ── Deploy: Workers Static Assets (wrangler deploy). Domain route
-      # dypos.smartportssoft.com/* is declared in wrangler.toml [[routes]]
-      # and attaches on every deploy (Zone Workers Routes Edit on the token). ──
-      - name: Deploy to Cloudflare Workers (static assets)
+      # ── Deploy: Cloudflare Pages project (dypos-pos). This is the origin the
+      # custom domain dypos.smartportssoft.com is bound to; the upload replaces
+      # the deployment wholesale, so no stale chunk can survive (Pages keeps the
+      # previous deployment only for rollback, not for serving). ──
+      - name: Deploy to Cloudflare Pages
         id: deploy
         if: steps.cf.outputs.available == 'true'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --name dypos-pos --assets .pages-site --compatibility-date 2026-09-24
+          command: pages deploy DyPOS/public/pos --project-name=dypos-pos --branch=main --commit-dirty=true
 
       # ── Deploy-time failure → one clear remediation line. ──
       - name: Deploy failed → actionable secret error
         if: failure() && steps.deploy.outcome == 'failure'
         run: |
-          echo "::error::Cloudflare Worker deploy FAILED. CLOUDFLARE_API_TOKEN is invalid, expired, IP-restricted, or lacks Workers Scripts Edit scope. Fix: Cloudflare dashboard → My Profile → API Tokens → Create Token (account scope, Workers Scripts Edit) with NO IP address restriction — GitHub runners are never on an IP allowlist — then run: gh secret set CLOUDFLARE_API_TOKEN. CLOUDFLARE_ACCOUNT_ID already exists and is correct. Re-run this workflow."
+          echo "::error::Cloudflare Pages deploy FAILED. CLOUDFLARE_API_TOKEN is invalid, expired, IP-restricted, or lacks Cloudflare Pages:Edit scope. Fix: Cloudflare dashboard → My Profile → API Tokens → Create Token (account scope, Cloudflare Pages:Edit) with NO IP address restriction — GitHub runners are never on an IP allowlist — then run: gh secret set CLOUDFLARE_API_TOKEN. CLOUDFLARE_ACCOUNT_ID already exists and is correct. Re-run this workflow."
 
-      # ── Backend origin for the Worker's same-origin /api proxy. The URL is
-      #    a Worker SECRET (never committed): browsers only ever see
-      #    dypos.smartportssoft.com, the backend hostname stays edge-side.
-      #    Unset → /api answers 503 BACKEND_UNCONFIGURED (Arabic) until set.
-      - name: Configure backend origin (Worker secret DYPOS_BACKEND_URL)
-        if: steps.cf.outputs.available == 'true'
-        continue-on-error: true
-        run: |
-          if [ -z "$BACKEND_URL" ]; then echo "DYPOS_BACKEND_URL secret not set — /api answers 503 BACKEND_UNCONFIGURED until configured (gh secret set DYPOS_BACKEND_URL)."; exit 0; fi
-          printf '%s' "$BACKEND_URL" | npx -y wrangler secret put DYPOS_BACKEND_URL --account-id "$CF_ACCOUNT"
-          echo "Backend origin configured."
-        env:
-          BACKEND_URL: ${{ secrets.DYPOS_BACKEND_URL }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # ── لا خطوة لضبط أصل الواجهة الخلفية هنا.
+      # `/api/*` يخدمه Worker مستقل اسمه `dypos-api` (wrangler.api.toml) عبر
+      # route على نفس النطاق، وهو يجيب `/api/ping` بنفسه ولا يمرّر إلى Express
+      # ولا يقرأ BACKEND_URL إطلاقًا. الخطوة القديمة كانت تكتب سرًّا لا يقرأه
+      # أحد على Worker `dypos-pos`، فحُذفت. وخادم Express له مضيف منفصل. ──
 
       # Optional cache purge — only when the zone id secret is provided
       # (Pages on a custom domain normally picks up instantly; kept for belt
@@ -175,16 +171,13 @@ jobs:
           VERSION="${{ steps.ver.outputs.version }}"
           sleep 20
           echo "Expected version: $VERSION"
-          LIVE_JSON=$(curl -fsS "$SITE/assets/DyPOS/pos/version.json" || true)
+          # build:pages ينشر version.json و index bundle في جذر النطاق، لا تحت
+          # /assets/DyPOS/pos/ — المسار القديم كان يفشل بصمت لأنه يخص بناء Worker.
+          LIVE_JSON=$(curl -fsS "$SITE/version.json" || true)
           echo "version.json → $LIVE_JSON"
           LIVE_HTML=$(curl -fsS "$SITE/" || true)
-          BUNDLE=$(echo "$LIVE_HTML" | grep -o 'assets/index-[A-Za-z0-9_-]*\.js?v='"$VERSION" | head -1 || true)
+          BUNDLE=$(echo "$LIVE_HTML" | grep -o '/assets/index-[A-Za-z0-9_-]*\.js' | head -1 || true)
           echo "index bundle → ${BUNDLE:-MISSING}"
-          # Reject known-stale bundle from the pre-1.36 method-router deploy.
-          if echo "$BUNDLE" | grep -q 'index-FF_1PWVh'; then
-            echo "::warning::Live site still serves STALE bundle index-FF_1PWVh.js. Domain route may be detached — check Workers & Pages → dypos-pos → Routes for dypos.smartportssoft.com/*."
-            BUNDLE=""
-          fi
           {
             echo "## Live verification"
             echo "- expected: $VERSION"
@@ -192,7 +185,15 @@ jobs:
             echo "- index bundle: ${BUNDLE:-NOT FOUND}"
           } >> "$GITHUB_STEP_SUMMARY"
           if echo "$LIVE_JSON" | grep -q "$VERSION" && [ -n "$BUNDLE" ]; then
-            echo "✅ LIVE $VERSION VERIFIED — customers are on the new build."
+            # SPA fallback لازم: رابط عميق يجب أن يُرجع index.html لا 404،
+            # وإلا حدّث العميل عبر Ctrl+F5 ينكسر.
+            DEEP=$(curl -fsS -o /dev/null -w '%{http_code}' "$SITE/pos/deep-link-probe" || true)
+            echo "deep-link probe → $DEEP"
+            if [ "$DEEP" = "200" ]; then
+              echo "✅ LIVE $VERSION VERIFIED — customers are on the new build."
+            else
+              echo "::warning::Version is live but SPA deep links return $DEEP instead of 200 — check the Pages project redirect rules for the custom domain."
+            fi
           else
-            echo "::warning::Live site does NOT serve the fresh $VERSION build yet. Worker dypos-pos deployed; domain route may point at another origin."
+            echo "::warning::Live site does NOT serve the fresh $VERSION build yet. Pages deploy finished; the custom domain may point at another origin, or edge propagation may still be in flight."
           fi
