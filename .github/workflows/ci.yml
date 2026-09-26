@@ -29,8 +29,10 @@ jobs:
           node-version: 22
           check-latest: true
 
+      # npm ci لا yarn install: لا yarn.lock متتبَّع، فكان yarn يثبّت نسخًا
+      # عائمة تختلف عن POS/package-lock.json في كل تشغيل.
       - name: Install dependencies
-        run: yarn install
+        run: npm ci --no-audit --no-fund
 
       - name: Security Audit (npm audit)
         run: npm audit --audit-level=high --omit=dev
@@ -50,10 +52,11 @@ jobs:
       - name: Quality Gate (tests + noConsole lint)
         run: npm run verify
 
+      # نفس البناء الذي ينشره deploy-cloudflare.yml (build:pages). كان
+      # `yarn build` يبني تخطيط Frappe (base /assets/DyPOS/pos/) وهو ليس ما
+      # يذهب للإنتاج، فكانت البوابة لا تختبر الحزمة التي تُشحن.
       - name: Build
-        run: yarn build
-        env:
-          VITE_ROUTER_BASE: /
+        run: npm run build:pages
 
       - name: Bundle budget (gzip JS+CSS cap)
         run: npm run size

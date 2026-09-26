@@ -43,9 +43,12 @@ jobs:
         id: ver
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
+      # `npm ci` مقصود: لا يوجد yarn.lock متتبَّع في المستودع، فكان `yarn install`
+      # يحلّ نسخًا عائمة في كل تشغيل، أي أن البناء الذي نتحقّق منه في CI ليس
+      # نفس البناء المنشور. `npm ci` يثبّت POS/package-lock.json حرفيًا.
       - name: Install frontend dependencies
         working-directory: POS
-        run: yarn install
+        run: npm ci --no-audit --no-fund
 
       - name: Quality gate (vitest + noConsole lint)
         working-directory: POS
