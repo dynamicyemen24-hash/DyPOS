@@ -138,7 +138,7 @@ jobs:
       - name: Deploy failed → actionable secret error
         if: failure() && steps.deploy.outcome == 'failure'
         run: |
-          echo "::error::Cloudflare Pages deploy FAILED. CLOUDFLARE_API_TOKEN is invalid, expired, IP-restricted, or lacks Cloudflare Pages:Edit scope. Fix: Cloudflare dashboard → My Profile → API Tokens → Create Token (account scope, Cloudflare Pages:Edit) with NO IP address restriction — GitHub runners are never on an IP allowlist — then run: gh secret set CLOUDFLARE_API_TOKEN. CLOUDFLARE_ACCOUNT_ID already exists and is correct. Re-run this workflow."
+          echo "::error::Cloudflare Pages deploy FAILED with 'Authentication error [code: 10000]' on /accounts/***/pages/projects/dypos-pos). المؤكّد بالاختبار: the token PASSES the token-verify preflight, so it is NOT invalid or expired — it simply lacks the Cloudflare Pages:Edit permission for this account. Fix: Cloudflare dashboard → My Profile → API Tokens → Create Token (account scope, permission 'Cloudflare Pages:Edit', NO IP address restriction — GitHub runners are never on an IP allowlist), then run: gh secret set CLOUDFLARE_API_TOKEN. CLOUDFLARE_ACCOUNT_ID already exists and is correct. Re-run this workflow. If the account itself refuses the scope, a super admin must grant it (Cloudflare replies 'Contact account super admin')."
 
       # ── لا خطوة لضبط أصل الواجهة الخلفية هنا.
       # `/api/*` يخدمه Worker مستقل اسمه `dypos-api` (wrangler.api.toml) عبر
