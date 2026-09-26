@@ -42,6 +42,7 @@
 import { computed } from "vue"
 import { FeatherIcon } from "frappe-ui"
 import { t } from "@/utils/translation"
+import { formatCurrencySafe } from "@/utils/currency"
 
 const props = defineProps({
 	group: { type: Object, required: true },
@@ -93,10 +94,7 @@ function formatAggregate(fn, columnKey) {
 }
 
 function formatCurrency(val) {
-	return new Intl.NumberFormat("ar-SA", {
-		style: "currency",
-		currency: "SAR",
-	}).format(Number(val))
+	return formatCurrencySafe(val)
 }
 function formatNumber(val) {
 	return new Intl.NumberFormat("ar-SA").format(Number(val))

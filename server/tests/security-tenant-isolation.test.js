@@ -23,11 +23,13 @@ import assert from 'node:assert';
 import http from 'node:http';
 import { once } from 'node:events';
 import { app } from '../server.js';
+import db from '../db/schema.js';
 
 let server, port, tokenA, tokenB, tenantA, tenantB;
 let prodA, custA, invA, webhookA, shiftTerminal;
 
 const stamp = Date.now();
+const isoWhA = `ISO-WH-A-${stamp}`;
 
 before(async () => {
   server = http.createServer(app);
@@ -64,8 +66,17 @@ before(async () => {
   assert.strictEqual(cust.status, 201, 'customer fixture');
   custA = cust.body.id;
 
-  const inv = await req('POST', '/api/invoices', { items: [{ productId: prodA, qty: 1 }], customerId: custA }, tokenA, A);
+  // Receivables fixtures only carry rows with remaining_amount > 0. A plain
+  // invoice is settled in full (default CASH payment == total), so tenant A's
+  // fixture is created as an explicit PARTIAL credit sale: it lands in both the
+  // unpaid and the partial-paid list planes the scoping tests assert on.
+  const inv = await req('POST', '/api/invoices', {
+    items: [{ productId: prodA, qty: 1 }],
+    customerId: custA,
+    payments: [{ method: 'CASH', amount: 30 }],
+  }, tokenA, A);
   assert.strictEqual(inv.status, 201, `invoice fixture: ${JSON.stringify(inv.body)}`);
+  assert.strictEqual(inv.body.status, 'PARTIAL', `partial invoice fixture: ${JSON.stringify(inv.body)}`);
   invA = inv.body.invoiceId;
 
   shiftTerminal = `ISO-T-${stamp}`;
@@ -146,4 +157,98 @@ describe('Tenant isolation — FIXED (secure behavior asserted)', () => {
     const spoofed = await req('POST', '/api/customers', { name: 'Spoofed Into A', phone: '0592002002' }, tokenB, { 'X-Tenant-Id': tenantA });
     assert.strictEqual(spoofed.status, 403, 'bound user cannot spoof another tenant');
   });
+
+  it('stock GET / (bulk) — cross-tenant levels hidden', async () => {
+    const r = await req('GET', '/api/stock?warehouse=W-01', null, tokenB, { 'X-Tenant-Id': tenantB });
+    assert.strictEqual(r.status, 200);
+    const ids = r.body.stock.map((s) => s.product_id);
+    assert.ok(!ids.includes(prodA), 'tenant-A stock level is scoped away from tenant B');
+  });
+
+  it('stock GET / (bulk) — all_warehouses=1 still honours the tenant scope', async () => {
+    const r = await req('GET', '/api/stock?all_warehouses=1', null, tokenB, { 'X-Tenant-Id': tenantB });
+    assert.strictEqual(r.status, 200);
+    assert.strictEqual(r.body.allWarehouses, true);
+    const ids = r.body.stock.map((s) => s.product_id);
+    assert.ok(!ids.includes(prodA), 'spanning warehouses must not leak another tenant');
+  });
+
+  it('stock GET / (bulk) — a bound caller cannot widen scope via ?tenant=', async () => {
+    const r = await req('GET', `/api/stock?warehouse=W-01&tenant=${tenantA}`, null, tokenB, { 'X-Tenant-Id': tenantB });
+    assert.strictEqual(r.status, 403, 'bound user must not read another tenant via ?tenant=');
+  });
+
+  it('get_warehouses — a tenant-owned warehouse is hidden from other tenants', async () => {
+    // Warehouses carry an optional tenant_id (migrated). A tenant-owned row must
+    // not appear in another tenant's picker, which drives their stock reads.
+    db.prepare('INSERT OR REPLACE INTO warehouses (id,name,is_active,tenant_id) VALUES (?,?,1,?)')
+      .run(isoWhA, `ISO Warehouse A ${stamp}`, tenantA);
+
+    const mine = await req('POST', '/api/method/DyPOS.api.pos_profile.get_warehouses', {}, tokenA, { 'X-Tenant-Id': tenantA });
+    assert.strictEqual(mine.status, 200);
+    assert.ok(mine.body.message.some((w) => w.id === isoWhA), 'owner sees its own warehouse');
+
+    const theirs = await req('POST', '/api/method/DyPOS.api.pos_profile.get_warehouses', {}, tokenB, { 'X-Tenant-Id': tenantB });
+    assert.strictEqual(theirs.status, 200);
+    assert.ok(!theirs.body.message.some((w) => w.id === isoWhA), 'foreign tenant warehouse is scoped away');
+  });
+});
+
+/**
+ * partial_payments list endpoints are the method-router read plane for
+ * receivables. They previously ran unscoped `SELECT * FROM invoices WHERE ...`,
+ * so tenant B saw tenant A's unpaid/partial invoices and their money totals.
+ * Every statement now carries the resolveTenantFilter clause (fail-closed 403
+ * on an invalid/spoofed tenant) plus `start` offset paging.
+ */
+describe('Tenant isolation — partial_payments list plane (scoped + paged)', () => {
+  const method = async (path, tok, tenantId, body) => {
+    const r = await req('POST', `/api/method/${path}`, body || {}, tok, { 'X-Tenant-Id': tenantId });
+    assert.strictEqual(r.status, 200, `${path} must answer 200 for a bound tenant`);
+    return Array.isArray(r.body.message) ? r.body.message : r.body.message;
+  };
+
+  const LIST_PATHS = [
+    'DyPOS.api.partial_payments.get_unpaid_invoices',
+    'DyPOS.api.partial_payments.get_partial_paid_invoices',
+  ];
+  const SUMMARY_PATHS = [
+    'DyPOS.api.partial_payments.get_unpaid_summary',
+    'DyPOS.api.partial_payments.get_partial_payment_summary',
+  ];
+
+  for (const p of LIST_PATHS) {
+    it(`${p} — tenant-A invoice never leaks to tenant B`, async () => {
+      const rows = await method(p, tokenB, tenantB, { limit: 200, start: 0 });
+      const ids = rows.map((r) => r.id || r.name);
+      assert.ok(!ids.includes(invA), `${p} must scope away tenant-A invoice ${invA}`);
+    });
+
+    it(`${p} — tenant A sees its own invoice (scoped read still works)`, async () => {
+      const rows = await method(p, tokenA, tenantA, { limit: 200, start: 0 });
+      const ids = rows.map((r) => r.id || r.name);
+      assert.ok(ids.includes(invA), `${p} must still return tenant A's own invoice`);
+    });
+
+    it(`${p} — spoofed tenant header is rejected (403)`, async () => {
+      const r = await req('POST', `/api/method/${p}`, { limit: 10 }, tokenB, { 'X-Tenant-Id': tenantA });
+      assert.strictEqual(r.status, 403, `${p} must fail closed on a spoofed tenant`);
+    });
+  }
+
+  for (const p of SUMMARY_PATHS) {
+    it(`${p} — totals exclude tenant-A money`, async () => {
+      const mine = await method(p, tokenA, tenantA);
+      const theirs = await method(p, tokenB, tenantB);
+      assert.ok(
+        (theirs.count || 0) <= (mine.count || 0),
+        `${p}: tenant B count must not exceed tenant A's global pool`,
+      );
+    });
+
+    it(`${p} — spoofed tenant header is rejected (403)`, async () => {
+      const r = await req('POST', `/api/method/${p}`, {}, tokenB, { 'X-Tenant-Id': tenantA });
+      assert.strictEqual(r.status, 403, `${p} must fail closed on a spoofed tenant`);
+    });
+  }
 });

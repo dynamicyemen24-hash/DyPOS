@@ -25,3 +25,14 @@ export {
 	availableQty,
 	checkAvailability,
 } from "./inventoryRepository.js"
+export {
+	productRepository,
+	findByBarcode,
+	listByCategory,
+	lowStock,
+} from "./productRepository.js"
+export {
+	customerRepository,
+	normalizePhone,
+	findByPhone,
+} from "./customerRepository.js"

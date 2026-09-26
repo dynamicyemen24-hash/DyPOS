@@ -254,9 +254,12 @@
             <tr v-if="!hasVisibleRows" class="work-data-grid__empty-row">
               <td :colspan="totalColumns" class="work-data-grid__empty-cell">
                 <WorkEmptyState
-                  :icon="emptyIcon"
-                  :title="emptyTitle"
-                  :description="emptyDescription"
+					:icon="emptyIcon"
+					:title="emptyTitle"
+					:description="emptyDescription"
+					:action-label="emptyActionLabel"
+					:action-icon="emptyActionIcon"
+					@action="emptyAction && emptyAction()"
                   :size="'sm'"
                 />
               </td>
@@ -414,6 +417,7 @@ import {
 } from "vue"
 import { FeatherIcon } from "frappe-ui"
 import { t } from "@/utils/translation"
+import { formatCurrencySafe } from "@/utils/currency"
 import WorkSearch from "./WorkSearch.vue"
 import WorkActions from "./WorkActions.vue"
 import WorkPagination from "./WorkPagination.vue"
@@ -461,6 +465,9 @@ const props = defineProps({
 	emptyIcon: { type: String, default: "inbox" },
 	emptyTitle: { type: String, default: "noData" },
 	emptyDescription: { type: String, default: "noDataDescription" },
+	emptyActionLabel: { type: String, default: "" },
+	emptyActionIcon: { type: String, default: "plus" },
+	emptyAction: { type: Function, default: null },
 	ariaLabel: { type: String, default: "Data Grid" },
 	bulkActions: { type: Array, default: () => [] },
 	groupBy: { type: String, default: "" },
@@ -931,10 +938,7 @@ function formatCell(row, column) {
 }
 
 function formatCurrency(val) {
-	return new Intl.NumberFormat("ar-SA", {
-		style: "currency",
-		currency: "SAR",
-	}).format(Number(val))
+	return formatCurrencySafe(val)
 }
 function formatNumber(val) {
 	return new Intl.NumberFormat("ar-SA").format(Number(val))

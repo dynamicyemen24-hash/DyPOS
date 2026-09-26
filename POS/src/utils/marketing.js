@@ -1,5 +1,6 @@
 /** DyPOS Marketing & Referral System v1.33.0 — single source: server/lib/version.js */
 import { logger } from "@/utils/logger"
+import { DEFAULT_CURRENCY } from "@/utils/currency"
 
 const log = logger.create("Marketing")
 
@@ -97,16 +98,24 @@ export function trackReferral({
  * @returns {Object} Reward details
  */
 export function getReferralReward(action, tier = 1) {
+	// Credit labels are user-facing, so they must follow the shop's configured
+	// currency rather than assuming every deployment bills in SAR.
 	const rewards = {
 		signup: {
-			tier1: { credit: 10, label: "10 SAR credit for signup" },
-			tier2: { credit: 20, label: "20 SAR credit for signup" },
-			tier3: { credit: 50, label: "50 SAR credit for signup" },
+			tier1: { credit: 10, label: `10 ${DEFAULT_CURRENCY} credit for signup` },
+			tier2: { credit: 20, label: `20 ${DEFAULT_CURRENCY} credit for signup` },
+			tier3: { credit: 50, label: `50 ${DEFAULT_CURRENCY} credit for signup` },
 		},
 		firstPurchase: {
-			tier1: { credit: 50, label: "50 SAR on first purchase" },
-			tier2: { credit: 100, label: "100 SAR on first purchase" },
-			tier3: { credit: 200, label: "200 SAR on first purchase" },
+			tier1: { credit: 50, label: `50 ${DEFAULT_CURRENCY} on first purchase` },
+			tier2: {
+				credit: 100,
+				label: `100 ${DEFAULT_CURRENCY} on first purchase`,
+			},
+			tier3: {
+				credit: 200,
+				label: `200 ${DEFAULT_CURRENCY} on first purchase`,
+			},
 		},
 		recurring: {
 			tier1: { percentage: 5, label: "5% commission" },
@@ -180,12 +189,15 @@ export function getMarketingAnalytics({ userId, period = 30 }) {
 
 /**
  * Format money for display in marketing materials
- * @param {number} amount - Amount in SAR
+ * @param {number} amount - Amount in the configured currency
  * @param {Object} options - Formatting options
- * @param {string} options.currency - Currency code (default: "SAR")
+ * @param {string} options.currency - Currency code (default: the configured one)
  * @returns {string} Formatted money string
  */
-export function formatMarketingMoney(amount, { currency = "SAR" } = {}) {
+export function formatMarketingMoney(
+	amount,
+	{ currency = DEFAULT_CURRENCY } = {},
+) {
 	return `${amount.toFixed(2)} ${currency}`
 }
 

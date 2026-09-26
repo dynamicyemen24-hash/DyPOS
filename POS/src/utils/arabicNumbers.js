@@ -7,6 +7,8 @@
  */
 
 const ARABIC_DIGITS = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"]
+import { getCurrencySymbol } from "./currency"
+
 const LATIN_DIGITS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
 const ARABIC_DIGIT_MAP = Object.fromEntries(
 	ARABIC_DIGITS.map((d, i) => [d, LATIN_DIGITS[i]]),
@@ -68,12 +70,16 @@ export function formatNumber(value, opts = {}) {
  * Format a currency amount in Arabic.
  * @param {number} amount
  * @param {Object} [opts]
- * @param {string} [opts.currency="ج.م"]
+ * @param {string} [opts.currency] - defaults to the configured currency symbol
  * @param {string} [opts.position="after"]
  * @returns {string}
  */
 export function formatCurrency(amount, opts = {}) {
-	const { currency = "ج.م", position = "after", decimals = 2 } = opts
+	const {
+		currency = getCurrencySymbol(),
+		position = "after",
+		decimals = 2,
+	} = opts
 	const formatted = formatNumber(amount, { decimals })
 	return position === "before"
 		? `${currency} ${formatted}`

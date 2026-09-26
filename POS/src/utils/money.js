@@ -15,7 +15,7 @@
  * Pure + fully unit-tested. No DOM, no I/O.
  */
 
-/** Major (SAR 19.99) → minor integer (1999). */
+/** Major (e.g. 19.99) → minor integer (1999). */
 export function toMinor(major) {
 	const n = Number(major)
 	if (!Number.isFinite(n)) return 0

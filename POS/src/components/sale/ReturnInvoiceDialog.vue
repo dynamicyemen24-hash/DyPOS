@@ -137,7 +137,7 @@
 													v-if="suggestion.contact_mobile"
 													class="text-gray-400"
 												>
-													•
+													â€¢
 													<span
 														v-html="
 															highlightSearchMatch(
@@ -163,7 +163,7 @@
 						</div>
 						<Button
 							variant="subtle"
-							@click="loadInvoicesResource.reload()"
+							@click="reloadReturnableInvoices()"
 							:loading="loadInvoicesResource.loading"
 							:disabled="isOffline"
 							:title="isOffline ? __('Refresh unavailable offline') : __('Refresh')"
@@ -234,7 +234,7 @@
 									<p class="text-xs text-gray-600 mt-1 text-start">
 										{{ invoice.customer_name }}
 										<span v-if="invoice.contact_mobile" class="text-gray-400">
-											• {{ invoice.contact_mobile }}</span
+											â€¢ {{ invoice.contact_mobile }}</span
 										>
 									</p>
 									<p class="text-xs text-gray-500 text-start">
@@ -248,6 +248,24 @@
 									</p>
 								</div>
 							</div>
+						</div>
+						<!-- Load More (paging) -->
+						<div
+							v-if="hasMoreReturnable && filteredInvoiceList.length > 0"
+							class="flex justify-center py-2"
+						>
+							<button
+								type="button"
+								class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+								:disabled="loadInvoicesResource.loading"
+								@click="loadMoreReturnableInvoices"
+							>
+								{{
+									__("ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ù…Ø²ÙŠØ¯ ({0})", [
+										invoiceList.length,
+									])
+								}}
+							</button>
 						</div>
 						<!-- Searching Indicator -->
 						<div
@@ -489,7 +507,7 @@
 										class="text-xs text-amber-600 mt-0.5"
 									>
 										{{
-											__("⚠️ {0} already returned", [item.already_returned])
+											__("âš ï¸ {0} already returned", [item.already_returned])
 										}}
 									</p>
 								</div>
@@ -509,7 +527,7 @@
 											:disabled="!item.selected || item.return_qty <= 1"
 											class="flex-shrink-0 w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 font-bold text-lg transition-colors flex items-center justify-center border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
 										>
-											−
+											âˆ’
 										</button>
 										<input
 											v-model.number="item.return_qty"
@@ -560,7 +578,7 @@
 										<span
 											v-if="item.discount_per_unit > 0"
 											class="inline-flex items-center px-1 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700"
-											>−{{ formatCurrency(item.discount_per_unit) }}</span
+											>âˆ’{{ formatCurrency(item.discount_per_unit) }}</span
 										>
 										<span
 											v-if="
@@ -606,7 +624,7 @@
 											class="text-xs text-amber-600 mt-1"
 										>
 											{{
-												__("⚠️ {0} already returned", [
+												__("âš ï¸ {0} already returned", [
 													item.already_returned,
 												])
 											}}
@@ -631,7 +649,7 @@
 											:disabled="!item.selected || item.return_qty <= 1"
 											class="flex-1 h-10 rounded-lg bg-white border-2 border-gray-300 flex items-center justify-center text-gray-700 active:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed font-bold text-xl"
 										>
-											−
+											âˆ’
 										</button>
 										<input
 											v-model.number="item.return_qty"
@@ -686,7 +704,7 @@
 											<span
 												v-if="item.discount_per_unit > 0"
 												class="inline-flex items-center px-1 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700"
-												>−{{
+												>âˆ’{{
 													formatCurrency(item.discount_per_unit)
 												}}</span
 											>
@@ -857,7 +875,7 @@
 											{{
 												payment.mode_of_payment
 													? getPaymentIcon(payment.mode_of_payment)
-													: "💰"
+													: "ðŸ’°"
 											}}
 										</div>
 										<select
@@ -887,7 +905,7 @@
 											type="button"
 											class="flex-shrink-0 w-10 h-10 sm:w-9 sm:h-9 rounded-lg bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 font-bold text-xl transition-colors flex items-center justify-center border border-gray-300"
 										>
-											−
+											âˆ’
 										</button>
 										<input
 											:value="payment.amount"
@@ -974,8 +992,8 @@
 							>
 								{{
 									isPartiallyPaid
-										? __("⚠️ Payment total must equal refundable amount")
-										: __("⚠️ Payment total must equal refund amount")
+										? __("âš ï¸ Payment total must equal refundable amount")
+										: __("âš ï¸ Payment total must equal refund amount")
 								}}
 							</p>
 						</div>
@@ -1270,25 +1288,58 @@ const returnExpiredDialog = reactive({
 })
 
 // Resource for loading recent invoices (only those with items available for return)
+const RETURNABLE_PAGE_SIZE = 50
+const returnablePageStart = ref(0)
+// The endpoint returns a bare array, so "is there another page?" is answered
+// honestly by the page size: a short page means the end was reached. No
+// fabricated total, and no silent 50-invoice cap.
+const hasMoreReturnable = ref(false)
+
 const loadInvoicesResource = createResource({
 	url: "DyPOS.api.invoices.get_returnable_invoices",
 	makeParams() {
 		return {
-			limit: 50,
+			limit: RETURNABLE_PAGE_SIZE,
+			start: returnablePageStart.value,
 			pos_profile: props.posProfile,
 		}
 	},
 	auto: false,
 	onSuccess(data) {
-		if (data) {
-			invoiceList.value = data
+		const page = data || []
+		// Append when paging forward; replace on a fresh (start=0) load.
+		if (returnablePageStart.value > 0) {
+			const seen = new Set(invoiceList.value.map((inv) => inv.name))
+			invoiceList.value = [
+				...invoiceList.value,
+				...page.filter((inv) => !seen.has(inv.name)),
+			]
+		} else {
+			invoiceList.value = page
 		}
+		hasMoreReturnable.value = page.length >= RETURNABLE_PAGE_SIZE
 	},
 	onError(error) {
 		log.error("Error loading invoices:", error)
 		showError(__("Failed to load recent invoices"))
 	},
 })
+
+function loadMoreReturnableInvoices() {
+	if (loadInvoicesResource.loading || !hasMoreReturnable.value) return
+	// Advance by the page size, not by the de-duplicated list length: a page
+	// whose rows were all duplicates must still move the window forward,
+	// otherwise the offset stalls and re-requests the same rows forever.
+	returnablePageStart.value += RETURNABLE_PAGE_SIZE
+	return loadInvoicesResource.reload()
+}
+
+/** Fresh load: always restarts from the first page. */
+function reloadReturnableInvoices() {
+	returnablePageStart.value = 0
+	hasMoreReturnable.value = false
+	return loadInvoicesResource.reload()
+}
 
 // Resource for searching a specific invoice by number (searches entire database)
 const searchInvoiceByNumberResource = createResource({
@@ -1327,7 +1378,7 @@ const loadPaymentMethodsResource = createResource({
 			// Re-initialize refund payments now that we know the current
 			// profile's modes. initializePaymentsFromInvoice() may have
 			// already run (from fetchInvoiceResource.onSuccess) before
-			// paymentMethods were loaded — in that case it skipped the
+			// paymentMethods were loaded â€” in that case it skipped the
 			// foreign mode remap. Now that modes are available, re-run
 			// to validate and remap any foreign modes from cross-branch
 			// returns. See initializePaymentsFromInvoice() JSDoc for details.
@@ -1523,7 +1574,7 @@ const createReturnResource = createResource({
 		emit("return-created", data)
 
 		// Reload the invoice list to remove fully returned invoices
-		loadInvoicesResource.reload()
+		reloadReturnableInvoices()
 
 		// Close return modal and go back to invoice list
 		closeReturnModal()
@@ -1568,7 +1619,7 @@ watch(
 				checkValidityAndOpenModal(props.preselectedInvoice.name, true)
 			} else {
 				// Normal flow - show the invoice selection dialog
-				loadInvoicesResource.reload()
+				reloadReturnableInvoices()
 			}
 		} else {
 			resetForm()
@@ -1853,11 +1904,11 @@ function removePaymentRow(paymentIndex) {
 }
 
 /**
- * Cross-branch return — frontend safety net (Layer 2).
+ * Cross-branch return â€” frontend safety net (Layer 2).
  *
  * Pre-fills refund payment rows from the original invoice's payments.
  * The backend (prepare_return_invoice) already remaps foreign payment modes
- * by type (Cash→Cash, Bank→Bank) via _remap_foreign_payment_modes. This
+ * by type (Cashâ†’Cash, Bankâ†’Bank) via _remap_foreign_payment_modes. This
  * function provides a second line of defense: if a mode in the original
  * invoice doesn't exist in the current POS profile's paymentMethods, it
  * falls back to the profile's default (first) mode.

@@ -525,8 +525,8 @@ export const usePOSCartStore = defineStore("posCart", () => {
 				: [],
 			// Header-level (transaction-scope) discount surfaced by the server when an
 			// apply_on=Transaction Price rule fires. discountAmount is the resolved
-			// SAR amount (already computed from % if the rule is percentage-based).
-			// Zero/empty when no such rule applies.
+			// amount in the transaction currency (already computed from % if the rule
+			// is percentage-based). Zero/empty when no such rule applies.
 			headerDiscount: {
 				discountAmount: toMajor(Number(payload.discount_amount) || 0),
 				applyDiscountOn: payload.apply_discount_on || null,

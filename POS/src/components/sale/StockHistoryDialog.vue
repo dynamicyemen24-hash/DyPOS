@@ -222,7 +222,7 @@ const movementColumns = [
 const productSearchDebounce = ref(null)
 
 function formatCurrency(amount) {
-	return formatCurrencyUtil(Number.parseFloat(amount || 0), "SAR")
+	return formatCurrencyUtil(Number.parseFloat(amount || 0))
 }
 
 function formatDateTime(iso) {

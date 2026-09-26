@@ -330,6 +330,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from "vue"
+import { DEFAULT_CURRENCY } from "@/utils/currency"
 import { Badge, Button, FeatherIcon, LoadingIndicator } from "frappe-ui"
 import { t } from "@/utils/translation"
 import { apiGet, apiPost, apiDownload } from "@/utils/restApi"
@@ -348,7 +349,7 @@ const props = defineProps({
 	categories: { type: Array, default: () => [] },
 	currencies: { type: Array, default: () => [] },
 	uoms: { type: Array, default: () => [] },
-	selectedCurrency: { type: String, default: "SAR" },
+	selectedCurrency: { type: String, default: () => DEFAULT_CURRENCY },
 	selectedUom: { type: String, default: "PCS" },
 })
 
@@ -577,11 +578,13 @@ function downloadImportTemplate() {
 		"batch_number",
 		"expiry_date",
 	]
+	// Template currency column follows the selected/configured currency.
+	const cur = selectedCurrency.value
 	const csv = [
 		headers.join(","),
-		"PROD-001,W-01,100,PCS,SAR,25.50,Opening Balance,OB-2024-001,BATCH-001,2025-12-31",
-		"PROD-002,W-01,50,BOX,SAR,15.75,Opening Balance,OB-2024-002,BATCH-002,2025-06-30",
-		"PROD-003,W-02,25,KG,SAR,120.00,Transfer In,TRF-001,,",
+		`PROD-001,W-01,100,PCS,${cur},25.50,Opening Balance,OB-2024-001,BATCH-001,2025-12-31`,
+		`PROD-002,W-01,50,BOX,${cur},15.75,Opening Balance,OB-2024-002,BATCH-002,2025-06-30`,
+		`PROD-003,W-02,25,KG,${cur},120.00,Transfer In,TRF-001,,`,
 	].join("\n")
 	downloadBlob(csv, "text/csv", "stock_count_import_template.csv")
 }

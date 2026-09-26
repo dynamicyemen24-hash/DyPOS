@@ -15,6 +15,7 @@
 					<p v-if="subtitle" class="text-xs text-gray-500">{{ __(subtitle) }}</p>
 				</div>
 				<Badge v-if="lastLoaded" :label="timeAgo(lastLoaded)" theme="subtle" size="sm" />
+				<Badge v-if="isStale" :label="__('بيانات محفوظة — تعذّر التحديث')" theme="amber" size="sm" />
 				<Badge v-if="realtime" label="Live" theme="green" size="sm" />
 			</div>
 			<div class="flex items-center gap-2">
@@ -101,6 +102,7 @@ const props = defineProps({
 	loading: { type: Boolean, default: false },
 	error: { type: String, default: "" },
 	hasData: { type: Boolean, default: false },
+	isStale: { type: Boolean, default: false },
 	lastLoaded: { type: Date, default: null },
 	realtime: { type: Boolean, default: false },
 	autoRefresh: { type: Boolean, default: false },

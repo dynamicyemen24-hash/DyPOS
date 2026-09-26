@@ -158,9 +158,12 @@
           <tr v-if="!sortedRows.length" class="work-table__empty-row">
             <td :colspan="totalColumns" class="work-table__empty-cell">
               <WorkEmptyState
-                :icon="emptyIcon"
-                :title="emptyTitle"
-                :description="emptyDescription"
+			:icon="emptyIcon"
+			:title="emptyTitle"
+			:description="emptyDescription"
+			:action-label="emptyActionLabel"
+			:action-icon="emptyActionIcon"
+			@action="emptyAction && emptyAction()"
                 :size="'sm'"
               />
             </td>
@@ -186,6 +189,7 @@
 import { computed, ref, watch, nextTick } from "vue"
 import { FeatherIcon } from "frappe-ui"
 import { t } from "@/utils/translation"
+import { formatCurrencySafe } from "@/utils/currency"
 import WorkEmptyState from "./WorkEmptyState.vue"
 import WorkPagination from "./WorkPagination.vue"
 
@@ -229,6 +233,9 @@ const props = defineProps({
 	emptyIcon: { type: String, default: "inbox" },
 	emptyTitle: { type: String, default: "noData" },
 	emptyDescription: { type: String, default: "noDataDescription" },
+	emptyActionLabel: { type: String, default: "" },
+	emptyActionIcon: { type: String, default: "plus" },
+	emptyAction: { type: Function, default: null },
 	/** Accessibility */
 	ariaLabel: { type: String, default: "Data Table" },
 })
@@ -391,10 +398,7 @@ function handlePageSizeChange(size) {
 }
 
 function formatCurrency(val) {
-	return new Intl.NumberFormat("ar-SA", {
-		style: "currency",
-		currency: "SAR",
-	}).format(Number(val))
+	return formatCurrencySafe(val)
 }
 function formatNumber(val) {
 	return new Intl.NumberFormat("ar-SA").format(Number(val))

@@ -190,7 +190,7 @@ const totalPages = computed(() =>
 )
 
 function formatCurrency(amount) {
-	return formatCurrencyUtil(Number.parseFloat(amount || 0), "SAR")
+	return formatCurrencyUtil(Number.parseFloat(amount || 0))
 }
 
 async function loadReorderData() {

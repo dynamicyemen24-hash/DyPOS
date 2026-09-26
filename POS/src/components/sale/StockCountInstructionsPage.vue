@@ -206,25 +206,20 @@
       </div>
     </div>
 
-    <!-- Contact/Support -->
-    <div class="mt-6 p-4 bg-gray-50 rounded-xl border text-center">
-      <p class="text-gray-600 mb-2">{{ __("هل تحتاج مساعدة؟") }}</p>
-      <div class="flex justify-center gap-4">
-        <Button variant="outline" size="sm" @click="showHelp">
-          <FeatherIcon name="help-circle" class="w-4 h-4" />
-          {{ __("دليل المستخدم") }}
-        </Button>
-        <Button variant="outline" size="sm" @click="contactSupport">
-          <FeatherIcon name="message-square" class="w-4 h-4" />
-          {{ __("الدعم الفني") }}
-        </Button>
-      </div>
+    <!-- Offline checklist -->
+    <div class="mt-6 p-4 bg-gray-50 rounded-xl border text-center no-print">
+      <p class="text-gray-600 mb-2">{{ __("خطوات الجرد متاحة أعلاه للرجوع إليها أثناء التنفيذ") }}</p>
+      <Button variant="outline" size="sm" @click="printGuide">
+        <FeatherIcon name="printer" class="w-4 h-4" />
+        {{ __("طباعة قائمة التحقق") }}
+      </Button>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from "vue"
+import { DEFAULT_CURRENCY } from "@/utils/currency"
 import { FeatherIcon } from "frappe-ui"
 import { t } from "@/utils/translation"
 
@@ -232,7 +227,7 @@ const props = defineProps({
 	warehouses: { type: Array, default: () => [] },
 	currencies: { type: Array, default: () => [] },
 	uoms: { type: Array, default: () => [] },
-	selectedCurrency: { type: String, default: "SAR" },
+	selectedCurrency: { type: String, default: () => DEFAULT_CURRENCY },
 	selectedUom: { type: String, default: "PCS" },
 })
 
@@ -296,15 +291,11 @@ const criticalRules = [
 	"كل فرق يجب أن يكون له سبب موثق وموقع من العاد والمراجع",
 	"لا يتم قبول أي كمية سالبة إلا للتلفيات والمرتجعات الموثقة",
 	"يجب مراجعة الأصناف ذات الوحدات المركبة (صندوق = 12 قطعة) بدقة",
-	"العملة الأساسية للتقارير هي عملة المنشأة (SAR) - التحويل تلقائي",
+	"العملة الأساسية للتقارير هي عملة المنشأة — التحويل تلقائي",
 ]
 
-function showHelp() {
-	alert("سيتم فتح دليل المستخدم الشامل")
-}
-
-function contactSupport() {
-	alert("سيتم فتح نافذة الدعم الفني")
+function printGuide() {
+	window.print()
 }
 </script>
 

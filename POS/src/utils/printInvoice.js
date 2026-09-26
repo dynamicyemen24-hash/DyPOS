@@ -211,7 +211,7 @@ export function buildReceiptHTML(invoiceData) {
 	return `
 			<div class="receipt">
 				<div class="header">
-					<div class="company-name">${invoiceData.company || "DyPOS"}</div>
+					<div class="company-name">${invoiceData.company || ""}</div>
 					<div style="font-size: 12px;">${invoiceData.header || __("TAX INVOICE")}</div>
 				</div>
 

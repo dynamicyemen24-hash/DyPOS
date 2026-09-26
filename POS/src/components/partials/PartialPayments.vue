@@ -319,6 +319,32 @@
 									</div>
 								</div>
 							</div>
+							<div
+								v-if="hasMoreInvoices"
+								class="flex flex-col items-center gap-1 pt-1"
+							>
+								<button
+									type="button"
+									class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+									:disabled="loadingMore"
+									@click="loadMoreInvoices"
+								>
+									{{
+										__(
+											"تحميل المزيد ({0} من {1})",
+											[invoices.length, summary.count],
+										)
+									}}
+								</button>
+								<p class="text-xs text-gray-500">
+									{{
+										__(
+											"يتم عرض {0} من {1} فاتورة",
+											[invoices.length, summary.count],
+										)
+									}}
+								</p>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -346,7 +372,7 @@ import { usePOSSettingsStore } from "@/stores/posSettings"
 import { useToast } from "@/composables/useToast"
 import { useFormatters } from "@/composables/useFormatters"
 import { Button, call } from "frappe-ui"
-import { defineAsyncComponent, onMounted, ref, watch } from "vue"
+import { computed, defineAsyncComponent, onMounted, ref, watch } from "vue"
 
 // Lazy: PaymentDialog excluded from first-paint bundle.
 const PaymentDialog = defineAsyncComponent(
@@ -372,12 +398,21 @@ const emit = defineEmits(["update:modelValue"])
 
 const show = ref(props.modelValue)
 const loading = ref(false)
+const loadingMore = ref(false)
+const PAGE_SIZE = 50
 const invoices = ref([])
+// Server-side window position, advanced by the raw page size.
+const nextStart = ref(0)
 const summary = ref({
 	count: 0,
 	total_outstanding: 0,
 	total_paid: 0,
 })
+// The summary is the authoritative total, so the list can grow page by page
+// without ever hiding rows behind a silent 50-row cap.
+const hasMoreInvoices = computed(
+	() => invoices.value.length < (summary.value?.count || 0),
+)
 const selectedInvoice = ref(null)
 const showPaymentDialog = ref(false)
 
@@ -402,27 +437,46 @@ function handleClose() {
 	show.value = false
 }
 
-async function loadInvoices() {
+async function loadInvoices({ append = false } = {}) {
 	if (!props.posProfile) return
 
+	// A dedicated offset (not `invoices.length`) so a page whose rows were all
+	// duplicates still advances the window instead of re-requesting it.
+	const start = append ? nextStart.value : 0
 	loading.value = true
+	loadingMore.value = false
 
 	try {
 		const result = await call(
 			"DyPOS.api.partial_payments.get_partial_paid_invoices",
 			{
 				pos_profile: props.posProfile,
-				limit: 50,
+				limit: PAGE_SIZE,
+				start,
 			},
 		)
-
-		invoices.value = result || []
+		const page = result || []
+		nextStart.value = start + page.length
+		// De-duplicate by invoice name: a payment can land between pages and
+		// shift rows, so the same invoice may arrive twice.
+		const seen = new Set(invoices.value.map((invoice) => invoice.name))
+		invoices.value = [
+			...(append ? invoices.value : []),
+			...page.filter((invoice) => !seen.has(invoice.name)),
+		]
 	} catch (error) {
 		console.error("Error loading partial payments:", error)
 		showError(error.message || __("Failed to load partial payments"))
 	} finally {
 		loading.value = false
+		loadingMore.value = false
 	}
+}
+
+async function loadMoreInvoices() {
+	if (!hasMoreInvoices.value || loadingMore.value) return
+	loadingMore.value = true
+	await loadInvoices({ append: true })
 }
 
 async function loadSummary() {

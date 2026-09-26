@@ -11,8 +11,12 @@
  * utils/currency.js.
  */
 
+// Single source of currency truth: utils/currency.js holds the configured
+// default (set from posSettings via configureCurrency). A second hardcoded
+// "SAR" here would silently format a non-SAR shop as SAR.
+import { DEFAULT_CURRENCY } from "./currency.js"
+
 const DEFAULT_LOCALE = "ar-SA-u-nu-latn"
-const DEFAULT_CURRENCY = "SAR"
 
 // eslint-disable-next-line no-unused-vars
 const ARABIC_INDIC = "٠١٢٣٤٥٦٧٨٩"

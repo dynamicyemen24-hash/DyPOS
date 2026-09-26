@@ -119,6 +119,7 @@
 import { computed } from "vue"
 import { FeatherIcon } from "frappe-ui"
 import { t } from "@/utils/translation"
+import { formatCurrencySafe } from "@/utils/currency"
 import DyBadge from "@/components/ui/DyBadge.vue"
 import InlineEditCell from "./InlineEditCell.vue"
 
@@ -174,10 +175,7 @@ function formatCell(row, column) {
 }
 
 function formatCurrency(val) {
-	return new Intl.NumberFormat("ar-SA", {
-		style: "currency",
-		currency: "SAR",
-	}).format(Number(val))
+	return formatCurrencySafe(val)
 }
 function formatNumber(val) {
 	return new Intl.NumberFormat("ar-SA").format(Number(val))

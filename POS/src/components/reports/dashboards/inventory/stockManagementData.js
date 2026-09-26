@@ -1,86 +1,78 @@
+import { call } from "frappe-ui"
 import { logger } from "@/utils/logger"
 import { apiGet } from "@/utils/restApi"
 
 const log = logger.create("StockManagementData")
 
+// Memory safety bound for low-end terminals. It is NOT a product limit: when
+// the walk stops here the result carries `truncated: true` + the server total so
+// the UI can say "N من M" instead of quietly showing a partial catalog.
 const MAX_RECORDS = 10000
-const CACHE_TTL = 5 * 60 * 1000
 
-let dataCache = null
-let cacheTimestamp = 0
-
-export function clearStockManagementCache() {
-	dataCache = null
-	cacheTimestamp = 0
-}
+export function clearStockManagementCache() {}
 
 export async function loadStockManagementData(filter = {}) {
-	const now = Date.now()
-	if (dataCache && now - cacheTimestamp < CACHE_TTL) {
-		log.debug("Returning cached stock data")
-		return dataCache
+	log.info("Loading stock management data", filter)
+
+	const [products, warehouses, stockRows] = await Promise.all([
+		loadProducts(filter),
+		loadWarehouses(),
+		loadStockLevels(filter),
+	])
+
+	const categories = [
+		...new Set(products.map((p) => p.category).filter(Boolean)),
+	].sort()
+
+	const productsWithStock = mergeStock(products, stockRows, filter)
+
+	const summary = buildSummary(productsWithStock, warehouses)
+	const categoryDistribution = buildCategoryDistribution(productsWithStock)
+	const topByValue = buildTopBy(productsWithStock, "stock_value", 10)
+	const topByQty = buildTopBy(productsWithStock, "qty", 10)
+	const lowStockItems = productsWithStock.filter((p) => {
+		const available = p.qty - (p.reserved_qty || 0)
+		return available <= (p.reorder_point || 0)
+	})
+
+	const result = {
+		products: productsWithStock,
+		warehouses,
+		categories,
+		categoryDistribution,
+		topByValue,
+		topByQty,
+		summary,
+		reorderAlerts: lowStockItems,
+		loadedAt: new Date().toISOString(),
+		// Honesty about coverage: the catalog walk can stop at the client
+		// safety bound, so the UI must be able to say "N من M" and disable
+		// whole-catalog claims (totals, rankings) it cannot back up.
+		truncated: !!products.truncated,
+		productTotal: products.total ?? null,
+		// Stock rows can hit the same client safety bound; totals and rankings
+		// above are only as complete as this flag allows.
+		stockTruncated: !!stockRows.truncated,
 	}
 
-	try {
-		log.info("Loading stock management data", filter)
-
-		const [products, warehouses, stockRows] = await Promise.all([
-			loadProducts(filter),
-			loadWarehouses(),
-			loadStockLevels(filter),
-		])
-
-		const categories = [
-			...new Set(products.map((p) => p.category).filter(Boolean)),
-		].sort()
-
-		const productsWithStock = mergeStock(products, stockRows, filter)
-
-		const summary = buildSummary(productsWithStock, warehouses)
-		const categoryDistribution = buildCategoryDistribution(productsWithStock)
-		const topByValue = buildTopBy(productsWithStock, "stock_value", 10)
-		const topByQty = buildTopBy(productsWithStock, "qty", 10)
-		const lowStockItems = productsWithStock.filter((p) => {
-			const available = p.qty - (p.reserved_qty || 0)
-			return available <= (p.reorder_point || 0)
-		})
-		const lowStockTrend = buildLowStockTrend(lowStockItems)
-
-		const result = {
-			products: productsWithStock,
-			warehouses,
-			categories,
-			stockValueTrend: buildStockValueTrend(productsWithStock),
-			categoryDistribution,
-			topByValue,
-			topByQty,
-			lowStockTrend,
-			summary,
-			reorderAlerts: lowStockItems,
-			loadedAt: new Date().toISOString(),
-		}
-
-		dataCache = result
-		cacheTimestamp = now
-		log.info("Stock management data loaded", {
-			productCount: productsWithStock.length,
-		})
-		return result
-	} catch (error) {
-		log.error("Failed to load stock management data", error)
-		throw error
-	}
+	log.info("Stock management data loaded", {
+		productCount: productsWithStock.length,
+	})
+	return result
 }
 
 async function loadProducts(filter) {
 	const all = []
 	let offset = 0
+	let total = null
 	const pageSize = 200
 	while (all.length < MAX_RECORDS) {
 		const params = {
 			limit: pageSize,
 			offset,
-			warehouse: filter.warehouse || "W-01",
+			// No warehouse filter = every warehouse. Never assume a seeded id
+			// ("W-01"): that silently reported one warehouse's stock as the total.
+			warehouse: filter.warehouse || "",
 			count: "false",
 		}
 		if (filter.search) params.q = filter.search
@@ -88,43 +80,96 @@ async function loadProducts(filter) {
 		const data = await apiGet("/products", params)
 		const rows = data?.products || []
 		all.push(...rows)
+		if (typeof data?.total === "number") total = data.total
 		if (!data?.hasMore || rows.length === 0) break
 		offset += rows.length
 	}
+	const truncated =
+		typeof total === "number" ? all.length < total : all.length >= MAX_RECORDS
+	if (truncated) {
+		log.warn("Product catalog walk stopped at the safety bound", {
+			loaded: all.length,
+			total: total ?? "unknown",
+			bound: MAX_RECORDS,
+		})
+	}
+	all.truncated = truncated
+	all.total = total
 	return all
 }
 
 async function loadWarehouses() {
-	try {
-		const rows = await apiGet("/stock", { warehouse: "", limit: 500 })
-		const ids = new Set(["W-01"])
-		for (const row of rows?.stock || []) {
-			if (row.warehouse_id) ids.add(row.warehouse_id)
-		}
-		return [...ids].map((id) => ({ id, name: id }))
-	} catch (error) {
-		log.warn("Falling back to default warehouses", error)
-		return [{ id: "W-01", name: "W-01" }]
+	// The warehouse list must come from the warehouses table, not from stock
+	// rows: deriving it from /stock only ever surfaced whichever warehouse the
+	// caller happened to be reading, hiding empty (but selectable) warehouses.
+	const rows = await call("DyPOS.api.pos_profile.get_warehouses")
+	const seen = new Set()
+	const out = []
+	for (const row of rows || []) {
+		const id = row?.id || row?.name
+		if (!id || seen.has(id)) continue
+		seen.add(id)
+		out.push({
+			id,
+			name: row.warehouse_name || row.name || id,
+			isActive: row.is_active === undefined ? true : !!row.is_active,
+		})
 	}
+	return out
 }
 
 async function loadStockLevels(filter) {
-	try {
-		const warehouse = filter.warehouse || "W-01"
-		const data = await apiGet("/stock", { warehouse, limit: 500 })
-		return data?.stock || []
-	} catch (error) {
-		log.warn("Failed to load stock levels", error)
-		return []
+	const warehouse = filter.warehouse || ""
+	// An absent ?warehouse= defaults to W-01 server-side, so "all warehouses"
+	// must be requested explicitly — otherwise every total silently covered a
+	// single warehouse while claiming to be the whole estate.
+	const all = []
+	let offset = 0
+	const pageSize = 500
+	let truncated = false
+	while (all.length < MAX_RECORDS) {
+		const params = { limit: pageSize, offset }
+		if (warehouse) params.warehouse = warehouse
+		else params.all_warehouses = "1"
+		const data = await apiGet("/stock", params)
+		const rows = data?.stock || []
+		all.push(...rows)
+		if (!data?.hasMore || rows.length === 0) break
+		offset += rows.length
 	}
+	if (all.length >= MAX_RECORDS) {
+		truncated = true
+		log.warn("Stock walk stopped at the safety bound", {
+			loaded: all.length,
+			bound: MAX_RECORDS,
+			warehouse: warehouse || "ALL",
+		})
+	}
+	all.truncated = truncated
+	return all
 }
 
 function mergeStock(products, stockRows, filter) {
+	const warehouse = filter.warehouse || ""
+	// With no warehouse selected the /stock response carries one row PER
+	// warehouse, so a plain "last row wins" map would report a single
+	// warehouse's quantity and understate the real total. Sum per product.
 	const byProduct = new Map()
 	for (const row of stockRows) {
-		byProduct.set(row.product_id, row)
+		const key = row.product_id
+		const qty = Number(row.qty) || 0
+		const reserved = Number(row.reserved_qty) || 0
+		const prev = byProduct.get(key)
+		if (warehouse || !prev) {
+			byProduct.set(key, { ...row, qty, reserved_qty: reserved })
+		} else {
+			byProduct.set(key, {
+				...prev,
+				qty: (Number(prev.qty) || 0) + qty,
+				reserved_qty: (Number(prev.reserved_qty) || 0) + reserved,
+			})
+		}
 	}
-	const warehouse = filter.warehouse || "W-01"
 	const rows = products.map((p) => {
 		const stock = byProduct.get(p.id)
 		const qty = Number(p.stock_qty ?? stock?.qty ?? 0) || 0
@@ -193,49 +238,15 @@ function buildTopBy(products, key, limit) {
 		}))
 }
 
-function buildStockValueTrend(products) {
-	const total = products.reduce((s, p) => s + (p.stock_value || 0), 0)
-	const today = new Date()
-	const points = []
-	for (let i = 29; i >= 0; i--) {
-		const d = new Date(today)
-		d.setDate(today.getDate() - i)
-		const wobble = 1 + Math.sin(i / 4) * 0.03
-		points.push({
-			date: d.toISOString().slice(0, 10),
-			value: Math.round(total * wobble),
-		})
-	}
-	return points
-}
-
-function buildLowStockTrend(lowStockItems) {
-	const count = lowStockItems.length
-	const today = new Date()
-	const points = []
-	for (let i = 29; i >= 0; i--) {
-		const d = new Date(today)
-		d.setDate(today.getDate() - i)
-		const wobble = Math.round(Math.sin(i / 3) * Math.max(1, count * 0.1))
-		points.push({
-			date: d.toISOString().slice(0, 10),
-			count: Math.max(0, count + wobble),
-		})
-	}
-	return points
-}
-
 export function buildStockManagementModels(raw) {
 	if (!raw) {
 		return {
 			products: [],
 			warehouses: [],
 			categories: [],
-			stockValueTrend: [],
 			categoryDistribution: [],
 			topByValue: [],
 			topByQty: [],
-			lowStockTrend: [],
 			summary: {},
 			reorderAlerts: [],
 		}
@@ -244,11 +255,9 @@ export function buildStockManagementModels(raw) {
 		products: raw.products || [],
 		warehouses: raw.warehouses || [],
 		categories: raw.categories || [],
-		stockValueTrend: raw.stockValueTrend || [],
 		categoryDistribution: raw.categoryDistribution || [],
 		topByValue: raw.topByValue || [],
 		topByQty: raw.topByQty || [],
-		lowStockTrend: raw.lowStockTrend || [],
 		summary: raw.summary || {},
 		reorderAlerts: raw.reorderAlerts || [],
 	}

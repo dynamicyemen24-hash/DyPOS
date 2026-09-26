@@ -83,9 +83,19 @@ export function requireTenantEnabled() {
 /**
  * Read-only scope for list endpoints: validates a PROVIDED tenant id (404 if
  * unknown) but never requires one — reads stay open, writes enforce.
+ *
+ * Cross-tenant spoof guard (403): a user bound to a tenant can never read
+ * another tenant's list by sending its id in X-Tenant-Id / tenantId / ?tenant.
+ * tenantContext() prefers the explicit id over req.user.tenantId, so without
+ * this check every scoped list would happily answer with the spoofed tenant's
+ * rows. This mirrors the guard in assertTenantScope() so the read plane and the
+ * write plane fail closed identically.
  */
 export function resolveTenantFilter(req) {
   const { tenantId } = tenantContext(req);
+  if (tenantId && req.user?.tenantId && String(tenantId) !== String(req.user.tenantId)) {
+    throw Object.assign(new Error('غير مصرح بالوصول لهذا المستأجر'), { statusCode: 403 });
+  }
   if (!tenantId) return { tenantId: null };
   const t = db.prepare('SELECT id FROM tenants WHERE id=? AND is_active=1').get(tenantId);
   if (!t) throw Object.assign(new Error('المستأجر غير موجود أو موقف'), { statusCode: 404 });

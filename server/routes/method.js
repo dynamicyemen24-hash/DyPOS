@@ -1372,8 +1372,16 @@ def('DyPOS.api.offers.get_offers', (_params, req, res) => {
 // ── POS profile / settings / warehouses ─────────────────────────────────
 def('DyPOS.api.pos_profile.get_warehouses', (_p, req, res) => {
   if (!requireUser(req, res)) return;
+  // Fail-closed tenant scope: the warehouse picker drives stock reads, so an
+  // unscoped list would leak another tenant's warehouse names (and previously
+  // showed only whichever warehouse happened to hold stock rows).
+  let tenantId = null;
+  try { tenantId = resolveTenantFilter(req).tenantId || null; }
+  catch (e) { return frappeError(res, e.statusCode || 403, 'PermissionError', String(e.message).slice(0, 200)); }
   try {
-    const rows = db.prepare('SELECT id as name, id, name as warehouse_name, is_active FROM warehouses ORDER BY id').all();
+    const rows = tenantId
+      ? db.prepare('SELECT id as name, id, name as warehouse_name, is_active FROM warehouses WHERE tenant_id=? OR tenant_id IS NULL ORDER BY id').all(tenantId)
+      : db.prepare('SELECT id as name, id, name as warehouse_name, is_active FROM warehouses ORDER BY id').all();
     return res.json({ message: rows });
   } catch {
     return res.json({ message: [] });
@@ -2351,10 +2359,20 @@ function unpaidInvoiceRow(r) {
 def('DyPOS.api.partial_payments.get_unpaid_invoices', (params, req, res) => {
   if (!requireUser(req, res)) return;
   const limit = Math.min(Math.max(Number(params.limit) || 100, 1), 200);
+  const start = Math.max(Number(params.start) || 0, 0);
+  let where = `status IN ('UNPAID','PARTIAL') AND remaining_amount > 0.01`;
+  const sqlParams = [];
+  try {
+    const { tenantId } = resolveTenantFilter(req);
+    if (tenantId) {
+      where += ' AND (tenant_id=? OR tenant_id IS NULL)';
+      sqlParams.push(tenantId);
+    }
+  } catch { return frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); }
   try {
     const rows = db.prepare(
-      `SELECT * FROM invoices WHERE status IN ('UNPAID','PARTIAL') AND remaining_amount > 0.01 ORDER BY created_at DESC LIMIT ?`
-    ).all(limit);
+      `SELECT * FROM invoices WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+    ).all(...sqlParams, limit, start);
     return res.json({ message: rows.map(unpaidInvoiceRow) });
   } catch {
     return res.json({ message: [] });
@@ -2363,11 +2381,20 @@ def('DyPOS.api.partial_payments.get_unpaid_invoices', (params, req, res) => {
 
 def('DyPOS.api.partial_payments.get_unpaid_summary', (_p, req, res) => {
   if (!requireUser(req, res)) return;
+  let where = `status IN ('UNPAID','PARTIAL') AND remaining_amount > 0.01`;
+  const sqlParams = [];
+  try {
+    const { tenantId } = resolveTenantFilter(req);
+    if (tenantId) {
+      where += ' AND (tenant_id=? OR tenant_id IS NULL)';
+      sqlParams.push(tenantId);
+    }
+  } catch { return frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); }
   try {
     const row = db.prepare(
       `SELECT COUNT(*) as count, COALESCE(SUM(remaining_amount),0) as total_outstanding, COALESCE(SUM(paid_amount),0) as total_paid
-       FROM invoices WHERE status IN ('UNPAID','PARTIAL') AND remaining_amount > 0.01`
-    ).get();
+       FROM invoices WHERE ${where}`
+    ).get(...sqlParams);
     return res.json({ message: { count: row?.count || 0, total_outstanding: row?.total_outstanding || 0, total_paid: row?.total_paid || 0 } });
   } catch {
     return res.json({ message: { count: 0, total_outstanding: 0, total_paid: 0 } });
@@ -2377,10 +2404,20 @@ def('DyPOS.api.partial_payments.get_unpaid_summary', (_p, req, res) => {
 def('DyPOS.api.partial_payments.get_partial_paid_invoices', (params, req, res) => {
   if (!requireUser(req, res)) return;
   const limit = Math.min(Math.max(Number(params.limit) || 50, 1), 200);
+  const start = Math.max(Number(params.start) || 0, 0);
+  let where = `status='PARTIAL' AND remaining_amount > 0.01`;
+  const sqlParams = [];
+  try {
+    const { tenantId } = resolveTenantFilter(req);
+    if (tenantId) {
+      where += ' AND (tenant_id=? OR tenant_id IS NULL)';
+      sqlParams.push(tenantId);
+    }
+  } catch { return frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); }
   try {
     const rows = db.prepare(
-      `SELECT * FROM invoices WHERE status='PARTIAL' AND remaining_amount > 0.01 ORDER BY created_at DESC LIMIT ?`
-    ).all(limit);
+      `SELECT * FROM invoices WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+    ).all(...sqlParams, limit, start);
     return res.json({ message: rows.map(unpaidInvoiceRow) });
   } catch {
     return res.json({ message: [] });
@@ -2389,11 +2426,20 @@ def('DyPOS.api.partial_payments.get_partial_paid_invoices', (params, req, res) =
 
 def('DyPOS.api.partial_payments.get_partial_payment_summary', (_p, req, res) => {
   if (!requireUser(req, res)) return;
+  let where = `status='PARTIAL' AND remaining_amount > 0.01`;
+  const sqlParams = [];
+  try {
+    const { tenantId } = resolveTenantFilter(req);
+    if (tenantId) {
+      where += ' AND (tenant_id=? OR tenant_id IS NULL)';
+      sqlParams.push(tenantId);
+    }
+  } catch { return frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); }
   try {
     const row = db.prepare(
       `SELECT COUNT(*) as count, COALESCE(SUM(remaining_amount),0) as total_outstanding, COALESCE(SUM(paid_amount),0) as total_paid
-       FROM invoices WHERE status='PARTIAL' AND remaining_amount > 0.01`
-    ).get();
+       FROM invoices WHERE ${where}`
+    ).get(...sqlParams);
     return res.json({ message: { count: row?.count || 0, total_outstanding: row?.total_outstanding || 0, total_paid: row?.total_paid || 0 } });
   } catch {
     return res.json({ message: { count: 0, total_outstanding: 0, total_paid: 0 } });
@@ -2917,20 +2963,19 @@ function mapReturnableInvoice(inv) {
 def('DyPOS.api.invoices.get_returnable_invoices', (params, req, res) => {
   if (!requireUser(req, res)) return;
   const limit = Math.min(Math.max(Number(params.limit) || 50, 1), 200);
+  const start = Math.max(Number(params.start) || 0, 0);
   let tenantId = null;
   try { tenantId = resolveTenantFilter(req).tenantId || null; }
   catch { return frappeError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح'); }
   try {
     const rows = db.prepare(
-      `SELECT * FROM invoices WHERE status IN ('PAID','PARTIAL')${tenantId ? ' AND (tenant_id=? OR tenant_id IS NULL)' : ''} ORDER BY created_at DESC LIMIT ?`
-    ).all(...(tenantId ? [tenantId] : []), limit);
-    const hasOpen = db.prepare('SELECT 1 FROM invoice_items WHERE invoice_id=? AND qty>0 LIMIT 1');
-    const out = [];
-    for (const inv of rows) {
-      if (!hasOpen.get(inv.id)) continue;
-      out.push(mapReturnableInvoice(inv));
-    }
-    return res.json({ message: out });
+      `SELECT * FROM invoices
+       WHERE status IN ('PAID','PARTIAL')
+         AND EXISTS (SELECT 1 FROM invoice_items ii WHERE ii.invoice_id = invoices.id AND ii.qty > 0)
+         ${tenantId ? 'AND (tenant_id=? OR tenant_id IS NULL)' : ''}
+       ORDER BY created_at DESC LIMIT ? OFFSET ?`
+    ).all(...(tenantId ? [tenantId] : []), limit, start);
+    return res.json({ message: rows.map(mapReturnableInvoice) });
   } catch {
     return res.json({ message: [] });
   }

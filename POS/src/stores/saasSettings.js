@@ -6,13 +6,16 @@
  */
 import { defineStore } from "pinia"
 import { ref, computed } from "vue"
+import { DEFAULT_CURRENCY } from "@/utils/currency"
 
 export const useSaaSStore = defineStore("saas", () => {
 	/** Company / tenant branding */
 	const companyName = ref("")
 	const companyLogo = ref("")
 	const primaryColor = ref("#6366f1")
-	const currency = ref("SAR")
+	// Seeded from the canonical currency module (itself configured from
+	// posSettings) so a non-SAR tenant never starts out labelled SAR.
+	const currency = ref(DEFAULT_CURRENCY)
 	const locale = ref("ar")
 	const timezone = ref("Asia/Riyadh")
 
@@ -110,7 +113,8 @@ export const useSaaSStore = defineStore("saas", () => {
 			companyName.value = ""
 			companyLogo.value = ""
 			primaryColor.value = "#6366f1"
-			currency.value = "SAR"
+			// Reset to the canonical default, not a hardcoded SAR.
+			currency.value = DEFAULT_CURRENCY
 			locale.value = "ar"
 			timezone.value = "Asia/Riyadh"
 			features.value = {

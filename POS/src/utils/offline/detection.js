@@ -94,7 +94,7 @@ function withTimeout(promise, ms, abortSignal) {
 }
 
 function calculateBackoff(attempt, baseMs, maxMs, jitter) {
-	const exponential = Math.min(baseMs * Math.pow(1.5, attempt), maxMs)
+	const exponential = Math.min(baseMs * 1.5 ** attempt, maxMs)
 	const jitterFactor = 1 + (Math.random() - 0.5) * 2 * jitter
 	return Math.floor(exponential * jitterFactor)
 }

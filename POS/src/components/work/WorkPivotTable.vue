@@ -169,6 +169,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from "vue"
 import { t } from "@/utils/translation"
+import { formatCurrencySafe } from "@/utils/currency"
 import { FeatherIcon } from "frappe-ui"
 import WorkSelect from "./WorkSelect.vue"
 import WorkActions from "./WorkActions.vue"
@@ -550,10 +551,7 @@ function formatValue(value, format) {
 	if (value == null) return "—"
 	switch (format) {
 		case "currency":
-			return new Intl.NumberFormat("ar-SA", {
-				style: "currency",
-				currency: "SAR",
-			}).format(Number(value))
+			return formatCurrencySafe(value)
 		case "number":
 			return new Intl.NumberFormat("ar-SA").format(Number(value))
 		case "percent":

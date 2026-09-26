@@ -3,6 +3,8 @@
  * These are plain JS classes with validation rules.
  */
 
+import { getCurrencySymbol } from "@/utils/currency"
+
 class Product {
 	constructor({
 		id,
@@ -28,7 +30,7 @@ class Product {
 		this.barcode = String(barcode || "").trim()
 		this.unitPrice = Number(unitPrice) || 0
 		this.cost = Number(cost) || 0
-		this.taxRate = Number(taxRate) || 15
+		this.taxRate = Number.isFinite(Number(taxRate)) ? Number(taxRate) : 0
 		this.stockQty = Number(stockQty) || 0
 		this.uom = String(uom || "Unit").trim()
 		this.variants = Array.isArray(variants) ? variants : []
@@ -128,7 +130,7 @@ class Invoice {
 		paidAmount,
 		remainingAmount,
 		status = "DRAFT",
-		currency = "SAR",
+		currency = "",
 		notes,
 		channelId,
 		shiftId,
@@ -152,7 +154,7 @@ class Invoice {
 		this.paidAmount = Number(paidAmount) || 0
 		this.remainingAmount = Number(remainingAmount) || 0
 		this.status = status
-		this.currency = currency
+		this.currency = currency || getCurrencySymbol()
 		this.notes = String(notes || "").trim()
 		this.channelId = String(channelId || "").trim()
 		this.shiftId = String(shiftId || "").trim()
@@ -203,7 +205,7 @@ class InvoiceItem {
 		qty,
 		unitPrice,
 		discount = 0,
-		taxRate = 15,
+		taxRate = 0,
 		taxAmount = 0,
 		total,
 		uom,
@@ -216,7 +218,7 @@ class InvoiceItem {
 		this.qty = Number(qty) || 1
 		this.unitPrice = Number(unitPrice) || 0
 		this.discount = Number(discount) || 0
-		this.taxRate = Number(taxRate) || 15
+		this.taxRate = Number.isFinite(Number(taxRate)) ? Number(taxRate) : 0
 		this.taxAmount = Number(taxAmount) || 0
 		this.total =
 			Number(total) ||

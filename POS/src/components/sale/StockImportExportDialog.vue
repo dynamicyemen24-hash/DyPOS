@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <Transition name="fade">
     <div
       v-if="show"
@@ -11,14 +11,14 @@
           <div class="flex items-center justify-between border-b px-4 py-3 bg-gray-50">
             <div class="flex items-center gap-2">
               <FeatherIcon name="clipboard-list" class="w-5 h-5 text-indigo-600" />
-              <h2 class="text-lg font-semibold text-gray-900">{{ __("الجرد الفعلي للمخزون") }}</h2>
+              <h2 class="text-lg font-semibold text-gray-900">{{ __("Ø§Ù„Ø¬Ø±Ø¯ Ø§Ù„ÙØ¹Ù„ÙŠ Ù„Ù„Ù…Ø®Ø²ÙˆÙ†") }}</h2>
             </div>
             <div class="flex items-center gap-2">
               <span class="text-sm text-gray-500">
-                {{ __("العملة") }}: {{ selectedCurrency }}
+                {{ __("Ø§Ù„Ø¹Ù…Ù„Ø©") }}: {{ selectedCurrency }}
               </span>
               <span class="text-sm text-gray-500">
-                {{ __("وحدة القياس") }}: {{ selectedUom }}
+                {{ __("ÙˆØ­Ø¯Ø© Ø§Ù„Ù‚ÙŠØ§Ø³") }}: {{ selectedUom }}
               </span>
               <Button variant="ghost" size="sm" @click="handleClose" icon="x" />
             </div>
@@ -26,7 +26,7 @@
 
           <!-- Two-page Navigation -->
           <div class="border-b px-4">
-            <nav class="flex gap-1" role="tablist" aria-label="صفحات الجرد">
+            <nav class="flex gap-1" role="tablist" aria-label="ØµÙØ­Ø§Øª Ø§Ù„Ø¬Ø±Ø¯">
               <button
                 v-for="page in pages"
                 :key="page.value"
@@ -124,6 +124,8 @@ import InstructionsPage from "./StockCountInstructionsPage.vue"
 import ItemsTablePage from "./StockCountItemsTablePage.vue"
 import StepCard from "./StepCard.vue"
 import ShortcutKey from "./ShortcutKey.vue"
+import { getCurrencySymbol } from "@/utils/currency"
+import { usePOSSettingsStore } from "@/stores/posSettings"
 
 const log = logger.create("StockCountDialog")
 
@@ -146,39 +148,102 @@ const show = computed({
 const activePage = ref("instructions")
 
 const pages = [
-	{ value: "instructions", label: "تعليمات الجرد", icon: "book-open" },
-	{ value: "items", label: "جدول الأصناف", icon: "clipboard-list" },
+	{
+		value: "instructions",
+		label: "ØªØ¹Ù„ÙŠÙ…Ø§Øª Ø§Ù„Ø¬Ø±Ø¯",
+		icon: "book-open",
+	},
+	{ value: "items", label: "Ø¬Ø¯ÙˆÙ„ Ø§Ù„Ø£ØµÙ†Ø§Ù", icon: "clipboard-list" },
 ]
 
-// Multi-currency & UoM support
+// Multi-currency & UoM support.
+// The base currency is the CONFIGURED one (posSettings), not a hardcoded SAR:
+// a shop configured for EGP must not import against a SAR base row.
+const configuredCurrency = usePOSSettingsStore().currency || "SAR"
 const currencies = ref([
-	{ code: "SAR", symbol: "ر.س", name: "ريال سعودي", rate: 1, isBase: true },
-	{ code: "USD", symbol: "$", name: "دولار أمريكي", rate: 3.75 },
-	{ code: "EUR", symbol: "€", name: "يورو", rate: 4.05 },
+	{
+		code: configuredCurrency,
+		symbol: getCurrencySymbol(),
+		name: "Ø¹Ù…Ù„Ø© Ø§Ù„Ù…Ù†Ø´Ø£Ø©",
+		rate: 1,
+		isBase: true,
+	},
+	{ code: "SAR", symbol: "Ø±.Ø³", name: "Ø±ÙŠØ§Ù„ Ø³Ø¹ÙˆØ¯ÙŠ", rate: 1 },
+	{ code: "USD", symbol: "$", name: "Ø¯ÙˆÙ„Ø§Ø± Ø£Ù…Ø±ÙŠÙƒÙŠ", rate: 3.75 },
+	{ code: "EUR", symbol: "â‚¬", name: "ÙŠÙˆØ±Ùˆ", rate: 4.05 },
+	{ code: "EGP", symbol: "Ø¬.Ù…", name: "Ø¬Ù†ÙŠÙ‡ Ù…ØµØ±ÙŠ", rate: 0.077 },
 ])
 
 const uoms = ref([
 	{
 		code: "PCS",
-		name: "قطعة",
-		nameAr: "قطعة",
+		name: "Ù‚Ø·Ø¹Ø©",
+		nameAr: "Ù‚Ø·Ø¹Ø©",
 		factor: 1,
 		isBase: true,
 		type: "count",
 	},
-	{ code: "BOX", name: "صندوق", nameAr: "صندوق", factor: 12, type: "count" },
-	{ header: "CTN", name: "كرتون", nameAr: "كرتون", factor: 24, type: "count" },
-	{ code: "KG", name: "كيلوغرام", nameAr: "كجم", factor: 1, type: "weight" },
-	{ code: "G", name: "جرام", nameAr: "جم", factor: 0.001, type: "weight" },
-	{ code: "M", name: "متر", nameAr: "متر", factor: 1, type: "length" },
-	{ code: "CM", name: "سنتيمتر", nameAr: "سم", factor: 0.01, type: "length" },
-	{ code: "L", name: "لتر", nameAr: "لتر", factor: 1, type: "volume" },
-	{ code: "ML", name: "مليلتر", nameAr: "مل", factor: 0.001, type: "volume" },
-	{ code: "M2", name: "متر مربع", nameAr: "م²", factor: 1, type: "area" },
-	{ code: "M3", name: "متر مكعب", nameAr: "م³", factor: 1, type: "volume" },
+	{
+		code: "BOX",
+		name: "ØµÙ†Ø¯ÙˆÙ‚",
+		nameAr: "ØµÙ†Ø¯ÙˆÙ‚",
+		factor: 12,
+		type: "count",
+	},
+	{
+		header: "CTN",
+		name: "ÙƒØ±ØªÙˆÙ†",
+		nameAr: "ÙƒØ±ØªÙˆÙ†",
+		factor: 24,
+		type: "count",
+	},
+	{
+		code: "KG",
+		name: "ÙƒÙŠÙ„ÙˆØºØ±Ø§Ù…",
+		nameAr: "ÙƒØ¬Ù…",
+		factor: 1,
+		type: "weight",
+	},
+	{
+		code: "G",
+		name: "Ø¬Ø±Ø§Ù…",
+		nameAr: "Ø¬Ù…",
+		factor: 0.001,
+		type: "weight",
+	},
+	{ code: "M", name: "Ù…ØªØ±", nameAr: "Ù…ØªØ±", factor: 1, type: "length" },
+	{
+		code: "CM",
+		name: "Ø³Ù†ØªÙŠÙ…ØªØ±",
+		nameAr: "Ø³Ù…",
+		factor: 0.01,
+		type: "length",
+	},
+	{ code: "L", name: "Ù„ØªØ±", nameAr: "Ù„ØªØ±", factor: 1, type: "volume" },
+	{
+		code: "ML",
+		name: "Ù…Ù„ÙŠÙ„ØªØ±",
+		nameAr: "Ù…Ù„",
+		factor: 0.001,
+		type: "volume",
+	},
+	{
+		code: "M2",
+		name: "Ù…ØªØ± Ù…Ø±Ø¨Ø¹",
+		nameAr: "Ù…Â²",
+		factor: 1,
+		type: "area",
+	},
+	{
+		code: "M3",
+		name: "Ù…ØªØ± Ù…ÙƒØ¹Ø¨",
+		nameAr: "Ù…Â³",
+		factor: 1,
+		type: "volume",
+	},
 ])
 
-const selectedCurrency = ref("SAR")
+const selectedCurrency = ref(configuredCurrency)
 const selectedUom = ref("PCS")
 
 // Computed for currency/UoM display
@@ -268,11 +333,14 @@ function downloadImportTemplate() {
 		"batch_number",
 		"expiry_date",
 	]
+	// The template's currency column must match the CONFIGURED currency, or an
+	// EGP shop downloads a template pre-filled with SAR rows.
+	const cur = selectedCurrency.value
 	const csv = [
 		headers.join(","),
-		"PROD-001,W-01,100,PCS,SAR,25.50,Opening Balance,OB-2024-001,BATCH-001,2025-12-31",
-		"PROD-002,W-01,50,BOX,SAR,15.75,Opening Balance,OB-2024-002,BATCH-002,2025-06-30",
-		"PROD-003,W-02,25,KG,SAR,120.00,Transfer In,TRF-001,,",
+		`PROD-001,W-01,100,PCS,${cur},25.50,Opening Balance,OB-2024-001,BATCH-001,2025-12-31`,
+		`PROD-002,W-01,50,BOX,${cur},15.75,Opening Balance,OB-2024-002,BATCH-002,2025-06-30`,
+		`PROD-003,W-02,25,KG,${cur},120.00,Transfer In,TRF-001,,`,
 	].join("\n")
 	downloadBlob(csv, "text/csv", "stock_count_import_template.csv")
 }
@@ -301,14 +369,14 @@ function handleFileSelect(event) {
 				previewData.value = validateRows(parseCsv(text))
 			})
 			.catch((err) => {
-				showError(`فشل تحليل CSV: ${err.message}`)
+				showError(`ÙØ´Ù„ ØªØ­Ù„ÙŠÙ„ CSV: ${err.message}`)
 			})
 	}
 }
 
 function parseCsv(text) {
 	const rows = []
-	const lines = String(text).replace(/^﻿/, "").split(/\r?\n/)
+	const lines = String(text).replace(/^ï»¿/, "").split(/\r?\n/)
 	if (!lines.length) return rows
 	const headers = splitCsvLine(lines[0]).map((h) => h.trim())
 	for (let i = 1; i < lines.length; i++) {
@@ -366,7 +434,7 @@ function validateRows(rows) {
 		const uom = String(row.uom || "PCS")
 			.trim()
 			.toUpperCase()
-		const currency = String(row.currency || "SAR")
+		const currency = String(row.currency || configuredCurrency)
 			.trim()
 			.toUpperCase()
 		const unit_cost = Number(row.unit_cost || row.unitCost || 0)
@@ -390,8 +458,8 @@ function validateRows(rows) {
 			warehouse_id: warehouse_id || "W-01",
 			qty,
 			uom: uom || "PCS",
-			currency: currency || "SAR",
-			unit_cost: isNaN(unit_cost) ? 0 : unit_cost,
+			currency: currency || configuredCurrency,
+			unit_cost: Number.isNaN(unit_cost) ? 0 : unit_cost,
 			reason: reason || "Count",
 			reference: reference || "Count",
 			batch_number: batch_number || "",
@@ -430,10 +498,10 @@ async function executeExport() {
 			mime,
 			`stock_count_${selectedCurrency.value}_${selectedUom.value}_${Date.now()}.${ext}`,
 		)
-		showSuccess("تم تصدير بيانات الجرد بنجاح")
+		showSuccess("ØªÙ… ØªØµØ¯ÙŠØ± Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ø¬Ø±Ø¯ Ø¨Ù†Ø¬Ø§Ø­")
 	} catch (error) {
 		log.error("Export failed", error)
-		showError(error.message || "فشل التصدير")
+		showError(error.message || "ÙØ´Ù„ Ø§Ù„ØªØµØ¯ÙŠØ±")
 	} finally {
 		exporting.value = false
 	}
@@ -479,10 +547,10 @@ async function dryRunImport() {
 			JSON.stringify(validRows),
 			"application/json",
 		)
-		showSuccess(`معاينة ناجحة: ${validRows.length} صف صالح`)
+		showSuccess(`Ù…Ø¹Ø§ÙŠÙ†Ø© Ù†Ø§Ø¬Ø­Ø©: ${validRows.length} ØµÙ ØµØ§Ù„Ø­`)
 	} catch (error) {
 		log.error("Dry run failed", error)
-		showError(error.message || "فشلت المعاينة")
+		showError(error.message || "ÙØ´Ù„Øª Ø§Ù„Ù…Ø¹Ø§ÙŠÙ†Ø©")
 	} finally {
 		importing.value = false
 	}
@@ -494,7 +562,7 @@ function toApiRow(row) {
 		warehouseId: row.warehouse_id || "W-01",
 		qty: Number(row.qty),
 		uom: row.uom || "PCS",
-		currency: row.currency || "SAR",
+		currency: row.currency || configuredCurrency,
 		unitCost: Number(row.unit_cost || 0),
 	}
 }
@@ -506,13 +574,13 @@ async function executeImport() {
 		const validRows = previewData.value.filter((r) => r.valid).map(toApiRow)
 		const result = await apiPost("/import/stock", validRows)
 		showSuccess(
-			`تم الاستيراد: ${result.created ?? 0} جديد، ${result.updated ?? 0} محدث`,
+			`ØªÙ… Ø§Ù„Ø§Ø³ØªÙŠØ±Ø§Ø¯: ${result.created ?? 0} Ø¬Ø¯ÙŠØ¯ØŒ ${result.updated ?? 0} Ù…Ø­Ø¯Ø«`,
 		)
 		previewData.value = null
 		if (fileInput.value) fileInput.value.value = ""
 	} catch (error) {
 		log.error("Import failed", error)
-		showError(error.message || "فشل الاستيراد")
+		showError(error.message || "ÙØ´Ù„ Ø§Ù„Ø§Ø³ØªÙŠØ±Ø§Ø¯")
 	} finally {
 		importing.value = false
 	}

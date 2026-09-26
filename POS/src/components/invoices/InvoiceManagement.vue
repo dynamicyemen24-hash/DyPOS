@@ -534,6 +534,32 @@
 								</div>
 							</div>
 
+							<div
+								v-if="hasMoreUnpaid && filteredUnpaidInvoices.length > 0"
+								class="flex justify-center py-4"
+							>
+								<button
+									type="button"
+									class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+									:disabled="loadingMoreUnpaid || isOffline()"
+									@click="loadMoreUnpaidInvoices"
+								>
+									<LoadingIndicator
+										v-if="loadingMoreUnpaid"
+										class="w-4 h-4"
+									/>
+									{{
+										__(
+											"تحميل المزيد ({0} من {1})",
+											[
+												unpaidInvoices.length,
+												unpaidSummary.count,
+											],
+										)
+									}}
+								</button>
+							</div>
+
 							<!-- Invoice History Tab -->
 							<div v-if="activeTab === 'history'">
 								<!-- Filters Component -->
@@ -1050,7 +1076,8 @@ const PaymentDialog = defineAsyncComponent(
 
 const log = logger.create("InvoiceManagement")
 const { showSuccess, showError } = useToast()
-const { formatCurrency, formatDate, formatDateTime, formatTime } = useFormatters()
+const { formatCurrency, formatDate, formatDateTime, formatTime } =
+	useFormatters()
 
 const props = defineProps({
 	modelValue: Boolean,
@@ -1107,6 +1134,31 @@ const unpaidSummary = ref({
 })
 const selectedInvoice = ref(null)
 const showPaymentDialog = ref(false)
+const loadingMoreUnpaid = ref(false)
+const UNPAID_PAGE_SIZE = 100
+const hasMoreUnpaid = computed(
+	() => unpaidInvoices.value.length < (unpaidSummary.value?.count || 0),
+)
+
+async function loadMoreUnpaidInvoices() {
+	if (!props.posProfile || loadingMoreUnpaid.value || isOffline()) return
+	loadingMoreUnpaid.value = true
+	try {
+		const page = await call("DyPOS.api.partial_payments.get_unpaid_invoices", {
+			pos_profile: props.posProfile,
+			limit: UNPAID_PAGE_SIZE,
+			start: unpaidInvoices.value.length,
+		})
+		if (Array.isArray(page) && page.length > 0) {
+			unpaidInvoices.value = [...unpaidInvoices.value, ...page]
+			cacheUnpaidInvoices(page, props.posProfile)
+		}
+	} catch (error) {
+		log.error("Failed to load more unpaid invoices", error)
+	} finally {
+		loadingMoreUnpaid.value = false
+	}
+}
 
 // Filtered unpaid invoices based on payment amounts
 const filteredUnpaidInvoices = computed(() => {
@@ -1302,7 +1354,7 @@ async function loadUnpaidInvoices() {
 	// Load cached data immediately for instant display
 	try {
 		const cachedInvoices = await getCachedUnpaidInvoices(props.posProfile, {
-			limit: 100,
+			limit: UNPAID_PAGE_SIZE,
 		})
 		if (cachedInvoices && cachedInvoices.length > 0) {
 			unpaidInvoices.value = cachedInvoices
@@ -1330,7 +1382,8 @@ async function loadUnpaidInvoices() {
 			"DyPOS.api.partial_payments.get_unpaid_invoices",
 			{
 				pos_profile: props.posProfile,
-				limit: 100,
+				limit: UNPAID_PAGE_SIZE,
+				start: 0,
 			},
 		)
 

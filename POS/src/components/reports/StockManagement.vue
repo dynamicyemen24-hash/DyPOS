@@ -11,9 +11,34 @@
     :empty-description="'لم يتم العثور على منتجات مطابقة للفلاتر'"
     :has-data="isLoaded"
     :last-loaded="lastLoaded"
-    @refresh="refresh"
+    @refresh="refresh({ force: true })"
   >
     <template #toolbar>
+      <div
+        v-if="facts?.truncated"
+        class="flex items-start gap-2 p-3 mb-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs"
+      >
+        <FeatherIcon name="alert-triangle" class="w-4 h-4 mt-0.5 shrink-0" />
+        <span>{{
+          __(
+            "تم تحميل {0} من {1} صنف فقط (حد الأمان على الجهاز). الإجماليات والترتيب لا تشمل الأصناف غير المحمّلة.",
+            [facts?.products?.length || 0, facts?.productTotal || "؟"],
+          )
+        }}</span>
+      </div>
+
+      <div
+        v-if="facts?.stockTruncated"
+        class="flex items-start gap-2 p-3 mb-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs"
+      >
+        <FeatherIcon name="alert-triangle" class="w-4 h-4 mt-0.5 shrink-0" />
+        <span>{{
+          __(
+            "تم تحميل جزء من أرصدة المخزون فقط (حد الأمان على الجهاز). كميات المستودعات غير المعروضة غير محسوبة في الإجماليات.",
+          )
+        }}</span>
+      </div>
+
       <WorkToolbar>
         <template #start>
           <WorkSearch
@@ -50,15 +75,6 @@
     <!-- Charts Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
       <WorkChart
-        type="line"
-        :data="stockValueChartData"
-        :options="lineOptions"
-        title="اتجاه قيمة المخزون"
-        aspect-ratio="3/2"
-        :loading="loading"
-        :is-empty="!stockValueTrend.length"
-      />
-      <WorkChart
         type="doughnut"
         :data="categoryChartData"
         :options="doughnutOptions"
@@ -67,9 +83,6 @@
         :loading="loading"
         :is-empty="!categoryDistribution.length"
       />
-    </div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
       <WorkChart
         type="bar"
         :data="topValueChartData"
@@ -79,6 +92,9 @@
         :loading="loading"
         :is-empty="!topByValue.length"
       />
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
       <WorkChart
         type="bar"
         :data="topQtyChartData"
@@ -88,15 +104,22 @@
         :loading="loading"
         :is-empty="!topByQty.length"
       />
-      <WorkChart
-        type="line"
-        :data="lowStockChartData"
-        :options="lineOptions"
-        title="اتجاه المخزون المنخفض"
-        aspect-ratio="3/2"
-        :loading="loading"
-        :is-empty="!lowStockTrend.length"
-      />
+      <WorkCard variant="outlined">
+        <template #header>
+          <h3 class="text-lg font-semibold text-gray-900">تنبيهات إعادة الطلب</h3>
+        </template>
+        <WorkEmptyState
+          v-if="!reorderAlerts.length"
+          title="لا توجد تنبيهات"
+          description="كل المنتجات فوق نقطة إعادة الطلب."
+        />
+        <WorkTable
+          v-else
+          :columns="reorderColumns"
+          :rows="reorderAlerts"
+          row-key="id"
+        />
+      </WorkCard>
     </div>
 
     <!-- Products Table -->
@@ -178,17 +201,14 @@ import {
 	COLORS,
 	PALETTE,
 	currencyTick,
-	shortDate,
 } from "@/components/reports/dashboards/core/chartConfig"
-import { useDashboardData } from "@/components/reports/dashboards/core/useDashboardData"
+import { useDashboardSource } from "@/components/reports/dashboards/core/useDashboardSource"
 import {
 	loadStockManagementData,
 	buildStockManagementModels,
-	clearStockManagementCache,
 } from "@/components/reports/dashboards/inventory/stockManagementData"
 import { useDashboardExport } from "@/components/reports/dashboards/core/useDashboardExport"
-import { useDashboardCache } from "@/components/reports/dashboards/core/useDashboardCache"
-import { debounce } from "@/utils/helpers"
+import WorkEmptyState from "@/components/work/WorkEmptyState.vue"
 
 import WorkShell from "@/components/work/WorkShell.vue"
 import WorkToolbar from "@/components/work/WorkToolbar.vue"
@@ -212,15 +232,6 @@ import StockHistoryDialog from "@/components/sale/StockHistoryDialog.vue"
 
 const CURRENCY_IDS = new Set(["stock-value"])
 
-const today = new Date()
-const filterFrom = ref(
-	new Date(today.getFullYear(), today.getMonth() - 11, 1)
-		.toISOString()
-		.slice(0, 10),
-)
-const filterTo = ref(today.toISOString().slice(0, 10))
-const autoRefresh = ref(false)
-
 const searchQuery = ref("")
 const searchSuggestions = ref([])
 const filterModel = reactive({
@@ -229,7 +240,7 @@ const filterModel = reactive({
 	category: "",
 	stockStatus: "",
 })
-const filterFields = ref([
+const filterFields = computed(() => [
 	{
 		key: "search",
 		label: "البحث",
@@ -241,21 +252,21 @@ const filterFields = ref([
 		label: "المستودع",
 		type: "select",
 		placeholder: "كل المستودعات",
-		options: [],
+		options: warehouseOptions.value,
 	},
 	{
 		key: "category",
 		label: "التصنيف",
 		type: "select",
 		placeholder: "كل التصنيفات",
-		options: [],
+		options: categoryOptions.value,
 	},
 	{
 		key: "stockStatus",
 		label: "حالة المخزون",
 		type: "select",
 		placeholder: "كل الحالات",
-		options: [],
+		options: stockStatusOptions.value,
 	},
 ])
 
@@ -271,9 +282,23 @@ const showStockTakeDialog = ref(false)
 const showReorderDialog = ref(false)
 const showHistoryDialog = ref(false)
 
-const { facts, loading, error, lastLoaded, isLoaded, load } = useDashboardData(
-	(filter) => loadStockManagementData(filter),
-)
+const {
+	facts,
+	loading,
+	error,
+	lastLoaded,
+	isLoaded,
+	isStale,
+	rtMode,
+	autoRefresh,
+	refresh,
+	toggleAutoRefresh,
+} = useDashboardSource({
+	fetch: (filter) => loadStockManagementData(filter),
+	scope: "stock-management",
+	doctypes: ["Stock Ledger Entry", "Bin", "Item"],
+	extraFilter: filterModel,
+})
 
 const models = computed(() => buildStockManagementModels(facts.value))
 
@@ -355,10 +380,6 @@ const { exportDashboard } = useDashboardExport({
 	dashboardName: "stock-management",
 })
 
-const { load: loadCache, save: saveCache } = useDashboardCache({
-	defaultTTL: 5,
-})
-
 function exportReport(format) {
 	exportDashboard(format)
 }
@@ -367,41 +388,30 @@ function goBack() {
 	window.history.back()
 }
 
-function refresh() {
-	clearStockManagementCache()
-	const cacheResult = loadCache({ from: filterFrom.value, to: filterTo.value })
-	if (!cacheResult.fromCache) {
-		load({ from: filterFrom.value, to: filterTo.value }).finally(() => {
-			saveCache({ from: filterFrom.value, to: filterTo.value }, facts.value)
-		})
-	}
-}
-
-const debouncedRefresh = debounce(refresh, 300)
-watch([filterFrom, filterTo], debouncedRefresh)
-onMounted(refresh)
-
-const stockValueTrend = computed(() => models.value?.stockValueTrend || [])
 const categoryDistribution = computed(
 	() => models.value?.categoryDistribution || [],
 )
 const topByValue = computed(() => models.value?.topByValue || [])
 const topByQty = computed(() => models.value?.topByQty || [])
-const lowStockTrend = computed(() => models.value?.lowStockTrend || [])
+const reorderAlerts = computed(() => models.value?.reorderAlerts || [])
 
-const stockValueChartData = computed(() => ({
-	labels: stockValueTrend.value.map((d) => shortDate(d.date)),
-	datasets: [
-		{
-			label: t("Stock Value"),
-			data: stockValueTrend.value.map((d) => d.value),
-			borderColor: COLORS.primary,
-			backgroundColor: COLORS.primaryLight,
-			fill: true,
-			tension: 0.4,
-		},
-	],
-}))
+const reorderColumns = [
+	{ key: "code", label: "الكود" },
+	{ key: "name", label: "الاسم" },
+	{ key: "qty", label: "المتوفر", format: "number" },
+	{ key: "reorder_point", label: "حد إعادة الطلب", format: "number" },
+	{
+		key: "shortfall",
+		label: "العجز",
+		format: "number",
+		compute: (r) =>
+			Math.max(
+				0,
+				Number(r.reorder_point || 0) -
+					(Number(r.qty || 0) - Number(r.reserved_qty || 0)),
+			),
+	},
+]
 
 const categoryChartData = computed(() => ({
 	labels: categoryDistribution.value.map((c) => c.category),
@@ -440,27 +450,6 @@ const topQtyChartData = computed(() => ({
 	],
 }))
 
-const lowStockChartData = computed(() => ({
-	labels: lowStockTrend.value.map((d) => shortDate(d.date)),
-	datasets: [
-		{
-			label: t("Low Stock Count"),
-			data: lowStockTrend.value.map((d) => d.count),
-			borderColor: COLORS.danger,
-			backgroundColor: COLORS.dangerLight,
-			fill: true,
-			tension: 0.4,
-		},
-	],
-}))
-
-const lineOptions = {
-	maintainAspectRatio: true,
-	plugins: { legend: { position: "top" } },
-	scales: { y: { beginAtZero: true } },
-	interaction: { intersect: false, mode: "index" },
-}
-
 const doughnutOptions = {
 	maintainAspectRatio: true,
 	plugins: {
@@ -484,13 +473,13 @@ const warehouseOptions = computed(
 const categoryOptions = computed(
 	() => models.value?.categories?.map((c) => ({ value: c, label: c })) || [],
 )
-const stockStatusOptions = [
+const stockStatusOptions = computed(() => [
 	{ value: "", label: "الكل" },
 	{ value: "normal", label: "طبيعي" },
 	{ value: "low", label: "منخفض" },
 	{ value: "out", label: "نفذ" },
 	{ value: "overstocked", label: "زائد" },
-]
+])
 
 function onSearch(q) {
 	filterModel.search = q
@@ -501,14 +490,8 @@ function onSearchSelect(s) {
 }
 
 function loadProducts() {
-	load({
-		from: filterFrom.value,
-		to: filterTo.value,
-		warehouse: filterModel.warehouse,
-		category: filterModel.category,
-		stockStatus: filterModel.stockStatus,
-		search: searchQuery.value,
-	})
+	filterModel.search = searchQuery.value
+	refresh({ force: true })
 }
 
 function openAdjustment(product) {

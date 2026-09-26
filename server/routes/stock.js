@@ -28,15 +28,35 @@ function guardStockAccess(req, pid, wh) {
 }
 
 // GET /api/stock — bulk stock levels (bounded IN list + offset pagination)
+//
+// Tenant scope is resolved from the bound caller (fail-closed), NOT from a
+// client-supplied ?tenant= alone: previously any caller could omit ?tenant and
+// read every tenant's stock levels, or pass another tenant's id.
+// ?all_warehouses=1 is the ONLY way to span warehouses — an absent ?warehouse
+// keeps the historical W-01 default so existing callers are unaffected.
 router.get('/', ah(async (req, res) => {
-  const warehouse = String(req.query.warehouse || 'W-01').slice(0, 32);
+  const allWarehouses = String(req.query.all_warehouses || '').trim() === '1';
+  const warehouse = allWarehouses ? '' : String(req.query.warehouse || 'W-01').slice(0, 32);
   const itemsParam = req.query.items ? String(req.query.items) : '';
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 500, 1), 500);
   const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
   if (offset > 100000) return res.status(400).json({ error: 'Offset يتجاوز الحد — استخدم فلاتر المستودع' });
   const lowOnly = String(req.query.low || '').trim() === '1';
   const threshold = Math.max(Number(req.query.threshold) || 5, 0);
-  const tenant = req.query.tenant ? String(req.query.tenant).slice(0, 64) : null;
+
+  let boundTenant = null;
+  try {
+    boundTenant = resolveTenantFilter(req).tenantId || null;
+  } catch (e) {
+    return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 200) });
+  }
+  // A bound caller may not widen its scope with ?tenant=; unbound (global)
+  // callers keep the legacy explicit-?tenant= filter.
+  const requested = req.query.tenant ? String(req.query.tenant).slice(0, 64) : null;
+  if (boundTenant && requested && String(requested) !== String(boundTenant)) {
+    return res.status(403).json({ error: 'نطاق المستأجر غير صالح' });
+  }
+  const tenant = boundTenant || requested;
   if (tenant) {
     const t = db.prepare('SELECT id FROM tenants WHERE id=? AND is_active=1').get(tenant);
     if (!t) return res.status(404).json({ error: 'المستأجر غير موجود أو موقف' });
@@ -48,19 +68,23 @@ router.get('/', ah(async (req, res) => {
     sql += ' JOIN warehouses w ON s.warehouse_id=w.id AND w.tenant_id=?';
     params.push(tenant);
   }
-  sql += ' WHERE s.warehouse_id=?';
-  params.push(warehouse);
+  if (warehouse) {
+    sql += ' WHERE s.warehouse_id=?';
+    params.push(warehouse);
+  } else {
+    sql += ' WHERE 1=1';
+  }
   if (itemsParam) {
     const ids = itemsParam.split(',').map((s) => s.trim().slice(0, 64)).filter(Boolean).slice(0, 500);
-    if (!ids.length) return res.json({ stock: [], limit, offset, hasMore: false });
+    if (!ids.length) return res.json({ stock: [], limit, offset, hasMore: false, allWarehouses });
     sql += ` AND s.product_id IN (${ids.map(() => '?').join(',')})`;
     params.push(...ids);
   }
   if (lowOnly) { sql += ' AND s.qty<=?'; params.push(threshold); }
-  sql += ' ORDER BY s.updated_at DESC LIMIT ? OFFSET ?';
+  sql += ' ORDER BY s.warehouse_id, s.product_id LIMIT ? OFFSET ?';
   params.push(limit, offset);
   const rows = db.prepare(sql).all(...params);
-  const payload = { stock: rows, limit, offset, hasMore: rows.length === limit };
+  const payload = { stock: rows, limit, offset, hasMore: rows.length === limit, allWarehouses };
   if (sendCached(req, res, payload, { maxAge: 5, swr: 30 })) return;
   return res.json(payload);
 }));

@@ -10,6 +10,7 @@
 
 import { ref, watch } from "vue"
 import { normalizeArabic, digitsOnly } from "@/utils/arabic"
+import { getCurrencySymbol } from "@/utils/currency"
 import {
 	formatArabicPhone,
 	formatArabicNumerals,
@@ -88,7 +89,7 @@ export function usePhoneMask(model) {
  */
 export function useCurrencyMask(model, opts = {}) {
 	const {
-		currencySymbol = "ج.م",
+		currencySymbol = getCurrencySymbol(),
 		decimals = 2,
 		groupSep = "٬",
 		decimalSep = "٫",

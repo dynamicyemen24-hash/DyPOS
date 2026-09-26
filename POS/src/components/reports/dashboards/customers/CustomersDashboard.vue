@@ -5,24 +5,17 @@
 		:loading="loading"
 		:error="error"
 		:has-data="isLoaded"
+		:is-stale="isStale"
 		:last-loaded="lastLoaded"
 		:auto-refresh="autoRefresh"
 		showBack
 		exportable
-		@refresh="refresh"
+		@refresh="refresh({ force: true })"
 		@export="exportReport"
-		@toggle-auto-refresh="autoRefresh = !autoRefresh"
+		@toggle-auto-refresh="toggleAutoRefresh"
 		@back="goBack"
 		@print="handlePrint"
 	>
-		<template #filters>
-			<DateRangeFilter
-				v-model:from="filterFrom"
-				v-model:to="filterTo"
-				:loading="loading"
-				@refresh="refresh"
-			/>
-		</template>
 
 		<KPISummary
 			class="mb-6"
@@ -62,41 +55,42 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from "vue"
+import { computed } from "vue"
 import { Line, Bar, Doughnut } from "vue-chartjs"
 import DashboardLayout from "../core/DashboardLayout.vue"
 import ChartCard from "../core/ChartCard.vue"
 import KPISummary from "../core/KPISummary.vue"
-import DateRangeFilter from "../../ui/filters/DateRangeFilter.vue"
 import ReportTable from "../../ui/tables/ReportTable.vue"
 import { COLORS, PALETTE, currencyTick, shortDate } from "../core/chartConfig"
-import { useDashboardData } from "../core/useDashboardData"
+import { useDashboardSource } from "../core/useDashboardSource"
 import { loadCustomersData, buildCustomerModels } from "./customersData"
 import { useDashboardExport } from "../core/useDashboardExport"
-import { useDashboardCache } from "../core/useDashboardCache"
 
 const CURRENCY_IDS = new Set(["revenue", "average"])
 
-const today = new Date()
-const filterFrom = ref(
-	new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10),
-)
-const filterTo = ref(today.toISOString().slice(0, 10))
-const autoRefresh = ref(false)
-
-const { facts, loading, error, lastLoaded, isLoaded, load } = useDashboardData(
-	(filter) => loadCustomersData(filter),
-)
+const {
+	facts,
+	loading,
+	error,
+	lastLoaded,
+	isLoaded,
+	isStale,
+	rtMode,
+	autoRefresh,
+	refresh,
+	toggleAutoRefresh,
+} = useDashboardSource({
+	fetch: (filter) => loadCustomersData(filter),
+	scope: "customers-dashboard",
+	doctypes: ["Sales Invoice", "Customer"],
+	pollInterval: 30000,
+})
 
 const models = computed(() => buildCustomerModels(facts.value))
 
 const { exportDashboard } = useDashboardExport({
 	models,
 	dashboardName: "customers-dashboard",
-})
-
-const { load: loadCache, save: saveCache } = useDashboardCache({
-	defaultTTL: 5,
 })
 
 function exportReport(format) {
@@ -109,27 +103,6 @@ function goBack() {
 
 function handlePrint() {
 	window.print()
-}
-
-function refresh() {
-	const cacheResult = loadCache({ from: filterFrom.value, to: filterTo.value })
-	if (!cacheResult.fromCache) {
-		load({ from: filterFrom.value, to: filterTo.value }).finally(() => {
-			saveCache({ from: filterFrom.value, to: filterTo.value }, facts.value)
-		})
-	}
-}
-
-const debouncedRefresh = debounce(refresh, 300)
-watch([filterFrom, filterTo], debouncedRefresh)
-onMounted(refresh)
-
-function debounce(fn, ms) {
-	let timer
-	return (...args) => {
-		clearTimeout(timer)
-		timer = setTimeout(() => fn(...args), ms)
-	}
 }
 
 const trendData = computed(() => ({

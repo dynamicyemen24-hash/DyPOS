@@ -42,7 +42,6 @@ const ROUTE_NAMES = Object.freeze({
 	RESET_PASSWORD: "ResetPassword",
 	NOT_FOUND: "NotFound",
 	STOCK_MANAGEMENT: "StockManagement",
-	WORK_DATAGRID_DEMO: "WorkDataGridDemo",
 })
 
 const ROUTE_TITLES = Object.freeze({
@@ -53,7 +52,6 @@ const ROUTE_TITLES = Object.freeze({
 	[ROUTE_NAMES.RESET_PASSWORD]: "تعيين كلمة مرور جديدة",
 	Reports: "التقارير",
 	[ROUTE_NAMES.STOCK_MANAGEMENT]: "إدارة المخزون",
-	[ROUTE_NAMES.WORK_DATAGRID_DEMO]: "شبكة البيانات المتقدمة",
 	landing: "DyPOS",
 	[ROUTE_NAMES.NOT_FOUND]: "صفحة غير موجودة",
 })
@@ -191,15 +189,6 @@ const routes = [
 		path: "/stock",
 		name: ROUTE_NAMES.STOCK_MANAGEMENT,
 		component: () => import("@/components/reports/StockManagement.vue"),
-		meta: {
-			[ROUTE_META.requiresAuth]: true,
-		},
-	},
-
-	{
-		path: "/work-datagrid",
-		name: ROUTE_NAMES.WORK_DATAGRID_DEMO,
-		component: () => import("@/components/work/WorkDataGridDemo.vue"),
 		meta: {
 			[ROUTE_META.requiresAuth]: true,
 		},

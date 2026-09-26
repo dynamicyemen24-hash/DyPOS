@@ -68,6 +68,7 @@ import {
 	normalizePaymentErrorPure,
 	normalizeProduct,
 } from "@/utils/posSalePure"
+import { getCurrencySymbol } from "@/utils/currency"
 import { session } from "@/stores/session"
 import { usePOSSettingsStore } from "@/stores/posSettings"
 import { logger } from "@/utils/logger"
@@ -104,10 +105,11 @@ const props = defineProps({
 
 	/**
 	 * العملة المعروضة في الواجهة.
+	 * يُترك فارغًا ليُشتق من إعدادات نقطة البيع (العملة النشطة للفرع).
 	 */
 	currency: {
 		type: String,
-		default: "ر.س",
+		default: "",
 	},
 
 	/**
@@ -500,10 +502,17 @@ function applyDidYouMean() {
  * ========================================================================== */
 
 /* Utilities — pure sale math lives in `@/utils/posSalePure`; the screen
- * keeps one thin wrapper binding `props.currency` for template calls. */
+ * keeps one thin wrapper binding the active currency for template calls.
+ * The active currency is the explicit prop, else the branch setting, else
+ * the deployment default — never a hardcoded literal. */
+const activeCurrency = computed(() => {
+	if (props.currency) return props.currency
+	const code = usePOSSettingsStore().currency
+	return getCurrencySymbol(code || undefined)
+})
 
 function formatMoney(value) {
-	return formatMoneyValue(value, props.currency)
+	return formatMoneyValue(value, activeCurrency.value)
 }
 
 function showNotification(message, type = "info") {
@@ -878,7 +887,7 @@ function buildSalePayload() {
 			tax: taxAmount.value,
 			total: total.value,
 		},
-		currency: props.currency,
+		currency: activeCurrency.value,
 		createdAt: new Date().toISOString(),
 	})
 }
@@ -1988,7 +1997,7 @@ watch(
                         smartOpportunities
                     "
                     :currency="
-                        currency
+                        activeCurrency
                     "
                     @add="
                         handleSmartAdd

@@ -37,9 +37,12 @@ export function getCacheKey(filter) {
  * Retrieve cached data from localStorage.
  * Returns null if expired or not found.
  * @param {string} key - Cache key
+ * @param {Object} [options]
+ * @param {boolean} [options.allowExpired=false] - return expired entries too
  * @returns {Object|null} Cached data object or null
  */
-export function getCachedData(key) {
+export function getCachedData(key, options = {}) {
+	const { allowExpired = false } = options
 	if (typeof localStorage === "undefined") return null
 	try {
 		const raw = localStorage.getItem(key)
@@ -50,8 +53,7 @@ export function getCachedData(key) {
 			return null
 		}
 		const age = Date.now() - entry.timestamp
-		if (age > entry.ttl) {
-			localStorage.removeItem(key)
+		if (age > entry.ttl && !allowExpired) {
 			return null
 		}
 		return entry.data
@@ -116,13 +118,22 @@ export function clearAllDashboardCache() {
 export function useDashboardCache(options = {}) {
 	const { defaultTTL = 5, enabled = true } = options
 
-	function load(filter) {
+	function load(filter, options = {}) {
 		const key = getCacheKey(filter)
-		const cached = getCachedData(key)
+		const cached = getCachedData(key, options)
 		if (cached !== null) {
 			return { data: cached, fromCache: true, key }
 		}
 		return { data: null, fromCache: false, key }
+	}
+
+	/**
+	 * Read a cached entry even when the TTL has passed, so a failed
+	 * or offline fetch can still render the last known data.
+	 */
+	function loadStale(filter) {
+		const key = getCacheKey(filter)
+		return getCachedData(key, { allowExpired: true })
 	}
 
 	function save(filter, data, ttlMinutes) {
@@ -143,6 +154,7 @@ export function useDashboardCache(options = {}) {
 
 	return {
 		load,
+		loadStale,
 		save,
 		invalidate,
 		invalidateAll,

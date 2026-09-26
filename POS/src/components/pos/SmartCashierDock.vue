@@ -53,7 +53,7 @@ const props = defineProps({
 
 	currency: {
 		type: String,
-		default: "ر.س",
+		default: "",
 	},
 })
 

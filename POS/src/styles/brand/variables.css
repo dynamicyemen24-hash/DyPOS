@@ -590,11 +590,19 @@
    ============================================================================ */
 
 /* Focus visible styles */
+/* `ring`/`ring-offset` are Tailwind *class* names, not CSS properties — as
+   declarations they are dropped by the parser, which left `outline: none`
+   with no replacement indicator. Rendered with box-shadow instead, mirroring
+   Tailwind's `ring-2 ring-offset-2`: offset colour ring first, then the
+   brand ring. Both colours/widths stay theme-driven, so dark and
+   prefers-contrast: high keep working through the same variables. */
 .dy-focus-visible:focus-visible {
   outline: none;
-  ring: var(--dy-focus-ring-width) solid var(--dy-focus-ring);
-  ring-offset: var(--dy-focus-ring-offset-width);
-  ring-offset-color: var(--dy-focus-ring-offset);
+  box-shadow:
+    0 0 0 var(--dy-focus-ring-offset-width) var(--dy-focus-ring-offset),
+    0 0 0
+      calc(var(--dy-focus-ring-width) + var(--dy-focus-ring-offset-width))
+      var(--dy-focus-ring);
 }
 
 /* Skip link */

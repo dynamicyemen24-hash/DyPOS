@@ -53,6 +53,13 @@
 					</template>
 					{{ __("Create New Coupon") }}
 				</Button>
+				<div
+					v-else
+					class="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs"
+				>
+					<FeatherIcon name="lock" class="w-4 h-4 mt-0.5 shrink-0" />
+					<span>{{ __("صلاحية إنشاء الكوبونات غير متاحة لدورك. راجع مدير النظام لمنحك الصلاحية.") }}</span>
+				</div>
 				<Button @click="loadCoupons" variant="outline" class="w-full" :loading="loading">
 					<template #prefix>
 						<FeatherIcon name="refresh-cw" class="w-4 h-4" />
@@ -80,6 +87,21 @@
 						<FeatherIcon name="gift" class="w-12 h-12 mx-auto" />
 					</div>
 					<p class="text-sm text-gray-600">{{ __("No coupons found") }}</p>
+					<Button
+						v-if="permissions.create"
+						@click="handleCreateNew"
+						variant="outline"
+						size="sm"
+						class="mt-4"
+					>
+						<template #prefix>
+							<FeatherIcon name="plus-circle" class="w-4 h-4" />
+						</template>
+						{{ __("Create New Coupon") }}
+					</Button>
+					<p v-else class="text-xs text-gray-500 mt-2">
+						{{ __("اطلب من مدير النظام إضافة الكوبونات") }}
+					</p>
 				</div>
 
 				<!-- Coupon Items -->
