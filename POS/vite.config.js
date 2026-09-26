@@ -127,10 +127,7 @@ function pruneStaleAssetsPlugin() {
 		name: "pos-next-prune-stale-assets",
 		apply: "build",
 		async writeBundle(_options, bundle) {
-			const outDir = path.resolve(
-				import.meta.dirname,
-				"../DyPOS/public/pos",
-			)
+			const outDir = path.resolve(import.meta.dirname, "../DyPOS/public/pos")
 			const assetsDir = path.join(outDir, "assets")
 			if (!existsSync(assetsDir)) return
 
@@ -285,43 +282,11 @@ export default defineConfig({
 				navigateFallback: pwaNavigateFallback,
 				navigateFallbackDenylist: [/^\/api/, /^\/app/],
 				runtimeCaching: [
-					{
-						urlPattern: /^https:\/\/flagcdn\.com\/.*/i,
-						handler: "CacheFirst",
-						options: {
-							cacheName: "flags-cache",
-							expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
-							cacheableResponse: { statuses: [0, 200] },
-						},
-					},
-					{
-						urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-						handler: "CacheFirst",
-						options: {
-							cacheName: "google-fonts-cache",
-							expiration: {
-								maxEntries: 10,
-								maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
-							},
-							cacheableResponse: {
-								statuses: [0, 200],
-							},
-						},
-					},
-					{
-						urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-						handler: "CacheFirst",
-						options: {
-							cacheName: "gstatic-fonts-cache",
-							expiration: {
-								maxEntries: 10,
-								maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
-							},
-							cacheableResponse: {
-								statuses: [0, 200],
-							},
-						},
-					},
+					// No cross-origin routes on purpose. Flags are platform emoji
+					// (src/utils/flags.js) and fonts are local @fontsource files, so
+					// the flagcdn / Google Fonts routes were dead config that still
+					// let the service worker talk to third-party hosts. Every route
+					// below is same-origin.
 					{
 						urlPattern: /\/assets\/.*/i,
 						handler: "CacheFirst",

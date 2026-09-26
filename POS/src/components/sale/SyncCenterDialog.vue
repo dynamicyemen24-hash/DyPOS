@@ -155,7 +155,7 @@
 							maxlength="256"
 							autocomplete="off"
 							class="rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-900 ltr:text-left"
-							placeholder="http://192.168.1.20:3001"
+							placeholder="https://pos.example.com"
 						/>
 					</label>
 					<label class="flex flex-col gap-1 text-xs text-gray-600">

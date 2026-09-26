@@ -8,18 +8,14 @@
 			:class="{ 'opacity-50 cursor-not-allowed': disabled }"
 			:disabled="disabled"
 		>
-			<!-- Flag -->
+			<!-- Flag: OS-drawn emoji + ISO code, so it works with no network -->
 			<div class="w-5 h-4 flex items-center justify-center flex-shrink-0">
-				<img
+				<span
 					v-if="selectedCountry"
-					:src="selectedCountry.flagUrl"
-					:alt="selectedCountry.name"
-					class="w-5 h-auto rounded-sm"
-					@error="handleImageError"
-				/>
-				<span v-else-if="selectedCountry" class="text-base leading-none">
-					{{ selectedCountry.flagEmoji }}
-				</span>
+					class="text-sm leading-none"
+					:title="selectedCountry.name"
+					>{{ selectedCountry.flagEmoji }}</span
+				>
 				<svg v-else class="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
 					<path
 						fill-rule="evenodd"
@@ -118,14 +114,11 @@
 							'bg-indigo-50 hover:bg-indigo-100': selectedCountry?.code === country.code,
 						}"
 					>
-						<!-- Flag -->
+						<!-- Flag: OS-drawn emoji, no network -->
 						<div class="w-6 h-4 flex items-center justify-center flex-shrink-0">
-							<img
-								:src="country.flagUrl"
-								:alt="country.name"
-								class="w-6 h-auto rounded-sm"
-								@error="(e) => (e.target.style.display = 'none')"
-							/>
+							<span class="text-base leading-none" :title="country.name">{{
+								country.flagEmoji
+							}}</span>
 						</div>
 
 						<!-- Country Name -->
@@ -226,11 +219,10 @@ function selectFirstFiltered() {
 	}
 }
 
-// Handle flag image load error
-function handleImageError(event) {
-	// Hide broken image and show emoji fallback
-	event.target.style.display = "none"
-}
+// NOTE: there is deliberately no image-error handler any more. Flags are drawn
+// by the platform as emoji (see utils/flags.js) so there is no request to fail;
+// the old handler hid a broken <img> while the emoji fallback sat in an
+// unreachable `v-else-if`, leaving the flag silently blank while offline.
 
 // Close dropdown when clicking outside
 function handleClickOutside(event) {

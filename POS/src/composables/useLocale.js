@@ -1,5 +1,6 @@
 import { ref, computed, onMounted } from "vue"
 import { translationVersion, __ as serverTranslate } from "../utils/translation"
+import { countryCodeLabel, countryFlagEmoji } from "../utils/flags"
 import { offlineState } from "../utils/offline/offlineState"
 import { logger } from "../utils/logger"
 import { useBootstrapStore } from "../stores/bootstrap"
@@ -34,17 +35,12 @@ export function enforceDefaultArabic() {
 /** Track if initial language fetch from server has been attempted */
 let serverLanguageFetched = false
 
-// Get flag URL from flagcdn.com
-function getFlagUrl(countryCode) {
-	if (!countryCode) return null
-	return `https://flagcdn.com/h24/${countryCode.toLowerCase()}.png`
-}
-
-// Get flag SVG URL from flagcdn.com
-function getFlagUrlSvg(countryCode) {
-	if (!countryCode) return null
-	return `https://flagcdn.com/${countryCode.toLowerCase()}.svg`
-}
+/**
+ * Offline flags (see utils/flags.js): the language switcher used to pull flag
+ * images from flagcdn.com, so it rendered an empty box with no connection.
+ * `flagUrl`/`flagUrlSvg` are gone rather than nulled — nothing renders an
+ * <img> any more, and leaving the fields would invite a remote asset back in.
+ */
 
 // Supported languages configuration
 export const SUPPORTED_LOCALES = {
@@ -243,11 +239,11 @@ export function useLocale() {
 	const isRTL = computed(() => currentDir.value === "rtl")
 	const localeConfig = computed(() => {
 		const config = SUPPORTED_LOCALES[locale.value] || SUPPORTED_LOCALES.en
-		return {
-			...config,
-			flagUrl: getFlagUrl(config.countryCode),
-			flagUrlSvg: getFlagUrlSvg(config.countryCode),
-		}
+			return {
+				...config,
+				flagEmoji: countryFlagEmoji(config.countryCode),
+				flagCode: countryCodeLabel(config.countryCode),
+			}
 	})
 
 	/**
@@ -376,11 +372,11 @@ export function useLocale() {
 		for (const [code, config] of Object.entries(SUPPORTED_LOCALES)) {
 			// If allowed locales are set, filter by them; otherwise show all
 			if (allowed === null || allowed.length === 0 || allowed.includes(code)) {
-				result[code] = {
-					...config,
-					flagUrl: getFlagUrl(config.countryCode),
-					flagUrlSvg: getFlagUrlSvg(config.countryCode),
-				}
+			result[code] = {
+				...config,
+				flagEmoji: countryFlagEmoji(config.countryCode),
+				flagCode: countryCodeLabel(config.countryCode),
+			}
 			}
 		}
 		return result

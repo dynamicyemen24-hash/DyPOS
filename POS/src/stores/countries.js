@@ -1,6 +1,7 @@
 import { createResource } from "frappe-ui"
 import { defineStore } from "pinia"
 import { computed, ref } from "vue"
+import { countryCodeLabel, countryFlagEmoji } from "@/utils/flags"
 import { logger } from "@/utils/logger"
 
 const log = logger.create("CountriesStore")
@@ -35,20 +36,11 @@ export const useCountriesStore = defineStore("countries", () => {
 				name,
 				code: info.code?.toUpperCase() || "",
 				isd: info.isd,
-				flagUrl: `https://flagcdn.com/h24/${info.code}.png`, // Higher quality 24px height
-				flagUrlSvg: `https://flagcdn.com/${info.code}.svg`, // Vector format
-				flagEmoji: getCountryFlagEmoji(info.code),
+				// Offline-only: no flag CDN (see utils/flags.js).
+				flagEmoji: countryFlagEmoji(info.code),
+				flagCode: countryCodeLabel(info.code),
 			}))
 			.sort((a, b) => a.name.localeCompare(b.name))
-	}
-
-	// Convert country code to flag emoji
-	function getCountryFlagEmoji(countryCode) {
-		if (!countryCode) return "🏳️"
-
-		const code = countryCode.toUpperCase()
-		const codePoints = [...code].map((char) => 127397 + char.charCodeAt(0))
-		return String.fromCodePoint(...codePoints)
 	}
 
 	// Load countries (only once)
@@ -154,6 +146,5 @@ export const useCountriesStore = defineStore("countries", () => {
 		formatPhoneNumber,
 		parsePhoneNumber,
 		validatePhoneNumber,
-		getCountryFlagEmoji,
 	}
 })

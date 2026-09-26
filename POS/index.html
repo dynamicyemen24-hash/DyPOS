@@ -61,9 +61,10 @@
 		/>
 		<link rel="apple-touch-icon" href="/assets/DyPOS/pos/apple-touch-icon.png" />
 		<link rel="manifest" href="/assets/DyPOS/pos/manifest.webmanifest" />
-		<!-- Cairo/Inter load locally via @fontsource (no Google Fonts round-trip).
-		     Only flagcdn (country flags) needs a preconnect. -->
-		<link rel="preconnect" href="https://flagcdn.com" crossorigin />
+		<!-- Cairo/Inter load locally via @fontsource — no Google Fonts round-trip,
+		     and no flag CDN: flags are platform emoji (src/utils/flags.js).
+		     Nothing in this shell may reach a third-party host: the PWA is
+		     offline-first (AGENTS.md invariant 8). -->
 
 		<!-- Company / Open Graph identity -->
 		<meta property="og:type" content="website" />

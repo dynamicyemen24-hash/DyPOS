@@ -1,5 +1,6 @@
 import { createResource } from "frappe-ui"
 import { ref, computed } from "vue"
+import { countryCodeLabel, countryFlagEmoji } from "@/utils/flags"
 import { logger } from "@/utils/logger"
 
 const log = logger.create("useCountryCodes")
@@ -37,22 +38,11 @@ export function useCountryCodes() {
 				name,
 				code: info.code?.toUpperCase() || "",
 				isd: info.isd,
-				flagUrl: `https://flagcdn.com/${info.code}.svg`,
-				// Fallback emoji flag using regional indicator symbols
-				flagEmoji: getCountryFlagEmoji(info.code),
+				// Offline-only: no flag CDN (see utils/flags.js).
+				flagEmoji: countryFlagEmoji(info.code),
+				flagCode: countryCodeLabel(info.code),
 			}))
 			.sort((a, b) => a.name.localeCompare(b.name))
-	}
-
-	// Convert country code to flag emoji
-	function getCountryFlagEmoji(countryCode) {
-		if (!countryCode) return "🏳️"
-
-		const code = countryCode.toUpperCase()
-		// Convert country code to regional indicator symbols
-		// A=127462, so 'US' becomes 🇺🇸
-		const codePoints = [...code].map((char) => 127397 + char.charCodeAt(0))
-		return String.fromCodePoint(...codePoints)
 	}
 
 	// Load countries if not already cached
@@ -137,6 +127,5 @@ export function useCountryCodes() {
 		formatPhoneNumber,
 		parsePhoneNumber,
 		validatePhoneNumber,
-		getCountryFlagEmoji,
 	}
 }
