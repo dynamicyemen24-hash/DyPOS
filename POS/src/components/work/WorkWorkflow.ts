@@ -12,9 +12,29 @@
  *  - RTL-first, WCAG 2.2 AA
  */
 
+import { logger } from "@/utils/logger"
+
+const log = logger.create("WorkWorkflow")
+
 // ==========================================
 // Types
 // ==========================================
+
+/**
+ * قيمة JSON واحدة تُستخدم في الحقول الديناميكية (payload / metadata /
+ * variables / action config). كانت هذه الحقول من نوع `any` فتسمح بأي قيمة
+ * غير قابلة للتسلسل داخل سجل التدقيق. الآن الأنواع مغلقة على JSON.
+ */
+export type WorkflowValue =
+	| string
+	| number
+	| boolean
+	| null
+	| WorkflowValue[]
+	| { [key: string]: WorkflowValue }
+
+/** حقيبة مفتاح-قيمة ديناميكية (JSON object) */
+export type WorkflowData = Record<string, WorkflowValue>
 
 /** Workflow definition */
 export interface WorkflowDefinition {
@@ -28,7 +48,7 @@ export interface WorkflowDefinition {
 	globalGuards?: WorkflowGuard[]
 	globalActions?: WorkflowAction[]
 	sla?: WorkflowSLA
-	metadata?: Record<string, any>
+	metadata?: WorkflowData
 }
 
 /** State definition */
@@ -95,7 +115,7 @@ export interface WorkflowAction {
 		| "delete"
 		| "log"
 		| "custom"
-	config: Record<string, any>
+	config: WorkflowData
 	async?: boolean
 	retry?: { attempts: number; delay: number }
 	onError?: "stop" | "continue" | "retry"
@@ -125,10 +145,10 @@ export interface WorkflowContext {
 	instanceId: string
 	currentState: string
 	previousState?: string
-	payload: Record<string, any>
+	payload: WorkflowData
 	user: { id: string; roles: string[]; permissions: string[] }
 	tenantId?: string
-	variables: Record<string, any>
+	variables: WorkflowData
 	history: WorkflowHistoryEntry[]
 }
 
@@ -141,9 +161,9 @@ export interface WorkflowHistoryEntry {
 	transitionId: string
 	triggeredBy: string
 	triggeredAt: number
-	payload: Record<string, any>
+	payload: WorkflowData
 	duration: number // ms in previous state
-	metadata?: Record<string, any>
+	metadata?: WorkflowData
 }
 
 /** Instance */
@@ -153,8 +173,8 @@ export interface WorkflowInstance {
 	workflowVersion: string
 	currentState: string
 	status: "running" | "completed" | "cancelled" | "error" | "paused"
-	payload: Record<string, any>
-	variables: Record<string, any>
+	payload: WorkflowData
+	variables: WorkflowData
 	createdAt: number
 	updatedAt: number
 	completedAt?: number
@@ -163,7 +183,7 @@ export interface WorkflowInstance {
 	dueAt?: number
 	slaBreached?: boolean
 	history: WorkflowHistoryEntry[]
-	metadata?: Record<string, any>
+	metadata?: WorkflowData
 }
 
 // ==========================================
@@ -189,9 +209,9 @@ export class WorkflowEngine {
 	// Create new instance
 	async createInstance(
 		workflowId: string,
-		payload: Record<string, any>,
+		payload: WorkflowData,
 		createdBy: string,
-		options?: { variables?: Record<string, any>; assignedTo?: string[] },
+		options?: { variables?: WorkflowData; assignedTo?: string[] },
 	): Promise<WorkflowInstance> {
 		const def = this.definitions.get(workflowId)
 		if (!def) throw new Error(`Workflow not found: ${workflowId}`)
@@ -279,7 +299,7 @@ export class WorkflowEngine {
 		instanceId: string,
 		transitionId: string,
 		triggeredBy: string,
-		payload?: Record<string, any>,
+		payload?: WorkflowData,
 	): Promise<WorkflowInstance> {
 		const instance = this.instances.get(instanceId)
 		if (!instance) throw new Error(`Instance not found: ${instanceId}`)
@@ -291,7 +311,7 @@ export class WorkflowEngine {
 		}
 
 		const def = this.definitions.get(instance.workflowId)
-		if (!def) throw new Error(`Workflow definition not found`)
+		if (!def) throw new Error("Workflow definition not found")
 
 		const transition = def.transitions.find((t) => t.id === transitionId)
 		if (!transition) throw new Error(`Transition not found: ${transitionId}`)
@@ -399,7 +419,9 @@ export class WorkflowEngine {
 			transitionId: "cancel",
 			triggeredBy: cancelledBy,
 			triggeredAt: Date.now(),
-			payload: { reason },
+			// Only carry the key when a reason was actually given: `undefined` is
+			// not a WorkflowValue, and JSON.stringify dropped it either way.
+			payload: reason === undefined ? {} : { reason },
 			duration: 0,
 		})
 
@@ -455,7 +477,7 @@ export class WorkflowEngine {
 	// Update payload/variables
 	updatePayload(
 		instanceId: string,
-		payload: Record<string, any>,
+		payload: WorkflowData,
 		updatedBy: string,
 	): WorkflowInstance {
 		const instance = this.instances.get(instanceId)
@@ -470,8 +492,12 @@ export class WorkflowEngine {
 
 	// Subscribe to events
 	on(event: string, listener: (event: WorkflowEvent) => void): () => void {
-		if (!this.listeners.has(event)) this.listeners.set(event, new Set())
-		this.listeners.get(event)!.add(listener)
+		let bucket = this.listeners.get(event)
+		if (!bucket) {
+			bucket = new Set()
+			this.listeners.set(event, bucket)
+		}
+		bucket.add(listener)
 		return () => this.listeners.get(event)?.delete(listener)
 	}
 
@@ -494,7 +520,7 @@ export class WorkflowEngine {
 
 	private createContext(
 		instance: WorkflowInstance,
-		payload?: Record<string, any>,
+		payload?: WorkflowData,
 	): WorkflowContext {
 		const currentStateDef = this.definitions.get(instance.workflowId)?.states[
 			instance.currentState
@@ -574,7 +600,7 @@ export class WorkflowEngine {
 	): Promise<void> {
 		// Implementation would handle each action type
 		// notify, webhook, email, assign, update, create, delete, log, custom
-		console.log("Executing action:", action.type, action.config)
+		log.debug("Executing workflow action", action.type, action.config)
 	}
 
 	private async processAutomaticTransitions(
@@ -601,7 +627,7 @@ export class WorkflowEngine {
 		}
 	}
 
-	private emit(event: string, data: any): void {
+	private emit(event: string, data: unknown): void {
 		const listeners = this.listeners.get(event)
 		if (listeners) {
 			for (const listener of listeners) {
@@ -622,7 +648,7 @@ export class WorkflowEngine {
 // Event type
 export interface WorkflowEvent {
 	type: string
-	data: any
+	data: unknown
 	timestamp: number
 }
 
@@ -658,8 +684,8 @@ export function useWorkflow(workflowId: string) {
 	}
 
 	async function start(
-		payload: Record<string, any>,
-		options?: { variables?: Record<string, any>; assignedTo?: string[] },
+		payload: WorkflowData,
+		options?: { variables?: WorkflowData; assignedTo?: string[] },
 	) {
 		loading.value = true
 		error.value = null
@@ -678,7 +704,7 @@ export function useWorkflow(workflowId: string) {
 
 	async function transition(
 		transitionId: string,
-		payload?: Record<string, any>,
+		payload?: WorkflowData,
 	) {
 		if (!instance.value) throw new Error("No instance loaded")
 		loading.value = true
@@ -700,8 +726,11 @@ export function useWorkflow(workflowId: string) {
 
 	function cancel(reason?: string) {
 		if (!instance.value) return
-		workflowEngine.cancelInstance(instance.value.id, "current-user", reason)
-		instance.value = workflowEngine.getInstance(instance.value.id)
+		const current = instance.value
+		workflowEngine.cancelInstance(current.id, "current-user", reason)
+		// getInstance() is typed `| undefined`; the row was just written, so
+		// fall back to the local instance rather than poisoning the ref.
+		instance.value = workflowEngine.getInstance(current.id) ?? current
 	}
 
 	return {
@@ -725,9 +754,12 @@ export function useWorkflowInstances(workflowId?: string) {
 	const loading = ref(false)
 
 	const filtered = computed(() => {
-		let result = Array.from(workflowEngine.instances.values())
-		if (workflowId) result = result.filter((i) => i.workflowId === workflowId)
-		return result.sort((a, b) => b.updatedAt - a.updatedAt)
+		// Use the engine's public query API instead of reaching into its
+		// private `instances` map (which TypeScript correctly forbids).
+		const result = workflowEngine.listInstances(
+			workflowId ? { workflowId } : undefined,
+		)
+		return [...result].sort((a, b) => b.updatedAt - a.updatedAt)
 	})
 
 	async function refresh() {
@@ -849,14 +881,4 @@ export function useWorkflowDesigner() {
 		exportDefinition,
 		importDefinition,
 	}
-}
-
-export {
-	WorkflowEngine,
-	type WorkflowDefinition,
-	type WorkflowState,
-	type WorkflowTransition,
-	type WorkflowInstance,
-	type WorkflowContext,
-	type WorkflowHistoryEntry,
 }

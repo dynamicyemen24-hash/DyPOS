@@ -1,5 +1,6 @@
 import path from "node:path"
 import { promises as fs } from "node:fs"
+import { existsSync } from "node:fs"
 import vue from "@vitejs/plugin-vue"
 import frappeui from "frappe-ui/vite"
 import { defineConfig } from "vite"
@@ -102,6 +103,68 @@ function stripDeadFontFallbacks() {
 }
 
 /**
+ * Vite plugin to prune stale hashed assets left behind by earlier builds.
+ *
+ * `emptyOutDir` is false on purpose: the output root also holds generated and
+ * hand-maintained files (index.html, sw.js, version.json, _headers, icons,
+ * manifest.webmanifest, locales/, workers/) that a wipe would destroy. The cost
+ * is that `assets/` accumulated one generation of chunks per local build, which
+ * caused two real defects:
+ *
+ *  1. The bundle-budget gate summed orphaned files and reported a false
+ *     over-budget failure (905KB stale vs 658KB for the real build).
+ *  2. vite-plugin-pwa globs the output dir to build the service-worker precache
+ *     manifest, so orphans were precached — customers downloaded dead chunks
+ *     into their offline cache.
+ *
+ * Runs in `writeBundle` (not `buildStart`) so a failed build cannot destroy the
+ * last good output, and before VitePWA's `closeBundle` so the precache manifest
+ * is generated from the pruned directory. Only files inside `assets/` are
+ * touched, and only ones absent from the bundle just emitted.
+ */
+function pruneStaleAssetsPlugin() {
+	return {
+		name: "pos-next-prune-stale-assets",
+		apply: "build",
+		async writeBundle(_options, bundle) {
+			const outDir = path.resolve(
+				import.meta.dirname,
+				"../DyPOS/public/pos",
+			)
+			const assetsDir = path.join(outDir, "assets")
+			if (!existsSync(assetsDir)) return
+
+			const emitted = new Set(Object.keys(bundle))
+			let removed = 0
+			for (const file of await fs.readdir(assetsDir, { withFileTypes: true })) {
+				const rel = `assets/${file.name}`
+				if (file.isDirectory()) {
+					// Keep a subdirectory only if the bundle wrote into it.
+					const prefix = `${rel}/`
+					const stillUsed = [...emitted].some((f) => f.startsWith(prefix))
+					if (!stillUsed) {
+						await fs.rm(path.join(assetsDir, file.name), {
+							recursive: true,
+							force: true,
+						})
+						removed += 1
+					}
+					continue
+				}
+				if (emitted.has(rel)) continue
+				await fs.unlink(path.join(assetsDir, file.name))
+				removed += 1
+			}
+			if (removed > 0) {
+				console.log(
+					`\n[prune-stale-assets] removed ${removed} orphaned file(s) from assets/`,
+				)
+			}
+		},
+	}
+}
+
+/**
  * Vite plugin to write build version to version.json file
  * This enables cache busting and version tracking.
  * Contract (version single-source gate): `version` MUST be the app semver
@@ -172,6 +235,7 @@ export default defineConfig({
 			],
 		}),
 		stripDeadFontFallbacks(),
+		pruneStaleAssetsPlugin(),
 		VitePWA({
 			registerType: "autoUpdate",
 			includeAssets: [
