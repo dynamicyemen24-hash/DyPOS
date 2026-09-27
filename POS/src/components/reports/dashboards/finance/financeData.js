@@ -24,6 +24,9 @@ export async function loadFinanceData(filter) {
 		prevPayments: previous.facts?.payments || [],
 		prevReceivables: previous.facts?.receivables || [],
 		prevPayables: previous.facts?.payables || [],
+		// Provenance travels with the facts (see executiveData.js).
+		warnings: current.warnings,
+		source: current.source,
 	}
 }
 

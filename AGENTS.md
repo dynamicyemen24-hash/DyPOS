@@ -18,7 +18,7 @@ npm test                              # = node scripts/run-tests.mjs
 npx @biomejs/biome check .
 npm run parity
 npm run contract
-# POS/ — 745 tests
+# POS/ — 760 tests
 npm run test:run
 npx biome check src/<touched-file>
 ```
@@ -65,6 +65,12 @@ manifest breaks both the build and any test that compiles CSS).
      does not exist standalone and silently disables whole features.
    - Identity comes from the local session (`@/data/session`: `sessionUser()`,
      `sessionRole()`), never from a global.
+   - **An empty list is not a measurement.** Anything a dashboard renders must
+     carry its provenance: `methodGetListWithSource` returns
+     `server | local | unavailable` (`utils/offline/localMirror` serves the
+     cached rows offline; `useDashboardSource` maps `local` to the stale banner
+     and `unavailable` to the error state). Never `catch(() => [])` a report
+     fetch — a confident "Stock Value 0.00" is worse than an error.
    - Renaming a third-party name is **not** a licence to `find/replace` it:
      `server/tests/branding-integrity.test.js` fails on glued brand tokens
      (`dyposerror`), dead globals and resurrected legacy identifiers.

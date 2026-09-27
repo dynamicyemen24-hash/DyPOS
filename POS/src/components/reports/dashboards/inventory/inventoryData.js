@@ -4,6 +4,13 @@
  * Fetches inventory/stock data and builds chart models for the
  * inventory dashboard, through the shared method-router client
  * (`@/utils/methodClient`) so the same code path works standalone/offline.
+ *
+ * Provenance: the loader used to `.catch(() => [])` every fetch, so a dead
+ * network produced "Total Stock Value 0.00 / Out of Stock 0" with no hint that
+ * the numbers never arrived — a plausible, authoritative, wrong report. It now
+ * reports the weakest source it actually used (`source`) plus Arabic
+ * `warnings`, and `useDashboardSource` turns `unavailable` into the shell's
+ * error state and `local` into its "stale" banner.
  */
 import {
 	changePercent,
@@ -11,10 +18,13 @@ import {
 	trendOf,
 } from "../../core/formatters/reportFormatters"
 import { toISODate } from "../core/dashboardUtils"
-import { methodGetList } from "@/utils/methodClient"
+import { methodGetListWithSource, DATA_SOURCE } from "@/utils/methodClient"
+import { weakestSource } from "@/utils/offline/localMirror"
 
-async function getList(doctype, options = {}) {
-	return methodGetList(doctype, options)
+const SOURCE_WARNING = {
+	[DATA_SOURCE.LOCAL]: "البيانات معروضة من ذاكرة الجهاز وقد لا تكون محدَّثة",
+	[DATA_SOURCE.UNAVAILABLE]:
+		"تعذّر جلب بيانات المخزون (لا خادم ولا ذاكرة محلية)",
 }
 
 function buildPeriodFilters(filter, dateField) {
@@ -25,8 +35,8 @@ function buildPeriodFilters(filter, dateField) {
 }
 
 export async function loadInventoryData(filter) {
-	const [stockEntries, items] = await Promise.all([
-		getList("Stock Ledger Entry", {
+	const [stockRes, itemsRes] = await Promise.all([
+		methodGetListWithSource("Stock Ledger Entry", {
 			fields: [
 				"name",
 				"posting_date",
@@ -41,8 +51,8 @@ export async function loadInventoryData(filter) {
 			filters: buildPeriodFilters(filter, "posting_date"),
 			orderBy: "posting_date asc",
 			limit: 0,
-		}).catch(() => []),
-		getList("Item", {
+		}),
+		methodGetListWithSource("Item", {
 			fields: [
 				"name",
 				"item_name",
@@ -54,15 +64,28 @@ export async function loadInventoryData(filter) {
 			],
 			filters: [["is_stock_item", "=", 1]],
 			limit: 0,
-		}).catch(() => []),
+		}),
 	])
 
-	const binData = await getList("Bin", {
+	const binRes = await methodGetListWithSource("Bin", {
 		fields: ["item_code", "warehouse", "actual_qty", "valuation_rate"],
 		limit: 0,
-	}).catch(() => [])
+	})
 
-	return { stockEntries, items, binData }
+	const source = weakestSource([
+		stockRes.source,
+		itemsRes.source,
+		binRes.source,
+	])
+	const warnings = source === DATA_SOURCE.SERVER ? [] : [SOURCE_WARNING[source]]
+
+	return {
+		stockEntries: stockRes.rows,
+		items: itemsRes.rows,
+		binData: binRes.rows,
+		source,
+		warnings,
+	}
 }
 
 export function buildInventoryModels(facts) {

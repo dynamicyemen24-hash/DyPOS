@@ -28,6 +28,7 @@ import {
 } from "vue"
 import { useDashboardCache } from "./useDashboardCache"
 import { useRealtimeRefresh } from "./realtime-refresh"
+import { DATA_SOURCE } from "@/utils/offline/localMirror"
 
 const PERIOD_KEY = "dashboardPeriod"
 
@@ -121,10 +122,38 @@ export function useDashboardSource(options = {}) {
 	const isStale = ref(false)
 	const fromCache = ref(false)
 	const autoRefresh = ref(false)
+	/** Where the current facts came from: server | local | unavailable. */
+	const dataSource = ref(null)
 
 	let autoTimer = null
 	let debounceTimer = null
 	let inflight = null
+
+	/**
+	 * Fold the loader's provenance into the two states every dashboard already
+	 * renders, so a network outage can never masquerade as a measurement.
+	 *
+	 *   - `local`       → the shell's existing "stale/cached" banner. True in
+	 *                     every sense: these rows came from the device.
+	 *   - `unavailable` → the shell's error state, which REPLACES the body, with
+	 *                     the loader's Arabic warning as the reason.
+	 *
+	 * Without this, an offline dashboard rendered confident zeros
+	 * ("Total Stock Value 0.00") and a manager restocked from fiction.
+	 */
+	function applyProvenance(data) {
+		const source = data?.source ?? null
+		dataSource.value = source
+		if (source === DATA_SOURCE.SERVER) {
+			isStale.value = false
+			return
+		}
+		isStale.value = source === DATA_SOURCE.LOCAL
+		if (source === DATA_SOURCE.UNAVAILABLE) {
+			const reasons = Array.isArray(data?.warnings) ? data.warnings : []
+			error.value = reasons[0] || "تعذّر جلب البيانات"
+		}
+	}
 
 	// Callers pass one of three shapes and all three must work:
 	//   - a function/getter  → called on every read (preferred)
@@ -160,8 +189,8 @@ export function useDashboardSource(options = {}) {
 			const data = await fetch(filter)
 			facts.value = data
 			lastLoaded.value = new Date()
-			isStale.value = false
 			fromCache.value = false
+			applyProvenance(data)
 			cache.save(filter, data, ttlMinutes)
 			return data
 		} catch (err) {
@@ -186,6 +215,7 @@ export function useDashboardSource(options = {}) {
 			facts.value = hit.data
 			fromCache.value = true
 			isStale.value = false
+			applyProvenance(hit.data)
 			return Promise.resolve(hit.data)
 		}
 
@@ -261,6 +291,8 @@ export function useDashboardSource(options = {}) {
 		isLoaded,
 		isStale,
 		fromCache,
+		/** `server` | `local` | `unavailable` — for shells that want to say so. */
+		dataSource,
 		autoRefresh,
 		rtMode,
 		filterFrom: period.from,

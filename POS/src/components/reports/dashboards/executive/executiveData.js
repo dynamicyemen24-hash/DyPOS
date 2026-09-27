@@ -27,6 +27,9 @@ export async function loadExecutiveData(filter) {
 		prevInvoices: previous.facts?.invoices || [],
 		prevPayments: previous.facts?.payments || [],
 		warnings: current.warnings,
+		// Provenance travels with the facts: the dashboard must be able to say
+		// "these numbers came from the device" instead of showing silent zeros.
+		source: current.source,
 	}
 }
 

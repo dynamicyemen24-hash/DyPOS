@@ -14,12 +14,30 @@
  *   - Payment Entry          (cash flow)
  *   - Purchase Invoice       (payables)
  */
-import { methodGetList, NO_DYPOS_API } from "@/utils/methodClient"
+import {
+	methodGetListWithSource,
+	DATA_SOURCE,
+	NO_DYPOS_API,
+} from "@/utils/methodClient"
+import { weakestSource } from "@/utils/offline/localMirror"
 
 const INVOICE_CHUNK = 100
 
+const SOURCE_WARNING = {
+	[DATA_SOURCE.LOCAL]: "البيانات معروضة من ذاكرة الجهاز وقد لا تكون محدَّثة",
+	[DATA_SOURCE.UNAVAILABLE]:
+		"تعذّر جلب البيانات المالية (لا خادم ولا ذاكرة محلية)",
+}
+
+/** Provenance-aware fetch — the loaders must know where rows came from. */
+async function collect(doctype, options = {}) {
+	return methodGetListWithSource(doctype, options)
+}
+
+/** Array-only fetch for the public per-doctype fetchers. */
 async function getList(doctype, options = {}) {
-	return methodGetList(doctype, options)
+	const { rows } = await collect(doctype, options)
+	return rows
 }
 
 function toISODate(date) {
@@ -74,13 +92,19 @@ const SALES_INVOICE_FIELDS = [
 	"outstanding_amount",
 ]
 
+/**
+ * One definition per query, shared by the array fetchers and the
+ * provenance-aware loader. Two spellings of the same filter used to drift.
+ */
+const salesInvoiceQuery = (filter) => ({
+	fields: SALES_INVOICE_FIELDS,
+	filters: buildPeriodFilters(filter, "posting_date"),
+	orderBy: "posting_date asc",
+	limit: 0,
+})
+
 export async function fetchSalesInvoices(filter) {
-	return getList("Sales Invoice", {
-		fields: SALES_INVOICE_FIELDS,
-		filters: buildPeriodFilters(filter, "posting_date"),
-		orderBy: "posting_date asc",
-		limit: 0,
-	})
+	return getList("Sales Invoice", salesInvoiceQuery(filter))
 }
 
 /**
@@ -136,29 +160,31 @@ export async function fetchSalesTaxLines(invoiceNames) {
 	}
 }
 
+const paymentEntryQuery = (filter) => ({
+	fields: [
+		"name",
+		"posting_date",
+		"payment_type",
+		"party_type",
+		"party",
+		"mode_of_payment",
+		"paid_amount",
+		"received_amount",
+		"company",
+	],
+	filters: buildPeriodFilters(filter, "posting_date"),
+	orderBy: "posting_date asc",
+	limit: 0,
+})
+
 export async function fetchPaymentEntries(filter) {
-	return getList("Payment Entry", {
-		fields: [
-			"name",
-			"posting_date",
-			"payment_type",
-			"party_type",
-			"party",
-			"mode_of_payment",
-			"paid_amount",
-			"received_amount",
-			"company",
-		],
-		filters: buildPeriodFilters(filter, "posting_date"),
-		orderBy: "posting_date asc",
-		limit: 0,
-	})
+	return getList("Payment Entry", paymentEntryQuery(filter))
 }
 
-export async function fetchReceivables(filter) {
+const receivableQuery = (filter) => {
 	const filters = buildPeriodFilters(filter, "posting_date")
 	filters.push(["outstanding_amount", ">", 0])
-	return getList("Sales Invoice", {
+	return {
 		fields: [
 			"name",
 			"posting_date",
@@ -173,13 +199,17 @@ export async function fetchReceivables(filter) {
 		filters,
 		orderBy: "due_date asc",
 		limit: 0,
-	})
+	}
 }
 
-export async function fetchPayables(filter) {
+export async function fetchReceivables(filter) {
+	return getList("Sales Invoice", receivableQuery(filter))
+}
+
+const payableQuery = (filter) => {
 	const filters = buildPeriodFilters(filter, "posting_date")
 	filters.push(["outstanding_amount", ">", 0])
-	return getList("Purchase Invoice", {
+	return {
 		fields: [
 			"name",
 			"posting_date",
@@ -195,29 +225,48 @@ export async function fetchPayables(filter) {
 		filters,
 		orderBy: "due_date asc",
 		limit: 0,
-	})
+	}
+}
+
+export async function fetchPayables(filter) {
+	return getList("Purchase Invoice", payableQuery(filter))
 }
 
 /**
  * Load every fact set needed by the financial reports in parallel.
- * Returns `{ facts, warnings }`; child-table degradation is reported
+ * Returns `{ facts, warnings, source }`; child-table degradation is reported
  * through `warnings` instead of failing the whole load.
+ *
+ * `source` is the weakest provenance across the four fact sets: `server`,
+ * `local` (offline mirror) or `unavailable` (nothing to read). Dashboards must
+ * not present an `unavailable` load as "no sales" — the whole point of tracking
+ * it is to say so out loud.
  */
 export async function loadFinancialData(filter) {
-	const [invoices, payments, receivables, payables] = await Promise.all([
-		fetchSalesInvoices(filter),
-		fetchPaymentEntries(filter),
-		fetchReceivables(filter),
-		fetchPayables(filter),
-	])
+	const [invoicesRes, paymentsRes, receivablesRes, payablesRes] =
+		await Promise.all([
+			collect("Sales Invoice", salesInvoiceQuery(filter)),
+			collect("Payment Entry", paymentEntryQuery(filter)),
+			collect("Sales Invoice", receivableQuery(filter)),
+			collect("Purchase Invoice", payableQuery(filter)),
+		])
 
+	const invoices = invoicesRes.rows
 	const invoiceNames = invoices.map((row) => row.name)
 	const [items, taxLines] = await Promise.all([
 		fetchSalesInvoiceItems(invoiceNames),
 		fetchSalesTaxLines(invoiceNames),
 	])
 
+	const source = weakestSource([
+		invoicesRes.source,
+		paymentsRes.source,
+		receivablesRes.source,
+		payablesRes.source,
+	])
+
 	const warnings = []
+	if (source !== DATA_SOURCE.SERVER) warnings.push(SOURCE_WARNING[source])
 	if (invoiceNames.length > 0 && items.length === 0) {
 		warnings.push("items_unavailable")
 	}
@@ -230,10 +279,11 @@ export async function loadFinancialData(filter) {
 			invoices,
 			items,
 			taxLines,
-			payments,
-			receivables,
-			payables,
+			payments: paymentsRes.rows,
+			receivables: receivablesRes.rows,
+			payables: payablesRes.rows,
 		},
 		warnings,
+		source,
 	}
 }
