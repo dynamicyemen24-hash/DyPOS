@@ -1,6 +1,6 @@
 import { isOffline } from "@/utils/offline"
 import { offlineWorker } from "@/utils/offline/workerClient"
-import { createResource } from "frappe-ui"
+import { createResource } from "dypos-ui"
 import { logger } from "@/utils/logger"
 
 const log = logger.create("useItems")

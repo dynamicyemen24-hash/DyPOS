@@ -602,7 +602,7 @@
 	--z-toast: var(--dy-z-toast);
 
 	/*
-	 * Frappe UI / legacy layers.
+	 * DyPOS UI / legacy layers.
 	 * لا تدخل في سلم DyPOS العام حتى لا يحدث تعارض مع مكونات المكتبة.
 	 */
 	--z-dialog-overlay: 400;

@@ -1,9 +1,9 @@
 # Copyright (c) 2026, BrainWise and contributors
 # For license information, please see license.txt
 
-import frappe
-from frappe import _
-from frappe.utils import flt, get_datetime, time_diff_in_hours
+import dypos
+from dyposimport _
+from dypos.utils import flt, get_datetime, time_diff_in_hours
 
 
 def execute(filters=None):
@@ -144,7 +144,7 @@ def get_data(filters):
 			pcs.period_end_date DESC, pr.mode_of_payment
 	"""
 
-	raw = frappe.db.sql(query, filters, as_dict=1)
+	raw = dypos.db.sql(query, filters, as_dict=1)
 
 	if not raw:
 		return [], []
@@ -236,7 +236,7 @@ def _get_transaction_counts(data):
 
 	placeholders = ", ".join(["%s"] * len(shift_names))
 
-	rows = frappe.db.sql(
+	rows = dypos.db.sql(
 		f"""
 		SELECT
 			sir.parent as shift,
@@ -261,7 +261,7 @@ def _get_bank_deposit_data(data):
 
 	placeholders = ", ".join(["%s"] * len(shift_names))
 
-	rows = frappe.db.sql(
+	rows = dypos.db.sql(
 		f"""
 		SELECT
 			pcs.name as shift,

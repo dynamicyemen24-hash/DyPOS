@@ -1,7 +1,7 @@
 // =============================================================================
 // DyPOS Design System v2.0 — Custom Brand Identity
 // =============================================================================
-import frappeUIPreset from "frappe-ui/tailwind"
+import dyposUIPreset from "./packages/dypos-ui/tailwind/index.js"
 
 // ============================================================================
 // BRAND COLORS — CSS Variable driven (themeable at runtime)
@@ -92,11 +92,11 @@ const semantic = {
 }
 
 export default {
-	presets: [frappeUIPreset],
+	presets: [dyposUIPreset],
 	content: [
 		"./index.html",
 		"./src/**/*.{vue,js,ts,jsx,tsx}",
-		"./node_modules/frappe-ui/src/components/**/*.{vue,js,ts,jsx,tsx}",
+		"./node_modules/dypos-ui/src/components/**/*.{vue,js,ts,jsx,tsx}",
 	],
 	theme: {
 		extend: {
@@ -105,7 +105,7 @@ export default {
 				brand,
 				accent,
 
-				// Legacy indigo mapping for frappe-ui compatibility
+				// Legacy indigo mapping for dypos-ui compatibility
 				indigo: brand,
 
 				// Official brand name
@@ -148,19 +148,97 @@ export default {
 				numbers: "var(--dy-font-numbers)",
 			},
 			fontSize: {
-				"2xs": ["var(--dy-font-size-2xs-min)", { lineHeight: "var(--dy-font-size-2xs-line)", maxWidth: "var(--dy-font-size-2xs-max)" }],
-				xs: ["var(--dy-font-size-xs-min)", { lineHeight: "var(--dy-font-size-xs-line)", maxWidth: "var(--dy-font-size-xs-max)" }],
-				sm: ["var(--dy-font-size-sm-min)", { lineHeight: "var(--dy-font-size-sm-line)", maxWidth: "var(--dy-font-size-sm-max)" }],
-				base: ["var(--dy-font-size-base-min)", { lineHeight: "var(--dy-font-size-base-line)", maxWidth: "var(--dy-font-size-base-max)" }],
-				lg: ["var(--dy-font-size-lg-min)", { lineHeight: "var(--dy-font-size-lg-line)", maxWidth: "var(--dy-font-size-lg-max)" }],
-				xl: ["var(--dy-font-size-xl-min)", { lineHeight: "var(--dy-font-size-xl-line)", maxWidth: "var(--dy-font-size-xl-max)" }],
-				"2xl": ["var(--dy-font-size-2xl-min)", { lineHeight: "var(--dy-font-size-2xl-line)", maxWidth: "var(--dy-font-size-2xl-max)" }],
-				"3xl": ["var(--dy-font-size-3xl-min)", { lineHeight: "var(--dy-font-size-3xl-line)", maxWidth: "var(--dy-font-size-3xl-max)" }],
-				"4xl": ["var(--dy-font-size-4xl-min)", { lineHeight: "var(--dy-font-size-4xl-line)", maxWidth: "var(--dy-font-size-4xl-max)" }],
-				"5xl": ["var(--dy-font-size-5xl-min)", { lineHeight: "var(--dy-font-size-5xl-line)", maxWidth: "var(--dy-font-size-5xl-max)" }],
-				"display-sm": ["var(--dy-font-size-display-sm-min)", { lineHeight: "var(--dy-font-size-display-sm-line)", maxWidth: "var(--dy-font-size-display-sm-max)" }],
-				"display-md": ["var(--dy-font-size-display-md-min)", { lineHeight: "var(--dy-font-size-display-md-line)", maxWidth: "var(--dy-font-size-display-md-max)" }],
-				"display-lg": ["var(--dy-font-size-display-lg-min)", { lineHeight: "var(--dy-font-size-display-lg-line)", maxWidth: "var(--dy-font-size-display-lg-max)" }],
+				"2xs": [
+					"var(--dy-font-size-2xs-min)",
+					{
+						lineHeight: "var(--dy-font-size-2xs-line)",
+						maxWidth: "var(--dy-font-size-2xs-max)",
+					},
+				],
+				xs: [
+					"var(--dy-font-size-xs-min)",
+					{
+						lineHeight: "var(--dy-font-size-xs-line)",
+						maxWidth: "var(--dy-font-size-xs-max)",
+					},
+				],
+				sm: [
+					"var(--dy-font-size-sm-min)",
+					{
+						lineHeight: "var(--dy-font-size-sm-line)",
+						maxWidth: "var(--dy-font-size-sm-max)",
+					},
+				],
+				base: [
+					"var(--dy-font-size-base-min)",
+					{
+						lineHeight: "var(--dy-font-size-base-line)",
+						maxWidth: "var(--dy-font-size-base-max)",
+					},
+				],
+				lg: [
+					"var(--dy-font-size-lg-min)",
+					{
+						lineHeight: "var(--dy-font-size-lg-line)",
+						maxWidth: "var(--dy-font-size-lg-max)",
+					},
+				],
+				xl: [
+					"var(--dy-font-size-xl-min)",
+					{
+						lineHeight: "var(--dy-font-size-xl-line)",
+						maxWidth: "var(--dy-font-size-xl-max)",
+					},
+				],
+				"2xl": [
+					"var(--dy-font-size-2xl-min)",
+					{
+						lineHeight: "var(--dy-font-size-2xl-line)",
+						maxWidth: "var(--dy-font-size-2xl-max)",
+					},
+				],
+				"3xl": [
+					"var(--dy-font-size-3xl-min)",
+					{
+						lineHeight: "var(--dy-font-size-3xl-line)",
+						maxWidth: "var(--dy-font-size-3xl-max)",
+					},
+				],
+				"4xl": [
+					"var(--dy-font-size-4xl-min)",
+					{
+						lineHeight: "var(--dy-font-size-4xl-line)",
+						maxWidth: "var(--dy-font-size-4xl-max)",
+					},
+				],
+				"5xl": [
+					"var(--dy-font-size-5xl-min)",
+					{
+						lineHeight: "var(--dy-font-size-5xl-line)",
+						maxWidth: "var(--dy-font-size-5xl-max)",
+					},
+				],
+				"display-sm": [
+					"var(--dy-font-size-display-sm-min)",
+					{
+						lineHeight: "var(--dy-font-size-display-sm-line)",
+						maxWidth: "var(--dy-font-size-display-sm-max)",
+					},
+				],
+				"display-md": [
+					"var(--dy-font-size-display-md-min)",
+					{
+						lineHeight: "var(--dy-font-size-display-md-line)",
+						maxWidth: "var(--dy-font-size-display-md-max)",
+					},
+				],
+				"display-lg": [
+					"var(--dy-font-size-display-lg-min)",
+					{
+						lineHeight: "var(--dy-font-size-display-lg-line)",
+						maxWidth: "var(--dy-font-size-display-lg-max)",
+					},
+				],
 			},
 			lineHeight: {
 				tight: "var(--dy-line-height-tight)",
@@ -270,7 +348,8 @@ export default {
 				"dy-fade-in": "dyFadeIn var(--dy-dur-normal) var(--dy-ease-standard)",
 				"dy-fade-out": "dyFadeOut var(--dy-dur-fast) var(--dy-ease-standard)",
 				"dy-slide-up": "dySlideUp var(--dy-dur-normal) var(--dy-ease-standard)",
-				"dy-slide-down": "dySlideDown var(--dy-dur-normal) var(--dy-ease-standard)",
+				"dy-slide-down":
+					"dySlideDown var(--dy-dur-normal) var(--dy-ease-standard)",
 				"dy-scale-in": "dyScaleIn var(--dy-dur-fast) var(--dy-ease-spring)",
 				"dy-scale-out": "dyScaleOut var(--dy-dur-fast) var(--dy-ease-standard)",
 				"dy-spin": "dySpin 1s linear infinite",
@@ -280,13 +359,31 @@ export default {
 			keyframes: {
 				dyFadeIn: { "0%": { opacity: "0" }, "100%": { opacity: "1" } },
 				dyFadeOut: { "0%": { opacity: "1" }, "100%": { opacity: "0" } },
-				dySlideUp: { "0%": { transform: "translateY(10px)", opacity: "0" }, "100%": { transform: "translateY(0)", opacity: "1" } },
-				dySlideDown: { "0%": { transform: "translateY(-10px)", opacity: "0" }, "100%": { transform: "translateY(0)", opacity: "1" } },
-				dyScaleIn: { "0%": { transform: "scale(0.95)", opacity: "0" }, "100%": { transform: "scale(1)", opacity: "1" } },
-				dyScaleOut: { "0%": { transform: "scale(1)", opacity: "1" }, "100%": { transform: "scale(0.95)", opacity: "0" } },
-				dySpin: { "0%": { transform: "rotate(0deg)" }, "100%": { transform: "rotate(360deg)" } },
+				dySlideUp: {
+					"0%": { transform: "translateY(10px)", opacity: "0" },
+					"100%": { transform: "translateY(0)", opacity: "1" },
+				},
+				dySlideDown: {
+					"0%": { transform: "translateY(-10px)", opacity: "0" },
+					"100%": { transform: "translateY(0)", opacity: "1" },
+				},
+				dyScaleIn: {
+					"0%": { transform: "scale(0.95)", opacity: "0" },
+					"100%": { transform: "scale(1)", opacity: "1" },
+				},
+				dyScaleOut: {
+					"0%": { transform: "scale(1)", opacity: "1" },
+					"100%": { transform: "scale(0.95)", opacity: "0" },
+				},
+				dySpin: {
+					"0%": { transform: "rotate(0deg)" },
+					"100%": { transform: "rotate(360deg)" },
+				},
 				dyPulse: { "0%, 100%": { opacity: "1" }, "50%": { opacity: "0.5" } },
-				dyBounce: { "0%, 100%": { transform: "translateY(0)" }, "50%": { transform: "translateY(-10px)" } },
+				dyBounce: {
+					"0%, 100%": { transform: "translateY(0)" },
+					"50%": { transform: "translateY(-10px)" },
+				},
 			},
 		},
 	},

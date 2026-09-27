@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from "vue"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
 
 const props = defineProps({

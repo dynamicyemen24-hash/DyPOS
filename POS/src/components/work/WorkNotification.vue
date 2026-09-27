@@ -92,7 +92,7 @@
 <script setup>
 import { ref, computed, reactive } from "vue"
 import { useLocale } from "@/composables/useLocale"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
 import DyButton from "@/components/ui/DyButton.vue"
 

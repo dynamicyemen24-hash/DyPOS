@@ -87,10 +87,10 @@ async function fetchCSRFToken() {
 		err.offline = true
 		throw err
 	}
-	// Use raw fetch (not frappeRequest) to avoid circular dependency:
+	// Use raw fetch (not request) to avoid circular dependency:
 	// - This function is called when CSRF token is invalid
-	// - frappeRequest is wrapped with CSRF auto-refresh
-	// - Using frappeRequest here would cause infinite loop
+	// - request is wrapped with CSRF auto-refresh
+	// - Using request here would cause infinite loop
 	const tryEndpoints = [CSRF_TOKEN_ENDPOINT, CSRF_LEGACY_ENDPOINT]
 	let lastError = null
 	for (const endpoint of tryEndpoints) {
@@ -126,7 +126,7 @@ async function fetchCSRFToken() {
 }
 
 function extractTokenFromResponse(data) {
-	// Worker shape: { csrf_token: "..." } — legacy Frappe shape: { message: { csrf_token } }
+	// Worker shape: { csrf_token: "..." } — legacy shape: { message: { csrf_token } }
 	return normalizeToken(data?.csrf_token || data?.message?.csrf_token)
 }
 
@@ -144,7 +144,7 @@ export async function ensureCSRFToken({
 			return true
 		}
 
-		// Fallback: check cookie (though Frappe typically doesn't use csrf_token cookies)
+		// Fallback: check cookie (though DyPOS typically doesn't use csrf_token cookies)
 		const existingToken = getCSRFTokenFromCookie()
 		if (existingToken) {
 			return true

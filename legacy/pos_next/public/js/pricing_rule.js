@@ -2,7 +2,7 @@
 // For license information, please see license.txt
 
 
-frappe.ui.form.on("Pricing Rule", {
+dypos.ui.form.on("Pricing Rule", {
 	refresh(frm) {
 		pn_toggle_min_max(frm);
 	},

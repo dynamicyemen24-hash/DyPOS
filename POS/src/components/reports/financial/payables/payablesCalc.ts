@@ -14,8 +14,8 @@ import { buildPartyLedgerModel } from "../receivables/receivablesCalc"
  */
 
 export function buildPayablesModel(
-	rows,
-	now = new Date(),
+	rows: PurchaseInvoiceFact[],
+	now: Date = new Date(),
 ): PayablesReportModel {
 	return buildPartyLedgerModel(rows, "supplier", "supplier_name", now)
 }

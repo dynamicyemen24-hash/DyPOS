@@ -1,10 +1,10 @@
 import json
 
-import frappe
-from frappe import _
-from frappe.core.api.file import get_max_file_size
-from frappe.model.naming import make_autoname
-from frappe.utils import cint, cstr, flt
+import dypos
+from dyposimport _
+from dypos.core.api.file import get_max_file_size
+from dypos.model.naming import make_autoname
+from dypos.utils import cint, cstr, flt
 
 from DyPOS.api.items import _get_pos_profile_allowed_item_groups
 
@@ -24,7 +24,7 @@ DEFAULT_PAGE_LENGTH = 20
 MAX_PAGE_LENGTH = 100
 POS_ITEM_CODE_SERIES = "POS-ITEM-.#####"
 # Image sources that may be assigned to Item.image. Site-relative paths cover
-# Frappe uploads; http(s) covers images synced from an external catalogue (the
+# dyposuploads; http(s) covers images synced from an external catalogue (the
 # ecommerce_integrations Shopify sync stores cdn.shopify.com URLs, for example).
 # The point of the check is to reject script-bearing schemes, not to force
 # images to be local.
@@ -45,23 +45,23 @@ def _validate_pos_profile_access(pos_profile: str) -> None:
 	`api/invoices.py` and `api/credit_sales.py`.
 	"""
 	if not pos_profile:
-		frappe.throw(_("POS Profile is required"))
+		dypos.throw(_("POS Profile is required"))
 
-	is_assigned = frappe.db.exists("POS Profile User", {"parent": pos_profile, "user": frappe.session.user})
+	is_assigned = dypos.db.exists("POS Profile User", {"parent": pos_profile, "user": dypos.session.user})
 	# Users who can administer POS Profiles are not constrained by them.
-	if not is_assigned and not frappe.has_permission("POS Profile", "write"):
-		frappe.throw(_("You don't have access to this POS Profile"))
+	if not is_assigned and not dypos.has_permission("POS Profile", "write"):
+		dypos.throw(_("You don't have access to this POS Profile"))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_product_management_permissions() -> dict:
 	"""Return permissions required to show and use POS Product Management."""
-	can_read_item = frappe.has_permission("Item", "read")
-	can_create_item = frappe.has_permission("Item", "create")
-	can_write_item = frappe.has_permission("Item", "write")
-	can_read_price = frappe.has_permission("Item Price", "read")
-	can_create_price = frappe.has_permission("Item Price", "create")
-	can_write_price = frappe.has_permission("Item Price", "write")
+	can_read_item = dypos.has_permission("Item", "read")
+	can_create_item = dypos.has_permission("Item", "create")
+	can_write_item = dypos.has_permission("Item", "write")
+	can_read_price = dypos.has_permission("Item Price", "read")
+	can_create_price = dypos.has_permission("Item Price", "create")
+	can_write_price = dypos.has_permission("Item Price", "write")
 
 	return {
 		"read_item": can_read_item,
@@ -77,7 +77,7 @@ def get_product_management_permissions() -> dict:
 	}
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_product_image_settings() -> dict:
 	"""Report the site's own upload limits so the client matches the server.
 
@@ -92,7 +92,7 @@ def get_product_image_settings() -> dict:
 	Hardcoding these client-side lets the picker accept a file the server will
 	then reject, so they are read rather than assumed.
 	"""
-	allowed = cstr(frappe.get_system_settings("allowed_file_extensions") or "").strip()
+	allowed = cstr(dypos.get_system_settings("allowed_file_extensions") or "").strip()
 
 	if allowed:
 		site_extensions = {line.strip().upper().lstrip(".") for line in allowed.splitlines() if line.strip()}
@@ -110,21 +110,21 @@ def get_product_image_settings() -> dict:
 	}
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_item_groups(pos_profile: str) -> list:
 	"""Get leaf item groups allowed for product management in this POS Profile."""
-	if not frappe.has_permission("Item", "read"):
-		frappe.throw(_("Not permitted to read Item"))
+	if not dypos.has_permission("Item", "read"):
+		dypos.throw(_("Not permitted to read Item"))
 
 	_validate_pos_profile_access(pos_profile)
-	pos_profile_doc = frappe.get_cached_doc("POS Profile", pos_profile)
+	pos_profile_doc = dypos.get_cached_doc("POS Profile", pos_profile)
 	allowed_item_groups = _get_pos_profile_allowed_item_groups(pos_profile_doc)
 
 	filters = {"is_group": 0}
 	if allowed_item_groups:
 		filters["name"] = ["in", allowed_item_groups]
 
-	return frappe.get_all(
+	return dypos.get_all(
 		"Item Group",
 		filters=filters,
 		fields=["name", "parent_item_group", "is_group"],
@@ -132,7 +132,7 @@ def get_item_groups(pos_profile: str) -> list:
 	)
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_products(
 	pos_profile: str,
 	search_term: str | None = None,
@@ -141,11 +141,11 @@ def get_products(
 	limit: int = DEFAULT_PAGE_LENGTH,
 ) -> list:
 	"""Get products for management"""
-	if not frappe.has_permission("Item", "read"):
-		frappe.throw(_("Not permitted to read Item"))
+	if not dypos.has_permission("Item", "read"):
+		dypos.throw(_("Not permitted to read Item"))
 
 	_validate_pos_profile_access(pos_profile)
-	pos_profile_doc = frappe.get_cached_doc("POS Profile", pos_profile)
+	pos_profile_doc = dypos.get_cached_doc("POS Profile", pos_profile)
 	limit_start = max(cint(start), 0)
 	page_length = min(max(cint(limit) or DEFAULT_PAGE_LENGTH, 1), MAX_PAGE_LENGTH)
 
@@ -167,7 +167,7 @@ def get_products(
 	elif allowed_item_groups:
 		filters["item_group"] = ["in", allowed_item_groups]
 
-	items = frappe.get_all(
+	items = dypos.get_all(
 		"Item",
 		filters=filters,
 		or_filters=or_filters,
@@ -187,7 +187,7 @@ def get_products(
 	item_codes = [d.name for d in items]
 
 	if item_codes:
-		conversions = frappe.get_all(
+		conversions = dypos.get_all(
 			"UOM Conversion Detail",
 			filters={"parent": ["in", item_codes]},
 			fields=["parent", "uom", "conversion_factor"],
@@ -203,7 +203,7 @@ def get_products(
 
 	# Fetch prices
 	if items and pos_profile_doc.selling_price_list:
-		prices = frappe.get_all(
+		prices = dypos.get_all(
 			"Item Price",
 			filters={
 				"item_code": ["in", item_codes],
@@ -221,7 +221,7 @@ def get_products(
 	return items
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def save_product(pos_profile: str, data: str) -> dict:
 	"""Create or update a product for POS"""
 	data = json.loads(data)
@@ -230,37 +230,37 @@ def save_product(pos_profile: str, data: str) -> dict:
 	stock_uom = (data.get("stock_uom") or "").strip()
 
 	if not item_name:
-		frappe.throw(_("Product Name is required"))
+		dypos.throw(_("Product Name is required"))
 	if not item_group:
-		frappe.throw(_("Item Group is required"))
+		dypos.throw(_("Item Group is required"))
 	if not stock_uom:
-		frappe.throw(_("UOM is required"))
+		dypos.throw(_("UOM is required"))
 
 	is_new = not data.get("item_code")
 	permission_type = "create" if is_new else "write"
-	if not frappe.has_permission("Item", permission_type):
-		frappe.throw(_("Not permitted to {0} Item").format(permission_type))
+	if not dypos.has_permission("Item", permission_type):
+		dypos.throw(_("Not permitted to {0} Item").format(permission_type))
 
 	_validate_pos_profile_access(pos_profile)
-	pos_profile_doc = frappe.get_cached_doc("POS Profile", pos_profile)
+	pos_profile_doc = dypos.get_cached_doc("POS Profile", pos_profile)
 	allowed_item_groups = _get_pos_profile_allowed_item_groups(pos_profile_doc)
 	if allowed_item_groups and item_group not in allowed_item_groups:
-		frappe.throw(_("Item Group is not allowed for this POS Profile"))
+		dypos.throw(_("Item Group is not allowed for this POS Profile"))
 
 	if is_new:
-		item = frappe.new_doc("Item")
+		item = dypos.new_doc("Item")
 		item.item_code = _make_item_code()
 		item.item_group = item_group
 		item.stock_uom = stock_uom
 		item.is_sales_item = 1
 		item.is_stock_item = 1
 	else:
-		item = frappe.get_doc("Item", data.get("item_code"))
+		item = dypos.get_doc("Item", data.get("item_code"))
 		# The incoming group is checked above, but the item's *existing* group
 		# must be in scope too — otherwise an item can be pulled out of a
 		# group this profile is not allowed to touch and into one it is.
 		if allowed_item_groups and item.item_group not in allowed_item_groups:
-			frappe.throw(_("This product belongs to an Item Group not allowed for this POS Profile"))
+			dypos.throw(_("This product belongs to an Item Group not allowed for this POS Profile"))
 
 	item.item_name = item_name
 
@@ -284,7 +284,7 @@ def save_product(pos_profile: str, data: str) -> dict:
 			# this screen — e.g. externally synced URLs — on an unrelated edit such
 			# as a price change.
 			if image and not image.lower().startswith(SAFE_IMAGE_PREFIXES):
-				frappe.throw(_("Invalid image path"))
+				dypos.throw(_("Invalid image path"))
 			item.image = image
 
 	item.disabled = data.get("disabled", 0)
@@ -298,54 +298,54 @@ def save_product(pos_profile: str, data: str) -> dict:
 		new_price = flt(data.get("price"))
 
 		# Find existing price
-		existing_price = frappe.db.get_value(
+		existing_price = dypos.db.get_value(
 			"Item Price",
 			{"item_code": item.name, "price_list": price_list},
 			"name",
 		)
 
 		if existing_price:
-			if not frappe.has_permission("Item Price", "write"):
-				frappe.throw(_("Not permitted to write Item Price"))
-			price_doc = frappe.get_doc("Item Price", existing_price)
+			if not dypos.has_permission("Item Price", "write"):
+				dypos.throw(_("Not permitted to write Item Price"))
+			price_doc = dypos.get_doc("Item Price", existing_price)
 			price_doc.price_list_rate = new_price
 			price_doc.save()
 		else:
-			if not frappe.has_permission("Item Price", "create"):
-				frappe.throw(_("Not permitted to create Item Price"))
-			price_doc = frappe.new_doc("Item Price")
+			if not dypos.has_permission("Item Price", "create"):
+				dypos.throw(_("Not permitted to create Item Price"))
+			price_doc = dypos.new_doc("Item Price")
 			price_doc.item_code = item.name
 			price_doc.price_list = price_list
 			price_doc.price_list_rate = new_price
 			price_doc.selling = 1
 			price_doc.save()
 
-	# No explicit frappe.db.commit() — the framework commits at the end of a
+	# No explicit dypos.db.commit() — the framework commits at the end of a
 	# successful request and rolls back on exception. Committing here would
 	# defeat that rollback and also commit unrelated pending work.
 	return {"item_code": item.name}
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def update_product_image(pos_profile: str, item_code: str, file_url: str) -> dict:
 	"""Update only the image, enforcing the same profile boundary as product saves."""
 	_validate_pos_profile_access(pos_profile)
-	item = frappe.get_doc("Item", item_code)
+	item = dypos.get_doc("Item", item_code)
 	item.check_permission("write")
-	profile = frappe.get_cached_doc("POS Profile", pos_profile)
+	profile = dypos.get_cached_doc("POS Profile", pos_profile)
 	groups = _get_pos_profile_allowed_item_groups(profile)
 	if groups and item.item_group not in groups:
-		frappe.throw(_("This product belongs to an Item Group not allowed for this POS Profile"))
+		dypos.throw(_("This product belongs to an Item Group not allowed for this POS Profile"))
 	if not file_url or not file_url.startswith(LOCAL_FILE_PREFIXES):
-		frappe.throw(_("Invalid image path"))
-	file_name = frappe.db.get_value(
+		dypos.throw(_("Invalid image path"))
+	file_name = dypos.db.get_value(
 		"File",
 		{"file_url": file_url, "attached_to_doctype": "Item", "attached_to_name": item.name},
 		"name",
 	)
 	if not file_name:
-		frappe.throw(_("Image must be attached to this product"))
-	frappe.get_doc("File", file_name).check_permission("read")
+		dypos.throw(_("Image must be attached to this product"))
+	dypos.get_doc("File", file_name).check_permission("read")
 	item.image = file_url
 	item.save()
 	return {"item_code": item.name}

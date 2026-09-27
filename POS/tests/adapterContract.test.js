@@ -24,7 +24,7 @@ const read = (absolutePath) => readFileSync(absolutePath, "utf8")
 
 const facadeSource = read(path.join(ADAPTERS_DIR, "index.js"))
 const restSource = read(path.join(ADAPTERS_DIR, "rest", "api.js"))
-const frappeSource = read(path.join(ADAPTERS_DIR, "frappe", "api.js"))
+const methodSource = read(path.join(ADAPTERS_DIR, "method", "api.js"))
 const serverSource = read(
 	path.resolve(HERE, "..", "..", "server", "routes", "subscriptions.js"),
 )
@@ -120,7 +120,7 @@ describe("adapter façade parity", () => {
 
 	for (const [label, source] of [
 		["rest", restSource],
-		["frappe", frappeSource],
+		["method", methodSource],
 	]) {
 		it(`${label} adapter exports every façade name`, () => {
 			const exported = exportedNames(source)

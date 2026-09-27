@@ -1,4 +1,4 @@
-import { createResource } from "frappe-ui"
+import { createResource } from "dypos-ui"
 import { ref, computed } from "vue"
 import { countryCodeLabel, countryFlagEmoji } from "@/utils/flags"
 import { logger } from "@/utils/logger"
@@ -16,7 +16,7 @@ export function useCountryCodes() {
 	// Create resource only once
 	if (!countriesResource) {
 		countriesResource = createResource({
-			url: "frappe.geo.country_info.get_country_timezone_info",
+			url: "dypos.geo.country_info.get_country_timezone_info",
 			auto: false,
 			onSuccess(data) {
 				if (data?.country_info) {

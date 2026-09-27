@@ -1,4 +1,4 @@
-import { createResource } from "frappe-ui"
+import { createResource } from "dypos-ui"
 import { computed, ref, toRaw } from "vue"
 import { isOffline, getCachedItem } from "@/utils/offline"
 import { useSerialNumberStore } from "@/stores/serialNumber"
@@ -1108,7 +1108,7 @@ export function useInvoice() {
 						data: submitData,
 					})
 
-					// Check if resource has error (frappe-ui pattern)
+					// Check if resource has error (dypos-ui pattern)
 					if (submitInvoiceResource.error) {
 						const resourceError = submitInvoiceResource.error
 						log.error("Submit invoice resource error:", resourceError)

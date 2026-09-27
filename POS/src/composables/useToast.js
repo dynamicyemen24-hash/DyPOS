@@ -1,7 +1,7 @@
 import { ref, computed } from "vue"
 
 // NOTE: intentionally NO static import of "@/utils/translation" here.
-// translation.ts pulls frappe-ui (createResource → ~icons/*) which has no
+// translation.ts pulls dypos-ui (createResource → ~icons/*) which has no
 // resolver under vitest/jsdom. The translation plugin installs `__` on
 // window/globalProperties at runtime, so resolve it dynamically with an
 // identity fallback (Arabic source strings are already production-ready).
@@ -125,7 +125,7 @@ export function useToast() {
 		showToastNotification(__("Info"), message, "info")
 	}
 
-	/** Strip Frappe's HTML message markup down to plain text for a toast. */
+	/** Strip the server's HTML message markup down to plain text for a toast. */
 	function flattenMessage(value) {
 		return String(value)
 			.replace(/<br\s*\/?>/gi, " ")
@@ -135,13 +135,13 @@ export function useToast() {
 	}
 
 	/**
-	 * Pull a human-readable message out of a Frappe error.
+	 * Pull a human-readable message out of a DyPOS error.
 	 *
 	 * Two shapes matter:
-	 *  - frappe-ui's call()/frappeRequest() reject with an Error whose
+	 *  - the DyPOS UI kit's call()/request() reject with an Error whose
 	 *    `.message` is only "<method> <exc_type>" (e.g. "…save_product
 	 *    ValidationError"). The real text is on `.messages`, an array
-	 *    frappe-ui has already parsed out of _server_messages.
+	 *    dypos-ui has already parsed out of _server_messages.
 	 *  - A raw fetch() gets the untouched response, where the same text is
 	 *    still a JSON string in `_server_messages`.
 	 *
@@ -151,7 +151,7 @@ export function useToast() {
 	function parseErrorMessage(error) {
 		if (!error) return ""
 
-		// frappe-ui shape: already-parsed array of message strings.
+		// dypos-ui shape: already-parsed array of message strings.
 		if (Array.isArray(error.messages) && error.messages.length > 0) {
 			const seen = new Set()
 			for (const entry of error.messages) {
@@ -179,7 +179,7 @@ export function useToast() {
 			// Fall through to the generic message below.
 		}
 
-		// error.message is a useful fallback for plain Errors, but frappe-ui's
+		// error.message is a useful fallback for plain Errors, but dypos-ui's
 		// "<method> <exc_type>" string tells the user nothing.
 		const message = error.message ? String(error.message) : ""
 		if (message && error.exc_type && message.includes(error.exc_type)) return ""

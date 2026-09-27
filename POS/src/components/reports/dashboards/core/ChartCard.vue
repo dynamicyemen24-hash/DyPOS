@@ -24,7 +24,7 @@
 </template>
 
 <script setup>
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 import ChartErrorState from "./ChartErrorState.vue"
 
 defineProps({

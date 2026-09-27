@@ -47,7 +47,7 @@ private advisory draft.
   Frappe-compat `/api/method` login paths, JWT rotation, `must_change_password`.
 - **Tenant isolation**: fail-closed row-level scoping on every list and
   by-id read/write (`X-Tenant-Id` spoofing → 403, foreign rows → 404).
-- **Secrets**: `password_hash` is never selectable via `frappe.client.*`
+- **Secrets**: `password_hash` is never selectable via `dypos.client.*`
   (safe-column allowlists + response redaction, covered by regression tests);
   QZ private keys live under gitignored `server/uploads/qz/` (0600).
 - **Money safety**: halala-integer ledger math, idempotent invoice/return/
@@ -62,7 +62,7 @@ private advisory draft.
 
 | Risk | Why accepted | Revisit |
 | ---- | ------------ | ------- |
-| `echarts` moderate XSS nested in `frappe-ui` | **Not shipped**: absent from the production bundle (tree-shaken — verified by grepping built assets, 2026-09-24). Fix requires a breaking `frappe-ui` downgrade. | Each `frappe-ui` bump |
+| `echarts` moderate XSS nested in `dypos-ui` | **Not shipped**: absent from the production bundle (tree-shaken — verified by grepping built assets, 2026-09-24). Fix requires a breaking `dypos-ui` downgrade. | Each `dypos-ui` bump |
 | CSP `style-src 'unsafe-inline'` | Vue build constraint (see `server.js` TODO); compensated by strict rest of policy + no user HTML sinks (escaped highlights). | Hash/nonce migration |
 | Live-verify step is `continue-on-error` | Avoids blocking good deploys on edge-propagation delay; failures still alert as warnings. | If flakiness budget exceeded |
 

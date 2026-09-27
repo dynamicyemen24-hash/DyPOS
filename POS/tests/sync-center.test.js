@@ -3,13 +3,13 @@
  *
  * A cashier on a fully-offline device opens the Sync Center from the header,
  * picks a runtime destination (branch/cloud), and syncs — no build-time URL,
- * no redeploy. Heavy layers (posSync store, frappe-ui, queue Dexie) are
+ * no redeploy. Heavy layers (posSync store, dypos-ui, queue Dexie) are
  * stubbed; this pins the SCREEN contract: picker → save → sync-now args.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { mount } from "@vue/test-utils"
 
-vi.mock("frappe-ui", async (importOriginal) => {
+vi.mock("dypos-ui", async (importOriginal) => {
 	const { h } = await import("vue")
 	return {
 		Dialog: {

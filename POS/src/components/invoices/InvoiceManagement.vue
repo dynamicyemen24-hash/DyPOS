@@ -1057,7 +1057,7 @@ import { DEFAULT_CURRENCY } from "@/utils/currency"
 import { getInvoiceStatusColor } from "@/utils/invoice"
 import { useFormatters } from "@/composables/useFormatters"
 import { useToast } from "@/composables/useToast"
-import { Button, call, LoadingIndicator } from "frappe-ui"
+import { Button, call, LoadingIndicator } from "dypos-ui"
 import { computed, defineAsyncComponent, onMounted, ref, watch } from "vue"
 import { isOffline } from "@/utils/offline/offlineState"
 import {

@@ -1,10 +1,10 @@
 /**
  * اختبارات parseError — بوابة رسائل الأخطاء التي يراها الكاشير.
- * تغطي أشكال أخطاء frappe الحقيقية: _server_messages، exc_type، الحالات HTTP.
+ * تغطي أشكال أخطاء dyposالحقيقية: _server_messages، exc_type، الحالات HTTP.
  */
 import { beforeAll, describe, expect, it } from "vitest"
 
-// parseError يعتمد على دالة الترجمة العالمية __ من frappe-ui —
+// parseError يعتمد على دالة الترجمة العالمية __ من dypos-ui —
 // نوفّر نسخة تحاكي استيفاء {0} حتى تختبر القيم الفعلية لا القوالب.
 beforeAll(() => {
 	globalThis.__ = (str, args) => {
@@ -61,7 +61,7 @@ describe("parseError — حالات HTTP", () => {
 	})
 })
 
-describe("parseError — رسائل frappe من الخادم", () => {
+describe("parseError — رسائل dyposمن الخادم", () => {
 	it("يفك _server_messages المزدوج الترميز", () => {
 		const error = {
 			_server_messages: JSON.stringify([

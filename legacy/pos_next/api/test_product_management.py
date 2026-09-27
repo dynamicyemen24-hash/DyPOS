@@ -5,7 +5,7 @@ import json
 import unittest
 from unittest.mock import MagicMock, patch
 
-import frappe
+import dypos
 
 from DyPOS.api.product_management import (
 	_save_uom_conversions,
@@ -35,25 +35,25 @@ class TestPOSProfileAccess(unittest.TestCase):
 	unvalidated profile name lets a caller pick one with no group restriction,
 	which disables the scoping entirely."""
 
-	@patch("DyPOS.api.product_management.frappe.has_permission")
-	@patch("DyPOS.api.product_management.frappe.db", new_callable=MagicMock)
+	@patch("DyPOS.api.product_management.dypos.has_permission")
+	@patch("DyPOS.api.product_management.dypos.db", new_callable=MagicMock)
 	def test_unassigned_user_without_profile_write_is_rejected(self, mock_db, mock_perm):
 		mock_db.exists.return_value = None  # not in POS Profile User
 		mock_perm.return_value = False  # cannot administer POS Profiles
 
-		with self.assertRaises(frappe.ValidationError):
+		with self.assertRaises(dypos.ValidationError):
 			_validate_pos_profile_access(PROFILE)
 
-	@patch("DyPOS.api.product_management.frappe.has_permission")
-	@patch("DyPOS.api.product_management.frappe.db", new_callable=MagicMock)
+	@patch("DyPOS.api.product_management.dypos.has_permission")
+	@patch("DyPOS.api.product_management.dypos.db", new_callable=MagicMock)
 	def test_assigned_user_is_allowed(self, mock_db, mock_perm):
 		mock_db.exists.return_value = "POS Profile User Row"
 		mock_perm.return_value = False
 
 		_validate_pos_profile_access(PROFILE)  # must not raise
 
-	@patch("DyPOS.api.product_management.frappe.has_permission")
-	@patch("DyPOS.api.product_management.frappe.db", new_callable=MagicMock)
+	@patch("DyPOS.api.product_management.dypos.has_permission")
+	@patch("DyPOS.api.product_management.dypos.db", new_callable=MagicMock)
 	def test_profile_administrator_is_allowed_without_assignment(self, mock_db, mock_perm):
 		mock_db.exists.return_value = None
 		mock_perm.return_value = True  # has POS Profile write
@@ -61,22 +61,22 @@ class TestPOSProfileAccess(unittest.TestCase):
 		_validate_pos_profile_access(PROFILE)  # must not raise
 
 	def test_empty_profile_is_rejected(self):
-		with self.assertRaises(frappe.ValidationError):
+		with self.assertRaises(dypos.ValidationError):
 			_validate_pos_profile_access("")
 
 
 class TestGetItemGroupsPermissions(unittest.TestCase):
-	@patch("DyPOS.api.product_management.frappe.has_permission")
+	@patch("DyPOS.api.product_management.dypos.has_permission")
 	def test_requires_item_read(self, mock_perm):
 		mock_perm.return_value = False
 
-		with self.assertRaises(frappe.ValidationError):
+		with self.assertRaises(dypos.ValidationError):
 			get_item_groups(PROFILE)
 
 
 class TestSaveProductScoping(unittest.TestCase):
-	@patch("DyPOS.api.product_management.frappe.has_permission")
-	@patch("DyPOS.api.product_management.frappe.db", new_callable=MagicMock)
+	@patch("DyPOS.api.product_management.dypos.has_permission")
+	@patch("DyPOS.api.product_management.dypos.db", new_callable=MagicMock)
 	def test_rejects_profile_the_user_is_not_assigned_to(self, mock_db, mock_perm):
 		"""Regression: without this check a caller could name any POS Profile,
 		including one with no item_groups rows, and bypass group scoping."""
@@ -88,14 +88,14 @@ class TestSaveProductScoping(unittest.TestCase):
 
 		mock_perm.side_effect = perms
 
-		with self.assertRaises(frappe.ValidationError):
+		with self.assertRaises(dypos.ValidationError):
 			save_product(PROFILE, _payload())
 
 	@patch("DyPOS.api.product_management._get_pos_profile_allowed_item_groups")
-	@patch("DyPOS.api.product_management.frappe.get_doc")
-	@patch("DyPOS.api.product_management.frappe.get_cached_doc")
-	@patch("DyPOS.api.product_management.frappe.has_permission")
-	@patch("DyPOS.api.product_management.frappe.db", new_callable=MagicMock)
+	@patch("DyPOS.api.product_management.dypos.get_doc")
+	@patch("DyPOS.api.product_management.dypos.get_cached_doc")
+	@patch("DyPOS.api.product_management.dypos.has_permission")
+	@patch("DyPOS.api.product_management.dypos.db", new_callable=MagicMock)
 	def test_rejects_item_whose_current_group_is_out_of_scope(
 		self, mock_db, mock_perm, mock_cached_doc, mock_get_doc, mock_groups
 	):
@@ -103,52 +103,52 @@ class TestSaveProductScoping(unittest.TestCase):
 		be pulled out of a disallowed group and into an allowed one."""
 		mock_db.exists.return_value = "POS Profile User Row"
 		mock_perm.return_value = True
-		mock_cached_doc.return_value = frappe._dict({"selling_price_list": "Standard Selling"})
+		mock_cached_doc.return_value = dypos._dict({"selling_price_list": "Standard Selling"})
 		mock_groups.return_value = ["Beverages"]
 
 		existing = MagicMock()
 		existing.item_group = "Electronics"  # outside this profile's scope
 		mock_get_doc.return_value = existing
 
-		with self.assertRaises(frappe.ValidationError):
+		with self.assertRaises(dypos.ValidationError):
 			save_product(PROFILE, _payload(item_code="ITEM-OUT-OF-SCOPE"))
 
 		existing.save.assert_not_called()
 
 	@patch("DyPOS.api.product_management._get_pos_profile_allowed_item_groups")
-	@patch("DyPOS.api.product_management.frappe.get_cached_doc")
-	@patch("DyPOS.api.product_management.frappe.has_permission")
-	@patch("DyPOS.api.product_management.frappe.db", new_callable=MagicMock)
+	@patch("DyPOS.api.product_management.dypos.get_cached_doc")
+	@patch("DyPOS.api.product_management.dypos.has_permission")
+	@patch("DyPOS.api.product_management.dypos.db", new_callable=MagicMock)
 	def test_rejects_incoming_group_outside_scope(self, mock_db, mock_perm, mock_cached_doc, mock_groups):
 		mock_db.exists.return_value = "POS Profile User Row"
 		mock_perm.return_value = True
-		mock_cached_doc.return_value = frappe._dict({"selling_price_list": "Standard Selling"})
+		mock_cached_doc.return_value = dypos._dict({"selling_price_list": "Standard Selling"})
 		mock_groups.return_value = ["Beverages"]
 
-		with self.assertRaises(frappe.ValidationError):
+		with self.assertRaises(dypos.ValidationError):
 			save_product(PROFILE, _payload(item_group="Electronics"))
 
 	@patch("DyPOS.api.product_management._get_pos_profile_allowed_item_groups")
-	@patch("DyPOS.api.product_management.frappe.new_doc")
-	@patch("DyPOS.api.product_management.frappe.get_cached_doc")
-	@patch("DyPOS.api.product_management.frappe.has_permission")
-	@patch("DyPOS.api.product_management.frappe.db", new_callable=MagicMock)
+	@patch("DyPOS.api.product_management.dypos.new_doc")
+	@patch("DyPOS.api.product_management.dypos.get_cached_doc")
+	@patch("DyPOS.api.product_management.dypos.has_permission")
+	@patch("DyPOS.api.product_management.dypos.db", new_callable=MagicMock)
 	def test_rejects_script_scheme_on_new_product(
 		self, mock_db, mock_perm, mock_cached_doc, mock_new_doc, mock_groups
 	):
 		"""item.image is rendered by the POS, so script-bearing schemes are refused.
 
-		This deliberately does NOT restrict images to local Frappe paths: an
+		This deliberately does NOT restrict images to local dypospaths: an
 		external https URL is a legitimate value here, written by the
 		ecommerce_integrations Shopify sync.
 		"""
 		mock_db.exists.return_value = "POS Profile User Row"
 		mock_perm.return_value = True
-		mock_cached_doc.return_value = frappe._dict({"selling_price_list": None})
+		mock_cached_doc.return_value = dypos._dict({"selling_price_list": None})
 		mock_groups.return_value = []
 		mock_new_doc.return_value = MagicMock(image="")
 
-		with self.assertRaises(frappe.ValidationError):
+		with self.assertRaises(dypos.ValidationError):
 			save_product(PROFILE, _payload(image="javascript:alert(1)"))
 
 
@@ -187,9 +187,9 @@ class TestProductImageSettings(unittest.TestCase):
 
 		return get_system_settings
 
-	@patch("DyPOS.api.product_management.frappe.get_system_settings")
+	@patch("DyPOS.api.product_management.dypos.get_system_settings")
 	def test_empty_setting_means_no_restriction(self, mock_settings):
-		"""Frappe treats a blank list as 'allow everything', not 'allow nothing'."""
+		"""dypostreats a blank list as 'allow everything', not 'allow nothing'."""
 		mock_settings.side_effect = self._settings("")
 
 		result = get_product_image_settings()
@@ -197,7 +197,7 @@ class TestProductImageSettings(unittest.TestCase):
 		self.assertEqual(sorted(result["extensions"]), ["GIF", "JPEG", "JPG", "PNG", "WEBP"])
 		self.assertFalse(result["restricted_by_system_settings"])
 
-	@patch("DyPOS.api.product_management.frappe.get_system_settings")
+	@patch("DyPOS.api.product_management.dypos.get_system_settings")
 	def test_site_restriction_is_intersected_with_image_types(self, mock_settings):
 		"""A site allowing JPG/PNG/CSV must offer JPG and PNG only — never CSV."""
 		mock_settings.side_effect = self._settings("JPG\nPNG\nCSV")
@@ -208,7 +208,7 @@ class TestProductImageSettings(unittest.TestCase):
 		self.assertEqual(result["mime_types"], ["image/jpeg", "image/png"])
 		self.assertTrue(result["restricted_by_system_settings"])
 
-	@patch("DyPOS.api.product_management.frappe.get_system_settings")
+	@patch("DyPOS.api.product_management.dypos.get_system_settings")
 	def test_no_image_types_allowed_returns_empty(self, mock_settings):
 		"""A site that allows only documents can't accept product images at all;
 		the screen needs to say so rather than fail at upload time."""
@@ -220,7 +220,7 @@ class TestProductImageSettings(unittest.TestCase):
 		self.assertEqual(result["mime_types"], [])
 		self.assertTrue(result["restricted_by_system_settings"])
 
-	@patch("DyPOS.api.product_management.frappe.get_system_settings")
+	@patch("DyPOS.api.product_management.dypos.get_system_settings")
 	def test_tolerates_messy_operator_input(self, mock_settings):
 		"""System Settings uppercases on save, but site_config edits and older
 		rows can carry lowercase, leading dots and stray whitespace."""
@@ -230,7 +230,7 @@ class TestProductImageSettings(unittest.TestCase):
 
 		self.assertEqual(sorted(result["extensions"]), ["JPG", "PNG", "WEBP"])
 
-	@patch("DyPOS.api.product_management.frappe.get_system_settings")
+	@patch("DyPOS.api.product_management.dypos.get_system_settings")
 	def test_max_file_size_is_reported_in_bytes(self, mock_settings):
 		"""System Settings stores MB; the client compares against File.size."""
 		mock_settings.side_effect = self._settings("", max_mb=7)
@@ -246,7 +246,7 @@ class TestSaveProductImageHandling(unittest.TestCase):
 	def _mocks(self, mock_db, mock_perm, mock_cached_doc, mock_groups, current_image):
 		mock_db.exists.return_value = "POS Profile User Row"
 		mock_perm.return_value = True
-		mock_cached_doc.return_value = frappe._dict({"selling_price_list": None})
+		mock_cached_doc.return_value = dypos._dict({"selling_price_list": None})
 		mock_groups.return_value = []
 		item = MagicMock()
 		item.item_group = "Beverages"
@@ -255,10 +255,10 @@ class TestSaveProductImageHandling(unittest.TestCase):
 		return item
 
 	@patch("DyPOS.api.product_management._get_pos_profile_allowed_item_groups")
-	@patch("DyPOS.api.product_management.frappe.get_doc")
-	@patch("DyPOS.api.product_management.frappe.get_cached_doc")
-	@patch("DyPOS.api.product_management.frappe.has_permission")
-	@patch("DyPOS.api.product_management.frappe.db", new_callable=MagicMock)
+	@patch("DyPOS.api.product_management.dypos.get_doc")
+	@patch("DyPOS.api.product_management.dypos.get_cached_doc")
+	@patch("DyPOS.api.product_management.dypos.has_permission")
+	@patch("DyPOS.api.product_management.dypos.db", new_callable=MagicMock)
 	def test_unchanged_external_image_does_not_block_a_price_edit(
 		self, mock_db, mock_perm, mock_cached_doc, mock_get_doc, mock_groups
 	):
@@ -276,17 +276,17 @@ class TestSaveProductImageHandling(unittest.TestCase):
 		item.save.assert_called_once()
 
 	@patch("DyPOS.api.product_management._get_pos_profile_allowed_item_groups")
-	@patch("DyPOS.api.product_management.frappe.get_doc")
-	@patch("DyPOS.api.product_management.frappe.get_cached_doc")
-	@patch("DyPOS.api.product_management.frappe.has_permission")
-	@patch("DyPOS.api.product_management.frappe.db", new_callable=MagicMock)
+	@patch("DyPOS.api.product_management.dypos.get_doc")
+	@patch("DyPOS.api.product_management.dypos.get_cached_doc")
+	@patch("DyPOS.api.product_management.dypos.has_permission")
+	@patch("DyPOS.api.product_management.dypos.db", new_callable=MagicMock)
 	def test_script_scheme_is_still_rejected(
 		self, mock_db, mock_perm, mock_cached_doc, mock_get_doc, mock_groups
 	):
 		item = self._mocks(mock_db, mock_perm, mock_cached_doc, mock_groups, "/files/a.png")
 		mock_get_doc.return_value = item
 
-		with self.assertRaises(frappe.ValidationError):
+		with self.assertRaises(dypos.ValidationError):
 			save_product(
 				PROFILE,
 				_payload(item_code="ITEM-1", image="javascript:alert(1)"),
@@ -295,10 +295,10 @@ class TestSaveProductImageHandling(unittest.TestCase):
 		item.save.assert_not_called()
 
 	@patch("DyPOS.api.product_management._get_pos_profile_allowed_item_groups")
-	@patch("DyPOS.api.product_management.frappe.get_doc")
-	@patch("DyPOS.api.product_management.frappe.get_cached_doc")
-	@patch("DyPOS.api.product_management.frappe.has_permission")
-	@patch("DyPOS.api.product_management.frappe.db", new_callable=MagicMock)
+	@patch("DyPOS.api.product_management.dypos.get_doc")
+	@patch("DyPOS.api.product_management.dypos.get_cached_doc")
+	@patch("DyPOS.api.product_management.dypos.has_permission")
+	@patch("DyPOS.api.product_management.dypos.db", new_callable=MagicMock)
 	def test_pending_upload_data_uri_is_not_stored(
 		self, mock_db, mock_perm, mock_cached_doc, mock_get_doc, mock_groups
 	):

@@ -1,20 +1,20 @@
 try:
-	import frappe
-except ModuleNotFoundError:  # pragma: no cover - frappe may not be installed during setup
-	frappe = None
+	import dypos
+except ModuleNotFoundError:  # pragma: no cover - dyposmay not be installed during setup
+	dypos= None
 
 __version__ = "2.0.0"
 
 
 def console(*data):
 	"""Publish data to browser console for debugging"""
-	if frappe:
-		frappe.publish_realtime("toconsole", data, user=frappe.session.user)
+	if dypos:
+		dypos.publish_realtime("toconsole", data, user=dypos.session.user)
 
 
 # Patch get_other_conditions to exclude pos_only pricing rules from non-POS documents.
-# No Frappe hook exists for non-whitelisted module-level functions (override_whitelisted_methods
-# only works for @frappe.whitelist() HTTP endpoints, override_doctype_class only for DocType
+# No dyposhook exists for non-whitelisted module-level functions (override_whitelisted_methods
+# only works for @dypos.whitelist() HTTP endpoints, override_doctype_class only for DocType
 # classes). This is the standard Python module init approach — runs once at import.
 try:
 	from DyPOS.accounts.doctype.pricing_rule import utils as pr_utils
@@ -35,8 +35,8 @@ try:
 
 	_DyPOS_pricing_rule.apply_price_discount_rule = _DyPOS_apply_price_discount_rule
 except Exception:
-	if frappe:
-		frappe.log_error(frappe.get_traceback(), "Pricing Rule Override Error")
+	if dypos:
+		dypos.log_error(dypos.get_traceback(), "Pricing Rule Override Error")
 
 
 try:
@@ -46,14 +46,14 @@ try:
 		if _min_max_field not in _promotional_scheme.price_discount_fields:
 			_promotional_scheme.price_discount_fields.append(_min_max_field)
 except Exception:
-	if frappe:
-		frappe.log_error(frappe.get_traceback(), "Promotional Scheme Field Patch Error")
+	if dypos:
+		dypos.log_error(dypos.get_traceback(), "Promotional Scheme Field Patch Error")
 
 # Frappe/DyPOS compatibility shim:
 # DyPOS may pass do_not_round_fields to round_floats_in, but older Frappe
 # versions don't accept that kwarg.
 try:
-	from frappe.model.document import Document
+	from dypos.model.document import Document
 
 	from DyPOS.overrides.frappe_compat import patch_round_floats_in_signature
 
@@ -72,11 +72,11 @@ try:
 except Exception:
 	pass
 
-# Patch Document.round_floats_in for DyPOS/Frappe compatibility:
+# Patch Document.round_floats_in for DyPOS/dyposcompatibility:
 # newer DyPOS may pass do_not_round_fields, while older Frappe
 # only supports fieldnames.
 try:
-	from frappe.model import document as document_module
+	from dypos.model import document as document_module
 
 	from DyPOS.overrides.rounding_compat import patch_round_floats_in_compat
 

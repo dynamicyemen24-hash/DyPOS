@@ -14,7 +14,8 @@
 			"node_modules/**",
 			"../<app-name>/**",
 			"auto-imports.d.ts",
-			"components.d.ts"
+			"components.d.ts",
+			"stock-template/**"
 		]
 	},
 	"formatter": {

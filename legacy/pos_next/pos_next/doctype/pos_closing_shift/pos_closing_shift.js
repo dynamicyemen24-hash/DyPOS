@@ -1,7 +1,7 @@
 // Copyright (c) 2020, Youssef Restom and contributors
 // For license information, please see license.txt
 
-frappe.ui.form.on("POS Closing Shift", {
+dypos.ui.form.on("POS Closing Shift", {
 	onload: function (frm) {
 		frm.set_query("pos_profile", function (doc) {
 			return {
@@ -21,7 +21,7 @@ frappe.ui.form.on("POS Closing Shift", {
 		});
 
 		if (frm.doc.docstatus === 0)
-			frm.set_value("period_end_date", frappe.datetime.now_datetime());
+			frm.set_value("period_end_date", dypos.datetime.now_datetime());
 		if (frm.doc.docstatus === 1) set_html_data(frm);
 	},
 
@@ -31,12 +31,12 @@ frappe.ui.form.on("POS Closing Shift", {
 		frm.add_custom_button(
 			__("Print EOD Report"),
 			() => {
-				frappe.utils.print(
+				dypos.utils.print(
 					frm.doctype,
 					frm.docname,
 					"POS Next EOD Report",
 					frm.doc.letter_head,
-					frm.doc.language || frappe.boot.lang
+					frm.doc.language || dypos.boot.lang
 				);
 			},
 			__("Print")
@@ -46,7 +46,7 @@ frappe.ui.form.on("POS Closing Shift", {
 	pos_opening_shift(frm) {
 		if (frm.doc.pos_opening_shift && frm.doc.user) {
 			reset_values(frm);
-			frappe.run_serially([
+			dypos.run_serially([
 				() => frm.trigger("set_opening_amounts"),
 				() => frm.trigger("get_pos_invoices"),
 				() => frm.trigger("get_pos_payments"),
@@ -55,7 +55,7 @@ frappe.ui.form.on("POS Closing Shift", {
 	},
 
 	set_opening_amounts(frm) {
-		return frappe.db
+		return dypos.db
 			.get_doc("POS Opening Shift", frm.doc.pos_opening_shift)
 			.then(({ balance_details }) => {
 				balance_details.forEach((detail) => {
@@ -69,7 +69,7 @@ frappe.ui.form.on("POS Closing Shift", {
 	},
 
 	get_pos_invoices(frm) {
-		frappe.call({
+		dypos.call({
 			method: "DyPOS.DyPOS.doctype.pos_closing_shift.pos_closing_shift.get_pos_invoices",
 			args: {
 				pos_opening_shift: frm.doc.pos_opening_shift,
@@ -84,7 +84,7 @@ frappe.ui.form.on("POS Closing Shift", {
 	},
 
 	get_pos_payments(frm) {
-		frappe.call({
+		dypos.call({
 			method: "DyPOS.DyPOS.doctype.pos_closing_shift.pos_closing_shift.get_payments_entries",
 			args: {
 				pos_opening_shift: frm.doc.pos_opening_shift,
@@ -99,10 +99,10 @@ frappe.ui.form.on("POS Closing Shift", {
 	},
 });
 
-frappe.ui.form.on("POS Closing Shift Detail", {
+dypos.ui.form.on("POS Closing Shift Detail", {
 	closing_amount: (frm, cdt, cdn) => {
 		const row = locals[cdt][cdn];
-		frappe.model.set_value(
+		dypos.model.set_value(
 			cdt,
 			cdn,
 			"difference",
@@ -293,7 +293,7 @@ function refresh_fields(frm) {
 }
 
 function set_html_data(frm) {
-	frappe.call({
+	dypos.call({
 		method: "get_payment_reconciliation_details",
 		doc: frm.doc,
 		callback: (r) => {
@@ -304,8 +304,8 @@ function set_html_data(frm) {
 
 const get_value = (doctype, name, field) => {
 	let value;
-	frappe.call({
-		method: "frappe.client.get_value",
+	dypos.call({
+		method: "dypos.client.get_value",
 		args: {
 			doctype: doctype,
 			filters: { name: name },

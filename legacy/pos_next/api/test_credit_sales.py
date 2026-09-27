@@ -22,8 +22,8 @@ def _raise_runtime_error(message):
 
 
 class TestCreditSales(unittest.TestCase):
-	@patch("DyPOS.api.credit_sales.frappe.throw", side_effect=_raise_runtime_error)
-	@patch("DyPOS.api.credit_sales.frappe.qb.from_")
+	@patch("DyPOS.api.credit_sales.dypos.throw", side_effect=_raise_runtime_error)
+	@patch("DyPOS.api.credit_sales.dypos.qb.from_")
 	def test_validate_invoice_credit_rejects_mismatched_customer(self, mock_from, _mock_throw):
 		mock_from.return_value = _builder_with_result(
 			[
@@ -39,8 +39,8 @@ class TestCreditSales(unittest.TestCase):
 		with self.assertRaisesRegex(RuntimeError, "does not belong to customer Guest"):
 			credit_sales._validate_and_lock_invoice_credit("SRC-INV", 50, "Guest", "Sonex")
 
-	@patch("DyPOS.api.credit_sales.frappe.throw", side_effect=_raise_runtime_error)
-	@patch("DyPOS.api.credit_sales.frappe.qb.from_")
+	@patch("DyPOS.api.credit_sales.dypos.throw", side_effect=_raise_runtime_error)
+	@patch("DyPOS.api.credit_sales.dypos.qb.from_")
 	def test_validate_advance_credit_rejects_mismatched_company(self, mock_from, _mock_throw):
 		mock_from.return_value = _builder_with_result(
 			[
@@ -60,7 +60,7 @@ class TestCreditSales(unittest.TestCase):
 
 	@patch("DyPOS.api.credit_sales._create_credit_allocation_journal_entry")
 	@patch("DyPOS.api.credit_sales._validate_and_lock_invoice_credit")
-	@patch("DyPOS.api.credit_sales.frappe.get_doc")
+	@patch("DyPOS.api.credit_sales.dypos.get_doc")
 	def test_redeem_customer_credit_passes_invoice_context_to_validators(
 		self,
 		mock_get_doc,
@@ -88,7 +88,7 @@ class TestCreditSales(unittest.TestCase):
 		self.assertEqual(result, ["ACC-JV-0001"])
 		mock_validate_invoice.assert_called_once_with("SRC-INV", 75, "Guest", "Sonex")
 
-	@patch("DyPOS.api.credit_sales.frappe.throw", side_effect=_raise_runtime_error)
+	@patch("DyPOS.api.credit_sales.dypos.throw", side_effect=_raise_runtime_error)
 	def test_create_payment_entry_from_advance_rejects_non_customer_receive_entries(self, _mock_throw):
 		invoice_doc = Mock()
 		invoice_doc.customer = "Guest"
@@ -98,6 +98,6 @@ class TestCreditSales(unittest.TestCase):
 		payment_entry.party_type = "Supplier"
 		payment_entry.payment_type = "Pay"
 
-		with patch("DyPOS.api.credit_sales.frappe.get_doc", return_value=payment_entry):
+		with patch("DyPOS.api.credit_sales.dypos.get_doc", return_value=payment_entry):
 			with self.assertRaisesRegex(RuntimeError, "is not a valid customer advance"):
 				credit_sales._create_payment_entry_from_advance(invoice_doc, "PE-0001", 25)

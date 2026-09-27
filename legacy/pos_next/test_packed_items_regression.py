@@ -5,14 +5,14 @@
 
 from types import SimpleNamespace
 
-import frappe
+import dypos
 from DyPOS.accounts.doctype.sales_invoice.test_sales_invoice import create_sales_invoice
 from DyPOS.selling.doctype.product_bundle.test_product_bundle import make_product_bundle
 from DyPOS.stock.doctype.item.test_item import make_item
 from DyPOS.stock.doctype.packed_item import packed_item as packed_item_module
 from DyPOS.stock.doctype.stock_entry.test_stock_entry import make_stock_entry
-from frappe.tests.utils import FrappeTestCase
-from frappe.utils import nowdate
+from dypos.tests.utils import FrappeTestCase
+from dypos.utils import nowdate
 
 import DyPOS  # noqa: F401 — ensure app hooks run (packed_item keying patch).
 
@@ -23,12 +23,12 @@ def _assert_no_duplicate_packed_rows(si):
 		keys.append((row.parent_item, row.item_code, row.parent_detail_docname))
 	unique = set(keys)
 	if len(keys) != len(unique):
-		frappe.throw(f"Duplicate packed_items keys: {keys}")
+		dypos.throw(f"Duplicate packed_items keys: {keys}")
 
 
 def _sales_invoice_bundle_context():
 	"""Use DyPOS test fixtures when present; otherwise resolve from the live site."""
-	if frappe.db.exists("Warehouse", "_Test Warehouse - _TC"):
+	if dypos.db.exists("Warehouse", "_Test Warehouse - _TC"):
 		return SimpleNamespace(
 			company="_Test Company",
 			warehouse="_Test Warehouse - _TC",
@@ -40,13 +40,13 @@ def _sales_invoice_bundle_context():
 			naming_series="T-SINV-",
 		)
 
-	company = frappe.defaults.get_global_default("company") or frappe.db.get_value(
+	company = dypos.defaults.get_global_default("company") or dypos.db.get_value(
 		"Company", {"name": ["!=", ""]}, "name"
 	)
 	if not company:
-		frappe.throw("No Company found for packed_items regression test.")
+		dypos.throw("No Company found for packed_items regression test.")
 
-	wh = frappe.db.sql(
+	wh = dypos.db.sql(
 		"""
 		select name from `tabWarehouse`
 		where company = %(company)s and disabled = 0 and is_group = 0
@@ -57,28 +57,28 @@ def _sales_invoice_bundle_context():
 	)
 	warehouse = wh[0][0] if wh else None
 	if not warehouse:
-		frappe.throw(f"No warehouse for company {company}.")
+		dypos.throw(f"No warehouse for company {company}.")
 
-	customer = frappe.db.get_value("Customer", {"disabled": 0}, "name", order_by="modified desc")
+	customer = dypos.db.get_value("Customer", {"disabled": 0}, "name", order_by="modified desc")
 	if not customer:
-		frappe.throw("No Customer found for packed_items regression test.")
+		dypos.throw("No Customer found for packed_items regression test.")
 
-	comp = frappe.get_doc("Company", company)
+	comp = dypos.get_doc("Company", company)
 	debit_to = comp.default_receivable_account
 	income_account = comp.default_income_account
-	expense_account = frappe.db.get_value(
+	expense_account = dypos.db.get_value(
 		"Account",
 		{"company": company, "account_type": "Cost of Goods Sold", "is_group": 0},
 		"name",
 		order_by="creation asc",
 	)
-	cost_center = frappe.db.get_value(
+	cost_center = dypos.db.get_value(
 		"Cost Center",
 		{"company": company, "is_group": 0, "disabled": 0},
 		"name",
 		order_by="creation asc",
 	)
-	ns_field = frappe.get_meta("Sales Invoice").get_field("naming_series")
+	ns_field = dypos.get_meta("Sales Invoice").get_field("naming_series")
 	naming_series = (ns_field.options or "ACC-SINV-.YYYY.-").split("\n")[0].strip()
 
 	return SimpleNamespace(
@@ -111,7 +111,7 @@ class TestPackedItemsNoDuplicates(FrappeTestCase):
 		)
 
 	def _unique_codes(self):
-		sfx = frappe.generate_hash(length=8)
+		sfx = dypos.generate_hash(length=8)
 		return f"_PNXB{sfx}", f"_PNXC{sfx}"
 
 	def test_repeated_reload_save_no_duplicate_packed_items(self):
@@ -159,7 +159,7 @@ class TestPackedItemsNoDuplicates(FrappeTestCase):
 		self.assertEqual(len(si.packed_items), 1)
 
 		for i in range(12):
-			doc = frappe.get_doc("Sales Invoice", si.name)
+			doc = dypos.get_doc("Sales Invoice", si.name)
 			doc.contact_display = f"pos-save-{i}"
 			doc.save()
 			_assert_no_duplicate_packed_rows(doc)
@@ -193,7 +193,7 @@ class TestPackedItemsNoDuplicates(FrappeTestCase):
 			company=ctx.company,
 		)
 
-		si = frappe.new_doc("Sales Invoice")
+		si = dypos.new_doc("Sales Invoice")
 		si.company = ctx.company
 		si.customer = ctx.customer
 		si.debit_to = ctx.debit_to
@@ -221,7 +221,7 @@ class TestPackedItemsNoDuplicates(FrappeTestCase):
 		self.assertEqual(len(si.packed_items), 2)
 
 		for i in range(8):
-			doc = frappe.get_doc("Sales Invoice", si.name)
+			doc = dypos.get_doc("Sales Invoice", si.name)
 			doc.contact_display = f"pos-2l-{i}"
 			doc.save()
 			_assert_no_duplicate_packed_rows(doc)

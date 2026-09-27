@@ -1,5 +1,5 @@
 <template>
-	<!-- Custom Modal matching frappe-ui Dialog styling -->
+	<!-- Custom Modal matching dypos-ui Dialog styling -->
 	<!-- Uses @click.self pattern to properly handle teleported SelectInput dropdowns -->
 	<Teleport to="body">
 		<Transition name="dialog">
@@ -22,7 +22,7 @@
 							@keydown.esc="cancel"
 							class="my-8 inline-block w-full max-w-md transform overflow-hidden rounded-xl bg-white text-start align-middle shadow-xl dialog-content z-dialog-content"
 						>
-							<!-- Header - matching frappe-ui Dialog style -->
+							<!-- Header - matching dypos-ui Dialog style -->
 							<div class="bg-white px-4 pb-6 pt-5 sm:px-6">
 								<div class="flex">
 									<div class="w-full flex-1">
@@ -451,7 +451,7 @@
 								</div>
 							</div>
 
-							<!-- Actions - matching frappe-ui Dialog style -->
+							<!-- Actions - matching dypos-ui Dialog style -->
 							<div class="px-4 pb-7 pt-4 sm:px-6">
 								<div class="flex items-center justify-end gap-2">
 									<Button variant="subtle" @click="cancel">{{
@@ -493,7 +493,7 @@ import {
 	getCurrencySymbol,
 	roundCurrency,
 } from "@/utils/currency"
-import { Button, FeatherIcon, createResource } from "frappe-ui"
+import { Button, FeatherIcon, createResource } from "dypos-ui"
 import { computed, nextTick, ref, watch } from "vue"
 import SelectInput from "@/components/common/SelectInput.vue"
 

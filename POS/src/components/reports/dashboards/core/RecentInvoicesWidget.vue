@@ -11,7 +11,7 @@
 import { computed, onMounted } from "vue"
 import { useRecentInvoices } from "@/composables/useRecentInvoices"
 import { usePOSSettingsStore } from "@/stores/posSettings"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 
 const settings = usePOSSettingsStore()
 const { invoices, loading, offline, loadRecentInvoices } = useRecentInvoices()

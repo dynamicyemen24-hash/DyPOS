@@ -282,7 +282,7 @@ import { useToast } from "@/composables/useToast"
 import { useCountriesStore } from "@/stores/countries"
 import { countryFlagEmoji } from "@/utils/flags"
 import { logger } from "@/utils/logger"
-import { Button, Dialog, Input, createResource } from "frappe-ui"
+import { Button, Dialog, Input, createResource } from "dypos-ui"
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 
 const log = logger.create("CreateCustomerDialog")
@@ -470,7 +470,7 @@ const createCustomerResource = createResource({
 })
 
 const updateCustomerResource = createResource({
-	url: "frappe.client.set_value",
+	url: "dypos.client.set_value",
 	makeParams: () => ({
 		doctype: "Customer",
 		name: props.customer?.name,
@@ -496,7 +496,7 @@ const updateCustomerResource = createResource({
 })
 
 const sellingSettingsResource = createResource({
-	url: "frappe.client.get_value",
+	url: "dypos.client.get_value",
 	makeParams: () => ({
 		doctype: "Selling Settings",
 		fieldname: ["customer_group", "territory"],
@@ -514,7 +514,7 @@ function pickDefault(settingsValue, list, fallbackFn = null) {
 /** Helper to create list fetch resources */
 const createListResource = (doctype, onSuccess) =>
 	createResource({
-		url: "frappe.client.get_list",
+		url: "dypos.client.get_list",
 		makeParams: () => ({
 			doctype,
 			fields: ["name"],
@@ -549,7 +549,7 @@ const governoratesResource = createListResource("Governorate", (names) => {
 })
 
 const customerLocationResource = createResource({
-	url: "frappe.client.get_value",
+	url: "dypos.client.get_value",
 	makeParams: () => ({
 		doctype: "Customer",
 		filters: { name: props.customer?.name },
@@ -564,7 +564,7 @@ const customerLocationResource = createResource({
 })
 
 const districtsResource = createResource({
-	url: "frappe.client.get_list",
+	url: "dypos.client.get_list",
 	makeParams: () => ({
 		doctype: "District",
 		fields: ["name", "district"],
@@ -589,7 +589,7 @@ const districtsResource = createResource({
 })
 
 const posProfileResource = createResource({
-	url: "frappe.client.get_value",
+	url: "dypos.client.get_value",
 	makeParams: () => ({
 		doctype: "POS Profile",
 		filters: { name: props.posProfile },

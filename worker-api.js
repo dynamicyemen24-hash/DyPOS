@@ -37,33 +37,33 @@ export default {
 			}
 
 			// Auth endpoints
-			if (path === '/api/method/frappe.auth.get_logged_user' || path === '/api/auth/user') {
+			if (path === '/api/method/dypos.auth.get_logged_user' || path === '/api/auth/user') {
 				const authHeader = request.headers.get('Authorization');
 				if (!authHeader) {
 					return jsonResponse({ user: null, authenticated: false }, corsHeaders);
 				}
 				// In production, validate JWT token here
-				return jsonResponse({ 
-					user: { 
-						id: 'demo-user', 
-						username: 'demo', 
+				return jsonResponse({
+					user: {
+						id: 'demo-user',
+						username: 'demo',
 						role: 'ADMIN',
 						full_name: 'Demo User'
-					}, 
-					authenticated: true 
+					},
+					authenticated: true
 				}, corsHeaders);
 			}
 
 			if (path === '/api/method/DyPOS.api.auth.register' || path === '/api/auth/register') {
 				const body = await request.json();
-				return jsonResponse({ 
-					success: true, 
+				return jsonResponse({
+					success: true,
 					message: 'Registration successful (demo)',
 					user: { id: 'new-user', ...body }
 				}, corsHeaders);
 			}
 
-			// Localization endpoints (canonical + legacy Frappe paths).
+			// Localization endpoints (canonical + legacy paths).
 			// The PWA is local-first: these exist only as optional enrichment.
 			if (path === '/api/localization/translations' ||
 				path === '/api/method/DyPOS.api.localization.get_app_translations') {
@@ -82,7 +82,7 @@ export default {
 
 			// Features endpoint
 			if (path === '/api/features') {
-				return jsonResponse({ 
+				return jsonResponse({
 					features: {
 						offline_first: true,
 						pwa: true,
@@ -96,7 +96,7 @@ export default {
 				}, corsHeaders);
 			}
 
-			// CSRF token (canonical + legacy Frappe path)
+			// CSRF token (canonical + legacy path)
 			if (path === '/api/csrf_token' || path === '/api/method/DyPOS.api.utilities.get_csrf_token') {
 				return jsonResponse({ csrf_token: crypto.randomUUID() }, corsHeaders);
 			}
@@ -115,7 +115,7 @@ export default {
 
 			// Device registration
 			if (path === '/api/device' || path === '/api/method/DyPOS.api.device.register') {
-				return jsonResponse({ 
+				return jsonResponse({
 					device_id: 'device-' + crypto.randomUUID().slice(0, 8),
 					registered: true
 				}, corsHeaders);
@@ -125,15 +125,15 @@ export default {
 			if (path === '/api/sync' || path === '/api/sync/push' || path === '/api/method/DyPOS.api.sync.push') {
 				const body = await request.json().catch(() => ({}));
 				// Store sync operations in D1
-				return jsonResponse({ 
-					success: true, 
+				return jsonResponse({
+					success: true,
 					synced: body.operations?.length || 0,
 					conflicts: []
 				}, corsHeaders);
 			}
 
 			if (path === '/api/sync/pull' || path === '/api/method/DyPOS.api.sync.pull') {
-				return jsonResponse({ 
+				return jsonResponse({
 					operations: [],
 					checkpoint: Date.now()
 				}, corsHeaders);
@@ -144,9 +144,9 @@ export default {
 
 		} catch (error) {
 			console.error('Worker error:', error);
-			return jsonResponse({ 
-				error: 'Internal server error', 
-				message: error.message 
+			return jsonResponse({
+				error: 'Internal server error',
+				message: error.message
 			}, { ...corsHeaders, status: 500 });
 		}
 	}

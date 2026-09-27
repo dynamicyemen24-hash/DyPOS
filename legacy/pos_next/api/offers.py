@@ -11,9 +11,9 @@ Promotional Schemes and standalone Pricing Rules.
 from dataclasses import asdict, dataclass
 from typing import Dict, List, Optional
 
-import frappe
-from frappe import _
-from frappe.utils import cint, flt, getdate, nowdate
+import dypos
+from dyposimport _
+from dypos.utils import cint, flt, getdate, nowdate
 
 # ============================================================================
 # Constants
@@ -147,7 +147,7 @@ class EligibilityFetcher:
 		automatically includes all its variant items in the eligible items list.
 		This ensures offers work correctly when variants are added to cart.
 		"""
-		results = frappe.db.sql(
+		results = dypos.db.sql(
 			"""
 			SELECT parent, item_code
 			FROM `tabPricing Rule Item Code`
@@ -164,14 +164,14 @@ class EligibilityFetcher:
 		all_item_codes = list({row["item_code"] for row in results})
 
 		# Find which items are templates (have variants)
-		template_items = frappe.get_all(
+		template_items = dypos.get_all(
 			"Item", filters={"name": ["in", all_item_codes], "has_variants": 1}, pluck="name"
 		)
 
 		# Fetch variants for all template items in one query
 		variants_map = {}
 		if template_items:
-			variants = frappe.get_all(
+			variants = dypos.get_all(
 				"Item",
 				filters={"variant_of": ["in", template_items], "disabled": 0},
 				fields=["name", "variant_of"],
@@ -196,7 +196,7 @@ class EligibilityFetcher:
 	@staticmethod
 	def _fetch_item_groups(parent_names: list[str]) -> dict[str, list[str]]:
 		"""Fetch item groups for given parents"""
-		results = frappe.db.sql(
+		results = dypos.db.sql(
 			"""
 			SELECT parent, item_group
 			FROM `tabPricing Rule Item Group`
@@ -214,7 +214,7 @@ class EligibilityFetcher:
 	@staticmethod
 	def _fetch_brands(parent_names: list[str]) -> dict[str, list[str]]:
 		"""Fetch brands for given parents"""
-		results = frappe.db.sql(
+		results = dypos.db.sql(
 			"""
 			SELECT parent, brand
 			FROM `tabPricing Rule Brand`
@@ -239,7 +239,7 @@ class SlabFetcher:
 		if not scheme_names:
 			return {}
 
-		results = frappe.db.sql(
+		results = dypos.db.sql(
 			"""
 			SELECT
 				parent, min_qty, max_qty, min_amount, max_amount,
@@ -268,7 +268,7 @@ class SlabFetcher:
 		if not scheme_names:
 			return {}
 
-		results = frappe.db.sql(
+		results = dypos.db.sql(
 			"""
 			SELECT
 				parent, min_qty, max_qty, min_amount, max_amount,
@@ -418,7 +418,7 @@ class OfferBuilder:
 # ============================================================================
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_offers(pos_profile: str) -> list[dict]:
 	"""
 	Fetch all auto-applicable offers for the POS profile
@@ -430,7 +430,7 @@ def get_offers(pos_profile: str) -> list[dict]:
 		List of offer dictionaries
 	"""
 	try:
-		profile = frappe.get_doc("POS Profile", pos_profile)
+		profile = dypos.get_doc("POS Profile", pos_profile)
 
 		# Respect POS Profile's ignore_pricing_rule setting
 		if profile.ignore_pricing_rule:
@@ -451,11 +451,11 @@ def get_offers(pos_profile: str) -> list[dict]:
 		return [offer.to_dict() for offer in offers]
 
 	except Exception as e:
-		frappe.log_error(f"Error fetching offers: {e!s}", "Offers API")
+		dypos.log_error(f"Error fetching offers: {e!s}", "Offers API")
 		return []
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_customer_one_time_redemptions(customer: str) -> list[str]:
 	"""Return the Pricing Rule names a customer has already redeemed once.
 
@@ -463,10 +463,10 @@ def get_customer_one_time_redemptions(customer: str) -> list[str]:
 	the cart caches this list when a customer is selected (while online) so the
 	offline offer engine can mirror the server-side gate in ``apply_offers``.
 	"""
-	if not customer or not frappe.db.table_exists("One Time Customer Offer Usage"):
+	if not customer or not dypos.db.table_exists("One Time Customer Offer Usage"):
 		return []
 
-	return frappe.get_all(
+	return dypos.get_all(
 		"One Time Customer Offer Usage",
 		filters={"customer": customer},
 		pluck="pricing_rule",
@@ -477,7 +477,7 @@ def _get_promotional_scheme_offers(company: str, date: str) -> list[Offer]:
 	"""Fetch offers from promotional schemes"""
 
 	# Fetch pricing rules linked to promotional schemes
-	pricing_rules = frappe.db.sql(
+	pricing_rules = dypos.db.sql(
 		"""
 		SELECT
 			name, title, apply_on, selling, promotional_scheme,
@@ -533,7 +533,7 @@ def _get_standalone_pricing_rule_offers(company: str, date: str) -> list[Offer]:
 	"""Fetch offers from standalone pricing rules"""
 
 	# Fetch standalone pricing rules (not linked to schemes)
-	pricing_rules = frappe.db.sql(
+	pricing_rules = dypos.db.sql(
 		"""
 		SELECT
 			name, title, apply_on, selling,
@@ -581,13 +581,13 @@ def _get_standalone_pricing_rule_offers(company: str, date: str) -> list[Offer]:
 # ============================================================================
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_active_coupons(customer: str, company: str) -> list[dict]:
 	"""Get active gift card coupons for a customer"""
-	if not frappe.db.table_exists("POS Coupon"):
+	if not dypos.db.table_exists("POS Coupon"):
 		return []
 
-	coupons = frappe.get_all(
+	coupons = dypos.get_all(
 		"POS Coupon",
 		filters={
 			"company": company,
@@ -601,10 +601,10 @@ def get_active_coupons(customer: str, company: str) -> list[dict]:
 	return coupons
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def validate_coupon(coupon_code: str, company: str, customer: str | None = None) -> dict:
 	"""Validate a coupon code and return its details"""
-	if not frappe.db.table_exists("POS Coupon"):
+	if not dypos.db.table_exists("POS Coupon"):
 		return {"valid": False, "message": _("Coupons are not enabled")}
 
 	if not customer:
@@ -614,7 +614,7 @@ def validate_coupon(coupon_code: str, company: str, customer: str | None = None)
 
 	# Fetch coupon with case-insensitive code matching
 	# Note: coupon_code field is unique, so we can fetch directly
-	coupon = frappe.db.get_value(
+	coupon = dypos.db.get_value(
 		"POS Coupon", {"coupon_code": coupon_code, "company": company}, ["*"], as_dict=1
 	)
 

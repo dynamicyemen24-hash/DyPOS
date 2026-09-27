@@ -1,4 +1,4 @@
-import { createResource } from "frappe-ui"
+import { createResource } from "dypos-ui"
 import { computed, ref } from "vue"
 import { logger } from "@/utils/logger"
 

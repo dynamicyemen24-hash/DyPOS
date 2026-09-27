@@ -22,7 +22,7 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue"
 
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 import DyButton from "@/components/ui/DyButton.vue"
 
 import { usePasswordReset } from "@/composables/usePasswordReset"

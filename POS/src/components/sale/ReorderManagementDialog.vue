@@ -113,7 +113,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from "vue"
-import { Badge, Button, FormControl, FeatherIcon } from "frappe-ui"
+import { Badge, Button, FormControl, FeatherIcon } from "dypos-ui"
 import SelectInput from "@/components/common/SelectInput.vue"
 import ReportTable from "@/components/reports/ui/tables/ReportTable.vue"
 import Pagination from "@/components/ui/Pagination.vue"

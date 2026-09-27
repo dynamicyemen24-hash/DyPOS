@@ -1,8 +1,8 @@
 # Copyright (c) 2025, BrainWise and contributors
 # For license information, please see license.txt
 
-import frappe
-from frappe.model.document import Document
+import dypos
+from dypos.model.document import Document
 
 
 class OfflineInvoiceSync(Document):
@@ -16,7 +16,7 @@ class OfflineInvoiceSync(Document):
 	def before_insert(self):
 		"""Set synced_at timestamp before insert."""
 		if not self.synced_at:
-			self.synced_at = frappe.utils.now_datetime()
+			self.synced_at = dypos.utils.now_datetime()
 
 	@staticmethod
 	def create_sync_record(offline_id, sales_invoice, pos_profile=None, customer=None, status="Synced"):
@@ -37,22 +37,22 @@ class OfflineInvoiceSync(Document):
 			return None
 
 		# Check if record already exists
-		existing = frappe.db.get_value(
+		existing = dypos.db.get_value(
 			"Offline Invoice Sync", {"offline_id": offline_id}, ["name", "status"], as_dict=True
 		)
 
 		if existing:
 			# If existing record is Pending and we're setting to Synced, update it
 			if existing.status == "Pending" and status == "Synced" and sales_invoice:
-				sync_doc = frappe.get_doc("Offline Invoice Sync", existing.name)
+				sync_doc = dypos.get_doc("Offline Invoice Sync", existing.name)
 				sync_doc.sales_invoice = sales_invoice
 				sync_doc.status = "Synced"
-				sync_doc.synced_at = frappe.utils.now_datetime()
+				sync_doc.synced_at = dypos.utils.now_datetime()
 				sync_doc.flags.ignore_permissions = True
 				sync_doc.save()
-			return frappe.get_doc("Offline Invoice Sync", existing.name)
+			return dypos.get_doc("Offline Invoice Sync", existing.name)
 
-		doc = frappe.get_doc(
+		doc = dypos.get_doc(
 			{
 				"doctype": "Offline Invoice Sync",
 				"offline_id": offline_id,
@@ -80,7 +80,7 @@ class OfflineInvoiceSync(Document):
 		if not offline_id:
 			return {"synced": False, "sales_invoice": None, "status": None}
 
-		existing = frappe.db.get_value(
+		existing = dypos.db.get_value(
 			"Offline Invoice Sync",
 			{"offline_id": offline_id},
 			["name", "sales_invoice", "status"],

@@ -4,7 +4,7 @@
 
 import { createApp } from "vue";
 import { createPinia } from "pinia";
-import { FrappeUI } from "frappe-ui";
+import { FrappeUI } from "dypos-ui";
 import App from "./App.vue";
 import router from "./router";
 import "./style.css";
@@ -54,9 +54,9 @@ app.provide("appNameEn", "Smart Ports POS");
 app.provide("appVersion", "1.16.0");
 app.provide("appPublisher", "المنافذ الذكية للبرمجيات");
 
-// Frappe UI configuration
+// dyposUI configuration
 app.use(FrappeUI, {
-    assetsPath: "/assets/frappe-ui/",
+    assetsPath: "/assets/dypos-ui/",
     dark: false,
     primaryColor: companyConfig.color,
     font: companyConfig.font,

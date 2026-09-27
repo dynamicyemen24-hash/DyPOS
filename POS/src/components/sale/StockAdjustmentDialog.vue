@@ -102,7 +102,7 @@
 
 <script setup>
 import { ref, computed, watch } from "vue"
-import { Button, FormControl, FeatherIcon } from "frappe-ui"
+import { Button, FormControl, FeatherIcon } from "dypos-ui"
 import SelectInput from "@/components/common/SelectInput.vue"
 import { useToast } from "@/composables/useToast"
 import { apiPost } from "@/utils/restApi"

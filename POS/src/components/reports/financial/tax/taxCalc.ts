@@ -17,7 +17,10 @@ import { sumBy } from "../revenue/revenueCalc"
  * query succeeding and is flagged via `breakdownAvailable`.
  */
 
-export function buildTaxModel(invoices, taxLines = []): TaxReportModel {
+export function buildTaxModel(
+	invoices: SalesInvoiceFact[] = [],
+	taxLines: TaxLineFact[] = [],
+): TaxReportModel {
 	const rows = invoices || []
 
 	const taxableAmount = sumBy(rows, "base_net_total")
@@ -47,8 +50,18 @@ export function buildTaxModel(invoices, taxLines = []): TaxReportModel {
 	}
 }
 
-function buildAccountRows(taxLines, totalTax): TaxAccountRow[] {
-	const byAccount = new Map()
+interface AccountBucket {
+	accountHead: string
+	description: string
+	rate: number | null
+	amount: number
+}
+
+function buildAccountRows(
+	taxLines: TaxLineFact[],
+	totalTax: number,
+): TaxAccountRow[] {
+	const byAccount = new Map<string, AccountBucket>()
 	for (const line of taxLines) {
 		const key = String(line.account_head || "-")
 		let bucket = byAccount.get(key)
@@ -71,8 +84,8 @@ function buildAccountRows(taxLines, totalTax): TaxAccountRow[] {
 		.sort((a, b) => b.amount - a.amount)
 }
 
-function buildDailyRows(rows): TaxDailyRow[] {
-	const byDate = new Map()
+function buildDailyRows(rows: SalesInvoiceFact[]): TaxDailyRow[] {
+	const byDate = new Map<string, TaxDailyRow>()
 	for (const row of rows) {
 		const date = String(row.posting_date || "").slice(0, 10)
 		if (!date) continue

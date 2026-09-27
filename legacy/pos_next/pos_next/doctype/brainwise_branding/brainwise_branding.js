@@ -1,7 +1,7 @@
 // Copyright (c) 2025, BrainWise and contributors
 // For license information, please see license.txt
 
-frappe.ui.form.on("BrainWise Branding", {
+dypos.ui.form.on("BrainWise Branding", {
 	refresh: function (frm) {
 		// Add custom buttons and UI elements
 		add_master_key_controls(frm);
@@ -28,7 +28,7 @@ frappe.ui.form.on("BrainWise Branding", {
 	enabled: function (frm) {
 		// When trying to disable, show warning
 		if (!frm.doc.enabled) {
-			frappe.msgprint({
+			dypos.msgprint({
 				title: __("Master Key Required"),
 				indicator: "red",
 				message: __(
@@ -59,7 +59,7 @@ function add_master_key_controls(frm) {
 	);
 
 	// Add tampering stats button (System Manager only)
-	if (frappe.user.has_role("System Manager")) {
+	if (dypos.user.has_role("System Manager")) {
 		frm.add_custom_button(
 			__("View Tampering Stats"),
 			function () {
@@ -102,7 +102,7 @@ function unlock_protected_fields(frm) {
 		frm.set_df_property(field, "read_only", 0);
 	});
 
-	frappe.show_alert(
+	dypos.show_alert(
 		{
 			message: __("Protected fields unlocked. You can now make changes."),
 			indicator: "green",
@@ -113,7 +113,7 @@ function unlock_protected_fields(frm) {
 
 function verify_master_key(frm) {
 	if (!frm.doc.master_key_provided) {
-		frappe.msgprint({
+		dypos.msgprint({
 			title: __("No Master Key Provided"),
 			indicator: "red",
 			message: __("Please enter the Master Key in the field above to verify."),
@@ -121,14 +121,14 @@ function verify_master_key(frm) {
 		return;
 	}
 
-	frappe.call({
+	dypos.call({
 		method: "DyPOS.DyPOS.doctype.brainwise_branding.brainwise_branding.verify_master_key",
 		args: {
 			master_key_input: frm.doc.master_key_provided,
 		},
 		callback: function (r) {
 			if (r.message && r.message.valid) {
-				frappe.show_alert(
+				dypos.show_alert(
 					{
 						message: __(
 							"✅ Master Key is VALID! You can now modify protected fields."
@@ -141,7 +141,7 @@ function verify_master_key(frm) {
 				// Unlock fields
 				unlock_protected_fields(frm);
 			} else {
-				frappe.msgprint({
+				dypos.msgprint({
 					title: __("Invalid Master Key"),
 					indicator: "red",
 					message: __(
@@ -195,7 +195,7 @@ function show_master_key_help() {
 		</div>
 	`;
 
-	frappe.msgprint({
+	dypos.msgprint({
 		title: __("Master Key Help"),
 		message: help_html,
 		wide: true,
@@ -203,7 +203,7 @@ function show_master_key_help() {
 }
 
 function show_tampering_stats() {
-	frappe.call({
+	dypos.call({
 		method: "DyPOS.api.branding.get_tampering_stats",
 		callback: function (r) {
 			if (r.message) {
@@ -253,7 +253,7 @@ function show_tampering_stats() {
 					</div>
 				`;
 
-				frappe.msgprint({
+				dypos.msgprint({
 					title: __("Security Statistics"),
 					message: stats_html,
 					wide: true,

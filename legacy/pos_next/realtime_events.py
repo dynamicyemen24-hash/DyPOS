@@ -6,8 +6,8 @@ Real-time event handlers for POS Next.
 Emits Socket.IO events when stock-affecting transactions occur.
 """
 
-import frappe
-from frappe import _
+import dypos
+from dyposimport _
 
 from DyPOS.api.items import get_stock_quantities
 
@@ -44,7 +44,7 @@ def emit_stock_update_event(doc, method=None):
 			if hasattr(item, "is_stock_item") and item.is_stock_item is not None:
 				if not int(item.is_stock_item):
 					continue
-			elif hasattr(item, "stock_qty") and not frappe.utils.flt(item.stock_qty):
+			elif hasattr(item, "stock_qty") and not dypos.utils.flt(item.stock_qty):
 				continue
 
 			item_codes_by_warehouse.setdefault(warehouse, set()).add(item_code)
@@ -62,7 +62,7 @@ def emit_stock_update_event(doc, method=None):
 
 			# Ensure events always have numeric qty fields, even if API returns None
 			for update in warehouse_updates:
-				actual_qty = frappe.utils.flt(update.get("actual_qty"))
+				actual_qty = dypos.utils.flt(update.get("actual_qty"))
 				update["actual_qty"] = actual_qty
 				update["stock_qty"] = actual_qty if update.get("stock_qty") is None else update["stock_qty"]
 				update["warehouse"] = update.get("warehouse") or warehouse
@@ -77,14 +77,14 @@ def emit_stock_update_event(doc, method=None):
 			"invoice_name": doc.name,
 			"warehouses": list(warehouses),
 			"stock_updates": stock_updates,
-			"timestamp": frappe.utils.now(),
+			"timestamp": dypos.utils.now(),
 			"event_type": "cancel" if method == "on_cancel" else "submit",
 		}
 
 		# Emit event to all connected clients
 		# Event name: pos_stock_update
 		# Clients can subscribe to this event and filter by warehouse
-		frappe.publish_realtime(
+		dypos.publish_realtime(
 			event="pos_stock_update",
 			message=event_data,
 			user=None,  # Broadcast to all users
@@ -93,7 +93,7 @@ def emit_stock_update_event(doc, method=None):
 
 	except Exception as e:
 		# Log error but don't fail the transaction
-		frappe.log_error(
+		dypos.log_error(
 			title=_("Real-time Stock Update Event Error"),
 			message=f"Failed to emit stock update event for {doc.name}: {e!s}",
 		)
@@ -119,13 +119,13 @@ def emit_invoice_created_event(doc, method=None):
 			"grand_total": doc.grand_total,
 			"customer": doc.customer,
 			"pos_profile": doc.pos_profile,
-			"timestamp": frappe.utils.now(),
+			"timestamp": dypos.utils.now(),
 		}
 
-		frappe.publish_realtime(event="pos_invoice_created", message=event_data, user=None, after_commit=True)
+		dypos.publish_realtime(event="pos_invoice_created", message=event_data, user=None, after_commit=True)
 
 	except Exception as e:
-		frappe.log_error(
+		dypos.log_error(
 			title=_("Real-time Invoice Created Event Error"),
 			message=f"Failed to emit invoice created event for {doc.name}: {e!s}",
 		)
@@ -153,25 +153,25 @@ def emit_pos_profile_updated_event(doc, method=None):
 			event_data = {
 				"pos_profile": doc.name,
 				"item_groups": current_item_groups,
-				"timestamp": frappe.utils.now(),
+				"timestamp": dypos.utils.now(),
 				"change_type": "item_groups_updated",
 			}
 
 			# Emit event to all connected clients
 			# Event name: pos_profile_updated
 			# Clients can subscribe to this event and invalidate their cache
-			frappe.publish_realtime(
+			dypos.publish_realtime(
 				event="pos_profile_updated",
 				message=event_data,
 				user=None,  # Broadcast to all users
 				after_commit=True,  # Only emit after successful DB commit
 			)
 
-			frappe.logger().info(f"Emitted pos_profile_updated event for {doc.name} - item groups changed")
+			dypos.logger().info(f"Emitted pos_profile_updated event for {doc.name} - item groups changed")
 
 	except Exception as e:
 		# Log error but don't fail the transaction
-		frappe.log_error(
+		dypos.log_error(
 			title=_("Real-time POS Profile Update Event Error"),
 			message=f"Failed to emit POS profile update event for {doc.name}: {e!s}",
 		)
@@ -202,10 +202,10 @@ def emit_customer_event(doc, method=None):
 			"email_id": doc.email_id or "",
 			"disabled": doc.disabled,
 			"action": action,
-			"timestamp": frappe.utils.now(),
+			"timestamp": dypos.utils.now(),
 		}
 
-		frappe.publish_realtime(
+		dypos.publish_realtime(
 			event="pos_customer_changed",
 			message=event_data,
 			user=None,  # Broadcast to all users
@@ -213,7 +213,7 @@ def emit_customer_event(doc, method=None):
 		)
 
 	except Exception as e:
-		frappe.log_error(
+		dypos.log_error(
 			title=_("Real-time Customer Update Event Error"),
 			message=f"Failed to emit customer update event for {doc.name}: {e!s}",
 		)

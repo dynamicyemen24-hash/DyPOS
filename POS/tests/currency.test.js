@@ -1,6 +1,6 @@
 /**
  * جناح اختبارات منطق المال — DyPOS World-Class Quality
- * يغطي utils/currency.js: التقريب (Banker/Commercial المطابق لـ frappe)،
+ * يغطي utils/currency.js: التقريب (Banker/Commercial المطابق لـ dypos)،
  * التنسيق، الأمان من القيم الفاسدة — قلب أي نقطة بيع لا يُمس بلا حماية.
  */
 import { describe, expect, it, beforeEach } from "vitest"
@@ -37,7 +37,7 @@ describe("initPrecision / getPrecision", () => {
 	})
 })
 
-describe("التقريب المصرفي (Banker's Rounding) — مطابق لـ frappe", () => {
+describe("التقريب المصرفي (Banker's Rounding) — مطابق لـ dypos", () => {
 	beforeEach(() => initPrecision({ rounding_method: "Banker's Rounding" }))
 
 	it("تعادل .5 عند منزلة التقريب يقرب لأقرب زوج", () => {

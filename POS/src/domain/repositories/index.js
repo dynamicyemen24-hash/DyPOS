@@ -1,6 +1,6 @@
 /**
  * DyPOS Repository Interfaces — Contracts for data access
- * Any backend (Frappe, REST, Supabase, Firebase) must implement these.
+ * Any backend (method router, REST, Supabase, Firebase) must implement these.
  */
 
 /**

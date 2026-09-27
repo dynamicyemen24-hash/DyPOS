@@ -86,7 +86,7 @@ export const useSerialNumberStore = defineStore("serialNumber", () => {
 		loading.value = true
 
 		try {
-			const response = await call("frappe.client.get_list", {
+			const response = await call("dypos.client.get_list", {
 				doctype: "Serial No",
 				filters: {
 					item_code: itemCode,

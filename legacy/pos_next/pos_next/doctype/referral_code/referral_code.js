@@ -1,7 +1,7 @@
 // Copyright (c) 2021, Youssef Restom and contributors
 // For license information, please see license.txt
 
-frappe.ui.form.on("Referral Code", {
+dypos.ui.form.on("Referral Code", {
 	setup: function (frm) {
 		frm.set_query("party_type", function () {
 			return {

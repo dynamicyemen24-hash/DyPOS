@@ -6,9 +6,9 @@ Sales Invoice Hooks
 Event handlers for Sales Invoice document events
 """
 
-import frappe
-from frappe import _
-from frappe.utils import cint
+import dypos
+from dyposimport _
+from dypos.utils import cint
 
 
 def validate(doc, method=None):
@@ -40,7 +40,7 @@ def apply_tax_inclusive(doc):
 
 	try:
 		# Get POS Settings for this profile
-		pos_settings = frappe.db.get_value(
+		pos_settings = dypos.db.get_value(
 			"POS Settings", {"pos_profile": doc.pos_profile}, ["tax_inclusive"], as_dict=True
 		)
 		tax_inclusive = pos_settings.get("tax_inclusive", 0) if pos_settings else 0
@@ -83,12 +83,12 @@ def auto_assign_loyalty_program_on_invoice(doc):
 		return
 
 	# Check if customer already has a loyalty program
-	customer_loyalty = frappe.db.get_value("Customer", doc.customer, "loyalty_program")
+	customer_loyalty = dypos.db.get_value("Customer", doc.customer, "loyalty_program")
 	if customer_loyalty:
 		return
 
 	# Get POS Settings
-	pos_settings = frappe.db.get_value(
+	pos_settings = dypos.db.get_value(
 		"POS Settings",
 		{"pos_profile": doc.pos_profile},
 		["enable_loyalty_program", "default_loyalty_program"],
@@ -106,7 +106,7 @@ def auto_assign_loyalty_program_on_invoice(doc):
 		return
 
 	# Assign loyalty program to customer
-	frappe.db.set_value("Customer", doc.customer, "loyalty_program", loyalty_program, update_modified=False)
+	dypos.db.set_value("Customer", doc.customer, "loyalty_program", loyalty_program, update_modified=False)
 
 
 def record_one_time_offer_usage(doc, method=None):
@@ -134,11 +134,11 @@ def record_one_time_offer_usage(doc, method=None):
 	if not rule_names:
 		return
 
-	from frappe.utils import now
+	from dypos.utils import now
 
 	for rule in rule_names:
 		try:
-			frappe.get_doc(
+			dypos.get_doc(
 				{
 					"doctype": "One Time Customer Offer Usage",
 					"customer": doc.customer,
@@ -147,14 +147,14 @@ def record_one_time_offer_usage(doc, method=None):
 					"redemption_date": now(),
 				}
 			).insert(ignore_permissions=True, ignore_if_duplicate=True)
-		except frappe.DuplicateEntryError:
+		except dypos.DuplicateEntryError:
 			# Customer already recorded for this rule — one-time guard intact.
 			pass
 
 
 def release_one_time_offer_usage(doc, method=None):
 	"""Release one-time redemptions on cancel so the customer can redeem again."""
-	frappe.db.delete("One Time Customer Offer Usage", {"sales_invoice": doc.name})
+	dypos.db.delete("One Time Customer Offer Usage", {"sales_invoice": doc.name})
 
 
 def before_cancel(doc, method=None):
@@ -171,12 +171,12 @@ def before_cancel(doc, method=None):
 
 		cancel_credit_journal_entries(doc.name)
 	except Exception as e:
-		frappe.log_error(
+		dypos.log_error(
 			title="Credit Sale JE Cancellation Error",
-			message=f"Invoice: {doc.name}, Error: {e!s}\n{frappe.get_traceback()}",
+			message=f"Invoice: {doc.name}, Error: {e!s}\n{dypos.get_traceback()}",
 		)
 		# Don't block invoice cancellation if JE cancellation fails
-		frappe.msgprint(
+		dypos.msgprint(
 			_("Warning: Some credit journal entries may not have been cancelled. Please check manually."),
 			alert=True,
 			indicator="orange",

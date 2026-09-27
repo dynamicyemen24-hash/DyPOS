@@ -368,7 +368,7 @@ async function resolvePrintSettings(posProfile, printFormat, letterhead) {
 
 	if (posProfile) {
 		try {
-			const doc = await call("frappe.client.get", {
+			const doc = await call("dypos.client.get", {
 				doctype: "POS Profile",
 				name: posProfile,
 			})
@@ -495,7 +495,7 @@ export async function printInvoiceByName(
 // ============================================================================
 
 export async function silentPrintDoc(doctype, name, printFormat) {
-	const result = await call("frappe.www.printview.get_html_and_style", {
+	const result = await call("dypos.www.printview.get_html_and_style", {
 		doc: doctype,
 		name,
 		print_format: printFormat,
@@ -518,7 +518,7 @@ export async function silentPrintDoc(doctype, name, printFormat) {
 
 /**
  * Fetch the server-rendered print HTML and send it to a thermal printer
- * via QZ Tray. Uses Frappe's get_html_and_style API which returns the
+ * via QZ Tray. Uses the dypos.www.printview.get_html_and_style API which returns the
  * print format HTML + its inline styles (standard.css, print style, custom CSS).
  * Note: print.bundle.css (Bootstrap grid/tables) is NOT included — print
  * formats that rely on Bootstrap layout classes may render differently.

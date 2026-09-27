@@ -371,7 +371,7 @@ import { getInvoiceStatusColor } from "@/utils/invoice"
 import { usePOSSettingsStore } from "@/stores/posSettings"
 import { useToast } from "@/composables/useToast"
 import { useFormatters } from "@/composables/useFormatters"
-import { Button, call } from "frappe-ui"
+import { Button, call } from "dypos-ui"
 import { computed, defineAsyncComponent, onMounted, ref, watch } from "vue"
 
 // Lazy: PaymentDialog excluded from first-paint bundle.

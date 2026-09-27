@@ -3,9 +3,9 @@
 
 import re
 
-import frappe
-from frappe import _
-from frappe.utils import cint, cstr, flt, getdate, nowdate
+import dypos
+from dyposimport _
+from dypos.utils import cint, cstr, flt, getdate, nowdate
 
 
 def check_promotion_permissions(action="read"):
@@ -16,23 +16,23 @@ def check_promotion_permissions(action="read"):
 		action: Type of action - "read", "write", "delete"
 
 	Raises:
-		frappe.PermissionError: If user doesn't have required permissions
+		dypos.PermissionError: If user doesn't have required permissions
 	"""
 	# Check if user has required permissions for Promotional Scheme doctype
 	if action == "read":
-		if not frappe.has_permission("Promotional Scheme", "read"):
-			frappe.throw(_("You don't have permission to view promotions"), frappe.PermissionError)
+		if not dypos.has_permission("Promotional Scheme", "read"):
+			dypos.throw(_("You don't have permission to view promotions"), dypos.PermissionError)
 	elif action == "write":
-		if not frappe.has_permission("Promotional Scheme", "write"):
-			frappe.throw(
-				_("You don't have permission to create or modify promotions"), frappe.PermissionError
+		if not dypos.has_permission("Promotional Scheme", "write"):
+			dypos.throw(
+				_("You don't have permission to create or modify promotions"), dypos.PermissionError
 			)
 	elif action == "delete":
-		if not frappe.has_permission("Promotional Scheme", "delete"):
-			frappe.throw(_("You don't have permission to delete promotions"), frappe.PermissionError)
+		if not dypos.has_permission("Promotional Scheme", "delete"):
+			dypos.throw(_("You don't have permission to delete promotions"), dypos.PermissionError)
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_promotions(pos_profile=None, company=None, include_disabled=False):
 	"""Get all promotional schemes AND standalone pricing rules for POS with simplified structure."""
 	check_promotion_permissions("read")
@@ -42,7 +42,7 @@ def get_promotions(pos_profile=None, company=None, include_disabled=False):
 	if company:
 		filters["company"] = company
 	elif pos_profile:
-		profile = frappe.get_doc("POS Profile", pos_profile)
+		profile = dypos.get_doc("POS Profile", pos_profile)
 		filters["company"] = profile.company
 
 	if not include_disabled:
@@ -52,7 +52,7 @@ def get_promotions(pos_profile=None, company=None, include_disabled=False):
 	filters["selling"] = 1
 
 	# Get all promotional schemes
-	schemes = frappe.get_all(
+	schemes = dypos.get_all(
 		"Promotional Scheme",
 		filters=filters,
 		fields=[
@@ -79,10 +79,10 @@ def get_promotions(pos_profile=None, company=None, include_disabled=False):
 		scheme["source"] = "Promotional Scheme"
 
 		# Get pricing rules count
-		scheme["pricing_rules_count"] = frappe.db.count("Pricing Rule", {"promotional_scheme": scheme.name})
+		scheme["pricing_rules_count"] = dypos.db.count("Pricing Rule", {"promotional_scheme": scheme.name})
 
 		# Get discount slabs
-		scheme_doc = frappe.get_doc("Promotional Scheme", scheme.name)
+		scheme_doc = dypos.get_doc("Promotional Scheme", scheme.name)
 		scheme["price_slabs"] = len(scheme_doc.price_discount_slabs or [])
 		scheme["product_slabs"] = len(scheme_doc.product_discount_slabs or [])
 
@@ -110,7 +110,7 @@ def get_promotions(pos_profile=None, company=None, include_disabled=False):
 	pr_filters = filters.copy()
 	pr_filters["promotional_scheme"] = ["is", "not set"]
 
-	pricing_rules = frappe.get_all(
+	pricing_rules = dypos.get_all(
 		"Pricing Rule",
 		filters=pr_filters,
 		fields=[
@@ -145,7 +145,7 @@ def get_promotions(pos_profile=None, company=None, include_disabled=False):
 		pr["product_slabs"] = 0
 
 		# Get items/groups/brands count
-		pr_doc = frappe.get_doc("Pricing Rule", pr.name)
+		pr_doc = dypos.get_doc("Pricing Rule", pr.name)
 		if pr.apply_on == "Item Code":
 			pr["items_count"] = len(pr_doc.items or [])
 		elif pr.apply_on == "Item Group":
@@ -171,19 +171,19 @@ def get_promotions(pos_profile=None, company=None, include_disabled=False):
 	return all_promotions
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_promotion_details(scheme_name):
 	"""Get detailed information about a promotional scheme OR standalone pricing rule."""
 	check_promotion_permissions("read")
 
 	# Check if it's a Promotional Scheme
-	if frappe.db.exists("Promotional Scheme", scheme_name):
-		scheme = frappe.get_doc("Promotional Scheme", scheme_name)
+	if dypos.db.exists("Promotional Scheme", scheme_name):
+		scheme = dypos.get_doc("Promotional Scheme", scheme_name)
 		data = scheme.as_dict()
 		data["source"] = "Promotional Scheme"
 
 		# Get active pricing rules
-		data["pricing_rules"] = frappe.get_all(
+		data["pricing_rules"] = dypos.get_all(
 			"Pricing Rule",
 			filters={"promotional_scheme": scheme_name, "disable": 0},
 			fields=["name", "title", "priority", "valid_from", "valid_upto"],
@@ -192,8 +192,8 @@ def get_promotion_details(scheme_name):
 		return data
 
 	# Check if it's a standalone Pricing Rule
-	elif frappe.db.exists("Pricing Rule", scheme_name):
-		pr = frappe.get_doc("Pricing Rule", scheme_name)
+	elif dypos.db.exists("Pricing Rule", scheme_name):
+		pr = dypos.get_doc("Pricing Rule", scheme_name)
 		data = pr.as_dict()
 		data["source"] = "Pricing Rule"
 
@@ -224,10 +224,10 @@ def get_promotion_details(scheme_name):
 		return data
 
 	else:
-		frappe.throw(_("Promotion or Pricing Rule {0} not found").format(scheme_name))
+		dypos.throw(_("Promotion or Pricing Rule {0} not found").format(scheme_name))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def create_promotion(data):
 	"""
 	Create a promotional scheme.
@@ -259,15 +259,15 @@ def create_promotion(data):
 
 	# Validate required fields
 	if not data.get("name"):
-		frappe.throw(_("Promotion name is required"))
+		dypos.throw(_("Promotion name is required"))
 	if not data.get("company"):
-		frappe.throw(_("Company is required"))
+		dypos.throw(_("Company is required"))
 	if not data.get("apply_on"):
-		frappe.throw(_("Apply On is required"))
+		dypos.throw(_("Apply On is required"))
 
 	try:
 		# Create promotional scheme
-		scheme = frappe.new_doc("Promotional Scheme")
+		scheme = dypos.new_doc("Promotional Scheme")
 		scheme.update(
 			{
 				"name": data.get("name"),
@@ -285,7 +285,7 @@ def create_promotion(data):
 		# Set applicable for
 		if data.get("applicable_for"):
 			scheme.applicable_for = data["applicable_for"]
-			applicable_key = frappe.scrub(data["applicable_for"])
+			applicable_key = dypos.scrub(data["applicable_for"])
 			if data.get(applicable_key):
 				# Handle both single value and list
 				values = (
@@ -355,12 +355,12 @@ def create_promotion(data):
 		}
 
 	except Exception as e:
-		frappe.db.rollback()
-		frappe.log_error(title=_("Promotion Creation Failed"), message=frappe.get_traceback())
-		frappe.throw(_("Failed to create promotion: {0}").format(str(e)))
+		dypos.db.rollback()
+		dypos.log_error(title=_("Promotion Creation Failed"), message=dypos.get_traceback())
+		dypos.throw(_("Failed to create promotion: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def update_promotion(scheme_name, data):
 	"""
 	Update an existing promotional scheme.
@@ -373,11 +373,11 @@ def update_promotion(scheme_name, data):
 	if isinstance(data, str):
 		data = json.loads(data)
 
-	if not frappe.db.exists("Promotional Scheme", scheme_name):
-		frappe.throw(_("Promotional Scheme {0} not found").format(scheme_name))
+	if not dypos.db.exists("Promotional Scheme", scheme_name):
+		dypos.throw(_("Promotional Scheme {0} not found").format(scheme_name))
 
 	try:
-		scheme = frappe.get_doc("Promotional Scheme", scheme_name)
+		scheme = dypos.get_doc("Promotional Scheme", scheme_name)
 
 		# Update basic fields
 		if "valid_from" in data:
@@ -442,21 +442,21 @@ def update_promotion(scheme_name, data):
 		return {"success": True, "message": _("Promotion {0} updated successfully").format(scheme_name)}
 
 	except Exception as e:
-		frappe.db.rollback()
-		frappe.log_error(title=_("Promotion Update Failed"), message=frappe.get_traceback())
-		frappe.throw(_("Failed to update promotion: {0}").format(str(e)))
+		dypos.db.rollback()
+		dypos.log_error(title=_("Promotion Update Failed"), message=dypos.get_traceback())
+		dypos.throw(_("Failed to update promotion: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def toggle_promotion(scheme_name, disable=None):
 	"""Enable or disable a promotional scheme."""
 	check_promotion_permissions("write")
 
-	if not frappe.db.exists("Promotional Scheme", scheme_name):
-		frappe.throw(_("Promotional Scheme {0} not found").format(scheme_name))
+	if not dypos.db.exists("Promotional Scheme", scheme_name):
+		dypos.throw(_("Promotional Scheme {0} not found").format(scheme_name))
 
 	try:
-		scheme = frappe.get_doc("Promotional Scheme", scheme_name)
+		scheme = dypos.get_doc("Promotional Scheme", scheme_name)
 
 		if disable is not None:
 			scheme.disable = cint(disable)
@@ -473,57 +473,57 @@ def toggle_promotion(scheme_name, disable=None):
 		}
 
 	except Exception as e:
-		frappe.db.rollback()
-		frappe.log_error(title=_("Promotion Toggle Failed"), message=frappe.get_traceback())
-		frappe.throw(_("Failed to toggle promotion: {0}").format(str(e)))
+		dypos.db.rollback()
+		dypos.log_error(title=_("Promotion Toggle Failed"), message=dypos.get_traceback())
+		dypos.throw(_("Failed to toggle promotion: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def delete_promotion(scheme_name):
 	"""Delete a promotional scheme and its pricing rules."""
 	check_promotion_permissions("delete")
 
-	if not frappe.db.exists("Promotional Scheme", scheme_name):
-		frappe.throw(_("Promotional Scheme {0} not found").format(scheme_name))
+	if not dypos.db.exists("Promotional Scheme", scheme_name):
+		dypos.throw(_("Promotional Scheme {0} not found").format(scheme_name))
 
 	try:
 		# This will automatically delete associated pricing rules via on_trash
-		frappe.delete_doc("Promotional Scheme", scheme_name)
+		dypos.delete_doc("Promotional Scheme", scheme_name)
 
 		return {"success": True, "message": _("Promotion {0} deleted successfully").format(scheme_name)}
 
 	except Exception as e:
-		frappe.db.rollback()
-		frappe.log_error(title=_("Promotion Deletion Failed"), message=frappe.get_traceback())
-		frappe.throw(_("Failed to delete promotion: {0}").format(str(e)))
+		dypos.db.rollback()
+		dypos.log_error(title=_("Promotion Deletion Failed"), message=dypos.get_traceback())
+		dypos.throw(_("Failed to delete promotion: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_item_groups(company=None):
 	"""Get all item groups."""
 	# Item Group is a global doctype, not company-specific
 	# Return all item groups (both parent groups and leaf nodes)
-	return frappe.get_all("Item Group", fields=["name", "parent_item_group", "is_group"], order_by="name")
+	return dypos.get_all("Item Group", fields=["name", "parent_item_group", "is_group"], order_by="name")
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_brands():
 	"""Get all brands."""
-	return frappe.get_all("Brand", fields=["name"], order_by="name")
+	return dypos.get_all("Brand", fields=["name"], order_by="name")
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def search_items(search_term, pos_profile=None, limit=20):
 	"""Search for items."""
 	# Rate limiting: Track API calls per user
-	cache_key = f"search_items_rate_limit:{frappe.session.user}"
-	call_count_raw = frappe.cache().get(cache_key)
+	cache_key = f"search_items_rate_limit:{dypos.session.user}"
+	call_count_raw = dypos.cache().get(cache_key)
 	call_count = int(call_count_raw) if call_count_raw else 0
 
 	if call_count > 50:  # Max 50 searches per minute
-		frappe.throw(_("Too many search requests. Please wait a moment."))
+		dypos.throw(_("Too many search requests. Please wait a moment."))
 
-	frappe.cache().setex(cache_key, 60, call_count + 1)
+	dypos.cache().setex(cache_key, 60, call_count + 1)
 
 	# Sanitize search term to prevent SQL injection
 	if not search_term or not isinstance(search_term, str):
@@ -538,7 +538,7 @@ def search_items(search_term, pos_profile=None, limit=20):
 	filters = {"disabled": 0}
 
 	if pos_profile:
-		profile = frappe.get_doc("POS Profile", pos_profile)
+		profile = dypos.get_doc("POS Profile", pos_profile)
 		if profile.item_groups:
 			item_groups = [d.item_group for d in profile.item_groups]
 			filters["item_group"] = ["in", item_groups]
@@ -546,7 +546,7 @@ def search_items(search_term, pos_profile=None, limit=20):
 	# Limit results
 	limit = min(int(limit) if limit else 20, 50)  # Max 50 results
 
-	return frappe.get_all(
+	return dypos.get_all(
 		"Item",
 		filters=filters,
 		or_filters={"item_code": ["like", f"%{search_term}%"], "item_name": ["like", f"%{search_term}%"]},
@@ -559,7 +559,7 @@ def search_items(search_term, pos_profile=None, limit=20):
 # ==================== COUPON MANAGEMENT ====================
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_coupons(company=None, include_disabled=False, coupon_type=None):
 	"""Get all coupons for the company with enhanced filtering."""
 	check_promotion_permissions("read")
@@ -570,7 +570,7 @@ def get_coupons(company=None, include_disabled=False, coupon_type=None):
 		filters["company"] = company
 
 	# Check if disabled field exists before filtering
-	has_disabled_field = frappe.db.has_column("POS Coupon", "disabled")
+	has_disabled_field = dypos.db.has_column("POS Coupon", "disabled")
 
 	if not include_disabled and has_disabled_field:
 		filters["disabled"] = 0
@@ -599,7 +599,7 @@ def get_coupons(company=None, include_disabled=False, coupon_type=None):
 	if has_disabled_field:
 		fields.append("disabled")
 
-	coupons = frappe.get_all("POS Coupon", filters=filters, fields=fields, order_by="modified desc")
+	coupons = dypos.get_all("POS Coupon", filters=filters, fields=fields, order_by="modified desc")
 
 	# Enrich with status
 	today = getdate(nowdate())
@@ -630,21 +630,21 @@ def get_coupons(company=None, include_disabled=False, coupon_type=None):
 	return coupons
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_coupon_details(coupon_name):
 	"""Get detailed information about a specific coupon."""
 	check_promotion_permissions("read")
 
-	if not frappe.db.exists("POS Coupon", coupon_name):
-		frappe.throw(_("Coupon {0} not found").format(coupon_name))
+	if not dypos.db.exists("POS Coupon", coupon_name):
+		dypos.throw(_("Coupon {0} not found").format(coupon_name))
 
-	coupon = frappe.get_doc("POS Coupon", coupon_name)
+	coupon = dypos.get_doc("POS Coupon", coupon_name)
 	data = coupon.as_dict()
 
 	return data
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def create_coupon(data):
 	"""
 	Create a new coupon.
@@ -678,33 +678,33 @@ def create_coupon(data):
 
 	# Validate required fields
 	if not data.get("coupon_name"):
-		frappe.throw(_("Coupon name is required"))
+		dypos.throw(_("Coupon name is required"))
 	if not data.get("coupon_type"):
-		frappe.throw(_("Coupon type is required"))
+		dypos.throw(_("Coupon type is required"))
 	if not data.get("discount_type"):
-		frappe.throw(_("Discount type is required"))
+		dypos.throw(_("Discount type is required"))
 	if not data.get("company"):
-		frappe.throw(_("Company is required"))
+		dypos.throw(_("Company is required"))
 
 	# Validate discount configuration
 	if data.get("discount_type") == "Percentage":
 		if not data.get("discount_percentage"):
-			frappe.throw(_("Discount percentage is required when discount type is Percentage"))
+			dypos.throw(_("Discount percentage is required when discount type is Percentage"))
 		if flt(data.get("discount_percentage")) <= 0 or flt(data.get("discount_percentage")) > 100:
-			frappe.throw(_("Discount percentage must be between 0 and 100"))
+			dypos.throw(_("Discount percentage must be between 0 and 100"))
 	elif data.get("discount_type") == "Amount":
 		if not data.get("discount_amount"):
-			frappe.throw(_("Discount amount is required when discount type is Amount"))
+			dypos.throw(_("Discount amount is required when discount type is Amount"))
 		if flt(data.get("discount_amount")) <= 0:
-			frappe.throw(_("Discount amount must be greater than 0"))
+			dypos.throw(_("Discount amount must be greater than 0"))
 
 	# Validate Gift Card requires customer
 	if data.get("coupon_type") == "Gift Card" and not data.get("customer"):
-		frappe.throw(_("Customer is required for Gift Card coupons"))
+		dypos.throw(_("Customer is required for Gift Card coupons"))
 
 	try:
 		# Create coupon
-		coupon = frappe.new_doc("POS Coupon")
+		coupon = dypos.new_doc("POS Coupon")
 		coupon.update(
 			{
 				"coupon_name": data.get("coupon_name"),
@@ -740,12 +740,12 @@ def create_coupon(data):
 		}
 
 	except Exception as e:
-		frappe.db.rollback()
-		frappe.log_error(title=_("Coupon Creation Failed"), message=frappe.get_traceback())
-		frappe.throw(_("Failed to create coupon: {0}").format(str(e)))
+		dypos.db.rollback()
+		dypos.log_error(title=_("Coupon Creation Failed"), message=dypos.get_traceback())
+		dypos.throw(_("Failed to create coupon: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def update_coupon(coupon_name, data):
 	"""
 	Update an existing coupon.
@@ -758,11 +758,11 @@ def update_coupon(coupon_name, data):
 	if isinstance(data, str):
 		data = json.loads(data)
 
-	if not frappe.db.exists("POS Coupon", coupon_name):
-		frappe.throw(_("Coupon {0} not found").format(coupon_name))
+	if not dypos.db.exists("POS Coupon", coupon_name):
+		dypos.throw(_("Coupon {0} not found").format(coupon_name))
 
 	try:
-		coupon = frappe.get_doc("POS Coupon", coupon_name)
+		coupon = dypos.get_doc("POS Coupon", coupon_name)
 
 		# Update discount fields
 		if "discount_type" in data:
@@ -799,21 +799,21 @@ def update_coupon(coupon_name, data):
 		return {"success": True, "message": _("Coupon {0} updated successfully").format(coupon.coupon_code)}
 
 	except Exception as e:
-		frappe.db.rollback()
-		frappe.log_error(title=_("Coupon Update Failed"), message=frappe.get_traceback())
-		frappe.throw(_("Failed to update coupon: {0}").format(str(e)))
+		dypos.db.rollback()
+		dypos.log_error(title=_("Coupon Update Failed"), message=dypos.get_traceback())
+		dypos.throw(_("Failed to update coupon: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def toggle_coupon(coupon_name, disabled=None):
 	"""Enable or disable a coupon."""
 	check_promotion_permissions("write")
 
-	if not frappe.db.exists("POS Coupon", coupon_name):
-		frappe.throw(_("Coupon {0} not found").format(coupon_name))
+	if not dypos.db.exists("POS Coupon", coupon_name):
+		dypos.throw(_("Coupon {0} not found").format(coupon_name))
 
 	try:
-		coupon = frappe.get_doc("POS Coupon", coupon_name)
+		coupon = dypos.get_doc("POS Coupon", coupon_name)
 
 		if disabled is not None:
 			coupon.disabled = cint(disabled)
@@ -831,37 +831,37 @@ def toggle_coupon(coupon_name, disabled=None):
 		}
 
 	except Exception as e:
-		frappe.db.rollback()
-		frappe.log_error(title=_("Coupon Toggle Failed"), message=frappe.get_traceback())
-		frappe.throw(_("Failed to toggle coupon: {0}").format(str(e)))
+		dypos.db.rollback()
+		dypos.log_error(title=_("Coupon Toggle Failed"), message=dypos.get_traceback())
+		dypos.throw(_("Failed to toggle coupon: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def delete_coupon(coupon_name):
 	"""Delete a coupon."""
 	check_promotion_permissions("delete")
 
-	if not frappe.db.exists("POS Coupon", coupon_name):
-		frappe.throw(_("Coupon {0} not found").format(coupon_name))
+	if not dypos.db.exists("POS Coupon", coupon_name):
+		dypos.throw(_("Coupon {0} not found").format(coupon_name))
 
 	try:
 		# Check if coupon has been used
-		coupon = frappe.get_doc("POS Coupon", coupon_name)
+		coupon = dypos.get_doc("POS Coupon", coupon_name)
 		if coupon.used > 0:
-			frappe.throw(
+			dypos.throw(
 				_("Cannot delete coupon {0} as it has been used {1} times").format(
 					coupon.coupon_code, coupon.used
 				)
 			)
 
-		frappe.delete_doc("POS Coupon", coupon_name)
+		dypos.delete_doc("POS Coupon", coupon_name)
 
 		return {"success": True, "message": _("Coupon deleted successfully")}
 
 	except Exception as e:
-		frappe.db.rollback()
-		frappe.log_error(title=_("Coupon Deletion Failed"), message=frappe.get_traceback())
-		frappe.throw(_("Failed to delete coupon: {0}").format(str(e)))
+		dypos.db.rollback()
+		dypos.log_error(title=_("Coupon Deletion Failed"), message=dypos.get_traceback())
+		dypos.throw(_("Failed to delete coupon: {0}").format(str(e)))
 
 
 # =============================================================================
@@ -869,7 +869,7 @@ def delete_coupon(coupon_name):
 # =============================================================================
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def apply_referral_code(referral_code, customer):
 	"""
 	Apply a referral code for a customer - generates coupons for both referrer and referee
@@ -892,12 +892,12 @@ def apply_referral_code(referral_code, customer):
 			"referee_coupon": result.get("referee_coupon"),
 		}
 	except Exception as e:
-		frappe.db.rollback()
-		frappe.log_error(title=_("Apply Referral Code Failed"), message=frappe.get_traceback())
-		frappe.throw(_("Failed to apply referral code: {0}").format(str(e)))
+		dypos.db.rollback()
+		dypos.log_error(title=_("Apply Referral Code Failed"), message=dypos.get_traceback())
+		dypos.throw(_("Failed to apply referral code: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_referral_codes(company=None, include_disabled=False):
 	"""Get all referral codes with optional filters."""
 	filters = {}
@@ -908,7 +908,7 @@ def get_referral_codes(company=None, include_disabled=False):
 	if not include_disabled:
 		filters["disabled"] = 0
 
-	referrals = frappe.get_all(
+	referrals = dypos.get_all(
 		"Referral Code",
 		filters=filters,
 		fields=[
@@ -934,19 +934,19 @@ def get_referral_codes(company=None, include_disabled=False):
 	return referrals
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_referral_details(referral_name):
 	"""Get detailed information about a specific referral code."""
 	check_promotion_permissions("read")
 
-	if not frappe.db.exists("Referral Code", referral_name):
-		frappe.throw(_("Referral Code {0} not found").format(referral_name))
+	if not dypos.db.exists("Referral Code", referral_name):
+		dypos.throw(_("Referral Code {0} not found").format(referral_name))
 
-	referral = frappe.get_doc("Referral Code", referral_name)
+	referral = dypos.get_doc("Referral Code", referral_name)
 	data = referral.as_dict()
 
 	# Get generated coupons for this referral
-	coupons = frappe.get_all(
+	coupons = dypos.get_all(
 		"POS Coupon",
 		filters={"referral_code": referral_name},
 		fields=[

@@ -1,8 +1,8 @@
 /**
  * Sales dashboard data layer.
  *
- * Fetches sales data from Frappe API and builds the chart/table models
- * for the sales dashboard.
+ * Fetches sales data through the method-router client and builds the
+ * chart/table models for the sales dashboard.
  */
 import {
 	fetchSalesInvoices,

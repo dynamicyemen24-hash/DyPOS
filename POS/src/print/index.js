@@ -101,7 +101,7 @@ async function execute(job, plan, html) {
 	return { printedCopies: 1 }
 }
 
-/** Open Frappe's /printview in a new window (trigger_print auto-starts). */
+/** Open the /printview endpoint in a new window (trigger_print auto-starts). */
 export async function printviewPopup(doctype, name, printFormat) {
 	const params = new URLSearchParams({
 		doctype,
@@ -357,8 +357,8 @@ export async function retryPrintJob(jobId) {
 function defaultRequester() {
 	try {
 		return (
-			window?.frappe?.session?.user_fullname ||
-			window?.frappe?.session?.user ||
+			window?.dypos?.session?.user_fullname ||
+			window?.dypos?.session?.user ||
 			"Cashier"
 		)
 	} catch {

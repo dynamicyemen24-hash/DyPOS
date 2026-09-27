@@ -14,11 +14,11 @@
                                                                         <tr>
                                                                                 <td class="text-left font-bold">{{ _('Grand Total') }}</td>
                                                                                 <td class='text-right'>
-                                                                                        {{ frappe.utils.fmt_money(data.grand_total or '', currency=company_currency or currency) }}
+                                                                                        {{ dypos.utils.fmt_money(data.grand_total or '', currency=company_currency or currency) }}
                                                                                         {% if sales_currency_breakdown %}
                                                                                         <div class="text-muted small">
                                                                                                 {% for row in sales_currency_breakdown %}
-                                                                                                        {{ row.currency }} {{ frappe.utils.fmt_money(row.amount, currency=row.currency) }}{% if not loop.last %}<br>{% endif %}
+                                                                                                        {{ row.currency }} {{ dypos.utils.fmt_money(row.amount, currency=row.currency) }}{% if not loop.last %}<br>{% endif %}
                                                                                                 {% endfor %}
                                                                                         </div>
                                                                                         {% endif %}
@@ -27,11 +27,11 @@
                                                                         <tr>
                                                                                 <td class="text-left font-bold">{{ _('Net Total') }}</td>
                                                                                 <td class='text-right'>
-                                                                                        {{ frappe.utils.fmt_money(data.net_total or '', currency=company_currency or currency) }}
+                                                                                        {{ dypos.utils.fmt_money(data.net_total or '', currency=company_currency or currency) }}
                                                                                         {% if net_currency_breakdown %}
                                                                                         <div class="text-muted small">
                                                                                                 {% for row in net_currency_breakdown %}
-                                                                                                        {{ row.currency }} {{ frappe.utils.fmt_money(row.amount, currency=row.currency) }}{% if not loop.last %}<br>{% endif %}
+                                                                                                        {{ row.currency }} {{ dypos.utils.fmt_money(row.amount, currency=row.currency) }}{% if not loop.last %}<br>{% endif %}
                                                                                                 {% endfor %}
                                                                                         </div>
                                                                                         {% endif %}
@@ -66,12 +66,12 @@
                                                                                 <td class="text-left">{{ d.mode_of_payment }}</td>
                                                                                 <td class='text-right'>
                                                                                         {% set base_amount = (d.expected_amount or 0) - (d.opening_amount or 0) %}
-                                                                                        {{ frappe.utils.fmt_money(base_amount, currency=company_currency or currency) }}
+                                                                                        {{ dypos.utils.fmt_money(base_amount, currency=company_currency or currency) }}
                                                                                         {% set breakdown = d.currency_breakdown if d.currency_breakdown is defined else [] %}
                                                                                         {% if breakdown %}
                                                                                         <div class="text-muted small">
                                                                                                 {% for row in breakdown %}
-                                                                                                        {{ row.currency }} {{ frappe.utils.fmt_money(row.amount, currency=row.currency) }}{% if not loop.last %}<br>{% endif %}
+                                                                                                        {{ row.currency }} {{ dypos.utils.fmt_money(row.amount, currency=row.currency) }}{% if not loop.last %}<br>{% endif %}
                                                                                                 {% endfor %}
                                                                                         </div>
                                                                                         {% endif %}
@@ -102,7 +102,7 @@
 									<tr>
 										<td class="text-left">{{ d.account_head }}</td>
 										<td class="text-left">{{ d.rate }} %</td>
-										<td class='text-right'> {{ frappe.utils.fmt_money(d.amount, currency=currency) }}</td>
+										<td class='text-right'> {{ dypos.utils.fmt_money(d.amount, currency=currency) }}</td>
 									</tr>
 								{% endfor %}
 							</tbody>

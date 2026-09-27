@@ -150,8 +150,8 @@ function isSocketAvailable() {
 		return false
 	}
 
-	if (!window.frappe?.realtime) {
-		log.warn("Socket.IO client not initialized (window.frappe.realtime)")
+	if (!window.dypos?.realtime) {
+		log.warn("Socket.IO client not initialized (window.dypos.realtime)")
 		return false
 	}
 
@@ -192,7 +192,7 @@ function startListening() {
 		isConnecting.value = true
 
 		// Subscribe to POS Profile update events
-		window.frappe.realtime.on(EVENT_NAME, handlePosProfileUpdate)
+		window.dypos.realtime.on(EVENT_NAME, handlePosProfileUpdate)
 
 		isListening.value = true
 		isConnecting.value = false
@@ -235,7 +235,7 @@ function stopListening() {
 
 	try {
 		if (isSocketAvailable()) {
-			window.frappe.realtime.off(EVENT_NAME, handlePosProfileUpdate)
+			window.dypos.realtime.off(EVENT_NAME, handlePosProfileUpdate)
 		}
 
 		isListening.value = false

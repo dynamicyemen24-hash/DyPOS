@@ -1,7 +1,7 @@
 // Copyright (c) 2024, BrainWise and contributors
 // For license information, please see license.txt
 
-frappe.ui.form.on("POS Settings", {
+dypos.ui.form.on("POS Settings", {
 	refresh(frm) {
 		// Set query for loyalty program filtered by POS Profile company
 		frm.set_query("default_loyalty_program", function () {
@@ -33,7 +33,7 @@ frappe.ui.form.on("POS Settings", {
 });
 
 function fetch_pos_profile_company(frm) {
-	frappe.db.get_value("POS Profile", frm.doc.pos_profile, "company", (r) => {
+	dypos.db.get_value("POS Profile", frm.doc.pos_profile, "company", (r) => {
 		if (r && r.company) {
 			frm.doc.__company = r.company;
 		}

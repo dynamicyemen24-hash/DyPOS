@@ -10,7 +10,7 @@ const OFFLINE_MESSAGE = "لا يوجد اتصال بالشبكة حاليًا."
 
 /**
  * Extract the closest HTTP status-like code from any error shape
- * (frappe-ui, fetch, axios, or plain { status } objects).
+ * (dypos-ui, fetch, axios, or plain { status } objects).
  * @param {*} error
  * @returns {number|null}
  */

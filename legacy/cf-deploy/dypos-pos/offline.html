@@ -224,7 +224,7 @@
     // Check connection status periodically
     setInterval(() => {
       if (navigator.onLine) {
-        fetch('/api/method/frappe.auth.get_logged_user', {
+        fetch('/api/method/dypos.auth.get_logged_user', {
           method: 'GET',
           cache: 'no-cache'
         })

@@ -2,50 +2,24 @@
  * Financial reports data layer.
  *
  * Single source of raw financial facts for all financial reports.
- * Uses `window.frappe.call` (JS utility pattern per project rules —
- * NOT createResource, which is reserved for Vue components).
+ * Uses the shared method-router client (`@/utils/methodClient`) — NOT
+ * createResource, which is reserved for Vue components — so the layer works
+ * standalone/offline exactly like the rest of the POS.
  *
- * Only standard Frappe doctypes are queried so this works on any
- * ERPNext backend without custom server code:
+ * Only standard doc types are queried so this works on any DyPOS backend
+ * without custom server code:
  *   - Sales Invoice          (revenue / profitability / receivables)
  *   - Sales Invoice Item     (per-product profitability, optional COGS)
  *   - Sales Taxes and Charges (tax breakdown, degrades gracefully)
  *   - Payment Entry          (cash flow)
  *   - Purchase Invoice       (payables)
  */
+import { methodGetList, NO_DYPOS_API } from "@/utils/methodClient"
 
 const INVOICE_CHUNK = 100
 
-function frappeClient() {
-	if (
-		typeof window === "undefined" ||
-		!window.frappe ||
-		typeof window.frappe.call !== "function"
-	) {
-		const error = new Error("Frappe API not available")
-		error.code = "NO_FRAPPE"
-		throw error
-	}
-	return window.frappe
-}
-
-async function getList(
-	doctype,
-	{ fields, filters = [], orderBy = null, limit = 0 } = {},
-) {
-	const frappe = frappeClient()
-	const response = await frappe.call({
-		method: "frappe.client.get_list",
-		args: {
-			doctype,
-			fields,
-			filters,
-			order_by: orderBy,
-			limit_page_length: limit,
-			limit_start: 0,
-		},
-	})
-	return response?.message || response || []
+async function getList(doctype, options = {}) {
+	return methodGetList(doctype, options)
 }
 
 function toISODate(date) {
@@ -131,7 +105,7 @@ export async function fetchSalesInvoiceItems(invoiceNames) {
 			invoiceNames,
 		)
 	} catch (error) {
-		if (error?.code === "NO_FRAPPE") throw error
+		if (error?.code === NO_DYPOS_API) throw error
 		const rows = await chunkedChildQuery(
 			"Sales Invoice Item",
 			["parent", "item_code", "item_name", "qty", "base_net_amount"],
@@ -157,7 +131,7 @@ export async function fetchSalesTaxLines(invoiceNames) {
 			invoiceNames,
 		)
 	} catch (error) {
-		if (error?.code === "NO_FRAPPE") throw error
+		if (error?.code === NO_DYPOS_API) throw error
 		return []
 	}
 }

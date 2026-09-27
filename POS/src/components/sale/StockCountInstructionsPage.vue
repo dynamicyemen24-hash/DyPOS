@@ -220,7 +220,7 @@
 <script setup>
 import { ref, computed } from "vue"
 import { DEFAULT_CURRENCY } from "@/utils/currency"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
 
 const props = defineProps({

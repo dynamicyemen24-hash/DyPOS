@@ -189,7 +189,7 @@ The `submit_invoice` API checks for existing `offline_id` before creating:
 
 ```python
 if offline_id:
-    existing_sync = frappe.db.get_value(
+    existing_sync = dypos.db.get_value(
         "Offline Invoice Sync",
         {"offline_id": offline_id},
         ["name", "sales_invoice"],

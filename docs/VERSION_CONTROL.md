@@ -60,7 +60,7 @@ DyPOS uses a comprehensive version control system that tracks both application v
 Use the provided script to bump versions:
 
 ```bash
-cd /home/ubuntu/frappe-bench/apps/DyPOS
+cd /home/ubuntu/dypos-bench/apps/DyPOS
 
 # Bump patch version (1.0.0 → 1.0.1)
 ./scripts/version-bump.sh patch
@@ -145,7 +145,7 @@ Check current build version:
 
 ```bash
 # Via bench console
-cd /home/ubuntu/frappe-bench
+cd /home/ubuntu/dypos-bench
 bench --site nexus.local execute DyPOS.utils.get_build_version
 
 # Via Python

@@ -324,7 +324,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from "vue"
 import { useRouter, useRoute } from "vue-router"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 import { useLocale } from "@/composables/useLocale"
 import { t } from "@/utils/translation"
 import WorkLoadingSkeleton from "./WorkLoadingSkeleton.vue"

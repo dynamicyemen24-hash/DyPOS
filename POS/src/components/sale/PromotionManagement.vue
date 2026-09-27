@@ -1034,8 +1034,8 @@ import {
 	FormControl,
 	LoadingIndicator,
 	createResource,
-} from "frappe-ui"
-import { FeatherIcon } from "frappe-ui"
+} from "dypos-ui"
+import { FeatherIcon } from "dypos-ui"
 import { computed, onMounted, ref, watch } from "vue"
 import TranslatedHTML from "../common/TranslatedHTML.vue"
 

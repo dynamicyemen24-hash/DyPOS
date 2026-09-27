@@ -423,7 +423,7 @@ import {
 	DEFAULT_CURRENCY,
 	formatCurrency as formatCurrencyUtil,
 } from "@/utils/currency"
-import { Button, Dialog } from "frappe-ui"
+import { Button, Dialog } from "dypos-ui"
 import { computed, ref, watch } from "vue"
 
 const props = defineProps({

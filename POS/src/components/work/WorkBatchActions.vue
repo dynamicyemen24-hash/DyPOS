@@ -137,7 +137,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue"
 import { t } from "@/utils/translation"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 import WorkActions from "./WorkActions.vue"
 
 const props = defineProps({

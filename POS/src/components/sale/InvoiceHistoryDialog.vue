@@ -233,7 +233,7 @@ import {
 	formatCurrency as formatCurrencyUtil,
 } from "@/utils/currency"
 import { getInvoiceStatusColor } from "@/utils/invoice"
-import { Button, Dialog, Input, createResource } from "frappe-ui"
+import { Button, Dialog, Input, createResource } from "dypos-ui"
 import { computed, ref, watch } from "vue"
 import ReturnInvoiceDialog from "./ReturnInvoiceDialog.vue"
 

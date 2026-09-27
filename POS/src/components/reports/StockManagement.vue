@@ -195,7 +195,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, nextTick } from "vue"
 import { Line, Bar, Doughnut } from "vue-chartjs"
-import { Button, FeatherIcon, FormControl } from "frappe-ui"
+import { Button, FeatherIcon, FormControl } from "dypos-ui"
 import { t } from "@/utils/translation"
 import {
 	COLORS,

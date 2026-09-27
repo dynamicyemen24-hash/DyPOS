@@ -3,7 +3,7 @@
 
 from datetime import datetime
 
-import frappe
+import dypos
 
 app_name = "DyPOS"
 app_title = "POS Next"
@@ -28,15 +28,15 @@ def after_install():
     setup_workspace()
     setup_print_format()
     setup_singles()
-    frappe.clear_cache()
+    dypos.clear_cache()
 
 
 def setup_company_branding():
     """Set up company branding for Smart Ports Software"""
     company_name = "المنافذ الذكية للبرمجيات"
 
-    if not frappe.db.exists("Company", company_name):
-        frappe.get_doc(
+    if not dypos.db.exists("Company", company_name):
+        dypos.get_doc(
             {
                 "doctype": "Company",
                 "company_name": company_name,
@@ -51,13 +51,13 @@ def setup_company_branding():
             }
         ).insert()
 
-    frappe.db.set_value("System Settings", None, "company", company_name)
+    dypos.db.set_value("System Settings", None, "company", company_name)
 
 
 def setup_workspace():
     """Set up custom workspace for POS Next"""
-    if not frappe.db.exists("Workspace", "DyPOS"):
-        frappe.get_doc(
+    if not dypos.db.exists("Workspace", "DyPOS"):
+        dypos.get_doc(
             {
                 "doctype": "Workspace",
                 "name": "DyPOS",
@@ -80,22 +80,22 @@ def setup_workspace():
 
 def setup_print_format():
     """Set up company print format"""
-    if not frappe.db.exists("Print Format", "POS Next Receipt"):
+    if not dypos.db.exists("Print Format", "POS Next Receipt"):
         return
 
-    doc = frappe.get_doc("Print Format", "POS Next Receipt")
+    doc = dypos.get_doc("Print Format", "POS Next Receipt")
     doc.html = get_pos_receipt_html()
     doc.save()
 
 
 def setup_singles():
     """Setup single DocTypes with default values"""
-    if not frappe.db.exists("POS Settings"):
+    if not dypos.db.exists("POS Settings"):
         return
 
-    settings = frappe.get_doc("POS Settings")
+    settings = dypos.get_doc("POS Settings")
     if not settings.pos_profile:
-        frappe.throw("Please create a POS Profile first")
+        dypos.throw("Please create a POS Profile first")
 
 
 def get_pos_receipt_html():
@@ -161,9 +161,9 @@ def get_pos_receipt_html():
 def after_migrate():
     """Hook that runs after bench migrate"""
     try:
-        frappe.reload_doc("DyPOS", "doctype", "pos_settings")
-        frappe.reload_doc("DyPOS", "doctype", "pos_profile")
-        frappe.reload_doc("DyPOS", "workspace", "DyPOS")
-        frappe.clear_cache()
+        dypos.reload_doc("DyPOS", "doctype", "pos_settings")
+        dypos.reload_doc("DyPOS", "doctype", "pos_profile")
+        dypos.reload_doc("DyPOS", "workspace", "DyPOS")
+        dypos.clear_cache()
     except Exception as e:
-        frappe.log_error(title="POS Next Branding Migration Error", message=str(e))
+        dypos.log_error(title="POS Next Branding Migration Error", message=str(e))

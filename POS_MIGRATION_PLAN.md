@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document outlines a comprehensive migration strategy from POS Awesome to DyPOS, focusing on modern architecture principles, clean code practices, and maintainable design patterns using Vue 3, Pinia, and Frappe backend.
+This document outlines a comprehensive migration strategy from POS Awesome to DyPOS, focusing on modern architecture principles, clean code practices, and maintainable design patterns using Vue 3, Pinia, and dyposbackend.
 
 ## Current State Analysis
 
@@ -13,7 +13,7 @@ This document outlines a comprehensive migration strategy from POS Awesome to Dy
 - **Features:** Complete POS solution with offline support, promotions, multi-currency, etc.
 
 ### DyPOS (Target)
-- **Technology:** Vue 3 + Frappe UI (Tailwind CSS), Clean Architecture
+- **Technology:** Vue 3 + DyPOS UI (Tailwind CSS), Clean Architecture
 - **Current Status:** Basic scaffold with login/authentication
 - **Goal:** Feature parity with improved architecture
 
@@ -207,7 +207,7 @@ interface IItemRepository {
 }
 
 class ItemRepository implements IItemRepository {
-  // Implementation using Frappe API
+  // Implementation using the DyPOS API
 }
 
 class OfflineItemRepository implements IItemRepository {
@@ -287,7 +287,7 @@ class DiscountDecorator {
 - [ ] Implement validation rules
 
 ### Phase 3: Infrastructure (Weeks 7-9)
-- [ ] Implement Frappe API service
+- [ ] Implement DyPOS API service
 - [ ] Setup Dexie for offline storage
 - [ ] Create repository implementations
 - [ ] Implement caching layer
@@ -324,7 +324,7 @@ class DiscountDecorator {
 
 ### Frontend Stack
 - **Framework:** Vue 3.4+ (Composition API)
-- **UI Library:** Frappe UI + Tailwind CSS
+- **UI Library:** DyPOS UI + Tailwind CSS
 - **State Management:** Pinia 2.1+
 - **Routing:** Vue Router 4+
 - **Build Tool:** Vite 5+
@@ -336,7 +336,7 @@ class DiscountDecorator {
 - **Date Handling:** date-fns
 
 ### Backend Stack
-- **Framework:** Frappe Framework 15+
+- **Framework:** Frappe v15+
 - **Language:** Python 3.10+
 - **Caching:** Redis
 - **Queue:** RQ (Redis Queue)
@@ -480,7 +480,7 @@ describe('Invoice API', () => {
 ### Backend Security
 - Rate limiting on API endpoints
 - Input validation using marshmallow
-- SQL injection prevention via Frappe ORM
+- SQL injection prevention via the ORM
 - Role-based access control
 
 ## Performance Targets

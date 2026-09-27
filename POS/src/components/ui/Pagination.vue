@@ -39,7 +39,7 @@
 
 <script setup>
 import { computed } from "vue"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 
 const props = defineProps({
 	currentPage: { type: Number, required: true, default: 1 },

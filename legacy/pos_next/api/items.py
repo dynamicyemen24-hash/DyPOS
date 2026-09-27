@@ -4,14 +4,14 @@
 import json
 from collections import defaultdict
 
-import frappe
+import dypos
 from DyPOS.stock.doctype.batch.batch import get_batch_qty
 from DyPOS.stock.get_item_details import get_item_details as DyPOS_get_item_details
-from frappe import _
-from frappe.query_builder import DocType
-from frappe.query_builder import functions as fn
-from frappe.query_builder.functions import IfNull
-from frappe.utils import flt, getdate, nowdate
+from dyposimport _
+from dypos.query_builder import DocType
+from dypos.query_builder import functions as fn
+from dypos.query_builder.functions import IfNull
+from dypos.utils import flt, getdate, nowdate
 
 ITEM_RESULT_FIELDS = [
 	"name as item_code",
@@ -52,13 +52,13 @@ def _fetch_uom_prices_map(item_codes, price_list, transaction_date=None, selling
 
 	ItemPrice = DocType("Item Price")
 	query = (
-		frappe.qb.from_(ItemPrice)
+		dypos.qb.from_(ItemPrice)
 		.select(ItemPrice.item_code, ItemPrice.uom, ItemPrice.price_list_rate)
 		.where(ItemPrice.item_code.isin(item_codes))
 		.where(ItemPrice.price_list == price_list)
 		.where(_item_price_validity_conditions(ItemPrice, transaction_date))
 		.orderby(ItemPrice.item_code)
-		.orderby(ItemPrice.valid_from, order=frappe.qb.desc)
+		.orderby(ItemPrice.valid_from, order=dypos.qb.desc)
 		.orderby(ItemPrice.uom)
 	)
 	if selling:
@@ -80,12 +80,12 @@ def _fetch_item_uom_prices(item_code, price_list, transaction_date=None):
 
 	ItemPrice = DocType("Item Price")
 	prices = (
-		frappe.qb.from_(ItemPrice)
+		dypos.qb.from_(ItemPrice)
 		.select(ItemPrice.uom, ItemPrice.price_list_rate)
 		.where(ItemPrice.item_code == item_code)
 		.where(ItemPrice.price_list == price_list)
 		.where(_item_price_validity_conditions(ItemPrice, transaction_date))
-		.orderby(ItemPrice.valid_from, order=frappe.qb.desc)
+		.orderby(ItemPrice.valid_from, order=dypos.qb.desc)
 		.orderby(ItemPrice.uom)
 		.run(as_dict=True)
 	)
@@ -103,13 +103,13 @@ def get_stock_availability(item_code, warehouse):
 		return 0.0
 
 	warehouses = [warehouse]
-	if frappe.db.get_value("Warehouse", warehouse, "is_group"):
+	if dypos.db.get_value("Warehouse", warehouse, "is_group"):
 		# Include all child warehouses when a group warehouse is set
-		warehouses = frappe.db.get_descendants("Warehouse", warehouse) or []
+		warehouses = dypos.db.get_descendants("Warehouse", warehouse) or []
 
 	Bin = DocType("Bin")
 	result = (
-		frappe.qb.from_(Bin)
+		dypos.qb.from_(Bin)
 		.select(fn.Sum(Bin.actual_qty).as_("actual_qty"))
 		.where(Bin.item_code == item_code)
 		.where(Bin.warehouse.isin(warehouses))
@@ -166,7 +166,7 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
 						 - has_batch_no: 1 if batch tracked
 						 - has_serial_no: 1 if serial tracked
 						 - qty: Quantity (default: 1)
-		doc (frappe.Document, optional): Sales Invoice document for context
+		doc (dypos.Document, optional): Sales Invoice document for context
 		warehouse (str, optional): Warehouse for stock/batch/serial lookup
 		price_list (str, optional): Selling price list name
 		company (str, optional): Company for currency conversion
@@ -230,7 +230,7 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
 				# Filter 1: Only batches with available stock
 				if batch.qty > 0 and batch.batch_no:
 					# Fetch batch metadata (expiry, manufacturing dates, disabled status)
-					batch_doc = frappe.get_cached_doc("Batch", batch.batch_no)
+					batch_doc = dypos.get_cached_doc("Batch", batch.batch_no)
 
 					# Filter 2: Exclude expired batches
 					# Filter 3: Exclude disabled batches
@@ -267,7 +267,7 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
 	#   - SN003 (Delivered, Main Store) → EXCLUDED (already sold)
 	#   - SN004 (Active, Branch Store) → EXCLUDED (different warehouse)
 	if warehouse and item.get("has_serial_no"):
-		serial_no_data = frappe.get_all(
+		serial_no_data = dypos.get_all(
 			"Serial No",
 			filters={
 				"item_code": item_code,
@@ -281,11 +281,11 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
 
 	# Handle multi-currency
 	if company:
-		company_currency = frappe.db.get_value("Company", company, "default_currency")
+		company_currency = dypos.db.get_value("Company", company, "default_currency")
 		price_list_currency = company_currency
 		if price_list:
 			price_list_currency = (
-				frappe.db.get_value("Price List", price_list, "currency") or company_currency
+				dypos.db.get_value("Price List", price_list, "currency") or company_currency
 			)
 
 		exchange_rate = 1
@@ -295,7 +295,7 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
 			try:
 				exchange_rate = get_exchange_rate(price_list_currency, company_currency, today)
 			except Exception:
-				frappe.log_error(
+				dypos.log_error(
 					f"Missing exchange rate from {price_list_currency} to {company_currency}", "POS Next"
 				)
 
@@ -314,18 +314,18 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
 
 	# Create a proper doc structure with company
 	if not doc and company:
-		doc = frappe._dict({"doctype": "Sales Invoice", "company": company})
+		doc = dypos._dict({"doctype": "Sales Invoice", "company": company})
 
 	# Fetch all needed Item fields in a single query (performance optimization)
 	item_data = (
-		frappe.db.get_value(
+		dypos.db.get_value(
 			"Item", item_code, ["max_discount", "item_group", "brand", "stock_uom"], as_dict=True
 		)
 		or {}
 	)
 
 	# Prepare args dict for get_item_details - only include necessary fields
-	args = frappe._dict(
+	args = dypos._dict(
 		{
 			"doctype": "Sales Invoice",
 			"item_code": item.get("item_code"),
@@ -351,7 +351,7 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
 	res["brand"] = item_data.get("brand")
 
 	# Add UOMs data
-	uoms = frappe.get_all(
+	uoms = dypos.get_all(
 		"UOM Conversion Detail",
 		filters={"parent": item_code},
 		fields=["uom", "conversion_factor"],
@@ -367,7 +367,7 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
 	return res
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def search_by_barcode(barcode, pos_profile):
 	"""Search item by barcode"""
 	try:
@@ -383,7 +383,7 @@ def search_by_barcode(barcode, pos_profile):
 			pos_profile = pos_profile.get("name") or pos_profile.get("pos_profile")
 
 		if not pos_profile:
-			frappe.throw(_("POS Profile is required"))
+			dypos.throw(_("POS Profile is required"))
 
 		# Try to resolve weighted/priced barcodes if barcode_resolver is available
 		resolved_barcode_data = None
@@ -395,7 +395,7 @@ def search_by_barcode(barcode, pos_profile):
 			effective_barcode = resolved_barcode_data["item_barcode"]
 
 		# Search for item by barcode - also get UOM if barcode has specific UOM
-		barcode_data = frappe.db.get_value(
+		barcode_data = dypos.db.get_value(
 			"Item Barcode", {"barcode": effective_barcode}, ["parent", "uom"], as_dict=True
 		)
 
@@ -404,29 +404,29 @@ def search_by_barcode(barcode, pos_profile):
 			barcode_uom = barcode_data.uom
 		else:
 			# Try searching in item code field directly
-			item_code = frappe.db.get_value("Item", {"name": effective_barcode})
+			item_code = dypos.db.get_value("Item", {"name": effective_barcode})
 			barcode_uom = None
 
 		if not item_code:
-			frappe.throw(_("Item with barcode {0} not found").format(barcode))
+			dypos.throw(_("Item with barcode {0} not found").format(barcode))
 
 		# Get POS Profile details
-		pos_profile_doc = frappe.get_cached_doc("POS Profile", pos_profile)
+		pos_profile_doc = dypos.get_cached_doc("POS Profile", pos_profile)
 
 		# Validate POS Profile has required fields
 		if not pos_profile_doc.warehouse:
-			frappe.throw(_("Warehouse not set in POS Profile {0}").format(pos_profile))
+			dypos.throw(_("Warehouse not set in POS Profile {0}").format(pos_profile))
 		if not pos_profile_doc.selling_price_list:
-			frappe.throw(_("Selling Price List not set in POS Profile {0}").format(pos_profile))
+			dypos.throw(_("Selling Price List not set in POS Profile {0}").format(pos_profile))
 		if not pos_profile_doc.company:
-			frappe.throw(_("Company not set in POS Profile {0}").format(pos_profile))
+			dypos.throw(_("Company not set in POS Profile {0}").format(pos_profile))
 
 		# Get item doc
-		item_doc = frappe.get_cached_doc("Item", item_code)
+		item_doc = dypos.get_cached_doc("Item", item_code)
 
 		# Check if item is allowed for sales
 		if not item_doc.is_sales_item:
-			frappe.throw(_("Item {0} is not allowed for sales").format(item_code))
+			dypos.throw(_("Item {0} is not allowed for sales").format(item_code))
 
 		# Prepare item dict for get_item_detail
 		item = {
@@ -473,17 +473,17 @@ def search_by_barcode(barcode, pos_profile):
 
 		return item_details
 	except Exception as e:
-		frappe.log_error(frappe.get_traceback(), "Search by Barcode Error")
-		frappe.throw(_("Error searching by barcode: {0}").format(str(e)))
+		dypos.log_error(dypos.get_traceback(), "Search by Barcode Error")
+		dypos.throw(_("Error searching by barcode: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_item_stock(item_code, warehouse):
 	"""Get real-time stock for item"""
 	try:
 		# Get both quantities in a single query (performance optimization)
 		bin_data = (
-			frappe.db.get_value(
+			dypos.db.get_value(
 				"Bin",
 				{"item_code": item_code, "warehouse": warehouse},
 				["actual_qty", "reserved_qty"],
@@ -503,17 +503,17 @@ def get_item_stock(item_code, warehouse):
 			"available_qty": stock_qty - reserved_qty,
 		}
 	except Exception as e:
-		frappe.log_error(frappe.get_traceback(), "Get Item Stock Error")
-		frappe.throw(_("Error fetching item stock: {0}").format(str(e)))
+		dypos.log_error(dypos.get_traceback(), "Get Item Stock Error")
+		dypos.throw(_("Error fetching item stock: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_batch_serial_details(item_code, warehouse):
 	"""Get batch/serial number details"""
 	try:
 		# Get both flags in a single query (performance optimization)
 		item_flags = (
-			frappe.db.get_value("Item", item_code, ["has_batch_no", "has_serial_no"], as_dict=True) or {}
+			dypos.db.get_value("Item", item_code, ["has_batch_no", "has_serial_no"], as_dict=True) or {}
 		)
 
 		has_batch_no = item_flags.get("has_batch_no")
@@ -531,7 +531,7 @@ def get_batch_serial_details(item_code, warehouse):
 			# Get available batches using Query Builder
 			Batch = DocType("Batch")
 			batches = (
-				frappe.qb.from_(Batch)
+				dypos.qb.from_(Batch)
 				.select(Batch.name.as_("batch_no"), Batch.batch_qty.as_("qty"), Batch.expiry_date)
 				.where(Batch.item == item_code)
 				.where(Batch.batch_qty > 0)
@@ -545,7 +545,7 @@ def get_batch_serial_details(item_code, warehouse):
 			# Get available serial numbers using Query Builder
 			SerialNo = DocType("Serial No")
 			serial_nos = (
-				frappe.qb.from_(SerialNo)
+				dypos.qb.from_(SerialNo)
 				.select(SerialNo.name.as_("serial_no"), SerialNo.warehouse)
 				.where(SerialNo.item_code == item_code)
 				.where(SerialNo.warehouse == warehouse)
@@ -557,21 +557,21 @@ def get_batch_serial_details(item_code, warehouse):
 
 		return result
 	except Exception as e:
-		frappe.log_error(frappe.get_traceback(), "Get Batch/Serial Details Error")
-		frappe.throw(_("Error fetching batch/serial details: {0}").format(str(e)))
+		dypos.log_error(dypos.get_traceback(), "Get Batch/Serial Details Error")
+		dypos.throw(_("Error fetching batch/serial details: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_item_variants(template_item, pos_profile):
 	"""Get all variants for a template item with prices and stock"""
 	try:
-		pos_profile_doc = frappe.get_cached_doc("POS Profile", pos_profile)
+		pos_profile_doc = dypos.get_cached_doc("POS Profile", pos_profile)
 
-		# Get all variants of this template using Query Builder for Frappe 16 compatibility
+		# Get all variants of this template using Query Builder for dypos16 compatibility
 		# Apply company filter: show variants for specific company + global variants (empty company)
 		Item = DocType("Item")
 		query = (
-			frappe.qb.from_(Item)
+			dypos.qb.from_(Item)
 			.select(
 				Item.name.as_("item_code"),
 				Item.item_name,
@@ -593,7 +593,7 @@ def get_item_variants(template_item, pos_profile):
 
 		# If no variants found, return empty with helpful message
 		if not variants:
-			frappe.msgprint(
+			dypos.msgprint(
 				_(f"No variants created for template item '{template_item}'. Please create variants first.")
 			)
 			return []
@@ -604,7 +604,7 @@ def get_item_variants(template_item, pos_profile):
 		if variant_codes:
 			UOMConversion = DocType("UOM Conversion Detail")
 			uoms = (
-				frappe.qb.from_(UOMConversion)
+				dypos.qb.from_(UOMConversion)
 				.select(UOMConversion.parent, UOMConversion.uom, UOMConversion.conversion_factor)
 				.where(UOMConversion.parent.isin(variant_codes))
 				.orderby(UOMConversion.parent)
@@ -627,7 +627,7 @@ def get_item_variants(template_item, pos_profile):
 		# Get all variant attributes in a single query (performance optimization)
 		attributes_map = {}
 		if variant_codes:
-			attributes = frappe.get_all(
+			attributes = dypos.get_all(
 				"Item Variant Attribute",
 				filters={"parent": ["in", variant_codes]},
 				fields=["parent", "attribute", "attribute_value"],
@@ -642,7 +642,7 @@ def get_item_variants(template_item, pos_profile):
 		if variant_codes and pos_profile_doc.warehouse:
 			Bin = DocType("Bin")
 			stocks = (
-				frappe.qb.from_(Bin)
+				dypos.qb.from_(Bin)
 				.select(Bin.item_code, Bin.actual_qty)
 				.where(Bin.item_code.isin(variant_codes))
 				.where(Bin.warehouse == pos_profile_doc.warehouse)
@@ -678,8 +678,8 @@ def get_item_variants(template_item, pos_profile):
 
 		return variants
 	except Exception as e:
-		frappe.log_error(frappe.get_traceback(), "Get Item Variants Error")
-		frappe.throw(_("Error fetching item variants: {0}").format(str(e)))
+		dypos.log_error(dypos.get_traceback(), "Get Item Variants Error")
+		dypos.throw(_("Error fetching item variants: {0}").format(str(e)))
 
 
 def _get_item_group_with_descendants(item_group):
@@ -688,13 +688,13 @@ def _get_item_group_with_descendants(item_group):
 		return []
 
 	cache_key = f"item_group_descendants:{item_group}"
-	cached = frappe.cache().get_value(cache_key)
+	cached = dypos.cache().get_value(cache_key)
 	if cached is not None:
 		return cached
 
 	ItemGroup = DocType("Item Group")
 	group_data = (
-		frappe.qb.from_(ItemGroup)
+		dypos.qb.from_(ItemGroup)
 		.select(ItemGroup.lft, ItemGroup.rgt, ItemGroup.is_group)
 		.where(ItemGroup.name == item_group)
 		.run(as_dict=True)
@@ -708,7 +708,7 @@ def _get_item_group_with_descendants(item_group):
 			result = [item_group]
 		else:
 			descendants = (
-				frappe.qb.from_(ItemGroup)
+				dypos.qb.from_(ItemGroup)
 				.select(ItemGroup.name)
 				.where(ItemGroup.lft > group.lft)
 				.where(ItemGroup.rgt < group.rgt)
@@ -716,7 +716,7 @@ def _get_item_group_with_descendants(item_group):
 			)
 			result = [item_group, *list(descendants)]
 
-	frappe.cache().set_value(cache_key, result, expires_in_sec=300)
+	dypos.cache().set_value(cache_key, result, expires_in_sec=300)
 	return result
 
 
@@ -732,13 +732,13 @@ def _get_pos_profile_configured_brands(pos_profile):
 	The function is cached per profile to avoid repeated DB hits across calls.
 	"""
 	cache_key = f"pos_profile_brands_raw:{pos_profile}"
-	cached = frappe.cache().get_value(cache_key)
+	cached = dypos.cache().get_value(cache_key)
 	if cached is not None:
 		return cached
 
 	POSBrandsDetail = DocType("POS Brands Detail")
 	configured = (
-		frappe.qb.from_(POSBrandsDetail)
+		dypos.qb.from_(POSBrandsDetail)
 		.select(POSBrandsDetail.brand)
 		.distinct()
 		.where(POSBrandsDetail.parent == pos_profile)
@@ -747,7 +747,7 @@ def _get_pos_profile_configured_brands(pos_profile):
 	)
 
 	# Store even empty list so we only ever hit the DB once per profile per cache TTL
-	frappe.cache().set_value(cache_key, configured, expires_in_sec=300)
+	dypos.cache().set_value(cache_key, configured, expires_in_sec=300)
 	return configured or []
 
 
@@ -768,7 +768,7 @@ def _get_pos_profile_allowed_item_groups(pos_profile_doc):
 	Empty list means the profile imposes no group restriction.
 	"""
 	cache_key = f"pos_profile_allowed_item_groups:{pos_profile_doc.name}"
-	cached = frappe.cache().get_value(cache_key)
+	cached = dypos.cache().get_value(cache_key)
 	if cached is not None:
 		return cached
 
@@ -779,7 +779,7 @@ def _get_pos_profile_allowed_item_groups(pos_profile_doc):
 			for descendant_group in _get_item_group_with_descendants(profile_group_row.item_group)
 		)
 	)
-	frappe.cache().set_value(cache_key, result, expires_in_sec=300)
+	dypos.cache().set_value(cache_key, result, expires_in_sec=300)
 	return result
 
 
@@ -848,8 +848,8 @@ def _build_item_base_conditions(
 
 	if hide_unavailable and warehouse:
 		warehouses = [warehouse]
-		if frappe.db.get_value("Warehouse", warehouse, "is_group"):
-			warehouses = frappe.db.get_descendants("Warehouse", warehouse) or [warehouse]
+		if dypos.db.get_value("Warehouse", warehouse, "is_group"):
+			warehouses = dypos.db.get_descendants("Warehouse", warehouse) or [warehouse]
 
 		wh_placeholders = ", ".join(["%s"] * len(warehouses))
 		extra_joins = (
@@ -950,7 +950,7 @@ def _calculate_bundle_availability_bulk(bundle_codes, warehouse):
 	pbi = DocType("Product Bundle Item")
 
 	bundle_components = (
-		frappe.qb.from_(pb)
+		dypos.qb.from_(pb)
 		.inner_join(pbi)
 		.on(pbi.parent == pb.name)
 		.select(
@@ -985,8 +985,8 @@ def _calculate_bundle_availability_bulk(bundle_codes, warehouse):
 	#   Input: "Main Store" (group warehouse)
 	#   Output: ["Main Store - A", "Main Store - B", "Main Store - C"]
 	warehouses = [warehouse]
-	if frappe.db.get_value("Warehouse", warehouse, "is_group"):
-		child_warehouses = frappe.db.get_descendants("Warehouse", warehouse)
+	if dypos.db.get_value("Warehouse", warehouse, "is_group"):
+		child_warehouses = dypos.db.get_descendants("Warehouse", warehouse)
 		# Fallback to original warehouse if no children found
 		warehouses = child_warehouses or [warehouse]
 
@@ -1008,7 +1008,7 @@ def _calculate_bundle_availability_bulk(bundle_codes, warehouse):
 	bin = DocType("Bin")
 
 	component_stock = (
-		frappe.qb.from_(bin)
+		dypos.qb.from_(bin)
 		.select(bin.item_code, fn.Coalesce(fn.Sum(bin.actual_qty - bin.reserved_qty), 0).as_("available_qty"))
 		.where(bin.item_code.isin(component_codes))
 		.where(bin.warehouse.isin(warehouses))
@@ -1084,7 +1084,7 @@ def _get_bundle_warehouse_availability_bulk(bundle_codes, warehouses):
 	pbi = DocType("Product Bundle Item")
 
 	bundle_components = (
-		frappe.qb.from_(pb)
+		dypos.qb.from_(pb)
 		.inner_join(pbi)
 		.on(pbi.parent == pb.name)
 		.select(
@@ -1105,8 +1105,8 @@ def _get_bundle_warehouse_availability_bulk(bundle_codes, warehouses):
 
 	for wh_name in warehouse_names:
 		resolved = [wh_name]
-		if frappe.db.get_value("Warehouse", wh_name, "is_group"):
-			children = frappe.db.get_descendants("Warehouse", wh_name)
+		if dypos.db.get_value("Warehouse", wh_name, "is_group"):
+			children = dypos.db.get_descendants("Warehouse", wh_name)
 			if children:
 				resolved = children
 		warehouse_resolution_map[wh_name] = resolved
@@ -1118,7 +1118,7 @@ def _get_bundle_warehouse_availability_bulk(bundle_codes, warehouses):
 	bin = DocType("Bin")
 
 	component_stock_data = (
-		frappe.qb.from_(bin)
+		dypos.qb.from_(bin)
 		.select(
 			bin.item_code,
 			bin.warehouse,
@@ -1181,7 +1181,7 @@ def _get_bundle_warehouse_availability_bulk(bundle_codes, warehouses):
 	return dict(result)
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_items(
 	pos_profile,
 	search_term=None,
@@ -1202,12 +1202,12 @@ def get_items(
 	# Enforce the same mutual exclusivity as the frontend:
 	# brand filter and item_group filter cannot be used together.
 	if item_group and brand:
-		frappe.throw(
+		dypos.throw(
 			_("You can filter by either Item Group or Brand, not both at the same time."),
 		)
 
 	try:
-		pos_profile_doc = frappe.get_cached_doc("POS Profile", pos_profile)
+		pos_profile_doc = dypos.get_cached_doc("POS Profile", pos_profile)
 
 		# Try to resolve weighted/priced barcodes if barcode_resolver is available
 		resolved_barcode_data = None
@@ -1309,7 +1309,7 @@ def get_items(
 		"""
 
 		all_params = params + score_params + [int(limit), int(start)]
-		items = frappe.db.sql(query, tuple(all_params), as_dict=1)
+		items = dypos.db.sql(query, tuple(all_params), as_dict=1)
 
 		# Prepare maps for enrichment
 		item_codes = [item["item_code"] for item in items]
@@ -1318,7 +1318,7 @@ def get_items(
 
 		# UOM conversions (both list & map for quick lookup)
 		if item_codes:
-			conversions = frappe.get_all(
+			conversions = dypos.get_all(
 				"UOM Conversion Detail",
 				filters={"parent": ["in", item_codes]},
 				fields=["parent", "uom", "conversion_factor"],
@@ -1345,7 +1345,7 @@ def get_items(
 			if stock_items:
 				Bin = DocType("Bin")
 				stocks = (
-					frappe.qb.from_(Bin)
+					dypos.qb.from_(Bin)
 					.select(Bin.item_code, Bin.actual_qty)
 					.where(Bin.item_code.isin(stock_items))
 					.where(Bin.warehouse == pos_profile_doc.warehouse)
@@ -1379,9 +1379,9 @@ def get_items(
 		elif item_codes and not pos_profile_doc.warehouse:
 			# Warning: Bundles require warehouse for component stock lookup
 			# Without warehouse, bundles will show as unavailable (qty = 0)
-			has_bundles = frappe.db.exists("Product Bundle", {"new_item_code": ["in", item_codes]})
+			has_bundles = dypos.db.exists("Product Bundle", {"new_item_code": ["in", item_codes]})
 			if has_bundles:
-				frappe.log_error(
+				dypos.log_error(
 					"POS Profile missing warehouse - Product Bundles will show as unavailable",
 					"Bundle Availability Warning",
 				)
@@ -1391,7 +1391,7 @@ def get_items(
 		if not exclude_variants:
 			variant_codes = [item["item_code"] for item in items if item.get("variant_of")]
 			if variant_codes:
-				attributes = frappe.get_all(
+				attributes = dypos.get_all(
 					"Item Variant Attribute",
 					filters={"parent": ["in", variant_codes]},
 					fields=["parent", "attribute", "attribute_value"],
@@ -1423,7 +1423,7 @@ def get_items(
 				ItemPrice = DocType("Item Price")
 				Item = DocType("Item")
 				variant_prices = (
-					frappe.qb.from_(ItemPrice)
+					dypos.qb.from_(ItemPrice)
 					.inner_join(Item)
 					.on(Item.name == ItemPrice.item_code)
 					.select(fn.Min(ItemPrice.price_list_rate).as_("min_price"))
@@ -1548,11 +1548,11 @@ def get_items(
 
 		return items
 	except Exception as e:
-		frappe.log_error(frappe.get_traceback(), "Get Items Error")
-		frappe.throw(_("Error fetching items: {0}").format(str(e)))
+		dypos.log_error(dypos.get_traceback(), "Get Items Error")
+		dypos.throw(_("Error fetching items: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_items_bulk(
 	pos_profile, item_groups=None, start=0, limit=2000, include_variants=0, show_variants_as_items=0
 ):
@@ -1572,7 +1572,7 @@ def get_items_bulk(
 		if isinstance(item_groups, str):
 			item_groups = json.loads(item_groups) if item_groups else []
 
-		pos_profile_doc = frappe.get_cached_doc("POS Profile", pos_profile)
+		pos_profile_doc = dypos.get_cached_doc("POS Profile", pos_profile)
 
 		# Build base conditions using shared helper
 		show_variants_mode = int(show_variants_as_items)
@@ -1618,7 +1618,7 @@ def get_items_bulk(
 			LIMIT %s OFFSET %s
 		"""
 		all_params = [*params, int(limit), int(start)]
-		items = frappe.db.sql(query, tuple(all_params), as_dict=1)
+		items = dypos.db.sql(query, tuple(all_params), as_dict=1)
 
 		if not items:
 			return []
@@ -1630,7 +1630,7 @@ def get_items_bulk(
 
 		# UOM conversions
 		if item_codes:
-			conversions = frappe.get_all(
+			conversions = dypos.get_all(
 				"UOM Conversion Detail",
 				filters={"parent": ["in", item_codes]},
 				fields=["parent", "uom", "conversion_factor"],
@@ -1655,12 +1655,12 @@ def get_items_bulk(
 		stock_map = {}
 		if warehouse and item_codes:
 			warehouses = [warehouse]
-			if frappe.db.get_value("Warehouse", warehouse, "is_group"):
-				warehouses = frappe.db.get_descendants("Warehouse", warehouse) or []
+			if dypos.db.get_value("Warehouse", warehouse, "is_group"):
+				warehouses = dypos.db.get_descendants("Warehouse", warehouse) or []
 
 			Bin = DocType("Bin")
 			stock_data = (
-				frappe.qb.from_(Bin)
+				dypos.qb.from_(Bin)
 				.select(Bin.item_code, fn.Sum(Bin.actual_qty).as_("qty"))
 				.where(Bin.item_code.isin(item_codes))
 				.where(Bin.warehouse.isin(warehouses))
@@ -1679,7 +1679,7 @@ def get_items_bulk(
 		if not exclude_variants:
 			variant_codes = [item["item_code"] for item in items if item.get("variant_of")]
 			if variant_codes:
-				attributes = frappe.get_all(
+				attributes = dypos.get_all(
 					"Item Variant Attribute",
 					filters={"parent": ["in", variant_codes]},
 					fields=["parent", "attribute", "attribute_value"],
@@ -1728,11 +1728,11 @@ def get_items_bulk(
 
 		return items
 	except Exception as e:
-		frappe.log_error(frappe.get_traceback(), "Get Items Bulk Error")
-		frappe.throw(_("Error fetching items: {0}").format(str(e)))
+		dypos.log_error(dypos.get_traceback(), "Get Items Bulk Error")
+		dypos.throw(_("Error fetching items: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_items_count(pos_profile, item_group=None, brand=None, include_variants=0, show_variants_as_items=0):
 	"""
 	Get total count of POS-eligible items for progress tracking and smart pagination.
@@ -1750,7 +1750,7 @@ def get_items_count(pos_profile, item_group=None, brand=None, include_variants=0
 		int: Total count of distinct matching items
 	"""
 	try:
-		pos_profile_doc = frappe.get_cached_doc("POS Profile", pos_profile)
+		pos_profile_doc = dypos.get_cached_doc("POS Profile", pos_profile)
 		show_variants_mode = int(show_variants_as_items)
 		if show_variants_mode:
 			exclude_variants = False
@@ -1776,14 +1776,14 @@ def get_items_count(pos_profile, item_group=None, brand=None, include_variants=0
 			{extra_joins}
 			WHERE {where_clause}
 		"""
-		result = frappe.db.sql(query, tuple(params), as_dict=1)
+		result = dypos.db.sql(query, tuple(params), as_dict=1)
 		return result[0].total if result else 0
 	except Exception as e:
-		frappe.log_error(frappe.get_traceback(), "Get Items Count Error")
-		frappe.throw(_("Error fetching items count: {0}").format(str(e)))
+		dypos.log_error(dypos.get_traceback(), "Get Items Count Error")
+		dypos.throw(_("Error fetching items count: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_item_details(item_code, pos_profile, customer=None, qty=1, uom=None):
 	"""Get detailed item info including price, tax, stock"""
 	try:
@@ -1799,14 +1799,14 @@ def get_item_details(item_code, pos_profile, customer=None, qty=1, uom=None):
 			pos_profile = pos_profile.get("name") or pos_profile.get("pos_profile")
 
 		if not pos_profile:
-			frappe.throw(_("POS Profile is required"))
+			dypos.throw(_("POS Profile is required"))
 
-		pos_profile_doc = frappe.get_cached_doc("POS Profile", pos_profile)
-		item_doc = frappe.get_cached_doc("Item", item_code)
+		pos_profile_doc = dypos.get_cached_doc("POS Profile", pos_profile)
+		item_doc = dypos.get_cached_doc("Item", item_code)
 
 		# Check if item is allowed for sales
 		if not item_doc.is_sales_item:
-			frappe.throw(_("Item {0} is not allowed for sales").format(item_code))
+			dypos.throw(_("Item {0} is not allowed for sales").format(item_code))
 
 		# Prepare item dict
 		item = {
@@ -1829,15 +1829,15 @@ def get_item_details(item_code, pos_profile, customer=None, qty=1, uom=None):
 			company=pos_profile_doc.company,
 		)
 	except Exception as e:
-		frappe.log_error(frappe.get_traceback(), "Get Item Details Error")
-		frappe.throw(_("Error fetching item details: {0}").format(str(e)))
+		dypos.log_error(dypos.get_traceback(), "Get Item Details Error")
+		dypos.throw(_("Error fetching item details: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_item_groups(pos_profile):
 	"""Get item groups configured in POS Profile with hierarchy info for filtering."""
 	cache_key = f"pos_item_groups:{pos_profile}"
-	cached = frappe.cache().get_value(cache_key)
+	cached = dypos.cache().get_value(cache_key)
 	if cached:
 		return cached
 
@@ -1846,7 +1846,7 @@ def get_item_groups(pos_profile):
 		ItemGroup = DocType("Item Group")
 
 		configured_groups = (
-			frappe.qb.from_(POSItemGroup)
+			dypos.qb.from_(POSItemGroup)
 			.select(POSItemGroup.item_group)
 			.distinct()
 			.where(POSItemGroup.parent == pos_profile)
@@ -1856,14 +1856,14 @@ def get_item_groups(pos_profile):
 
 		if not configured_groups:
 			result = (
-				frappe.qb.from_(ItemGroup)
+				dypos.qb.from_(ItemGroup)
 				.select(ItemGroup.name.as_("item_group"))
 				.where(ItemGroup.is_group == 0)
 				.orderby(ItemGroup.name)
 				.limit(50)
 				.run(as_dict=True)
 			)
-			frappe.cache().set_value(cache_key, result, expires_in_sec=300)
+			dypos.cache().set_value(cache_key, result, expires_in_sec=300)
 			return result
 
 		result = []
@@ -1877,19 +1877,19 @@ def get_item_groups(pos_profile):
 				}
 			)
 
-		frappe.cache().set_value(cache_key, result, expires_in_sec=300)
+		dypos.cache().set_value(cache_key, result, expires_in_sec=300)
 		return result
 
 	except Exception as e:
-		frappe.log_error(frappe.get_traceback(), "Get Item Groups Error")
-		frappe.throw(_("Error fetching item groups: {0}").format(str(e)))
+		dypos.log_error(dypos.get_traceback(), "Get Item Groups Error")
+		dypos.throw(_("Error fetching item groups: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_brands(pos_profile):
 	"""Get brands configured in POS Profile for filtering."""
 	cache_key = f"pos_brands:{pos_profile}"
-	cached = frappe.cache().get_value(cache_key)
+	cached = dypos.cache().get_value(cache_key)
 	if cached:
 		return cached
 
@@ -1904,20 +1904,20 @@ def get_brands(pos_profile):
 			# will also see an empty list and skip brand conditions).
 			Brand = DocType("Brand")
 			result = (
-				frappe.qb.from_(Brand).select(Brand.name.as_("brand")).orderby(Brand.name).run(as_dict=True)
+				dypos.qb.from_(Brand).select(Brand.name.as_("brand")).orderby(Brand.name).run(as_dict=True)
 			)
 		else:
 			result = [{"brand": brand_name} for brand_name in configured_brands]
 
-		frappe.cache().set_value(cache_key, result, expires_in_sec=300)
+		dypos.cache().set_value(cache_key, result, expires_in_sec=300)
 		return result
 
 	except Exception as e:
-		frappe.log_error(frappe.get_traceback(), "Get Brands Error")
-		frappe.throw(_("Error fetching brands: {0}").format(str(e)))
+		dypos.log_error(dypos.get_traceback(), "Get Brands Error")
+		dypos.throw(_("Error fetching brands: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_stock_quantities(item_codes, warehouse):
 	"""
 	Lightweight endpoint to get only stock quantities for specified items.
@@ -1959,8 +1959,8 @@ def get_stock_quantities(item_codes, warehouse):
 
 		# Support group warehouses by expanding to leaf warehouses
 		warehouses = [warehouse]
-		if frappe.db.get_value("Warehouse", warehouse, "is_group"):
-			child_warehouses = frappe.db.get_descendants("Warehouse", warehouse) or []
+		if dypos.db.get_value("Warehouse", warehouse, "is_group"):
+			child_warehouses = dypos.db.get_descendants("Warehouse", warehouse) or []
 			# Fallback to original warehouse if no children are returned
 			warehouses = child_warehouses or [warehouse]
 
@@ -1970,7 +1970,7 @@ def get_stock_quantities(item_codes, warehouse):
 		# Batch query for stock quantities across all relevant warehouses using Query Builder
 		Bin = DocType("Bin")
 		stock_rows = (
-			frappe.qb.from_(Bin)
+			dypos.qb.from_(Bin)
 			.select(
 				Bin.item_code,
 				fn.Coalesce(fn.Sum(Bin.actual_qty), 0).as_("actual_qty"),
@@ -2016,8 +2016,8 @@ def get_stock_quantities(item_codes, warehouse):
 		return result
 
 	except Exception as e:
-		frappe.log_error(frappe.get_traceback(), "Get Stock Quantities Error")
-		frappe.throw(_("Error fetching stock quantities: {0}").format(str(e)))
+		dypos.log_error(dypos.get_traceback(), "Get Stock Quantities Error")
+		dypos.throw(_("Error fetching stock quantities: {0}").format(str(e)))
 
 
 # =============================================================================
@@ -2040,7 +2040,7 @@ def _get_warehouse_display_name(warehouse_id, warehouse_map, fallback_company=No
 		return warehouse.warehouse_name or warehouse.name, warehouse.company
 
 	# Fallback: fetch from DB if not in active warehouse map
-	wh_details = frappe.db.get_value("Warehouse", warehouse_id, ["warehouse_name", "company"], as_dict=True)
+	wh_details = dypos.db.get_value("Warehouse", warehouse_id, ["warehouse_name", "company"], as_dict=True)
 	if wh_details:
 		return wh_details.warehouse_name or warehouse_id, wh_details.company
 	return warehouse_id, fallback_company or ""
@@ -2088,7 +2088,7 @@ def _parse_item_codes_param(item_codes):
 # =============================================================================
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_item_warehouse_availability(item_code=None, item_codes=None, company=None):
 	"""
 	Get stock availability for item(s) across all warehouses.
@@ -2126,16 +2126,16 @@ def get_item_warehouse_availability(item_code=None, item_codes=None, company=Non
 			items_to_check = _parse_item_codes_param(item_codes)
 			include_item_code = True
 		elif item_code:
-			item_doc = frappe.get_cached_doc("Item", item_code)
+			item_doc = dypos.get_cached_doc("Item", item_code)
 			items_to_check = [item_code]
 			# If template item, include all its variants
 			if item_doc.has_variants:
-				items_to_check += frappe.get_all(
+				items_to_check += dypos.get_all(
 					"Item", filters={"variant_of": item_code, "disabled": 0}, pluck="name"
 				)
 			include_item_code = False
 		else:
-			frappe.throw(_("Either item_code or item_codes must be provided"))
+			dypos.throw(_("Either item_code or item_codes must be provided"))
 
 		# ---------------------------------------------------------------------
 		# STEP 2: Get active warehouses (non-disabled, non-group)
@@ -2144,7 +2144,7 @@ def get_item_warehouse_availability(item_code=None, item_codes=None, company=Non
 		if company:
 			wh_filters["company"] = company
 
-		warehouses = frappe.get_list(
+		warehouses = dypos.get_list(
 			"Warehouse",
 			filters=wh_filters,
 			fields=["name", "warehouse_name", "company"],
@@ -2160,7 +2160,7 @@ def get_item_warehouse_availability(item_code=None, item_codes=None, company=Non
 		# STEP 3: Separate Product Bundles from regular stock items
 		# ---------------------------------------------------------------------
 		bundle_set = set(
-			frappe.get_all(
+			dypos.get_all(
 				"Product Bundle", filters={"new_item_code": ["in", items_to_check]}, pluck="new_item_code"
 			)
 			or []
@@ -2175,7 +2175,7 @@ def get_item_warehouse_availability(item_code=None, item_codes=None, company=Non
 		if regular_items:
 			bin_tbl = DocType("Bin")
 			query = (
-				frappe.qb.from_(bin_tbl)
+				dypos.qb.from_(bin_tbl)
 				.select(
 					bin_tbl.warehouse,
 					fn.Sum(bin_tbl.actual_qty).as_("actual_qty"),
@@ -2229,11 +2229,11 @@ def get_item_warehouse_availability(item_code=None, item_codes=None, company=Non
 		return result
 
 	except Exception as e:
-		frappe.log_error(frappe.get_traceback(), "Get Warehouse Availability Error")
-		frappe.throw(_("Error fetching warehouse availability: {0}").format(str(e)))
+		dypos.log_error(dypos.get_traceback(), "Get Warehouse Availability Error")
+		dypos.throw(_("Error fetching warehouse availability: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_product_bundle_availability(item_code, warehouse):
 	"""
 	Get Product Bundle availability with detailed component information.
@@ -2261,7 +2261,7 @@ def get_product_bundle_availability(item_code, warehouse):
 		available_qty = bundle_availability.get(item_code, 0)
 
 		# Get detailed component information with item names (single query with JOIN)
-		components = frappe.db.sql(
+		components = dypos.db.sql(
 			"""
 			SELECT
 				pbi.item_code,
@@ -2282,12 +2282,12 @@ def get_product_bundle_availability(item_code, warehouse):
 
 		# Get warehouses (support group warehouses)
 		warehouses = [warehouse]
-		if frappe.db.get_value("Warehouse", warehouse, "is_group"):
-			warehouses = frappe.db.get_descendants("Warehouse", warehouse) or [warehouse]
+		if dypos.db.get_value("Warehouse", warehouse, "is_group"):
+			warehouses = dypos.db.get_descendants("Warehouse", warehouse) or [warehouse]
 
 		# Get component stock (use available = actual - reserved)
 		component_codes = [c["item_code"] for c in components]
-		stock_data = frappe.db.sql(
+		stock_data = dypos.db.sql(
 			"""
 			SELECT
 				item_code,
@@ -2324,11 +2324,11 @@ def get_product_bundle_availability(item_code, warehouse):
 		return {"available_qty": available_qty, "components": component_details}
 
 	except Exception as e:
-		frappe.log_error(frappe.get_traceback(), f"Bundle Availability Error: {item_code} in {warehouse}")
-		frappe.throw(_("Error fetching bundle availability for {0}: {1}").format(item_code, str(e)))
+		dypos.log_error(dypos.get_traceback(), f"Bundle Availability Error: {item_code} in {warehouse}")
+		dypos.throw(_("Error fetching bundle availability for {0}: {1}").format(item_code, str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_batch_serial_data_for_items(item_codes, warehouse):
 	"""
 	Get batch and serial number data for multiple items (for offline caching).
@@ -2363,7 +2363,7 @@ def get_batch_serial_data_for_items(item_codes, warehouse):
 		# Get item details to check which items have batch/serial tracking
 		Item = DocType("Item")
 		items = (
-			frappe.qb.from_(Item)
+			dypos.qb.from_(Item)
 			.select(
 				Item.name.as_("item_code"),
 				Item.has_batch_no,
@@ -2393,7 +2393,7 @@ def get_batch_serial_data_for_items(item_codes, warehouse):
 				if batch_list:
 					for batch in batch_list:
 						if batch.qty > 0 and batch.batch_no:
-							batch_doc = frappe.get_cached_doc("Batch", batch.batch_no)
+							batch_doc = dypos.get_cached_doc("Batch", batch.batch_no)
 							is_not_expired = str(batch_doc.expiry_date) > str(
 								today
 							) or batch_doc.expiry_date in ["", None]
@@ -2415,7 +2415,7 @@ def get_batch_serial_data_for_items(item_codes, warehouse):
 
 		# Fetch serial data for serial-tracked items in bulk
 		if serial_items:
-			serials = frappe.get_all(
+			serials = dypos.get_all(
 				"Serial No",
 				filters={
 					"item_code": ["in", serial_items],
@@ -2437,5 +2437,5 @@ def get_batch_serial_data_for_items(item_codes, warehouse):
 		return result
 
 	except Exception:
-		frappe.log_error(frappe.get_traceback(), "Get Batch/Serial Data for Items Error")
+		dypos.log_error(dypos.get_traceback(), "Get Batch/Serial Data for Items Error")
 		return {}

@@ -12,8 +12,8 @@ import { fileURLToPath } from 'node:url';
 import { VERSION } from './version.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-// server/lib -> server/../DyPOS/public/pos
-const POS_PUBLIC_DIR = join(__dirname, '..', '..', 'DyPOS', 'public', 'pos');
+// server/lib -> repo/server/lib -> repo/POS/dist/pos (the single build output root)
+const POS_PUBLIC_DIR = join(__dirname, '..', '..', 'POS', 'dist', 'pos');
 
 function readJson(name, fallback) {
   try {

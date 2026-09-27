@@ -19,8 +19,8 @@ Setup:
 import base64
 import os
 
-import frappe
-from frappe import _
+import dypos
+from dyposimport _
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -28,7 +28,7 @@ from frappe import _
 
 
 def _qz_dir():
-	return frappe.get_site_path("private", "qz")
+	return dypos.get_site_path("private", "qz")
 
 
 def _cert_path():
@@ -44,12 +44,12 @@ def _key_path():
 # ---------------------------------------------------------------------------
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_certificate():
 	"""Return the public certificate PEM text for QZ Tray signing."""
 	path = _cert_path()
 	if not os.path.exists(path):
-		frappe.throw(
+		dypos.throw(
 			_("QZ Tray certificate not found. Ask an administrator to run Setup QZ Certificate."),
 			title=_("QZ Certificate Missing"),
 		)
@@ -58,12 +58,12 @@ def get_certificate():
 		return f.read()
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_certificate_download():
 	"""Return the certificate PEM and company name for download."""
 	path = _cert_path()
 	if not os.path.exists(path):
-		frappe.throw(
+		dypos.throw(
 			_("QZ Tray certificate not found. Ask an administrator to run Setup QZ Certificate."),
 			title=_("QZ Certificate Missing"),
 		)
@@ -71,11 +71,11 @@ def get_certificate_download():
 	with open(path) as f:
 		pem = f.read()
 
-	company = frappe.db.get_default("company") or ""
+	company = dypos.db.get_default("company") or ""
 	return {"pem": pem, "company": company}
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def sign_message(message):
 	"""Sign a message with the private key for QZ Tray.
 
@@ -87,7 +87,7 @@ def sign_message(message):
 	"""
 	path = _key_path()
 	if not os.path.exists(path):
-		frappe.throw(
+		dypos.throw(
 			_("QZ Tray private key not found. Ask an administrator to run Setup QZ Certificate."),
 			title=_("QZ Key Missing"),
 		)
@@ -107,7 +107,7 @@ def sign_message(message):
 	return base64.b64encode(signature).decode("utf-8")
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def setup_qz_certificate():
 	"""Generate a self-signed certificate + private key for QZ Tray signing.
 
@@ -115,8 +115,8 @@ def setup_qz_certificate():
 	Returns the path to the certificate file so the admin can download
 	and import it into QZ Tray on each POS machine.
 	"""
-	if "System Manager" not in frappe.get_roles():
-		frappe.throw(_("Only System Managers can set up QZ certificates."), frappe.PermissionError)
+	if "System Manager" not in dypos.get_roles():
+		dypos.throw(_("Only System Managers can set up QZ certificates."), dypos.PermissionError)
 
 	cert_path = _cert_path()
 	key_path = _key_path()
@@ -157,7 +157,7 @@ def setup_qz_certificate():
 	subject = issuer = x509.Name(
 		[
 			x509.NameAttribute(NameOID.COMMON_NAME, "POS Next QZ Tray Signing"),
-			x509.NameAttribute(NameOID.ORGANIZATION_NAME, frappe.db.get_default("company") or "POS Next"),
+			x509.NameAttribute(NameOID.ORGANIZATION_NAME, dypos.db.get_default("company") or "POS Next"),
 		]
 	)
 
@@ -177,7 +177,7 @@ def setup_qz_certificate():
 	with open(cert_path, "wb") as f:
 		f.write(cert.public_bytes(serialization.Encoding.PEM))
 
-	frappe.msgprint(
+	dypos.msgprint(
 		_(
 			"QZ Tray certificate generated successfully.<br><br>"
 			"Download the certificate from POS Settings and import it into "

@@ -1,7 +1,7 @@
 # Copyright (c) 2020, Youssef Restom and Contributors
 # See license.txt
 
-# import frappe
+# import dypos
 import unittest
 
 

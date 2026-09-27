@@ -2,7 +2,7 @@
  * Currency Utility for DyPOS
  * Handles formatting and rounding with DyPOS System Settings compatibility
  *
- * Rounding Methods (matches frappe/utils/data.py):
+ * Rounding Methods (matches ERPNext `utils/data.py`):
  * - Banker's Rounding: Rounds .5 to nearest even number
  * - Commercial Rounding: Rounds .5 away from zero
  */
@@ -163,12 +163,12 @@ export function getCurrencyClass(value) {
 }
 
 // =============================================================================
-// Rounding (matches frappe/utils/data.py exactly)
+// Rounding (matches ERPNext `utils/data.py` exactly)
 // =============================================================================
 
 /**
  * Banker's Rounding - rounds .5 to nearest even
- * Matches frappe _bankers_rounding()
+ * Matches upstream `_bankers_rounding()`
  */
 function bankersRound(num, precision) {
 	const multiplier = 10 ** precision
@@ -195,7 +195,7 @@ function bankersRound(num, precision) {
 
 /**
  * Commercial Rounding - .5 rounds away from zero
- * Matches frappe _round_away_from_zero()
+ * Matches upstream `_round_away_from_zero()`
  */
 function commercialRound(num, precision) {
 	if (num === 0) return 0

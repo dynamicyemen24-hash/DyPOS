@@ -1,6 +1,6 @@
 /**
  * DyPOS REST API Adapter — Implements IProductRepository, ICustomerRepository, etc.
- * Swappable with Frappe adapter. Just change ADAPTER_TYPE env var.
+ * Swappable with the method bridge. Just change VITE_DYPOS_BACKEND.
  */
 const API_BASE = import.meta.env.VITE_DYPOS_API || "/api"
 

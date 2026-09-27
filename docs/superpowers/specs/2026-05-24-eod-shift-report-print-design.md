@@ -28,7 +28,7 @@ Implement EOD report printing for `POS Closing Shift` with:
 1. Cashier closes shift in POS.
 2. Backend submits `POS Closing Shift`.
 3. Frontend resolves returned `closing_shift` name from submit response.
-4. Frontend requests print HTML/style via `frappe.www.printview.get_html_and_style`.
+4. Frontend requests print HTML/style via `dypos.www.printview.get_html_and_style`.
 5. Frontend sends full HTML document to QZ Tray (`qzPrintHTML`).
 6. If printing fails:
    - Shift remains submitted (no rollback)
@@ -92,7 +92,7 @@ File: `DyPOS/DyPOS/doctype/pos_closing_shift/pos_closing_shift.js`
 - On submitted doc (`docstatus === 1`), add button:
   - Label: `Print EOD Report`
   - Group: `Print`
-  - Calls `frappe.utils.print` with print format `DyPOS EOD Report`
+  - Calls `dypos.utils.print` with print format `DyPOS EOD Report`
 
 ## POS Frontend Integration
 

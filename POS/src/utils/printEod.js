@@ -49,8 +49,8 @@ export async function printEODReport(closingShiftName) {
 function requesterName() {
 	try {
 		return (
-			window?.frappe?.session?.user_fullname ||
-			window?.frappe?.session?.user ||
+			window?.dypos?.session?.user_fullname ||
+			window?.dypos?.session?.user ||
 			"Cashier"
 		)
 	} catch {

@@ -21,7 +21,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from "vue"
 
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 import DyButton from "@/components/ui/DyButton.vue"
 import PasswordStrengthBar from "@/components/reports/dashboards/core/PasswordStrengthBar.vue"
 

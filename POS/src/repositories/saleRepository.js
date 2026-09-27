@@ -1,7 +1,7 @@
 /**
  * DyPOS Sale Repository — invoice lifecycle over Dexie `invoices` + `payments`.
  *
- * Local status vocabulary (never persisted to Frappe verbatim; the sync
+ * Local status vocabulary (never persisted verbatim to the server; the sync
  * layer maps it): OPEN → COMPLETED → VOIDED.
  *
  * Integrity rules (enforced here, not in Vue):

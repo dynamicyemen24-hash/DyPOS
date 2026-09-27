@@ -623,7 +623,7 @@ import {
 } from "@/utils/sendReceipt"
 import { useLocale } from "@/composables/useLocale"
 import { useToast } from "@/composables/useToast"
-import { Button, Dialog, call } from "frappe-ui"
+import { Button, Dialog, call } from "dypos-ui"
 import { ref, watch, nextTick, computed, onUnmounted } from "vue"
 
 const log = logger.create("InvoiceDetailDialog")

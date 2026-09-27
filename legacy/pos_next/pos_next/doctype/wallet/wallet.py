@@ -1,11 +1,11 @@
 # Copyright (c) 2024, BrainWise and contributors
 # For license information, please see license.txt
 
-import frappe
+import dypos
 from DyPOS.accounts.utils import get_balance_on
-from frappe import _
-from frappe.model.document import Document
-from frappe.utils import flt
+from dyposimport _
+from dypos.model.document import Document
+from dypos.utils import flt
 
 
 class Wallet(Document):
@@ -16,19 +16,19 @@ class Wallet(Document):
 	def validate_account_type(self):
 		"""Wallet account must be a Receivable account"""
 		if self.account:
-			account_type = frappe.get_value("Account", self.account, "account_type")
+			account_type = dypos.get_value("Account", self.account, "account_type")
 			if account_type != "Receivable":
-				frappe.throw(_("Wallet Account must be a Receivable type account"))
+				dypos.throw(_("Wallet Account must be a Receivable type account"))
 
 	def validate_duplicate_wallet(self):
 		"""Check for duplicate wallet for same customer and company"""
 		if not self.is_new():
 			return
-		existing = frappe.db.exists(
+		existing = dypos.db.exists(
 			"Wallet", {"customer": self.customer, "company": self.company, "name": ("!=", self.name)}
 		)
 		if existing:
-			frappe.throw(
+			dypos.throw(
 				_("A wallet already exists for customer {0} in company {1}").format(
 					self.customer, self.company
 				)
@@ -63,21 +63,21 @@ class Wallet(Document):
 		self.db_set("available_balance", self.available_balance, update_modified=False)
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_customer_wallet(customer, company=None):
 	"""Get wallet for a customer"""
 	filters = {"customer": customer}
 	if company:
 		filters["company"] = company
 
-	wallet = frappe.db.get_value(
+	wallet = dypos.db.get_value(
 		"Wallet", filters, ["name", "customer", "company", "account", "status"], as_dict=True
 	)
 
 	return wallet
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_customer_wallet_balance(customer, company=None, exclude_invoice=None):
 	"""
 	Get customer's available wallet balance.
@@ -99,7 +99,7 @@ def get_customer_wallet_balance(customer, company=None, exclude_invoice=None):
 		if company:
 			filters["company"] = company
 
-		wallet = frappe.db.get_value("Wallet", filters, ["name", "account"], as_dict=True)
+		wallet = dypos.db.get_value("Wallet", filters, ["name", "account"], as_dict=True)
 
 		if not wallet:
 			return 0.0
@@ -118,7 +118,7 @@ def get_customer_wallet_balance(customer, company=None, exclude_invoice=None):
 		return available_balance if available_balance > 0 else 0.0
 
 	except Exception:
-		frappe.log_error(frappe.get_traceback(), "Wallet Balance Error")
+		dypos.log_error(dypos.get_traceback(), "Wallet Balance Error")
 		return 0.0
 
 
@@ -135,7 +135,7 @@ def get_pending_wallet_payments(customer, exclude_invoice=None):
 		"is_pos": 1,
 	}
 
-	invoices = frappe.get_all("Sales Invoice", filters=filters, fields=["name"])
+	invoices = dypos.get_all("Sales Invoice", filters=filters, fields=["name"])
 
 	pending_amount = 0.0
 
@@ -144,19 +144,19 @@ def get_pending_wallet_payments(customer, exclude_invoice=None):
 			continue
 
 		# Get wallet payments from this invoice
-		payments = frappe.get_all(
+		payments = dypos.get_all(
 			"Sales Invoice Payment", filters={"parent": invoice.name}, fields=["mode_of_payment", "amount"]
 		)
 
 		for payment in payments:
-			is_wallet = frappe.db.get_value("Mode of Payment", payment.mode_of_payment, "is_wallet_payment")
+			is_wallet = dypos.db.get_value("Mode of Payment", payment.mode_of_payment, "is_wallet_payment")
 			if is_wallet:
 				pending_amount += flt(payment.amount)
 
 	return pending_amount
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def create_customer_wallet(customer, company, account=None):
 	"""
 	Create a wallet for a customer.
@@ -170,18 +170,18 @@ def create_customer_wallet(customer, company, account=None):
 		Wallet document
 	"""
 	# Check if wallet already exists
-	existing = frappe.db.exists("Wallet", {"customer": customer, "company": company})
+	existing = dypos.db.exists("Wallet", {"customer": customer, "company": company})
 	if existing:
-		return frappe.get_doc("Wallet", existing)
+		return dypos.get_doc("Wallet", existing)
 
 	# Get default wallet account if not provided
 	if not account:
 		account = get_default_wallet_account(company)
 
 	if not account:
-		frappe.throw(_("Please configure a default wallet account for company {0}").format(company))
+		dypos.throw(_("Please configure a default wallet account for company {0}").format(company))
 
-	wallet = frappe.get_doc(
+	wallet = dypos.get_doc(
 		{
 			"doctype": "Wallet",
 			"customer": customer,
@@ -198,13 +198,13 @@ def create_customer_wallet(customer, company, account=None):
 def get_default_wallet_account(company):
 	"""Get default wallet account for a company"""
 	# Try to get from POS Settings
-	wallet_account = frappe.db.get_value("POS Settings", {"company": company}, "wallet_account")
+	wallet_account = dypos.db.get_value("POS Settings", {"company": company}, "wallet_account")
 
 	if wallet_account:
 		return wallet_account
 
 	# Fallback: Find a receivable account with 'wallet' in the name
-	wallet_account = frappe.db.get_value(
+	wallet_account = dypos.db.get_value(
 		"Account",
 		{"company": company, "account_type": "Receivable", "is_group": 0, "name": ["like", "%wallet%"]},
 		"name",
@@ -213,7 +213,7 @@ def get_default_wallet_account(company):
 	return wallet_account
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_or_create_wallet(customer, company):
 	"""Get existing wallet or create a new one"""
 	wallet = get_customer_wallet(customer, company)

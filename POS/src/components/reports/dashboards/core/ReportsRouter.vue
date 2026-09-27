@@ -62,7 +62,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, defineAsyncComponent } from "vue"
-import { Button, Badge, FeatherIcon } from "frappe-ui"
+import { Button, Badge, FeatherIcon } from "dypos-ui"
 import { DASHBOARD_REGISTRY } from "../index"
 import ErrorBoundary from "./ErrorBoundary.vue"
 

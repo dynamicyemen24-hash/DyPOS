@@ -1,4 +1,4 @@
-import { call } from "frappe-ui"
+import { call } from "dypos-ui"
 import { logger } from "@/utils/logger"
 import { apiGet } from "@/utils/restApi"
 

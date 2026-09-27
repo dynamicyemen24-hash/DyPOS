@@ -15,8 +15,8 @@
 </template>
 
 <script setup>
-import { FeatherIcon } from "frappe-ui"
-import { Button } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
+import { Button } from "dypos-ui"
 
 defineProps({
 	message: {

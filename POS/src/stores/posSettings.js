@@ -1,5 +1,5 @@
 /** DyPOS settings store v1.33.0 — single source: server/lib/version.js */
-import { createResource } from "frappe-ui"
+import { createResource } from "dypos-ui"
 import { defineStore } from "pinia"
 import { computed, ref } from "vue"
 import { useBootstrapStore } from "./bootstrap"

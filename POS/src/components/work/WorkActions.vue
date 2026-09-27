@@ -101,7 +101,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from "vue"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
 import DyButton from "@/components/ui/DyButton.vue"
 

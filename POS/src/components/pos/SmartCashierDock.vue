@@ -9,7 +9,7 @@ RTL-first / تعمل بالكامل دون اتصال / إضافة بنقرة و
 <script setup>
 import { computed, ref } from "vue"
 
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 
 const props = defineProps({
 	/** [{ product, score, reason }] — اقتراحات البيع المتقاطع. */

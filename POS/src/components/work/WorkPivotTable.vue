@@ -170,7 +170,7 @@
 import { ref, computed, watch, onMounted } from "vue"
 import { t } from "@/utils/translation"
 import { formatCurrencySafe } from "@/utils/currency"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 import WorkSelect from "./WorkSelect.vue"
 import WorkActions from "./WorkActions.vue"
 import WorkDataGrid from "./WorkDataGrid.vue"

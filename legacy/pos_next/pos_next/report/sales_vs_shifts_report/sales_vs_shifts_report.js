@@ -1,7 +1,7 @@
 // Copyright (c) 2026, BrainWise and contributors
 // For license information, please see license.txt
 
-frappe.query_reports["Sales vs Shifts Report"] = {
+dypos.query_reports["Sales vs Shifts Report"] = {
 	// =========================================================================
 	// REPORT CALCULATION GUIDE
 	// =========================================================================
@@ -167,7 +167,7 @@ frappe.query_reports["Sales vs Shifts Report"] = {
 	},
 
 	show_report_guide: function () {
-		const dialog = new frappe.ui.Dialog({
+		const dialog = new dypos.ui.Dialog({
 			title: __("Sales vs Shifts Report Guide"),
 			size: "extra-large",
 			fields: [
@@ -514,13 +514,13 @@ frappe.query_reports["Sales vs Shifts Report"] = {
 			fieldname: "from_date",
 			label: __("From Date"),
 			fieldtype: "Date",
-			default: frappe.datetime.add_days(frappe.datetime.get_today(), -30),
+			default: dypos.datetime.add_days(dypos.datetime.get_today(), -30),
 		},
 		{
 			fieldname: "to_date",
 			label: __("To Date"),
 			fieldtype: "Date",
-			default: frappe.datetime.get_today(),
+			default: dypos.datetime.get_today(),
 		},
 		{
 			fieldname: "pos_profile",
@@ -554,7 +554,7 @@ frappe.query_reports["Sales vs Shifts Report"] = {
 				"Shift Performance\nCashier Comparison\nHourly Breakdown\nPayment Methods\nDaily Trend",
 			default: "Shift Performance",
 			on_change: function () {
-				frappe.query_report.refresh();
+				dypos.query_report.refresh();
 			},
 		},
 	],
@@ -608,18 +608,18 @@ frappe.query_reports["Sales vs Shifts Report"] = {
 	},
 
 	after_datatable_render: function () {
-		const chart_type = frappe.query_report.get_filter_value("chart_type");
+		const chart_type = dypos.query_report.get_filter_value("chart_type");
 		if (chart_type && chart_type !== "Shift Performance") {
 			this.render_custom_chart(chart_type);
 		}
 	},
 
 	render_custom_chart: function (chart_type) {
-		const filters = frappe.query_report.get_filter_values();
+		const filters = dypos.query_report.get_filter_values();
 		const method_base =
 			"DyPOS.DyPOS.report.sales_vs_shifts_report.sales_vs_shifts_report";
 		// Filter out Total/summary rows once for all charts
-		const result = (frappe.query_report.data || []).filter(
+		const result = (dypos.query_report.data || []).filter(
 			(d) => d.shift_id && d.shift_id !== "Total"
 		);
 
@@ -653,7 +653,7 @@ frappe.query_reports["Sales vs Shifts Report"] = {
 				return;
 			}
 
-			frappe.query_report.render_chart({
+			dypos.query_report.render_chart({
 				data: {
 					labels: sorted.map((d) => d.name),
 					datasets: [
@@ -675,7 +675,7 @@ frappe.query_reports["Sales vs Shifts Report"] = {
 				barOptions: { spaceRatio: 0.4 },
 			});
 		} else if (chart_type === "Hourly Breakdown") {
-			frappe.call({
+			dypos.call({
 				method: `${method_base}.get_hourly_breakdown`,
 				args: { filters },
 				callback: (r) => {
@@ -695,7 +695,7 @@ frappe.query_reports["Sales vs Shifts Report"] = {
 						invoices.push(hourData ? hourData.invoice_count : 0);
 					}
 
-					frappe.query_report.render_chart({
+					dypos.query_report.render_chart({
 						data: {
 							labels,
 							datasets: [
@@ -715,7 +715,7 @@ frappe.query_reports["Sales vs Shifts Report"] = {
 				},
 			});
 		} else if (chart_type === "Payment Methods") {
-			frappe.call({
+			dypos.call({
 				method: `${method_base}.get_payment_method_breakdown`,
 				args: { filters },
 				callback: (r) => {
@@ -735,7 +735,7 @@ frappe.query_reports["Sales vs Shifts Report"] = {
 						return `${name} ${pct}%`;
 					});
 
-					frappe.query_report.render_chart({
+					dypos.query_report.render_chart({
 						data: {
 							labels: labels,
 							datasets: [
@@ -758,7 +758,7 @@ frappe.query_reports["Sales vs Shifts Report"] = {
 				},
 			});
 		} else if (chart_type === "Daily Trend") {
-			frappe.call({
+			dypos.call({
 				method: `${method_base}.get_daily_trend`,
 				args: { filters },
 				callback: (r) => {
@@ -771,7 +771,7 @@ frappe.query_reports["Sales vs Shifts Report"] = {
 						return Math.round((arr[i - 2] + arr[i - 1] + val) / 3);
 					});
 
-					frappe.query_report.render_chart({
+					dypos.query_report.render_chart({
 						data: {
 							labels: r.message.map((d) => {
 								const date = new Date(d.date);
@@ -797,7 +797,7 @@ frappe.query_reports["Sales vs Shifts Report"] = {
 	},
 
 	get_chart_data: function (columns, result) {
-		const chart_type = frappe.query_report.get_filter_value("chart_type");
+		const chart_type = dypos.query_report.get_filter_value("chart_type");
 
 		// Custom charts are rendered via after_datatable_render
 		if (chart_type && chart_type !== "Shift Performance") {

@@ -4,13 +4,13 @@
 import json
 from collections import defaultdict
 
-import frappe
+import dypos
 from DyPOS.accounts.doctype.pos_invoice_merge_log.pos_invoice_merge_log import (
 	consolidate_pos_invoices,
 )
-from frappe import _
-from frappe.model.document import Document
-from frappe.utils import flt
+from dyposimport _
+from dypos.model.document import Document
+from dypos.utils import flt
 
 
 def get_base_value(doc, fieldname, base_fieldname=None, conversion_rate=None):
@@ -40,7 +40,7 @@ def get_base_value(doc, fieldname, base_fieldname=None, conversion_rate=None):
 
 class POSClosingShift(Document):
 	def validate(self):
-		user = frappe.get_all(
+		user = dypos.get_all(
 			"POS Closing Shift",
 			filters={
 				"user": self.user,
@@ -51,15 +51,15 @@ class POSClosingShift(Document):
 		)
 
 		if user:
-			frappe.throw(
+			dypos.throw(
 				_(
-					f"POS Closing Shift <strong>already exists</strong> against {frappe.bold(self.user)} between selected period"
+					f"POS Closing Shift <strong>already exists</strong> against {dypos.bold(self.user)} between selected period"
 				),
 				title=_("Invalid Period"),
 			)
 
-		if frappe.db.get_value("POS Opening Shift", self.pos_opening_shift, "status") != "Open":
-			frappe.throw(
+		if dypos.db.get_value("POS Opening Shift", self.pos_opening_shift, "status") != "Open":
+			dypos.throw(
 				_("Selected POS Opening Shift should be open."),
 				title=_("Invalid Opening Entry"),
 			)
@@ -68,12 +68,12 @@ class POSClosingShift(Document):
 	def update_payment_reconciliation(self):
 		# update the difference values in Payment Reconciliation child table
 		# get default precision for site
-		precision = frappe.get_cached_value("System Settings", None, "currency_precision") or 3
+		precision = dypos.get_cached_value("System Settings", None, "currency_precision") or 3
 		for d in self.payment_reconciliation:
 			d.difference = +flt(d.closing_amount, precision) - flt(d.expected_amount, precision)
 
 	def on_submit(self):
-		opening_entry = frappe.get_doc("POS Opening Shift", self.pos_opening_shift)
+		opening_entry = dypos.get_doc("POS Opening Shift", self.pos_opening_shift)
 		opening_entry.pos_closing_shift = self.name
 		opening_entry.set_status()
 		self.delete_draft_invoices()
@@ -82,8 +82,8 @@ class POSClosingShift(Document):
 		self._set_closing_entry_invoices()
 
 	def on_cancel(self):
-		if frappe.db.exists("POS Opening Shift", self.pos_opening_shift):
-			opening_entry = frappe.get_doc("POS Opening Shift", self.pos_opening_shift)
+		if dypos.db.exists("POS Opening Shift", self.pos_opening_shift):
+			opening_entry = dypos.get_doc("POS Opening Shift", self.pos_opening_shift)
 			if opening_entry.pos_closing_shift == self.name:
 				opening_entry.pos_closing_shift = ""
 				opening_entry.set_status()
@@ -98,8 +98,8 @@ class POSClosingShift(Document):
 			if not invoice:
 				continue
 			doctype = "Sales Invoice" if d.get("sales_invoice") else "POS Invoice"
-			if frappe.db.has_column(doctype, "pos_closing_entry"):
-				frappe.db.set_value(doctype, invoice, "pos_closing_entry", self.name)
+			if dypos.db.has_column(doctype, "pos_closing_entry"):
+				dypos.db.set_value(doctype, invoice, "pos_closing_entry", self.name)
 
 	def _clear_closing_entry_invoices(self):
 		"""Clear closing shift links, cancel merge logs and cancel consolidated sales invoices."""
@@ -108,16 +108,16 @@ class POSClosingShift(Document):
 			pos_invoice = d.get("pos_invoice")
 			sales_invoice = d.get("sales_invoice")
 			if pos_invoice:
-				if frappe.db.has_column("POS Invoice", "pos_closing_entry"):
-					frappe.db.set_value("POS Invoice", pos_invoice, "pos_closing_entry", None)
+				if dypos.db.has_column("POS Invoice", "pos_closing_entry"):
+					dypos.db.set_value("POS Invoice", pos_invoice, "pos_closing_entry", None)
 
-				merge_logs = frappe.get_all(
+				merge_logs = dypos.get_all(
 					"POS Invoice Merge Log",
 					filters={"pos_invoice": pos_invoice},
 					pluck="name",
 				)
 				for log in merge_logs:
-					log_doc = frappe.get_doc("POS Invoice Merge Log", log)
+					log_doc = dypos.get_doc("POS Invoice Merge Log", log)
 					for field in (
 						"consolidated_invoice",
 						"consolidated_credit_note",
@@ -127,24 +127,24 @@ class POSClosingShift(Document):
 							consolidated_sales_invoices.add(si)
 					if log_doc.docstatus == 1:
 						log_doc.cancel()
-					frappe.delete_doc("POS Invoice Merge Log", log_doc.name, force=1)
+					dypos.delete_doc("POS Invoice Merge Log", log_doc.name, force=1)
 
-				if frappe.db.has_column("POS Invoice", "consolidated_invoice"):
-					frappe.db.set_value("POS Invoice", pos_invoice, "consolidated_invoice", None)
+				if dypos.db.has_column("POS Invoice", "consolidated_invoice"):
+					dypos.db.set_value("POS Invoice", pos_invoice, "consolidated_invoice", None)
 
-				if frappe.db.has_column("POS Invoice", "status"):
-					pos_doc = frappe.get_doc("POS Invoice", pos_invoice)
+				if dypos.db.has_column("POS Invoice", "status"):
+					pos_doc = dypos.get_doc("POS Invoice", pos_invoice)
 					pos_doc.set_status(update=True)
 
 			if sales_invoice:
-				if frappe.db.has_column("Sales Invoice", "pos_closing_entry"):
-					frappe.db.set_value("Sales Invoice", sales_invoice, "pos_closing_entry", None)
+				if dypos.db.has_column("Sales Invoice", "pos_closing_entry"):
+					dypos.db.set_value("Sales Invoice", sales_invoice, "pos_closing_entry", None)
 				if self._is_consolidated_sales_invoice(sales_invoice):
 					consolidated_sales_invoices.add(sales_invoice)
 
 		for si in consolidated_sales_invoices:
-			if frappe.db.exists("Sales Invoice", si):
-				si_doc = frappe.get_doc("Sales Invoice", si)
+			if dypos.db.exists("Sales Invoice", si):
+				si_doc = dypos.get_doc("Sales Invoice", si)
 				if si_doc.docstatus == 1:
 					si_doc.cancel()
 
@@ -154,15 +154,15 @@ class POSClosingShift(Document):
 		if not sales_invoice:
 			return False
 
-		if frappe.db.exists("POS Invoice Merge Log", {"consolidated_invoice": sales_invoice}):
+		if dypos.db.exists("POS Invoice Merge Log", {"consolidated_invoice": sales_invoice}):
 			return True
 
-		return bool(frappe.db.exists("POS Invoice Merge Log", {"consolidated_credit_note": sales_invoice}))
+		return bool(dypos.db.exists("POS Invoice Merge Log", {"consolidated_credit_note": sales_invoice}))
 
 	def delete_draft_invoices(self):
-		if frappe.get_value("POS Profile", self.pos_profile, "posa_allow_delete"):
+		if dypos.get_value("POS Profile", self.pos_profile, "posa_allow_delete"):
 			doctype = "Sales Invoice"
-			data = frappe.db.sql(
+			data = dypos.db.sql(
 				f"""
 		select
 		    name
@@ -176,11 +176,11 @@ class POSClosingShift(Document):
 			)
 
 			for invoice in data:
-				frappe.delete_doc(doctype, invoice.name, force=1)
+				dypos.delete_doc(doctype, invoice.name, force=1)
 
-	@frappe.whitelist()
+	@dypos.whitelist()
 	def get_payment_reconciliation_details(self):
-		company_currency = frappe.get_cached_value("Company", self.company, "default_currency")
+		company_currency = dypos.get_cached_value("Company", self.company, "default_currency")
 
 		sales_breakdown = defaultdict(float)
 		net_breakdown = defaultdict(float)
@@ -199,7 +199,7 @@ class POSClosingShift(Document):
 				row["currencies"][currency] += flt(amount)
 
 		cash_mode_of_payment = (
-			frappe.db.get_value("POS Profile", self.pos_profile, "posa_cash_mode_of_payment") or "Cash"
+			dypos.db.get_value("POS Profile", self.pos_profile, "posa_cash_mode_of_payment") or "Cash"
 		)
 
 		for row in self.get("pos_transactions", []):
@@ -208,10 +208,10 @@ class POSClosingShift(Document):
 				continue
 
 			doctype = "Sales Invoice" if row.get("sales_invoice") else "POS Invoice"
-			if not frappe.db.exists(doctype, invoice):
+			if not dypos.db.exists(doctype, invoice):
 				continue
 
-			invoice_doc = frappe.get_cached_doc(doctype, invoice)
+			invoice_doc = dypos.get_cached_doc(doctype, invoice)
 			currency = invoice_doc.get("currency") or company_currency
 			conversion_rate = (
 				invoice_doc.get("conversion_rate")
@@ -248,10 +248,10 @@ class POSClosingShift(Document):
 
 		for row in self.get("pos_payments", []):
 			payment_entry = row.get("payment_entry")
-			if not payment_entry or not frappe.db.exists("Payment Entry", payment_entry):
+			if not payment_entry or not dypos.db.exists("Payment Entry", payment_entry):
 				continue
 
-			payment_doc = frappe.get_cached_doc("Payment Entry", payment_entry)
+			payment_doc = dypos.get_cached_doc("Payment Entry", payment_entry)
 			currency = (
 				payment_doc.get("paid_from_account_currency")
 				or payment_doc.get("paid_to_account_currency")
@@ -273,7 +273,7 @@ class POSClosingShift(Document):
 			currencies = []
 			if breakdown:
 				currencies = [
-					frappe._dict({"currency": currency, "amount": amount})
+					dypos._dict({"currency": currency, "amount": amount})
 					for currency, amount in sorted(breakdown["currencies"].items())
 					if amount
 				]
@@ -281,7 +281,7 @@ class POSClosingShift(Document):
 			base_total = flt(detail.expected_amount) - flt(detail.opening_amount)
 
 			mode_summaries.append(
-				frappe._dict(
+				dypos._dict(
 					{
 						"mode_of_payment": mop,
 						"base_amount": base_total,
@@ -295,7 +295,7 @@ class POSClosingShift(Document):
 
 		for mop, breakdown in payment_breakdown_copy.items():
 			mode_summaries.append(
-				frappe._dict(
+				dypos._dict(
 					{
 						"mode_of_payment": mop,
 						"base_amount": breakdown["base"],
@@ -303,7 +303,7 @@ class POSClosingShift(Document):
 						"expected_amount": breakdown["base"],
 						"difference": 0,
 						"currency_breakdown": [
-							frappe._dict({"currency": currency, "amount": amount})
+							dypos._dict({"currency": currency, "amount": amount})
 							for currency, amount in sorted(breakdown["currencies"].items())
 							if amount
 						],
@@ -312,17 +312,17 @@ class POSClosingShift(Document):
 			)
 
 		sales_currency_breakdown = [
-			frappe._dict({"currency": currency, "amount": amount})
+			dypos._dict({"currency": currency, "amount": amount})
 			for currency, amount in sorted(sales_breakdown.items())
 			if amount
 		]
 		net_currency_breakdown = [
-			frappe._dict({"currency": currency, "amount": amount})
+			dypos._dict({"currency": currency, "amount": amount})
 			for currency, amount in sorted(net_breakdown.items())
 			if amount
 		]
 
-		return frappe.render_template(
+		return dypos.render_template(
 			"DyPOS/DyPOS/doctype/pos_closing_shift/closing_shift_details.html",
 			{
 				"data": self,
@@ -335,26 +335,26 @@ class POSClosingShift(Document):
 		)
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_cashiers(doctype, txt, searchfield, start, page_len, filters):
-	cashiers_list = frappe.get_all("POS Profile User", filters=filters, fields=["user"])
+	cashiers_list = dypos.get_all("POS Profile User", filters=filters, fields=["user"])
 	result = []
 	for cashier in cashiers_list:
-		user_email = frappe.get_value("User", cashier.user, "email")
+		user_email = dypos.get_value("User", cashier.user, "email")
 		if user_email:
 			# Return list of tuples in format (value, label) where value is user ID and label shows both ID and email
 			result.append([cashier.user, f"{cashier.user} ({user_email})"])
 	return result
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_pos_invoices(pos_opening_shift, doctype=None):
 	if not doctype:
 		use_pos_invoice = False
 		doctype = "POS Invoice" if use_pos_invoice else "Sales Invoice"
 	submit_printed_invoices(pos_opening_shift, doctype)
 	cond = " and ifnull(consolidated_invoice,'') = ''" if doctype == "POS Invoice" else ""
-	data = frappe.db.sql(
+	data = dypos.db.sql(
 		f"""
 	select
 		name
@@ -367,14 +367,14 @@ def get_pos_invoices(pos_opening_shift, doctype=None):
 		as_dict=1,
 	)
 
-	data = [frappe.get_doc(doctype, d.name).as_dict() for d in data]
+	data = [dypos.get_doc(doctype, d.name).as_dict() for d in data]
 
 	return data
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_payments_entries(pos_opening_shift):
-	return frappe.get_all(
+	return dypos.get_all(
 		"Payment Entry",
 		filters={
 			"docstatus": 1,
@@ -396,7 +396,7 @@ def get_payments_entries(pos_opening_shift):
 
 def _get_cash_mode_of_payment(pos_profile):
 	"""Get the cash mode of payment for a POS profile."""
-	cash_mode = frappe.get_value("POS Profile", pos_profile, "posa_cash_mode_of_payment")
+	cash_mode = dypos.get_value("POS Profile", pos_profile, "posa_cash_mode_of_payment")
 	return cash_mode or "Cash"
 
 
@@ -407,7 +407,7 @@ def _aggregate_payment(payments, mode_of_payment, amount, opening_amount=0):
 			pay.expected_amount += flt(amount)
 			return
 	payments.append(
-		frappe._dict(
+		dypos._dict(
 			{
 				"mode_of_payment": mode_of_payment,
 				"opening_amount": opening_amount,
@@ -424,7 +424,7 @@ def _aggregate_tax(taxes, account_head, rate, amount):
 			tax.amount += amount
 			return
 	taxes.append(
-		frappe._dict(
+		dypos._dict(
 			{
 				"account_head": account_head,
 				"rate": rate,
@@ -445,7 +445,7 @@ def _process_invoice(invoice, invoice_field, company_currency, cash_mode, paymen
 	# Credit returns with no payment rows were added to customer credit —
 	# no money entered or left the drawer.  Skip entirely.
 	if is_return and not invoice.payments:
-		return frappe._dict(
+		return dypos._dict(
 			{
 				invoice_field: invoice.name,
 				"posting_date": invoice.posting_date,
@@ -478,7 +478,7 @@ def _process_invoice(invoice, invoice_field, company_currency, cash_mode, paymen
 	outstanding = 0 if is_return else (base_grand_total - base_paid)
 
 	# Build transaction record
-	transaction = frappe._dict(
+	transaction = dypos._dict(
 		{
 			invoice_field: invoice.name,
 			"posting_date": invoice.posting_date,
@@ -547,7 +547,7 @@ def _process_invoice(invoice, invoice_field, company_currency, cash_mode, paymen
 	return transaction
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def make_closing_shift_from_opening(opening_shift):
 	opening_shift = json.loads(opening_shift)
 	doctype = "Sales Invoice"
@@ -556,19 +556,19 @@ def make_closing_shift_from_opening(opening_shift):
 	submit_printed_invoices(opening_shift.get("name"), doctype)
 
 	# Initialize closing shift document
-	closing_shift = frappe.new_doc("POS Closing Shift")
+	closing_shift = dypos.new_doc("POS Closing Shift")
 	closing_shift.update(
 		{
 			"pos_opening_shift": opening_shift.get("name"),
 			"period_start_date": opening_shift.get("period_start_date"),
-			"period_end_date": frappe.utils.get_datetime(),
+			"period_end_date": dypos.utils.get_datetime(),
 			"pos_profile": opening_shift.get("pos_profile"),
 			"user": opening_shift.get("user"),
 			"company": opening_shift.get("company"),
 		}
 	)
 
-	company_currency = frappe.get_cached_value("Company", closing_shift.company, "default_currency")
+	company_currency = dypos.get_cached_value("Company", closing_shift.company, "default_currency")
 	cash_mode = _get_cash_mode_of_payment(opening_shift.get("pos_profile"))
 
 	# Initialize collections
@@ -593,7 +593,7 @@ def make_closing_shift_from_opening(opening_shift):
 	for detail in opening_shift.get("balance_details", []):
 		opening_amount = flt(detail.get("amount"))
 		payments.append(
-			frappe._dict(
+			dypos._dict(
 				{
 					"mode_of_payment": detail.get("mode_of_payment"),
 					"opening_amount": opening_amount,
@@ -612,7 +612,7 @@ def make_closing_shift_from_opening(opening_shift):
 	pos_payments_table = []
 	for py in get_payments_entries(opening_shift.get("name")):
 		pos_payments_table.append(
-			frappe._dict(
+			dypos._dict(
 				{
 					"payment_entry": py.name,
 					"mode_of_payment": py.mode_of_payment,
@@ -663,10 +663,10 @@ def make_closing_shift_from_opening(opening_shift):
 	return result
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def submit_closing_shift(closing_shift):
 	closing_shift = json.loads(closing_shift)
-	closing_shift_doc = frappe.get_doc(closing_shift)
+	closing_shift_doc = dypos.get_doc(closing_shift)
 	closing_shift_doc.flags.ignore_permissions = True
 	closing_shift_doc.save()
 	closing_shift_doc.submit()
@@ -674,7 +674,7 @@ def submit_closing_shift(closing_shift):
 
 
 def submit_printed_invoices(pos_opening_shift, doctype):
-	invoices_list = frappe.get_all(
+	invoices_list = dypos.get_all(
 		doctype,
 		filters={
 			"posa_pos_opening_shift": pos_opening_shift,
@@ -683,5 +683,5 @@ def submit_printed_invoices(pos_opening_shift, doctype):
 		},
 	)
 	for invoice in invoices_list:
-		invoice_doc = frappe.get_doc(doctype, invoice.name)
+		invoice_doc = dypos.get_doc(doctype, invoice.name)
 		invoice_doc.submit()

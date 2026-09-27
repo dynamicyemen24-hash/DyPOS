@@ -1,9 +1,9 @@
 # Copyright (c) 2026, BrainWise and contributors
 # For license information, please see license.txt
 
-import frappe
-from frappe import _
-from frappe.utils import cint, flt
+import dypos
+from dyposimport _
+from dypos.utils import cint, flt
 
 
 def execute(filters=None):
@@ -59,14 +59,14 @@ def get_data(filters):
 	# Get warehouse from POS Profile if provided
 	warehouse = None
 	if filters.get("pos_profile"):
-		warehouse = frappe.db.get_value("POS Profile", filters.get("pos_profile"), "warehouse")
+		warehouse = dypos.db.get_value("POS Profile", filters.get("pos_profile"), "warehouse")
 
 	# Calculate date range for depletion rate
 	from_date = filters.get("from_date")
 	to_date = filters.get("to_date")
 
 	if from_date and to_date:
-		from frappe.utils import date_diff
+		from dypos.utils import date_diff
 
 		date_range_days = max(date_diff(to_date, from_date), 1)
 	else:
@@ -99,7 +99,7 @@ def get_data(filters):
 			qty_sold DESC
 	"""
 
-	data = frappe.db.sql(query, filters, as_dict=1)
+	data = dypos.db.sql(query, filters, as_dict=1)
 
 	# Include zero stock items (items with no sales in the period)
 	if cint(filters.get("include_zero_stock")):
@@ -187,7 +187,7 @@ def _get_stock_map(item_codes, warehouse=None):
 	placeholders = ", ".join(["%s"] * len(item_codes))
 
 	if warehouse:
-		rows = frappe.db.sql(
+		rows = dypos.db.sql(
 			f"""
 			SELECT item_code, actual_qty
 			FROM `tabBin`
@@ -198,7 +198,7 @@ def _get_stock_map(item_codes, warehouse=None):
 			as_dict=1,
 		)
 	else:
-		rows = frappe.db.sql(
+		rows = dypos.db.sql(
 			f"""
 			SELECT item_code, SUM(actual_qty) as actual_qty
 			FROM `tabBin`
@@ -225,13 +225,13 @@ def _get_zero_stock_items(filters, warehouse, sold_item_codes):
 		conditions.append("i.item_group = %(item_group)s")
 		params["item_group"] = filters.get("item_group")
 	elif filters.get("pos_profile"):
-		allowed_groups = frappe.db.get_all(
+		allowed_groups = dypos.db.get_all(
 			"POS Item Group",
 			filters={"parent": filters.get("pos_profile"), "parenttype": "POS Profile"},
 			pluck="item_group",
 		)
 		if allowed_groups:
-			escaped = ", ".join([frappe.db.escape(g) for g in allowed_groups])
+			escaped = ", ".join([dypos.db.escape(g) for g in allowed_groups])
 			conditions.append(f"i.item_group IN ({escaped})")
 		else:
 			# No item groups configured — only include items that have a Bin
@@ -267,7 +267,7 @@ def _get_zero_stock_items(filters, warehouse, sold_item_codes):
 			i.item_code
 	"""
 
-	items = frappe.db.sql(query, params, as_dict=1)
+	items = dypos.db.sql(query, params, as_dict=1)
 
 	# Exclude items that already have sales data
 	return [row for row in items if row.item_code not in sold_item_codes]

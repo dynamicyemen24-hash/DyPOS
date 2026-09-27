@@ -1,6 +1,7 @@
 /**
- * DyPOS Backend Adapter — Selects REST or Frappe based on env config
- * Set VITE_DYPOS_BACKEND=rest|frappe in .env
+ * DyPOS Backend Adapter — Selects REST or the method-router bridge.
+ * Set VITE_DYPOS_BACKEND=rest|method in .env
+ * (`frappe` is still accepted as a legacy alias for `method`).
  */
 const backend = import.meta.env.VITE_DYPOS_BACKEND || "rest"
 
@@ -19,12 +20,14 @@ async function loadModule(modulePath) {
 }
 
 let adapter
-if (backend === "frappe") {
+// "frappe" stays accepted so an older .env keeps working; the bridge itself
+// now talks to DyPOS' own /api/method contract (same verbs, same envelope).
+if (backend === "method" || backend === "frappe") {
 	try {
-		adapter = await loadModule("../adapters/frappe/api.js")
+		adapter = await loadModule("../adapters/method/api.js")
 	} catch {
 		// fail-safe: fallback إلى REST بدل إفشال إقلاع التطبيق كاملاً.
-		// REST والمفاهيم الوظيفية لـ Frappe تتشارك نفس العقد التعاقدي.
+		// REST والوسيلة يتشاركان نفس العقد التعاقدي.
 		adapter = await loadModule("../adapters/rest/api.js")
 	}
 } else {

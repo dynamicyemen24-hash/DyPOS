@@ -30,7 +30,7 @@
 </template>
 
 <script setup>
-import { Button } from "frappe-ui"
+import { Button } from "dypos-ui"
 import { computed } from "vue"
 
 const props = defineProps({

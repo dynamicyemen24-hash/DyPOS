@@ -8,7 +8,7 @@
 
 <script setup>
 import { useAppUpdate } from "@/composables/useAppUpdate"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 import DyButton from "@/components/ui/DyButton.vue"
 
 const {

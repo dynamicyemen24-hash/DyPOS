@@ -321,7 +321,7 @@
 
 <script setup>
 import { computed, useSlots } from "vue"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 
 const props = defineProps({
 	title: {

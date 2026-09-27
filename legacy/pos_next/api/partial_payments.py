@@ -25,9 +25,9 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-import frappe
-from frappe import _
-from frappe.utils import cint, flt, get_datetime, get_time, nowdate
+import dypos
+from dyposimport _
+from dypos.utils import cint, flt, get_datetime, get_time, nowdate
 
 # ==========================================
 # Constants and Configuration
@@ -82,16 +82,16 @@ def get_payment_history(invoice_name: str, include_metadata: bool = True) -> Dic
 	    }
 
 	Raises:
-	    frappe.DoesNotExistError: If invoice doesn\'t exist
+	    dypos.DoesNotExistError: If invoice doesn\'t exist
 	"""
 	# Validate and get invoice using ORM
 	if not invoice_name or not isinstance(invoice_name, str):
-		frappe.throw(_("Invalid invoice name provided"))
+		dypos.throw(_("Invalid invoice name provided"))
 
 	try:
-		invoice = frappe.get_doc("Sales Invoice", invoice_name)
-	except frappe.DoesNotExistError:
-		frappe.log_error(
+		invoice = dypos.get_doc("Sales Invoice", invoice_name)
+	except dypos.DoesNotExistError:
+		dypos.log_error(
 			title="Invoice Not Found",
 			message=f"Attempted to get payment history for non-existent invoice: {invoice_name}",
 		)
@@ -100,7 +100,7 @@ def get_payment_history(invoice_name: str, include_metadata: bool = True) -> Dic
 	# Query Payment Ledger for all entries related to this invoice
 	# Payment Ledger tracks: Invoice creation (positive), Payments (negative)
 	# Need to check BOTH voucher_no (for invoice) and against_voucher_no (for payments)
-	payment_ledger_entries = frappe.db.sql(
+	payment_ledger_entries = dypos.db.sql(
 		"""
         SELECT
             name,
@@ -143,7 +143,7 @@ def get_payment_history(invoice_name: str, include_metadata: bool = True) -> Dic
 	# Batch fetch Sales Invoice Payments (eliminates N+1 query problem)
 	si_payments_map = {}
 	if sales_invoice_vouchers and include_metadata:
-		si_payments = frappe.get_all(
+		si_payments = dypos.get_all(
 			"Sales Invoice Payment",
 			filters={"parent": ["in", list(sales_invoice_vouchers)]},
 			fields=["parent", "mode_of_payment", "amount", "idx"],
@@ -159,7 +159,7 @@ def get_payment_history(invoice_name: str, include_metadata: bool = True) -> Dic
 	# Batch fetch Payment Entries (eliminates N+1 query problem)
 	payment_entries_map = {}
 	if payment_entry_vouchers and include_metadata:
-		payment_entries = frappe.get_all(
+		payment_entries = dypos.get_all(
 			"Payment Entry",
 			filters={"name": ["in", list(payment_entry_vouchers)]},
 			fields=["name", "mode_of_payment", "reference_no", "paid_to", "paid_to_account_type"],
@@ -217,7 +217,7 @@ def get_payment_history(invoice_name: str, include_metadata: bool = True) -> Dic
 					else:
 						# Payment Entry was deleted or doesn't exist
 						payment_record["mode_of_payment"] = "Unknown"
-						frappe.log_error(
+						dypos.log_error(
 							title="Missing Payment Entry",
 							message=f"Payment Ledger references non-existent Payment Entry: {ple.voucher_no}",
 						)
@@ -296,7 +296,7 @@ def enrich_invoice_with_payment_history(invoice: Dict, include_metadata: bool = 
 	Modifies invoice dict in-place and returns it.
 
 	Args:
-	    invoice: Invoice dict from frappe.get_all()
+	    invoice: Invoice dict from dypos.get_all()
 	    include_metadata: If False, skips detailed payment metadata for performance
 
 	Returns:
@@ -318,9 +318,9 @@ def enrich_invoice_with_payment_history(invoice: Dict, include_metadata: bool = 
 		)
 	except Exception as e:
 		# Log but don't fail - return invoice without payment history
-		frappe.log_error(
+		dypos.log_error(
 			title=f"Failed to enrich invoice {invoice.get('name')} with payment history",
-			message=frappe.get_traceback(),
+			message=dypos.get_traceback(),
 		)
 		# Set defaults
 		invoice.update(
@@ -374,50 +374,50 @@ def create_payment_entry(
 	    str: Created Payment Entry name
 
 	Raises:
-	    frappe.ValidationError: If validation fails
-	    frappe.DoesNotExistError: If invoice doesn\'t exist
-	    frappe.PermissionError: If user lacks permission
+	    dypos.ValidationError: If validation fails
+	    dypos.DoesNotExistError: If invoice doesn\'t exist
+	    dypos.PermissionError: If user lacks permission
 	"""
 	# Input validation
 	if not invoice_name or not isinstance(invoice_name, str):
-		frappe.throw(_("Invalid invoice name provided"))
+		dypos.throw(_("Invalid invoice name provided"))
 
 	amount = flt(amount)
 	if amount <= 0:
-		frappe.throw(_("Payment amount must be greater than zero"))
+		dypos.throw(_("Payment amount must be greater than zero"))
 
 	# Get invoice using ORM with permission check
 	try:
-		invoice = frappe.get_doc("Sales Invoice", invoice_name)
-	except frappe.DoesNotExistError:
-		frappe.throw(_("Invoice {0} does not exist").format(invoice_name))
+		invoice = dypos.get_doc("Sales Invoice", invoice_name)
+	except dypos.DoesNotExistError:
+		dypos.throw(_("Invoice {0} does not exist").format(invoice_name))
 
 	# Validate invoice state
 	if invoice.docstatus != 1:
-		frappe.throw(_("Invoice must be submitted before adding payments"))
+		dypos.throw(_("Invoice must be submitted before adding payments"))
 
 	if invoice.docstatus == 2:
-		frappe.throw(_("Cannot add payment to cancelled invoice"))
+		dypos.throw(_("Cannot add payment to cancelled invoice"))
 
 	# Validate amount doesn't exceed outstanding
 	if amount > flt(invoice.outstanding_amount) + AMOUNT_TOLERANCE:
-		frappe.throw(
+		dypos.throw(
 			_("Payment amount {0} exceeds outstanding amount {1}").format(
-				frappe.format_value(amount, {"fieldtype": "Currency"}),
-				frappe.format_value(invoice.outstanding_amount, {"fieldtype": "Currency"}),
+				dypos.format_value(amount, {"fieldtype": "Currency"}),
+				dypos.format_value(invoice.outstanding_amount, {"fieldtype": "Currency"}),
 			)
 		)
 
 	# Validate posting date
 	posting_date = posting_date or nowdate()
 	if get_datetime(posting_date) < get_datetime(invoice.posting_date):
-		frappe.throw(
+		dypos.throw(
 			_("Payment date {0} cannot be before invoice date {1}").format(posting_date, invoice.posting_date)
 		)
 
 	# Validate mode of payment exists
-	if not frappe.db.exists("Mode of Payment", mode_of_payment):
-		frappe.throw(_("Mode of Payment {0} does not exist").format(mode_of_payment))
+	if not dypos.db.exists("Mode of Payment", mode_of_payment):
+		dypos.throw(_("Mode of Payment {0} does not exist").format(mode_of_payment))
 
 	# Save and submit with proper error handling
 	try:
@@ -425,12 +425,12 @@ def create_payment_entry(
 		from DyPOS.accounts.doctype.sales_invoice.sales_invoice import get_bank_cash_account
 
 		if payment_account:
-			if not frappe.db.exists("Account", payment_account):
-				frappe.throw(_("Payment account {0} does not exist").format(payment_account))
+			if not dypos.db.exists("Account", payment_account):
+				dypos.throw(_("Payment account {0} does not exist").format(payment_account))
 		else:
 			account_info = get_bank_cash_account(mode_of_payment, invoice.company)
 			if not account_info or not account_info.get("account"):
-				frappe.throw(
+				dypos.throw(
 					_(
 						"Could not determine payment account for {0}. Please specify payment_account parameter."
 					).format(mode_of_payment)
@@ -466,16 +466,16 @@ def create_payment_entry(
 
 		return pe.name
 
-	except frappe.ValidationError as e:
-		frappe.log_error(
-			title=f"Payment Entry Validation Failed for {invoice_name}", message=frappe.get_traceback()
+	except dypos.ValidationError as e:
+		dypos.log_error(
+			title=f"Payment Entry Validation Failed for {invoice_name}", message=dypos.get_traceback()
 		)
 		raise
 	except Exception as e:
-		frappe.log_error(
-			title=f"Payment Entry Creation Failed for {invoice_name}", message=frappe.get_traceback()
+		dypos.log_error(
+			title=f"Payment Entry Creation Failed for {invoice_name}", message=dypos.get_traceback()
 		)
-		frappe.throw(_("Failed to create payment entry: {0}").format(str(e)))
+		dypos.throw(_("Failed to create payment entry: {0}").format(str(e)))
 
 
 # ==========================================
@@ -483,7 +483,7 @@ def create_payment_entry(
 # ==========================================
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_partial_paid_invoices(pos_profile: str, limit: int = DEFAULT_INVOICE_LIMIT) -> List[Dict]:
 	"""
 	Get partially paid invoices for a POS Profile.
@@ -501,20 +501,20 @@ def get_partial_paid_invoices(pos_profile: str, limit: int = DEFAULT_INVOICE_LIM
 	    List[dict]: Invoices with payment history from Payment Ledger
 
 	Raises:
-	    frappe.ValidationError: If validation fails
-	    frappe.PermissionError: If user lacks access
+	    dypos.ValidationError: If validation fails
+	    dypos.PermissionError: If user lacks access
 	"""
 	# Input validation
 	if not pos_profile:
-		frappe.throw(_("POS Profile is required"))
+		dypos.throw(_("POS Profile is required"))
 
 	# Validate POS Profile exists
-	if not frappe.db.exists("POS Profile", pos_profile):
-		frappe.throw(_("POS Profile {0} does not exist").format(pos_profile))
+	if not dypos.db.exists("POS Profile", pos_profile):
+		dypos.throw(_("POS Profile {0} does not exist").format(pos_profile))
 
 	# Check permissions
 	if not _has_pos_profile_access(pos_profile):
-		frappe.throw(_("You don't have access to this POS Profile"))
+		dypos.throw(_("You don't have access to this POS Profile"))
 
 	# Validate and sanitize limit
 	limit = cint(limit)
@@ -525,7 +525,7 @@ def get_partial_paid_invoices(pos_profile: str, limit: int = DEFAULT_INVOICE_LIM
 
 	# Get partially paid invoices using ORM
 	# Filter logic: outstanding > 0 AND paid > 0 (mathematical definition of partial payment)
-	invoices = frappe.get_all(
+	invoices = dypos.get_all(
 		"Sales Invoice",
 		filters={
 			"pos_profile": pos_profile,
@@ -560,7 +560,7 @@ def get_partial_paid_invoices(pos_profile: str, limit: int = DEFAULT_INVOICE_LIM
 	return invoices
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_unpaid_invoices(pos_profile: str, limit: int = DEFAULT_INVOICE_LIMIT) -> List[Dict]:
 	"""
 	Get all unpaid invoices (partial + fully unpaid) for a POS Profile.
@@ -578,19 +578,19 @@ def get_unpaid_invoices(pos_profile: str, limit: int = DEFAULT_INVOICE_LIMIT) ->
 	    List[dict]: Unpaid invoices with payment history
 
 	Raises:
-	    frappe.ValidationError: If validation fails
-	    frappe.PermissionError: If user lacks access
+	    dypos.ValidationError: If validation fails
+	    dypos.PermissionError: If user lacks access
 	"""
 	# Input validation
 	if not pos_profile:
-		frappe.throw(_("POS Profile is required"))
+		dypos.throw(_("POS Profile is required"))
 
 	# Validate POS Profile exists
-	if not frappe.db.exists("POS Profile", pos_profile):
-		frappe.throw(_("POS Profile {0} does not exist").format(pos_profile))
+	if not dypos.db.exists("POS Profile", pos_profile):
+		dypos.throw(_("POS Profile {0} does not exist").format(pos_profile))
 
 	if not _has_pos_profile_access(pos_profile):
-		frappe.throw(_("You don't have access to this POS Profile"))
+		dypos.throw(_("You don't have access to this POS Profile"))
 
 	# Validate and sanitize limit
 	limit = cint(limit)
@@ -600,7 +600,7 @@ def get_unpaid_invoices(pos_profile: str, limit: int = DEFAULT_INVOICE_LIMIT) ->
 		limit = MAX_INVOICE_LIMIT
 
 	# Get all unpaid invoices (any invoice with outstanding > 0)
-	invoices = frappe.get_all(
+	invoices = dypos.get_all(
 		"Sales Invoice",
 		filters={
 			"pos_profile": pos_profile,
@@ -633,7 +633,7 @@ def get_unpaid_invoices(pos_profile: str, limit: int = DEFAULT_INVOICE_LIMIT) ->
 	return invoices
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_partial_payment_details(invoice_name: str) -> Dict:
 	"""
 	Get detailed payment information for an invoice.
@@ -647,23 +647,23 @@ def get_partial_payment_details(invoice_name: str) -> Dict:
 	    dict: Complete invoice details with payment history
 
 	Raises:
-	    frappe.ValidationError: If validation fails
-	    frappe.PermissionError: If user lacks permission
-	    frappe.DoesNotExistError: If invoice doesn\'t exist
+	    dypos.ValidationError: If validation fails
+	    dypos.PermissionError: If user lacks permission
+	    dypos.DoesNotExistError: If invoice doesn\'t exist
 	"""
 	# Input validation
 	if not invoice_name:
-		frappe.throw(_("Invoice name is required"))
+		dypos.throw(_("Invoice name is required"))
 
 	# Permission check
-	if not frappe.has_permission("Sales Invoice", "read", invoice_name):
-		frappe.throw(_("You don't have permission to view this invoice"))
+	if not dypos.has_permission("Sales Invoice", "read", invoice_name):
+		dypos.throw(_("You don't have permission to view this invoice"))
 
 	# Get invoice using ORM
 	try:
-		invoice = frappe.get_doc("Sales Invoice", invoice_name)
-	except frappe.DoesNotExistError:
-		frappe.throw(_("Invoice {0} does not exist").format(invoice_name))
+		invoice = dypos.get_doc("Sales Invoice", invoice_name)
+	except dypos.DoesNotExistError:
+		dypos.throw(_("Invoice {0} does not exist").format(invoice_name))
 
 	# Get payment history
 	payment_data = get_payment_history(invoice_name, include_metadata=True)
@@ -699,7 +699,7 @@ def get_partial_payment_details(invoice_name: str) -> Dict:
 	}
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def add_payment_to_partial_invoice(invoice_name: str, payments) -> Dict:
 	"""
 	Add payments to a partially paid invoice via Payment Entry.
@@ -723,8 +723,8 @@ def add_payment_to_partial_invoice(invoice_name: str, payments) -> Dict:
 	    dict: Updated invoice details with created Payment Entry names
 
 	Raises:
-	    frappe.ValidationError: If validation fails
-	    frappe.PermissionError: If user lacks permission
+	    dypos.ValidationError: If validation fails
+	    dypos.PermissionError: If user lacks permission
 
 	Example:
 	    >>> add_payment_to_partial_invoice(
@@ -736,38 +736,38 @@ def add_payment_to_partial_invoice(invoice_name: str, payments) -> Dict:
 
 	# Input validation
 	if not invoice_name:
-		frappe.throw(_("Invoice name is required"))
+		dypos.throw(_("Invoice name is required"))
 
 	# Parse payments if string, otherwise use as-is
 	if isinstance(payments, str):
 		try:
 			payments = json.loads(payments)
 		except json.JSONDecodeError:
-			frappe.throw(_("Invalid payments payload: malformed JSON"))
+			dypos.throw(_("Invalid payments payload: malformed JSON"))
 
 	# Ensure it's a list
 	if not isinstance(payments, list):
-		frappe.throw(_("Payments must be a list"))
+		dypos.throw(_("Payments must be a list"))
 
 	if not payments:
-		frappe.throw(_("At least one payment is required"))
+		dypos.throw(_("At least one payment is required"))
 
 	# Permission check
-	if not frappe.has_permission("Sales Invoice", "write", invoice_name):
-		frappe.throw(_("You don't have permission to add payments to this invoice"))
+	if not dypos.has_permission("Sales Invoice", "write", invoice_name):
+		dypos.throw(_("You don't have permission to add payments to this invoice"))
 
 	# Validate total payment amount doesn't exceed outstanding
 	try:
-		invoice = frappe.get_doc("Sales Invoice", invoice_name)
-	except frappe.DoesNotExistError:
-		frappe.throw(_("Invoice {0} does not exist").format(invoice_name))
+		invoice = dypos.get_doc("Sales Invoice", invoice_name)
+	except dypos.DoesNotExistError:
+		dypos.throw(_("Invoice {0} does not exist").format(invoice_name))
 
 	total_payment_amount = sum(flt(p.get("amount", 0)) for p in payments)
 	if total_payment_amount > flt(invoice.outstanding_amount) + AMOUNT_TOLERANCE:
-		frappe.throw(
+		dypos.throw(
 			_("Total payment amount {0} exceeds outstanding amount {1}").format(
-				frappe.format_value(total_payment_amount, {"fieldtype": "Currency"}),
-				frappe.format_value(invoice.outstanding_amount, {"fieldtype": "Currency"}),
+				dypos.format_value(total_payment_amount, {"fieldtype": "Currency"}),
+				dypos.format_value(invoice.outstanding_amount, {"fieldtype": "Currency"}),
 			)
 		)
 
@@ -776,14 +776,14 @@ def add_payment_to_partial_invoice(invoice_name: str, payments) -> Dict:
 	batch_savepoint = "partial_payment_batch"
 
 	try:
-		frappe.db.savepoint(batch_savepoint)
+		dypos.db.savepoint(batch_savepoint)
 
 		for idx, payment in enumerate(payments, 1):
 			amount = flt(payment.get("amount", 0))
 
 			# Skip zero amounts
 			if amount <= 0:
-				frappe.log_error(
+				dypos.log_error(
 					title=f"Skipped zero payment for {invoice_name}", message=f"Payment #{idx}: {payment}"
 				)
 				continue
@@ -804,12 +804,12 @@ def add_payment_to_partial_invoice(invoice_name: str, payments) -> Dict:
 			payment_entries_created.append(pe_name)
 
 	except Exception as e:
-		frappe.db.rollback(save_point=batch_savepoint)
-		frappe.log_error(
+		dypos.db.rollback(save_point=batch_savepoint)
+		dypos.log_error(
 			title=f"Payment Entry Creation Failed for {invoice_name}",
-			message=f"Payments: {payments}\nError: {str(e)}\n\n{frappe.get_traceback()}",
+			message=f"Payments: {payments}\nError: {str(e)}\n\n{dypos.get_traceback()}",
 		)
-		frappe.throw(
+		dypos.throw(
 			_("Failed to create payment entry: {0}. All changes have been rolled back.").format(str(e))
 		)
 
@@ -821,7 +821,7 @@ def add_payment_to_partial_invoice(invoice_name: str, payments) -> Dict:
 	return result
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_partial_payment_summary(pos_profile: str) -> Dict:
 	"""
 	Get summary statistics for partial payments.
@@ -841,23 +841,23 @@ def get_partial_payment_summary(pos_profile: str) -> Dict:
 	    }
 
 	Raises:
-	    frappe.ValidationError: If validation fails
-	    frappe.PermissionError: If user lacks access
+	    dypos.ValidationError: If validation fails
+	    dypos.PermissionError: If user lacks access
 	"""
 	# Input validation
 	if not pos_profile:
-		frappe.throw(_("POS Profile is required"))
+		dypos.throw(_("POS Profile is required"))
 
 	# Validate POS Profile exists
-	if not frappe.db.exists("POS Profile", pos_profile):
-		frappe.throw(_("POS Profile {0} does not exist").format(pos_profile))
+	if not dypos.db.exists("POS Profile", pos_profile):
+		dypos.throw(_("POS Profile {0} does not exist").format(pos_profile))
 
 	if not _has_pos_profile_access(pos_profile):
-		frappe.throw(_("You don't have access to this POS Profile"))
+		dypos.throw(_("You don't have access to this POS Profile"))
 
 	# Use direct SQL aggregation - single query instead of N queries
 	# This is critical for performance with large datasets
-	summary = frappe.db.sql(
+	summary = dypos.db.sql(
 		"""
         SELECT
             COUNT(*) as count,
@@ -884,7 +884,7 @@ def get_partial_payment_summary(pos_profile: str) -> Dict:
 	}
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_unpaid_summary(pos_profile: str) -> Dict:
 	"""
 	Get summary statistics for all unpaid invoices.
@@ -904,22 +904,22 @@ def get_unpaid_summary(pos_profile: str) -> Dict:
 	    }
 
 	Raises:
-	    frappe.ValidationError: If validation fails
-	    frappe.PermissionError: If user lacks access
+	    dypos.ValidationError: If validation fails
+	    dypos.PermissionError: If user lacks access
 	"""
 	# Input validation
 	if not pos_profile:
-		frappe.throw(_("POS Profile is required"))
+		dypos.throw(_("POS Profile is required"))
 
 	# Validate POS Profile exists
-	if not frappe.db.exists("POS Profile", pos_profile):
-		frappe.throw(_("POS Profile {0} does not exist").format(pos_profile))
+	if not dypos.db.exists("POS Profile", pos_profile):
+		dypos.throw(_("POS Profile {0} does not exist").format(pos_profile))
 
 	if not _has_pos_profile_access(pos_profile):
-		frappe.throw(_("You don't have access to this POS Profile"))
+		dypos.throw(_("You don't have access to this POS Profile"))
 
 	# Use direct SQL aggregation - critical for performance
-	summary = frappe.db.sql(
+	summary = dypos.db.sql(
 		"""
         SELECT
             COUNT(*) as count,
@@ -965,11 +965,11 @@ def _has_pos_profile_access(pos_profile: str) -> bool:
 	    bool: True if user has access
 	"""
 	# Check if user is explicitly assigned to this POS Profile
-	has_direct_access = frappe.db.exists(
-		"POS Profile User", {"parent": pos_profile, "user": frappe.session.user}
+	has_direct_access = dypos.db.exists(
+		"POS Profile User", {"parent": pos_profile, "user": dypos.session.user}
 	)
 
 	# Check if user has general Sales Invoice permission
-	has_general_access = frappe.has_permission("Sales Invoice", "read")
+	has_general_access = dypos.has_permission("Sales Invoice", "read")
 
 	return bool(has_direct_access or has_general_access)

@@ -9,6 +9,20 @@ __pycache__
 # Build artifacts
 DyPOS/public/pos/
 DyPOS/www/
+# POS build output + any accidental build written inside the Vite public dir
+# (`POS/public/pos` was one such accident: it copied a whole stale site —
+# hashed chunks, sw.js, index.html — into every subsequent build and precache).
+POS/dist/
+POS/public/pos/
+POS/dev-dist/
+
+# Dev scratch workspace used by tooling/agents (never source)
+.dev-tmp/
+.agent-tmp/
+
+# Playwright artifacts
+test-results/
+playwright-report/
 
 # Environment variables
 .env

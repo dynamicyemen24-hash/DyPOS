@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from frappe.tests.utils import FrappeTestCase
+from dypos.tests.utils import FrappeTestCase
 
 from DyPOS.DyPOS.utils.pos_closing_print import (
 	_collect_parent_targets,
@@ -11,7 +11,7 @@ from DyPOS.DyPOS.utils.pos_closing_print import (
 
 
 class TestPOSClosingPrint(FrappeTestCase):
-	@patch("DyPOS.DyPOS.utils.pos_closing_print.frappe.get_all")
+	@patch("DyPOS.DyPOS.utils.pos_closing_print.dypos.get_all")
 	def test_collect_parent_targets_prefers_sales_invoice(self, mock_get_all):
 		mock_get_all.return_value = [{"name": "POSINV-0002", "consolidated_invoice": None}]
 
@@ -33,7 +33,7 @@ class TestPOSClosingPrint(FrappeTestCase):
 		)
 		mock_get_all.assert_called_once()
 
-	@patch("DyPOS.DyPOS.utils.pos_closing_print.frappe.get_all")
+	@patch("DyPOS.DyPOS.utils.pos_closing_print.dypos.get_all")
 	def test_collect_parent_targets_follows_consolidated_invoice(self, mock_get_all):
 		mock_get_all.return_value = [{"name": "POSINV-0001", "consolidated_invoice": "SINV-0999"}]
 

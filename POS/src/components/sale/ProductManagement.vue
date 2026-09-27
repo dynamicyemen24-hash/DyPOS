@@ -749,7 +749,7 @@ import {
 	FormControl,
 	LoadingIndicator,
 	FeatherIcon,
-} from "frappe-ui"
+} from "dypos-ui"
 import SelectInput from "@/components/common/SelectInput.vue"
 import { computed, onBeforeUnmount, ref, watch } from "vue"
 import { formatCurrency as formatCurrencyUtil } from "@/utils/currency"
@@ -1199,7 +1199,7 @@ async function uploadImage(itemCode) {
 	const response = await fetch("/api/method/upload_file", {
 		method: "POST",
 		headers: {
-			"X-Frappe-CSRF-Token": window.csrf_token,
+			"X-DyPOS-CSRF-Token": window.csrf_token,
 		},
 		body: formData,
 	})
@@ -1358,7 +1358,7 @@ async function loadImageSettings() {
 
 async function loadUOMs() {
 	try {
-		const data = await call("frappe.client.get_list", {
+		const data = await call("dypos.client.get_list", {
 			doctype: "UOM",
 			fields: ["name"],
 			limit_page_length: 500,

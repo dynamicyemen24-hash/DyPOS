@@ -2016,7 +2016,7 @@ import {
 import { getPaymentIcon } from "@/utils/payment"
 import { offlineWorker } from "@/utils/offline/workerClient"
 import { logger } from "@/utils/logger"
-import { Dialog, createResource, call } from "frappe-ui"
+import { Dialog, createResource, call } from "dypos-ui"
 import { computed, ref, watch, nextTick } from "vue"
 import { useToast } from "@/composables/useToast"
 import { useLongPress } from "@/composables/useLongPress"

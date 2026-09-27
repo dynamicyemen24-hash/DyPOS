@@ -3,7 +3,7 @@
  *
  * The device works fully offline against IndexedDB. When the operator picks
  * a destination (another branch, the cloud) from the Sync screen, invoices
- * flow through HERE over plain REST (frappe-ui is same-origin-hardcoded and
+ * flow through HERE over plain REST (dypos-ui is same-origin-hardcoded and
  * cannot address runtime URLs):
  *
  *   POST {baseUrl}/api/invoices  { items, payments, customerName,
@@ -225,7 +225,7 @@ export function clearCatalogCache(destId) {
 }
 
 /**
- * Map a queued (Frappe-shaped) invoice to the destination REST contract.
+ * Map a queued (method-shaped) invoice to the destination REST contract.
  * Returns { ok, payload } or { ok:false, missing:[codes] } when SKUs are
  * unknown on the destination — LOUD, never silent.
  */

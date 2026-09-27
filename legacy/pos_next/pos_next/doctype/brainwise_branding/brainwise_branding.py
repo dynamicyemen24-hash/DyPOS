@@ -9,8 +9,8 @@ import secrets
 from datetime import datetime
 from typing import ClassVar
 
-import frappe
-from frappe.model.document import Document
+import dypos
+from dypos.model.document import Document
 
 # MASTER KEY HASH - Only the person with the original key can disable branding
 # This hash was created from: secrets.token_urlsafe(32)
@@ -35,21 +35,21 @@ class BrainWiseBranding(Document):
 				# Master key is required for any protected field change
 				if not self.master_key_provided or not self._validate_master_key():
 					changed_fields = ", ".join(protected_fields_changed)
-					frappe.throw(
+					dypos.throw(
 						f"Cannot modify protected fields ({changed_fields}) without the Master Key. "
 						"Provide the Master Key to make changes to branding configuration.",
-						frappe.PermissionError,
+						dypos.PermissionError,
 					)
 
 				# Log successful modification with master key
-				frappe.log_error(
+				dypos.log_error(
 					title="BrainWise Branding - Fields Modified with Master Key",
 					message=json.dumps(
 						{
-							"user": frappe.session.user,
-							"timestamp": frappe.utils.now(),
-							"ip_address": frappe.local.request_ip
-							if hasattr(frappe.local, "request_ip")
+							"user": dypos.session.user,
+							"timestamp": dypos.utils.now(),
+							"ip_address": dypos.local.request_ip
+							if hasattr(dypos.local, "request_ip")
 							else None,
 							"action": "Protected fields modified with valid master key",
 							"fields_changed": protected_fields_changed,
@@ -66,10 +66,10 @@ class BrainWiseBranding(Document):
 		# Special handling for disabling
 		if not self.enabled and not self.is_new():
 			if not self.master_key_provided or not self._validate_master_key():
-				frappe.throw(
+				dypos.throw(
 					"Branding cannot be disabled without the Master Key. "
 					"Contact BrainWise support if you need to disable branding.",
-					frappe.PermissionError,
+					dypos.PermissionError,
 				)
 
 	def _check_protected_fields_changed(self):
@@ -124,14 +124,14 @@ class BrainWiseBranding(Document):
 			# Check if both match
 			if key_hash == MASTER_KEY_HASH and phrase_hash == PROTECTION_PHRASE_HASH:
 				# Log successful master key usage
-				frappe.log_error(
+				dypos.log_error(
 					title="BrainWise Branding - Master Key Used",
 					message=json.dumps(
 						{
-							"user": frappe.session.user,
-							"timestamp": frappe.utils.now(),
-							"ip_address": frappe.local.request_ip
-							if hasattr(frappe.local, "request_ip")
+							"user": dypos.session.user,
+							"timestamp": dypos.utils.now(),
+							"ip_address": dypos.local.request_ip
+							if hasattr(dypos.local, "request_ip")
 							else None,
 							"action": "Master key validated successfully",
 							"enabled_state": self.enabled,
@@ -142,14 +142,14 @@ class BrainWiseBranding(Document):
 				return True
 
 			# Log failed attempt
-			frappe.log_error(
+			dypos.log_error(
 				title="BrainWise Branding - Invalid Master Key Attempt",
 				message=json.dumps(
 					{
-						"user": frappe.session.user,
-						"timestamp": frappe.utils.now(),
-						"ip_address": frappe.local.request_ip
-						if hasattr(frappe.local, "request_ip")
+						"user": dypos.session.user,
+						"timestamp": dypos.utils.now(),
+						"ip_address": dypos.local.request_ip
+						if hasattr(dypos.local, "request_ip")
 						else None,
 						"action": "Invalid master key provided",
 					},
@@ -159,7 +159,7 @@ class BrainWiseBranding(Document):
 			return False
 
 		except Exception as e:
-			frappe.log_error(f"Master key validation error: {e!s}", "BrainWise Branding")
+			dypos.log_error(f"Master key validation error: {e!s}", "BrainWise Branding")
 			return False
 
 	def generate_signature(self):
@@ -170,7 +170,7 @@ class BrainWiseBranding(Document):
 			"brand_name": self.brand_name,
 			"brand_url": self.brand_url,
 			"check_interval": self.check_interval,
-			"timestamp": frappe.utils.now(),
+			"timestamp": dypos.utils.now(),
 			"enabled": self.enabled,
 		}
 
@@ -205,7 +205,7 @@ class BrainWiseBranding(Document):
 
 			return True
 		except Exception as e:
-			frappe.log_error(f"Branding validation error: {e!s}", "BrainWise Branding")
+			dypos.log_error(f"Branding validation error: {e!s}", "BrainWise Branding")
 			return False
 
 	def log_tampering(self, details):
@@ -219,16 +219,16 @@ class BrainWiseBranding(Document):
 		self.save(ignore_permissions=True)
 
 		# Create error log
-		frappe.log_error(
+		dypos.log_error(
 			title="BrainWise Branding Tampering Detected", message=json.dumps(details, indent=2, default=str)
 		)
 
 
-@frappe.whitelist(allow_guest=False)
+@dypos.whitelist(allow_guest=False)
 def get_branding_config():
 	"""API endpoint to get branding configuration"""
 	try:
-		doc = frappe.get_single("BrainWise Branding")
+		doc = dypos.get_single("BrainWise Branding")
 
 		# Branding is ALWAYS active unless disabled with master key
 		if not doc.enabled:
@@ -243,14 +243,14 @@ def get_branding_config():
 			"_u": base64.b64encode(doc.brand_url.encode()).decode(),
 			"_i": doc.check_interval or 10000,
 			"_sig": doc.encrypted_signature,
-			"_ts": frappe.utils.now(),
+			"_ts": dypos.utils.now(),
 			"_v": doc.enable_server_validation,
 			"_e": 1,  # Always enabled
 		}
 
 		return config
 	except Exception as e:
-		frappe.log_error(f"Error fetching branding config: {e!s}", "BrainWise Branding")
+		dypos.log_error(f"Error fetching branding config: {e!s}", "BrainWise Branding")
 		# Return default config even on error
 		return {
 			"_t": base64.b64encode(b"Powered by").decode(),
@@ -262,11 +262,11 @@ def get_branding_config():
 		}
 
 
-@frappe.whitelist(allow_guest=False)
+@dypos.whitelist(allow_guest=False)
 def validate_branding(client_signature=None, brand_name=None, brand_url=None):
 	"""Validate branding integrity from client"""
 	try:
-		doc = frappe.get_single("BrainWise Branding")
+		doc = dypos.get_single("BrainWise Branding")
 
 		# Force enable if disabled
 		if not doc.enabled:
@@ -284,11 +284,11 @@ def validate_branding(client_signature=None, brand_name=None, brand_url=None):
 			# Log tampering attempt
 			doc.log_tampering(
 				{
-					"user": frappe.session.user,
-					"timestamp": frappe.utils.now(),
+					"user": dypos.session.user,
+					"timestamp": dypos.utils.now(),
 					"client_signature": client_signature,
 					"client_data": client_data,
-					"ip_address": frappe.local.request_ip if hasattr(frappe.local, "request_ip") else None,
+					"ip_address": dypos.local.request_ip if hasattr(dypos.local, "request_ip") else None,
 				}
 			)
 
@@ -296,17 +296,17 @@ def validate_branding(client_signature=None, brand_name=None, brand_url=None):
 		doc.last_validation = datetime.now()
 		doc.save(ignore_permissions=True)
 
-		return {"valid": is_valid, "enabled": True, "timestamp": frappe.utils.now()}
+		return {"valid": is_valid, "enabled": True, "timestamp": dypos.utils.now()}
 	except Exception as e:
-		frappe.log_error(f"Error validating branding: {e!s}", "BrainWise Branding")
+		dypos.log_error(f"Error validating branding: {e!s}", "BrainWise Branding")
 		return {"valid": False, "enabled": True, "error": str(e)}
 
 
-@frappe.whitelist(allow_guest=False)
+@dypos.whitelist(allow_guest=False)
 def log_client_event(event_type=None, details=None):
 	"""Log client-side events (clicks, removals, modifications)"""
 	try:
-		doc = frappe.get_single("BrainWise Branding")
+		doc = dypos.get_single("BrainWise Branding")
 
 		if not doc.log_tampering_attempts:
 			return {"logged": False}
@@ -323,20 +323,20 @@ def log_client_event(event_type=None, details=None):
 			doc.log_tampering(
 				{
 					"event_type": event_type,
-					"user": frappe.session.user,
-					"timestamp": frappe.utils.now(),
+					"user": dypos.session.user,
+					"timestamp": dypos.utils.now(),
 					"details": details,
-					"ip_address": frappe.local.request_ip if hasattr(frappe.local, "request_ip") else None,
+					"ip_address": dypos.local.request_ip if hasattr(dypos.local, "request_ip") else None,
 				}
 			)
 
 		return {"logged": True}
 	except Exception as e:
-		frappe.log_error(f"Error logging client event: {e!s}", "BrainWise Branding")
+		dypos.log_error(f"Error logging client event: {e!s}", "BrainWise Branding")
 		return {"logged": False, "error": str(e)}
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def verify_master_key(master_key_input):
 	"""
 	API endpoint to verify master key
@@ -344,8 +344,8 @@ def verify_master_key(master_key_input):
 	Returns True/False without making any changes
 	"""
 	# Only System Managers can check
-	if "System Manager" not in frappe.get_roles():
-		frappe.throw("Only System Managers can verify the master key", frappe.PermissionError)
+	if "System Manager" not in dypos.get_roles():
+		dypos.throw("Only System Managers can verify the master key", dypos.PermissionError)
 
 	try:
 		# Parse the master key input
@@ -364,14 +364,14 @@ def verify_master_key(master_key_input):
 		is_valid = key_hash == MASTER_KEY_HASH and phrase_hash == PROTECTION_PHRASE_HASH
 
 		# Log the verification attempt
-		frappe.log_error(
+		dypos.log_error(
 			title=f"BrainWise Branding - Master Key Verification {'Success' if is_valid else 'Failed'}",
 			message=json.dumps(
 				{
-					"user": frappe.session.user,
-					"timestamp": frappe.utils.now(),
+					"user": dypos.session.user,
+					"timestamp": dypos.utils.now(),
 					"result": "valid" if is_valid else "invalid",
-					"ip_address": frappe.local.request_ip if hasattr(frappe.local, "request_ip") else None,
+					"ip_address": dypos.local.request_ip if hasattr(dypos.local, "request_ip") else None,
 				},
 				indent=2,
 			),
@@ -383,19 +383,19 @@ def verify_master_key(master_key_input):
 		}
 
 	except Exception as e:
-		frappe.log_error(f"Master key verification error: {e!s}", "BrainWise Branding")
+		dypos.log_error(f"Master key verification error: {e!s}", "BrainWise Branding")
 		return {"valid": False, "error": str(e)}
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def generate_new_master_key():
 	"""
 	Generate a new master key pair (for initial setup only)
 	Only accessible by System Manager
 	WARNING: This should only be used during initial setup!
 	"""
-	if "System Manager" not in frappe.get_roles():
-		frappe.throw("Only System Managers can generate master keys", frappe.PermissionError)
+	if "System Manager" not in dypos.get_roles():
+		dypos.throw("Only System Managers can generate master keys", dypos.PermissionError)
 
 	# Generate new random key and phrase
 	new_key = secrets.token_urlsafe(32)
@@ -406,14 +406,14 @@ def generate_new_master_key():
 	phrase_hash = hashlib.sha256(new_phrase.encode()).hexdigest()
 
 	# Log this generation
-	frappe.log_error(
+	dypos.log_error(
 		title="BrainWise Branding - New Master Key Generated",
 		message=json.dumps(
 			{
-				"user": frappe.session.user,
-				"timestamp": frappe.utils.now(),
+				"user": dypos.session.user,
+				"timestamp": dypos.utils.now(),
 				"warning": "New master key generated - previous key is now invalid",
-				"ip_address": frappe.local.request_ip if hasattr(frappe.local, "request_ip") else None,
+				"ip_address": dypos.local.request_ip if hasattr(dypos.local, "request_ip") else None,
 			},
 			indent=2,
 		),

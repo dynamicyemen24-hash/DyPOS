@@ -150,7 +150,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from "vue"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
 import WorkFilterField from "./WorkFilterField.vue"
 

@@ -1,12 +1,12 @@
 // Copyright (c) 2020, Youssef Restom and contributors
 // For license information, please see license.txt
 
-frappe.ui.form.on("POS Opening Shift", {
+dypos.ui.form.on("POS Opening Shift", {
 	setup(frm) {
 		if (frm.doc.docstatus == 0) {
 			frm.trigger("set_posting_date_read_only");
-			frm.set_value("period_start_date", frappe.datetime.now_datetime());
-			frm.set_value("user", frappe.session.user);
+			frm.set_value("period_start_date", dypos.datetime.now_datetime());
+			frm.set_value("user", dypos.session.user);
 		}
 		frm.set_query("user", function (doc) {
 			return {
@@ -25,7 +25,7 @@ frappe.ui.form.on("POS Opening Shift", {
 		// set default posting date / time
 		if (frm.doc.docstatus == 0) {
 			if (!frm.doc.posting_date) {
-				frm.set_value("posting_date", frappe.datetime.nowdate());
+				frm.set_value("posting_date", dypos.datetime.nowdate());
 			}
 			frm.trigger("set_posting_date_read_only");
 		}
@@ -45,7 +45,7 @@ frappe.ui.form.on("POS Opening Shift", {
 
 	pos_profile: (frm) => {
 		if (frm.doc.pos_profile) {
-			frappe.db.get_doc("POS Profile", frm.doc.pos_profile).then(({ payments }) => {
+			dypos.db.get_doc("POS Profile", frm.doc.pos_profile).then(({ payments }) => {
 				if (payments.length) {
 					frm.doc.balance_details = [];
 					payments.forEach(({ mode_of_payment }) => {

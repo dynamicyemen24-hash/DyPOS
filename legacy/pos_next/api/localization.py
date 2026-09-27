@@ -1,25 +1,25 @@
 # Copyright (c) 2024, POS Next and contributors
 # For license information, please see license.txt
 
-import frappe
-from frappe import translate
+import dypos
+from dyposimport translate
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_app_translations():
 	"""
 	Get all translations for the current user's language.
-	This is a wrapper around frappe.translate.get_all_translations
+	This is a wrapper around dypos.translate.get_all_translations
 	since the original function is not whitelisted.
 
 	Returns:
 		dict: Translation dictionary {source: translated}
 	"""
-	lang = frappe.local.lang or "ar"
+	lang = dypos.local.lang or "ar"
 	return translate.get_all_translations(lang)
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_user_language():
 	"""
 	Get the language preference for the current user.
@@ -31,16 +31,16 @@ def get_user_language():
 	- User must be authenticated (not Guest)
 	"""
 	# Check if user is authenticated
-	if frappe.session.user == "Guest":
-		frappe.throw("Authentication required", frappe.AuthenticationError)
+	if dypos.session.user == "Guest":
+		dypos.throw("Authentication required", dypos.AuthenticationError)
 
 	# Get user's language preference (default to Arabic for Saudi-first deployment)
-	language = frappe.db.get_value("User", frappe.session.user, "language") or "ar"
+	language = dypos.db.get_value("User", dypos.session.user, "language") or "ar"
 
 	return {"success": True, "locale": language.lower()}
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_allowed_locales():
 	"""
 	Get list of allowed locales from POS Settings for the language switcher.
@@ -64,12 +64,12 @@ def get_allowed_locales_from_settings():
 
 	try:
 		# Get the first POS Settings (or we could use a specific one based on user's profile)
-		pos_settings_list = frappe.get_all("POS Settings", filters={"enabled": 1}, fields=["name"], limit=1)
+		pos_settings_list = dypos.get_all("POS Settings", filters={"enabled": 1}, fields=["name"], limit=1)
 
 		if not pos_settings_list:
 			return default_locales
 
-		pos_settings = frappe.get_doc("POS Settings", pos_settings_list[0].name)
+		pos_settings = dypos.get_doc("POS Settings", pos_settings_list[0].name)
 
 		if pos_settings.allowed_locales and len(pos_settings.allowed_locales) > 0:
 			return {row.language.lower() for row in pos_settings.allowed_locales}
@@ -79,7 +79,7 @@ def get_allowed_locales_from_settings():
 		return default_locales
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def change_user_language(locale):
 	"""
 	Change the language preference for the current user.
@@ -95,30 +95,30 @@ def change_user_language(locale):
 	- User must be enabled
 	"""
 	# Check if user is authenticated
-	if frappe.session.user == "Guest":
-		frappe.throw("Authentication required", frappe.AuthenticationError)
+	if dypos.session.user == "Guest":
+		dypos.throw("Authentication required", dypos.AuthenticationError)
 
 	# Verify user is enabled
-	if not frappe.db.get_value("User", frappe.session.user, "enabled"):
-		frappe.throw("User is disabled", frappe.AuthenticationError)
+	if not dypos.db.get_value("User", dypos.session.user, "enabled"):
+		dypos.throw("User is disabled", dypos.AuthenticationError)
 
 	# Validate locale parameter
 	if not locale:
-		frappe.throw("Locale parameter is required", frappe.ValidationError)
+		dypos.throw("Locale parameter is required", dypos.ValidationError)
 
 	# Normalize locale to lowercase
 	locale = locale.lower()
 
 	allowed_locales = get_allowed_locales_from_settings()
 	if locale not in allowed_locales:
-		frappe.throw(f"Locale '{locale}' is not supported", frappe.ValidationError)
+		dypos.throw(f"Locale '{locale}' is not supported", dypos.ValidationError)
 
 	# Update user's language preference
 	try:
-		frappe.db.set_value("User", frappe.session.user, "language", locale)
-		frappe.db.commit()
+		dypos.db.set_value("User", dypos.session.user, "language", locale)
+		dypos.db.commit()
 
 		return {"success": True, "message": f"Language changed to {locale}", "locale": locale}
 	except Exception as e:
-		frappe.log_error(f"Failed to change user language: {e!s}")
-		frappe.throw(f"Failed to change language: {e!s}", frappe.ValidationError)
+		dypos.log_error(f"Failed to change user language: {e!s}")
+		dypos.throw(f"Failed to change language: {e!s}", dypos.ValidationError)

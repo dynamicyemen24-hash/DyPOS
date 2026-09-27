@@ -1,0 +1,43 @@
+/*
+ * DyPOS UI Kit — base layer.
+ *
+ * Imported once from POS/src/index.css. It contains only what a component
+ * library must provide that the design system cannot: form-control resets and
+ * the dialog transition classes. Every colour, radius and motion value comes
+ * from the --dy-* tokens defined in POS/src/styles/dypos/.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+	/* Native controls must be invisible to the OS theme, otherwise a cashier
+	   terminal in dark mode gets light-blue Chrome borders on every input. */
+	input,
+	textarea,
+	select,
+	button {
+		font: inherit;
+		color: inherit;
+	}
+
+	/* Keyboard focus must always be visible; pointer focus must not ring. */
+	:focus-visible {
+		outline: 2px solid var(--dy-ring, currentColor);
+		outline-offset: 2px;
+	}
+
+	/* Screen-reader-only helper used by icon-only buttons. */
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border-width: 0;
+	}
+}

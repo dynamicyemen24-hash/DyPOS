@@ -2,10 +2,10 @@
  * Method-router security regression (SEC wave):
  *  1. /api/method login shares the username lockout with /api/auth/login
  *     (5 fails/15min → 429 + Retry-After, Arabic message).
- *  2. password_hash is never exposed via frappe.client.get_list / get_value /
+ *  2. password_hash is never exposed via dypos.client.get_list / get_value /
  *     get / set_value — neither by omission (SELECT *) nor by explicit ask.
  *  3. Tenant-bound callers only see their own + legacy-global rows on the
- *     method list endpoints (get_items, frappe.client.get_list Item).
+ *     method list endpoints (get_items, dypos.client.get_list Item).
  *
  * Env comes from tests/setup.js (--import). Fresh in-memory DB per file.
  */
@@ -76,9 +76,9 @@ describe('/api/method login — shared username lockout', () => {
   });
 });
 
-describe('frappe.client.* — password_hash never leaves the server', () => {
+describe('dypos.client.* — password_hash never leaves the server', () => {
   it('get_list User without fields omits password_hash', async () => {
-    const r = await req('POST', '/api/method/frappe.client.get_list', {
+    const r = await req('POST', '/api/method/dypos.client.get_list', {
       token: adminToken,
       body: { doctype: 'User', limit_page_length: 50 },
     });
@@ -91,7 +91,7 @@ describe('frappe.client.* — password_hash never leaves the server', () => {
   });
 
   it('get_list User explicitly asking password_hash still omits it', async () => {
-    const r = await req('POST', '/api/method/frappe.client.get_list', {
+    const r = await req('POST', '/api/method/dypos.client.get_list', {
       token: adminToken,
       body: { doctype: 'User', fields: ['name', 'password_hash'], limit_page_length: 50 },
     });
@@ -102,14 +102,14 @@ describe('frappe.client.* — password_hash never leaves the server', () => {
   });
 
   it('get_value User password_hash → null (array and string forms)', async () => {
-    const arr = await req('POST', '/api/method/frappe.client.get_value', {
+    const arr = await req('POST', '/api/method/dypos.client.get_value', {
       token: adminToken,
       body: { doctype: 'User', fieldname: ['password_hash'] },
     });
     assert.strictEqual(arr.status, 200);
     assert.strictEqual(arr.body.message?.password_hash ?? null, null);
 
-    const str = await req('POST', '/api/method/frappe.client.get_value', {
+    const str = await req('POST', '/api/method/dypos.client.get_value', {
       token: adminToken,
       body: { doctype: 'User', fieldname: 'password_hash' },
     });
@@ -118,13 +118,13 @@ describe('frappe.client.* — password_hash never leaves the server', () => {
   });
 
   it('get (singular) User omits password_hash', async () => {
-    const list = await req('POST', '/api/method/frappe.client.get_list', {
+    const list = await req('POST', '/api/method/dypos.client.get_list', {
       token: adminToken,
       body: { doctype: 'User', fields: ['name'], limit_page_length: 1 },
     });
     const name = list.body.message[0]?.name;
     assert.ok(name);
-    const r = await req('POST', '/api/method/frappe.client.get', {
+    const r = await req('POST', '/api/method/dypos.client.get', {
       token: adminToken,
       body: { doctype: 'User', name },
     });
@@ -133,13 +133,13 @@ describe('frappe.client.* — password_hash never leaves the server', () => {
   });
 
   it('set_value User response omits password_hash', async () => {
-    const list = await req('POST', '/api/method/frappe.client.get_list', {
+    const list = await req('POST', '/api/method/dypos.client.get_list', {
       token: adminToken,
       body: { doctype: 'User', fields: ['name'], limit_page_length: 1 },
     });
     const name = list.body.message[0]?.name;
     assert.ok(name);
-    const r = await req('POST', '/api/method/frappe.client.set_value', {
+    const r = await req('POST', '/api/method/dypos.client.set_value', {
       token: adminToken,
       body: { doctype: 'User', name, fieldname: { full_name: 'Redacted Check' } },
     });
@@ -181,7 +181,7 @@ describe('method lists — tenant isolation', () => {
     assert.strictEqual(asB.status, 200);
     assert.ok(!asB.body.message.some((i) => i.item_code === code || i.code === code), "B must not see A's product");
 
-    const listB = await req('POST', '/api/method/frappe.client.get_list', {
+    const listB = await req('POST', '/api/method/dypos.client.get_list', {
       token: tokenB,
       body: { doctype: 'Item', filters: { item_code: code }, limit_page_length: 50 },
     });

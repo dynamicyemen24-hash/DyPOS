@@ -344,7 +344,7 @@ describe('QZ certificate lifecycle', () => {
   });
 });
 
-describe('frappe doctypes: POS Coupon / Shifts + order_by', () => {
+describe('doc types: POS Coupon / Shifts + order_by', () => {
   const coupon = `MC-${stamp}`.slice(0, 20);
 
   it("get_list 'POS Coupon' resolves the alias and maps rows", async () => {
@@ -353,7 +353,7 @@ describe('frappe doctypes: POS Coupon / Shifts + order_by', () => {
     });
     assert.strictEqual(create.status, 200);
 
-    const list = await M('frappe.client.get_list', cashierToken, {
+    const list = await M('dypos.client.get_list', cashierToken, {
       doctype: 'POS Coupon',
       fields: ['coupon_code', 'discount_amount'],
       limit_page_length: 100,
@@ -363,28 +363,28 @@ describe('frappe doctypes: POS Coupon / Shifts + order_by', () => {
     assert.ok(hit, 'alias doctype lists the coupon');
     assert.strictEqual(Number(hit.discount_amount), 7);
 
-    const one = await M('frappe.client.get', cashierToken, { doctype: 'POS Coupon', name: coupon });
+    const one = await M('dypos.client.get', cashierToken, { doctype: 'POS Coupon', name: coupon });
     assert.strictEqual(one.status, 200);
     assert.strictEqual(one.body.message.coupon_code, coupon);
   });
 
   it("get_list 'POS Opening Shift' resolves (array, never 500)", async () => {
     for (const dt of ['POS Opening Shift', 'POS Closing Shift']) {
-      const r = await M('frappe.client.get_list', cashierToken, { doctype: dt, limit_page_length: 10 });
+      const r = await M('dypos.client.get_list', cashierToken, { doctype: dt, limit_page_length: 10 });
       assert.strictEqual(r.status, 200, dt);
       assert.ok(Array.isArray(r.body.message), dt);
     }
   });
 
   it('get_list honors order_by (mapped fields, unknown dropped)', async () => {
-    const asc = await M('frappe.client.get_list', cashierToken, {
+    const asc = await M('dypos.client.get_list', cashierToken, {
       doctype: 'Item', fields: ['item_name'], order_by: 'item_name asc', limit_page_length: 100,
     });
     assert.strictEqual(asc.status, 200);
     const names = asc.body.message.map((r) => r.item_name);
     assert.deepStrictEqual(names, [...names].sort(), 'ascending order holds');
 
-    const desc = await M('frappe.client.get_list', cashierToken, {
+    const desc = await M('dypos.client.get_list', cashierToken, {
       doctype: 'Item', fields: ['item_name'], order_by: 'item_name desc, no_such_col asc', limit_page_length: 100,
     });
     assert.strictEqual(desc.status, 200);

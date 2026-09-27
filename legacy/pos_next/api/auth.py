@@ -1,22 +1,22 @@
 import hashlib
 
-import frappe
-from frappe import _
-from frappe.rate_limiter import rate_limit
-from frappe.utils import cint, get_url, now_datetime
-from frappe.utils.password import check_password, update_password
+import dypos
+from dyposimport _
+from dypos.rate_limiter import rate_limit
+from dypos.utils import cint, get_url, now_datetime
+from dypos.utils.password import check_password, update_password
 
 # ---------------------------------------------------------------------------
 # Session lock password verification
 # ---------------------------------------------------------------------------
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 @rate_limit(limit=5, seconds=60)
 def verify_session_password(password=None):
 	"""Verify the current session user's password for session lock re-authentication.
 
-	NOTE: We must NOT raise frappe.AuthenticationError here because Frappe's
+	NOTE: We must NOT raise dypos.AuthenticationError here because Frappe's
 	error handler (app.py) calls login_manager.clear_cookies() for that
 	exception type, which would destroy the user's session on a wrong password.
 	Instead, we return a structured response indicating success or failure.
@@ -25,9 +25,9 @@ def verify_session_password(password=None):
 		return {"verified": False, "message": _("Password is required")}
 
 	try:
-		check_password(frappe.session.user, password)
+		check_password(dypos.session.user, password)
 		return {"verified": True}
-	except frappe.AuthenticationError:
+	except dypos.AuthenticationError:
 		return {"verified": False, "message": _("Incorrect password")}
 
 
@@ -36,7 +36,7 @@ def verify_session_password(password=None):
 # ---------------------------------------------------------------------------
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 @rate_limit(limit=60, seconds=60)
 def extend_session():
 	"""Extend the current authenticated session's server-side expiry.
@@ -46,22 +46,22 @@ def extend_session():
 	Extension is best-effort: the client also refreshes its local
 	countdown, so a miss here degrades gracefully to the default TTL.
 	"""
-	if not frappe.session.user or frappe.session.user == "Guest":
-		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	if not dypos.session.user or dypos.session.user == "Guest":
+		dypos.throw(_("Not permitted"), dypos.PermissionError)
 
 	extended = False
 	try:
 		# Touch the session so its last-active timestamp (and therefore
 		# the server-side expiry window) is renewed.
-		frappe.local.session_obj.update_expires()
+		dypos.local.session_obj.update_expires()
 		extended = True
 	except Exception:
 		# Best-effort: never break the client flow on session internals.
-		frappe.logger("dypos.auth").warning(
-			f"extend_session: could not touch session for {frappe.session.user}"
+		dypos.logger("dypos.auth").warning(
+			f"extend_session: could not touch session for {dypos.session.user}"
 		)
 
-	return {"extended": extended, "user": frappe.session.user}
+	return {"extended": extended, "user": dypos.session.user}
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +95,7 @@ def _hash_token(token):
 
 def _cache():
 	"""Redis cache handle for token storage."""
-	return frappe.cache()
+	return dypos.cache()
 
 
 def _store_reset_token(email):
@@ -103,9 +103,9 @@ def _store_reset_token(email):
 
 	Returns the raw token (only exists outside Redis until sent by email).
 	"""
-	token = frappe.generate_hash(length=32)
+	token = dypos.generate_hash(length=32)
 	key = f"{RESET_TOKEN_PREFIX}:{_hash_token(token)}"
-	payload = frappe.json.dumps(
+	payload = dypos.json.dumps(
 		{
 			"user": email,
 			"issued_at": now_datetime().isoformat(),
@@ -133,7 +133,7 @@ def _consume_reset_token(token):
 	cache.delete_value(key)
 
 	try:
-		data = frappe.json.loads(payload)
+		data = dypos.json.loads(payload)
 		return data.get("user")
 	except Exception:
 		return None
@@ -145,7 +145,7 @@ def _build_reset_link(token):
 	The path can be overridden via site_config (pos_reset_password_path)
 	for deployments where the POS SPA is served under a different route.
 	"""
-	path = frappe.conf.get("pos_reset_password_path") or "/reset-password"
+	path = dypos.conf.get("pos_reset_password_path") or "/reset-password"
 	return f"{get_url(path)}?token={token}"
 
 
@@ -175,7 +175,7 @@ def _send_reset_email(email, token):
 	</div>
 	"""
 
-	frappe.sendmail(
+	dypos.sendmail(
 		recipients=[email],
 		subject=subject,
 		message=message,
@@ -185,21 +185,21 @@ def _send_reset_email(email, token):
 def _validate_new_password(password):
 	"""Server-side password policy (defense in depth vs. the client checks)."""
 	if not password or len(password) < 8:
-		frappe.throw(_("Password must be at least 8 characters long"))
+		dypos.throw(_("Password must be at least 8 characters long"))
 	if len(password) > 128:
-		frappe.throw(_("Password must be at most 128 characters long"))
+		dypos.throw(_("Password must be at most 128 characters long"))
 
 	# Optional: Frappe's system-configured strength checker (v14+), applied
 	# when available so System Settings password policy is honoured.
 	try:
-		from frappe.utils.password_strength import test_password_strength
+		from dypos.utils.password_strength import test_password_strength
 
 		feedback = test_password_strength(password)
 		if feedback and feedback.get("score") is not None:
-			# Frappe scores 0-4; require at least 2 (fair) when it runs.
+			# dyposscores 0-4; require at least 2 (fair) when it runs.
 			if cint(feedback.get("score")) < 2:
 				suggestion = feedback.get("password_recommendation") or ""
-				frappe.throw(
+				dypos.throw(
 					_("Please choose a stronger password. {0}").format(suggestion)
 				)
 	except ImportError:
@@ -218,14 +218,14 @@ def send_password_reset(email=None):
 		"If the account exists, a password reset link has been sent to your email."
 	)
 
-	if not email or not frappe.utils.validate_email_address(email):
+	if not email or not dypos.utils.validate_email_address(email):
 		# Same generic response for malformed input — no signal to probes.
 		return {"message": generic_message}
 
 	email = email.strip().lower()
 
 	try:
-		user = frappe.db.get_value("User", {"email": email, "enabled": 1}, "name")
+		user = dypos.db.get_value("User", {"email": email, "enabled": 1}, "name")
 	except Exception:
 		user = None
 
@@ -234,33 +234,33 @@ def send_password_reset(email=None):
 			token = _store_reset_token(email)
 			_send_reset_email(email, token)
 
-			frappe.logger("dypos.auth").info(
+			dypos.logger("dypos.auth").info(
 				f"Password reset link issued for {email}"
 			)
 		except Exception:
-			frappe.log_error(
+			dypos.log_error(
 				title="DyPOS password reset email failed",
-				message=frappe.get_traceback(),
+				message=dypos.get_traceback(),
 			)
 			# Still return the generic message — no enumeration signal.
 	else:
-		frappe.logger("dypos.auth").info(
+		dypos.logger("dypos.auth").info(
 			f"Password reset requested for unknown email {email}"
 		)
 
 	return {"message": generic_message}
 
 
-@frappe.whitelist(allow_guest=True)
+@dypos.whitelist(allow_guest=True)
 @rate_limit(limit=5, seconds=900)
 def reset_password(token=None, new_password=None):
 	"""Consume a single-use reset token and set the new password (guest endpoint).
 
-	Raises frappe.AuthenticationError on unknown/expired tokens so the
+	Raises dypos.AuthenticationError on unknown/expired tokens so the
 	client surfaces its "request a new link" flow.
 	"""
 	if not token or not new_password:
-		frappe.throw(_("Invalid or expired reset link"), frappe.AuthenticationError)
+		dypos.throw(_("Invalid or expired reset link"), dypos.AuthenticationError)
 
 	# Defense in depth: server-side password policy
 	_validate_new_password(new_password)
@@ -269,30 +269,30 @@ def reset_password(token=None, new_password=None):
 	email = _consume_reset_token(token)
 
 	if not email:
-		frappe.throw(_("Invalid or expired reset link"), frappe.AuthenticationError)
+		dypos.throw(_("Invalid or expired reset link"), dypos.AuthenticationError)
 
 	# The account must still exist and be enabled at consumption time.
-	exists = frappe.db.get_value("User", {"email": email, "enabled": 1}, "name")
+	exists = dypos.db.get_value("User", {"email": email, "enabled": 1}, "name")
 	if not exists:
-		frappe.throw(_("Invalid or expired reset link"), frappe.AuthenticationError)
+		dypos.throw(_("Invalid or expired reset link"), dypos.AuthenticationError)
 
-	# Delegate hashing to Frappe (bcrypt/scrypt per system configuration)
+	# Delegate hashing to dypos(bcrypt/scrypt per system configuration)
 	update_password(user=email, pwd=new_password)
 
 	# Invalidate any other outstanding reset keys on the account
 	try:
-		frappe.db.set_value(
+		dypos.db.set_value(
 			"User", email, "reset_password_key", "", update_modified=False
 		)
 	except Exception:
 		pass
 
-	frappe.db.commit()
+	dypos.db.commit()
 
-	frappe.logger("dypos.auth").info(f"Password reset completed for {email}")
+	dypos.logger("dypos.auth").info(f"Password reset completed for {email}")
 
 	try:
-		frappe.get_doc(
+		dypos.get_doc(
 			{
 				"doctype": "Activity Log",
 				"subject": f"Password reset via secure token — {email}",

@@ -30,10 +30,10 @@ running site has configured.
 
 from types import SimpleNamespace
 
-import frappe
+import dypos
 from DyPOS.stock.doctype.stock_entry.test_stock_entry import make_stock_entry
-from frappe.tests.utils import FrappeTestCase
-from frappe.utils import add_days, flt, nowdate
+from dypos.tests.utils import FrappeTestCase
+from dypos.utils import add_days, flt, nowdate
 
 import DyPOS  # noqa: F401 — ensure app hooks load.
 from DyPOS.api.invoices import apply_offers, submit_invoice, update_invoice
@@ -49,39 +49,39 @@ CUSTOMER = "_PNXT_TEST_CUSTOMER"
 
 def _resolve_company():
 	"""Pick the test Company. Prefer DyPOS test fixture, else the default."""
-	if frappe.db.exists("Company", "_Test Company"):
+	if dypos.db.exists("Company", "_Test Company"):
 		return "_Test Company"
-	default = frappe.defaults.get_global_default("company")
+	default = dypos.defaults.get_global_default("company")
 	if default:
 		return default
-	return frappe.db.get_value("Company", {"name": ["!=", ""]}, "name")
+	return dypos.db.get_value("Company", {"name": ["!=", ""]}, "name")
 
 
 def _resolve_warehouse(company):
 	"""Pick a non-group, non-disabled warehouse for the company."""
 	# Prefer DyPOS's test warehouse if it matches the company
-	if company == "_Test Company" and frappe.db.exists("Warehouse", "_Test Warehouse - _TC"):
+	if company == "_Test Company" and dypos.db.exists("Warehouse", "_Test Warehouse - _TC"):
 		return "_Test Warehouse - _TC"
-	wh = frappe.db.get_value(
+	wh = dypos.db.get_value(
 		"Warehouse",
 		{"company": company, "is_group": 0, "disabled": 0},
 		"name",
 		order_by="creation asc",
 	)
 	if not wh:
-		frappe.throw(f"No warehouse for company {company}.")
+		dypos.throw(f"No warehouse for company {company}.")
 	return wh
 
 
 def _resolve_price_list(company):
 	# Standard Selling exists on every Frappe/DyPOS site
-	if frappe.db.exists("Price List", "Standard Selling"):
+	if dypos.db.exists("Price List", "Standard Selling"):
 		return "Standard Selling"
-	return frappe.db.get_value("Price List", {"selling": 1, "enabled": 1}, "name")
+	return dypos.db.get_value("Price List", {"selling": 1, "enabled": 1}, "name")
 
 
 def _resolve_cost_center(company):
-	return frappe.db.get_value(
+	return dypos.db.get_value(
 		"Cost Center",
 		{"company": company, "is_group": 0, "disabled": 0},
 		"name",
@@ -96,7 +96,7 @@ def _resolve_mode_of_payment(company):
 	so we wire one up for Cash pointing at the company's default cash account.
 	"""
 	# Already-configured mode for this company wins
-	mop_with_account = frappe.db.sql(
+	mop_with_account = dypos.db.sql(
 		"""
 		SELECT DISTINCT parent FROM `tabMode of Payment Account`
 		WHERE company = %s LIMIT 1
@@ -107,8 +107,8 @@ def _resolve_mode_of_payment(company):
 		return mop_with_account[0][0]
 
 	# Wire up Cash → company's default cash account
-	if not frappe.db.exists("Mode of Payment", "Cash"):
-		frappe.get_doc(
+	if not dypos.db.exists("Mode of Payment", "Cash"):
+		dypos.get_doc(
 			{
 				"doctype": "Mode of Payment",
 				"mode_of_payment": "Cash",
@@ -117,10 +117,10 @@ def _resolve_mode_of_payment(company):
 			}
 		).insert(ignore_permissions=True)
 
-	default_cash_account = frappe.get_cached_value("Company", company, "default_cash_account")
+	default_cash_account = dypos.get_cached_value("Company", company, "default_cash_account")
 	if not default_cash_account:
 		# Find any cash-type account for the company
-		default_cash_account = frappe.db.get_value(
+		default_cash_account = dypos.db.get_value(
 			"Account",
 			{"company": company, "account_type": "Cash", "is_group": 0},
 			"name",
@@ -128,14 +128,14 @@ def _resolve_mode_of_payment(company):
 		)
 	if not default_cash_account:
 		# Last resort: any non-group leaf account on the company
-		default_cash_account = frappe.db.get_value(
+		default_cash_account = dypos.db.get_value(
 			"Account",
 			{"company": company, "is_group": 0},
 			"name",
 			order_by="creation asc",
 		)
 
-	mop_doc = frappe.get_doc("Mode of Payment", "Cash")
+	mop_doc = dypos.get_doc("Mode of Payment", "Cash")
 	mop_doc.append(
 		"accounts",
 		{"company": company, "default_account": default_cash_account},
@@ -147,11 +147,11 @@ def _resolve_mode_of_payment(company):
 def _resolve_item_group():
 	"""Pick a non-group Item Group. Same root-vs-leaf gotcha as Customer Group."""
 	for candidate in ("_Test Item Group", "Products"):
-		if frappe.db.exists("Item Group", candidate):
-			ig = frappe.get_cached_doc("Item Group", candidate)
+		if dypos.db.exists("Item Group", candidate):
+			ig = dypos.get_cached_doc("Item Group", candidate)
 			if not ig.is_group:
 				return candidate
-	leaf = frappe.db.get_value(
+	leaf = dypos.db.get_value(
 		"Item Group",
 		{"is_group": 0},
 		"name",
@@ -159,7 +159,7 @@ def _resolve_item_group():
 	)
 	if leaf:
 		return leaf
-	ig = frappe.get_doc(
+	ig = dypos.get_doc(
 		{
 			"doctype": "Item Group",
 			"item_group_name": "_PNXT_TEST_ITEM_GROUP",
@@ -174,13 +174,13 @@ def _ensure_test_items(company, warehouse, price_list):
 	"""Create the three test items with prices and stock if they don't exist."""
 	item_group = _resolve_item_group()
 	for item_code, price in ITEM_PRICES.items():
-		if not frappe.db.exists("Item", item_code):
-			# Insert via frappe.get_doc directly so we can set
+		if not dypos.db.exists("Item", item_code):
+			# Insert via dypos.get_doc directly so we can set
 			# flags.from_integration=True, which short-circuits any
 			# after_insert hooks from optional ecommerce apps (e.g.
 			# ecommerce_integrations' Shopify uploader, which has a
 			# pre-existing bug calling `doc.hasattr(...)`).
-			item = frappe.get_doc(
+			item = dypos.get_doc(
 				{
 					"doctype": "Item",
 					"item_code": item_code,
@@ -195,8 +195,8 @@ def _ensure_test_items(company, warehouse, price_list):
 
 		# Ensure Item Price exists
 		ip_filters = {"item_code": item_code, "price_list": price_list}
-		if not frappe.db.exists("Item Price", ip_filters):
-			frappe.get_doc(
+		if not dypos.db.exists("Item Price", ip_filters):
+			dypos.get_doc(
 				{
 					"doctype": "Item Price",
 					"item_code": item_code,
@@ -208,7 +208,7 @@ def _ensure_test_items(company, warehouse, price_list):
 	# Top up stock at the POS warehouse so scenarios don't run out
 	for item_code in ITEM_PRICES:
 		current = (
-			frappe.db.get_value(
+			dypos.db.get_value(
 				"Bin",
 				{"item_code": item_code, "warehouse": warehouse},
 				"actual_qty",
@@ -227,7 +227,7 @@ def _ensure_test_items(company, warehouse, price_list):
 			except Exception:
 				# Stock entry failure shouldn't abort the test setup; the
 				# individual test will surface the real cause.
-				frappe.db.rollback()
+				dypos.db.rollback()
 
 
 def _resolve_customer_group():
@@ -235,9 +235,9 @@ def _resolve_customer_group():
 	on stock Frappe/DyPOS installs and Customer.validate rejects it.
 	"""
 	# Prefer DyPOS's standard test fixture when present
-	if frappe.db.exists("Customer Group", "_Test Customer Group"):
+	if dypos.db.exists("Customer Group", "_Test Customer Group"):
 		return "_Test Customer Group"
-	leaf = frappe.db.get_value(
+	leaf = dypos.db.get_value(
 		"Customer Group",
 		{"is_group": 0},
 		"name",
@@ -246,7 +246,7 @@ def _resolve_customer_group():
 	if leaf:
 		return leaf
 	# Last resort: create a leaf under the root
-	cg = frappe.get_doc(
+	cg = dypos.get_doc(
 		{
 			"doctype": "Customer Group",
 			"customer_group_name": "_PNXT_TEST_CG",
@@ -259,9 +259,9 @@ def _resolve_customer_group():
 
 def _resolve_territory():
 	"""Pick a non-group Territory. Same gotcha as Customer Group."""
-	if frappe.db.exists("Territory", "_Test Territory"):
+	if dypos.db.exists("Territory", "_Test Territory"):
 		return "_Test Territory"
-	leaf = frappe.db.get_value(
+	leaf = dypos.db.get_value(
 		"Territory",
 		{"is_group": 0},
 		"name",
@@ -269,7 +269,7 @@ def _resolve_territory():
 	)
 	if leaf:
 		return leaf
-	t = frappe.get_doc(
+	t = dypos.get_doc(
 		{
 			"doctype": "Territory",
 			"territory_name": "_PNXT_TEST_TERRITORY",
@@ -281,8 +281,8 @@ def _resolve_territory():
 
 
 def _ensure_customer():
-	if not frappe.db.exists("Customer", CUSTOMER):
-		frappe.get_doc(
+	if not dypos.db.exists("Customer", CUSTOMER):
+		dypos.get_doc(
 			{
 				"doctype": "Customer",
 				"customer_name": CUSTOMER,
@@ -302,9 +302,9 @@ def _ensure_pos_profile(company, warehouse, price_list, mode_of_payment):
 	(unrelated to the promotion logic under test).
 	"""
 	profile_name = f"_PNXT_TEST_POS_PROFILE_{company}"
-	if frappe.db.exists("POS Profile", profile_name):
+	if dypos.db.exists("POS Profile", profile_name):
 		# Re-patch fields each run so prior mutations don't leak across tests.
-		profile = frappe.get_doc("POS Profile", profile_name)
+		profile = dypos.get_doc("POS Profile", profile_name)
 		profile.warehouse = warehouse
 		profile.selling_price_list = price_list
 		profile.ignore_pricing_rule = 0
@@ -317,16 +317,16 @@ def _ensure_pos_profile(company, warehouse, price_list, mode_of_payment):
 		profile.save(ignore_permissions=True)
 		return profile.name
 
-	profile = frappe.get_doc(
+	profile = dypos.get_doc(
 		{
 			"doctype": "POS Profile",
 			"name": profile_name,
 			"company": company,
 			"warehouse": warehouse,
 			"selling_price_list": price_list,
-			"currency": frappe.get_cached_value("Company", company, "default_currency"),
+			"currency": dypos.get_cached_value("Company", company, "default_currency"),
 			"customer": CUSTOMER,
-			"write_off_account": frappe.get_cached_value("Company", company, "write_off_account"),
+			"write_off_account": dypos.get_cached_value("Company", company, "write_off_account"),
 			"write_off_cost_center": _resolve_cost_center(company),
 			"ignore_pricing_rule": 0,
 			"disable_rounded_total": 1,
@@ -347,7 +347,7 @@ def _ctx():
 	warehouse = _resolve_warehouse(company)
 	price_list = _resolve_price_list(company)
 	mode_of_payment = _resolve_mode_of_payment(company)
-	currency = frappe.get_cached_value("Company", company, "default_currency")
+	currency = dypos.get_cached_value("Company", company, "default_currency")
 	_ensure_customer()
 	_ensure_test_items(company, warehouse, price_list)
 	pos_profile = _ensure_pos_profile(company, warehouse, price_list, mode_of_payment)
@@ -364,9 +364,9 @@ def _ctx():
 
 def _make_rule(title, **fields):
 	"""Idempotently create a Pricing Rule. Deletes any prior rule with same title."""
-	existing = frappe.db.get_value("Pricing Rule", {"title": title}, "name")
+	existing = dypos.db.get_value("Pricing Rule", {"title": title}, "name")
 	if existing:
-		frappe.delete_doc("Pricing Rule", existing, force=True, ignore_permissions=True)
+		dypos.delete_doc("Pricing Rule", existing, force=True, ignore_permissions=True)
 
 	defaults = {
 		"doctype": "Pricing Rule",
@@ -374,14 +374,14 @@ def _make_rule(title, **fields):
 		"selling": 1,
 		"buying": 0,
 		"company": _resolve_company(),
-		"currency": frappe.get_cached_value("Company", _resolve_company(), "default_currency"),
+		"currency": dypos.get_cached_value("Company", _resolve_company(), "default_currency"),
 		"valid_from": nowdate(),
 		"priority": "1",
 		"disable": 0,
 		"min_qty": 1,
 	}
 	defaults.update(fields)
-	doc = frappe.get_doc(defaults).insert(ignore_permissions=True)
+	doc = dypos.get_doc(defaults).insert(ignore_permissions=True)
 	return doc.name
 
 
@@ -498,7 +498,7 @@ def _submit_invoice(ctx, payload, paid_amount):
 		data=json.dumps({"change_amount": 0, "write_off_amount": 0}),
 	)
 
-	return frappe.get_doc("Sales Invoice", inv_name)
+	return dypos.get_doc("Sales Invoice", inv_name)
 
 
 class TestPromotions(FrappeTestCase):
@@ -518,16 +518,16 @@ class TestPromotions(FrappeTestCase):
 		(disabled rules are skipped by the engine, which is what we want).
 		"""
 		super().tearDown()
-		for rule_name in frappe.get_all(
+		for rule_name in dypos.get_all(
 			"Pricing Rule",
 			filters={"title": ["like", "_PNXT_TEST_%"]},
 			pluck="name",
 		):
 			try:
-				frappe.db.set_value("Pricing Rule", rule_name, "disable", 1)
+				dypos.db.set_value("Pricing Rule", rule_name, "disable", 1)
 			except Exception:
 				pass
-		frappe.db.commit()
+		dypos.db.commit()
 
 	# -------------------------------------------------------------------
 	# Main offer types (the 7 from the matrix)

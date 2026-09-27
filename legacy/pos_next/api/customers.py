@@ -3,11 +3,11 @@ POS Next Customer API
 Handles customer search, creation, and management for POS operations
 """
 
-import frappe
-from frappe import _
+import dypos
+from dyposimport _
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_customers(search_term="", pos_profile=None, limit=20, modified_since=None):
 	"""
 	Search customers for inline customer selection in POS.
@@ -22,7 +22,7 @@ def get_customers(search_term="", pos_profile=None, limit=20, modified_since=Non
 	    list: List of customer dictionaries with name, customer_name, mobile_no, email_id, disabled
 	"""
 	try:
-		frappe.logger().debug(
+		dypos.logger().debug(
 			f"get_customers called with search_term={search_term}, pos_profile={pos_profile}, limit={limit}, modified_since={modified_since}"
 		)
 
@@ -31,12 +31,12 @@ def get_customers(search_term="", pos_profile=None, limit=20, modified_since=Non
 
 		# Filter by POS Profile customer group if specified
 		if pos_profile:
-			frappe.logger().debug(f"Loading POS Profile: {pos_profile}")
-			profile_doc = frappe.get_cached_doc("POS Profile", pos_profile)
+			dypos.logger().debug(f"Loading POS Profile: {pos_profile}")
+			profile_doc = dypos.get_cached_doc("POS Profile", pos_profile)
 			# Check if customer_group field exists (it may not exist in all versions)
 			if hasattr(profile_doc, "customer_group") and profile_doc.customer_group:
 				filters["customer_group"] = profile_doc.customer_group
-				frappe.logger().debug(f"Filtering by customer_group: {profile_doc.customer_group}")
+				dypos.logger().debug(f"Filtering by customer_group: {profile_doc.customer_group}")
 
 		if modified_since:
 			# Delta sync: include disabled customers so frontend can purge them
@@ -55,8 +55,8 @@ def get_customers(search_term="", pos_profile=None, limit=20, modified_since=Non
 				["Customer", "email_id", "like", like_term],
 			]
 
-		customer_limit = limit if limit not in (None, 0) else frappe.db.count("Customer", filters)
-		result = frappe.get_all(
+		customer_limit = limit if limit not in (None, 0) else dypos.db.count("Customer", filters)
+		result = dypos.get_all(
 			"Customer",
 			filters=filters,
 			or_filters=or_filters or None,
@@ -64,15 +64,15 @@ def get_customers(search_term="", pos_profile=None, limit=20, modified_since=Non
 			limit=customer_limit,
 			order_by="customer_name asc",
 		)
-		frappe.logger().debug(f"get_customers returned {len(result)} customers")
+		dypos.logger().debug(f"get_customers returned {len(result)} customers")
 		return result
 	except Exception as e:
-		frappe.logger().error(f"Error in get_customers: {e!s}")
-		frappe.logger().error(frappe.get_traceback())
-		frappe.throw(_("Error fetching customers: {0}").format(str(e)))
+		dypos.logger().error(f"Error in get_customers: {e!s}")
+		dypos.logger().error(dypos.get_traceback())
+		dypos.throw(_("Error fetching customers: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def create_customer(
 	customer_name,
 	mobile_no=None,
@@ -102,11 +102,11 @@ def create_customer(
 	    dict: Created customer document
 	"""
 	# Check if user has permission to create customers
-	if not frappe.has_permission("Customer", "create"):
-		frappe.throw(_("You don't have permission to create customers"), frappe.PermissionError)
+	if not dypos.has_permission("Customer", "create"):
+		dypos.throw(_("You don't have permission to create customers"), dypos.PermissionError)
 
 	if not customer_name:
-		frappe.throw(_("Customer name is required"))
+		dypos.throw(_("Customer name is required"))
 
 	loyalty_program = get_default_loyalty_program_from_settings(
 		company=company,
@@ -115,22 +115,22 @@ def create_customer(
 
 	resolved_customer_group = customer_group
 	if not resolved_customer_group:
-		resolved_customer_group = frappe.db.get_single_value("Selling Settings", "customer_group")
+		resolved_customer_group = dypos.db.get_single_value("Selling Settings", "customer_group")
 	if not resolved_customer_group:
 		resolved_customer_group = (
-			frappe.db.get_value("Customer Group", {"is_group": 0}, "name", order_by="lft")
+			dypos.db.get_value("Customer Group", {"is_group": 0}, "name", order_by="lft")
 			or "All Customer Groups"
 		)
 
 	resolved_territory = territory
 	if not resolved_territory:
-		resolved_territory = frappe.db.get_single_value("Selling Settings", "territory")
+		resolved_territory = dypos.db.get_single_value("Selling Settings", "territory")
 	if not resolved_territory:
 		resolved_territory = (
-			frappe.db.get_value("Territory", {"is_group": 0}, "name", order_by="lft") or "All Territories"
+			dypos.db.get_value("Territory", {"is_group": 0}, "name", order_by="lft") or "All Territories"
 		)
 
-	customer = frappe.get_doc(
+	customer = dypos.get_doc(
 		{
 			"doctype": "Customer",
 			"customer_name": customer_name,
@@ -145,13 +145,13 @@ def create_customer(
 		}
 	)
 
-	frappe.flags.DyPOS_customer_company = company
-	frappe.flags.DyPOS_customer_pos_profile = pos_profile
+	dypos.flags.DyPOS_customer_company = company
+	dypos.flags.DyPOS_customer_pos_profile = pos_profile
 	try:
 		customer.insert()
 	finally:
-		frappe.flags.DyPOS_customer_company = None
-		frappe.flags.DyPOS_customer_pos_profile = None
+		dypos.flags.DyPOS_customer_company = None
+		dypos.flags.DyPOS_customer_pos_profile = None
 
 	return customer.as_dict()
 
@@ -168,13 +168,13 @@ def get_default_loyalty_program(company):
 	    str: Loyalty program name or None
 	"""
 	# First try to find a loyalty program with auto_opt_in for the company
-	loyalty_program = frappe.db.get_value("Loyalty Program", {"company": company, "auto_opt_in": 1}, "name")
+	loyalty_program = dypos.db.get_value("Loyalty Program", {"company": company, "auto_opt_in": 1}, "name")
 
 	if loyalty_program:
 		return loyalty_program
 
 	# Fallback: any loyalty program for the company
-	loyalty_program = frappe.db.get_value("Loyalty Program", {"company": company}, "name")
+	loyalty_program = dypos.db.get_value("Loyalty Program", {"company": company}, "name")
 
 	return loyalty_program
 
@@ -204,15 +204,15 @@ def auto_assign_loyalty_program(doc, method=None):
 	if loyalty_program:
 		# Use db_set to avoid triggering validate hooks again
 		doc.db_set("loyalty_program", loyalty_program, update_modified=False)
-		frappe.logger().info(f"Auto-assigned loyalty program '{loyalty_program}' to customer '{doc.name}'")
+		dypos.logger().info(f"Auto-assigned loyalty program '{loyalty_program}' to customer '{doc.name}'")
 
 
 def _get_customer_assignment_context():
 	"""Get company/profile context for customer auto-assignment from the current request."""
-	company = getattr(frappe.flags, "DyPOS_customer_company", None)
-	pos_profile = getattr(frappe.flags, "DyPOS_customer_pos_profile", None)
+	company = getattr(dypos.flags, "DyPOS_customer_company", None)
+	pos_profile = getattr(dypos.flags, "DyPOS_customer_pos_profile", None)
 
-	form_dict = getattr(frappe.local, "form_dict", None)
+	form_dict = getattr(dypos.local, "form_dict", None)
 	if form_dict:
 		company = company or form_dict.get("company")
 		pos_profile = pos_profile or form_dict.get("pos_profile")
@@ -230,7 +230,7 @@ def get_default_loyalty_program_from_settings(company=None, pos_profile=None):
 	    str: Loyalty program name or None if not configured
 	"""
 	if pos_profile:
-		pos_settings = frappe.db.get_value(
+		pos_settings = dypos.db.get_value(
 			"POS Settings",
 			{"enabled": 1, "pos_profile": pos_profile},
 			"default_loyalty_program",
@@ -240,7 +240,7 @@ def get_default_loyalty_program_from_settings(company=None, pos_profile=None):
 	if not company:
 		return None
 
-	pos_settings = frappe.get_all(
+	pos_settings = dypos.get_all(
 		"POS Settings",
 		filters={"enabled": 1, "default_loyalty_program": ["is", "set"]},
 		fields=["pos_profile", "default_loyalty_program"],
@@ -249,7 +249,7 @@ def get_default_loyalty_program_from_settings(company=None, pos_profile=None):
 
 	company_programs = []
 	for row in pos_settings:
-		profile_company = frappe.get_cached_value("POS Profile", row.pos_profile, "company")
+		profile_company = dypos.get_cached_value("POS Profile", row.pos_profile, "company")
 		if profile_company == company:
 			company_programs.append(row.default_loyalty_program)
 
@@ -260,7 +260,7 @@ def get_default_loyalty_program_from_settings(company=None, pos_profile=None):
 	return None
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_customer_details(customer):
 	"""
 	Get detailed customer information.
@@ -272,6 +272,6 @@ def get_customer_details(customer):
 	    dict: Customer details
 	"""
 	if not customer:
-		frappe.throw(_("Customer is required"))
+		dypos.throw(_("Customer is required"))
 
-	return frappe.get_cached_doc("Customer", customer).as_dict()
+	return dypos.get_cached_doc("Customer", customer).as_dict()

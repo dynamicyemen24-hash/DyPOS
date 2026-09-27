@@ -1211,7 +1211,7 @@ import {
 	roundCurrency,
 } from "@/utils/currency"
 import { getInvoiceStatusColor } from "@/utils/invoice"
-import { Button, Dialog, FeatherIcon, createResource } from "frappe-ui"
+import { Button, Dialog, FeatherIcon, createResource } from "dypos-ui"
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue"
 
 const { showSuccess, showError, showWarning } = useToast()
@@ -1363,7 +1363,7 @@ const searchInvoiceByNumberResource = createResource({
 
 // Resource for loading payment methods from POS Profile
 const loadPaymentMethodsResource = createResource({
-	url: "frappe.client.get",
+	url: "dypos.client.get",
 	makeParams() {
 		return {
 			doctype: "POS Profile",

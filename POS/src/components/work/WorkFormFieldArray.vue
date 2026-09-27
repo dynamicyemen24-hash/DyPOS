@@ -107,7 +107,7 @@
 <script setup>
 import { computed, watch } from "vue"
 import { t } from "@/utils/translation"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 import WorkFormField from "./WorkFormField.vue"
 
 const props = defineProps({

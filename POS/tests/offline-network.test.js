@@ -9,11 +9,11 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-vi.mock("frappe-ui", () => ({
+vi.mock("dypos-ui", () => ({
 	call: vi.fn(),
 }))
 
-import { call as frappeCall } from "frappe-ui"
+import { call as kitCall } from "dypos-ui"
 import { call } from "@/utils/apiWrapper"
 import { isRetryableError } from "@/utils/idempotency"
 import { isRetryable } from "@/utils/network"
@@ -27,7 +27,7 @@ function setOnline(value) {
 
 afterEach(() => {
 	setOnline(true)
-	vi.mocked(frappeCall).mockReset()
+	vi.mocked(kitCall).mockReset()
 })
 
 describe("offline verdicts are never retried", () => {
@@ -50,22 +50,22 @@ describe("offline verdicts are never retried", () => {
 describe("apiWrapper.call offline fast-fail", () => {
 	it("rejects in ms without touching the network", async () => {
 		setOnline(false)
-		vi.mocked(frappeCall).mockRejectedValueOnce(new Error("must not be called"))
+		vi.mocked(kitCall).mockRejectedValueOnce(new Error("must not be called"))
 		const started = Date.now()
 		await expect(call("DyPOS.api.ping", {})).rejects.toMatchObject({
 			offline: true,
 			code: "OFFLINE",
 		})
 		expect(Date.now() - started).toBeLessThan(1000)
-		expect(frappeCall).not.toHaveBeenCalled()
+		expect(kitCall).not.toHaveBeenCalled()
 	})
 
 	it("online path still performs the call", async () => {
 		setOnline(true)
-		vi.mocked(frappeCall).mockResolvedValueOnce({ pong: true })
+		vi.mocked(kitCall).mockResolvedValueOnce({ pong: true })
 		await expect(call("DyPOS.api.ping", {})).resolves.toEqual({
 			pong: true,
 		})
-		expect(frappeCall).toHaveBeenCalledTimes(1)
+		expect(kitCall).toHaveBeenCalledTimes(1)
 	})
 })

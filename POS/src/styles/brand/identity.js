@@ -21,8 +21,8 @@ export const brandColors = Object.freeze({
 		200: "#99CBCB",
 		300: "#66B2B2",
 		400: "#339999",
-		500: "#0D8080",   // Primary brand
-		600: "#0D6E6E",   // Primary hover (core)
+		500: "#0D8080", // Primary brand
+		600: "#0D6E6E", // Primary hover (core)
 		700: "#0A5252",
 		800: "#083C3C",
 		900: "#052626",
@@ -35,8 +35,8 @@ export const brandColors = Object.freeze({
 		200: "#F4E1BB",
 		300: "#EDD299",
 		400: "#E6C377",
-		500: "#DFB455",   // Accent base
-		600: "#C8A951",   // Accent hover (core gold)
+		500: "#DFB455", // Accent base
+		600: "#C8A951", // Accent hover (core gold)
 		700: "#A08841",
 		800: "#786631",
 		900: "#503318",
@@ -45,27 +45,27 @@ export const brandColors = Object.freeze({
 
 	// Semantic surface colors — warm neutral with teal undertone
 	surface: {
-		base: "#FEFEFE",        // Pure white
-		raised: "#FFFFFF",      // Cards, modals
-		overlay: "#F7FAFA",     // Subtle teal tint
-		sunken: "#EEF2F2",      // Input backgrounds
-		border: "#D5DBDB",      // Dividers
+		base: "#FEFEFE", // Pure white
+		raised: "#FFFFFF", // Cards, modals
+		overlay: "#F7FAFA", // Subtle teal tint
+		sunken: "#EEF2F2", // Input backgrounds
+		border: "#D5DBDB", // Dividers
 		borderStrong: "#B8C4C4", // Stronger borders
-		borderFocus: "#0D6E6E",  // Focus rings
+		borderFocus: "#0D6E6E", // Focus rings
 	},
 
 	// Text colors — high contrast, warm undertones
 	text: {
-		primary: "#0F1A1A",      // Near black with teal
-		secondary: "#2D3A3A",    // Body text
-		muted: "#5A6E6E",        // Captions, placeholders
-		disabled: "#8A9E9E",     // Disabled
-		inverse: "#FFFFFF",      // On dark surfaces
-		link: "#0D6E6E",         // Links
+		primary: "#0F1A1A", // Near black with teal
+		secondary: "#2D3A3A", // Body text
+		muted: "#5A6E6E", // Captions, placeholders
+		disabled: "#8A9E9E", // Disabled
+		inverse: "#FFFFFF", // On dark surfaces
+		link: "#0D6E6E", // Links
 		linkHover: "#0A5252",
-		linkVisited: "#5A3D8A",  // Purple-teal for visited
-		onAccent: "#1A1508",     // On gold backgrounds
-		onPrimary: "#FFFFFF",    // On teal backgrounds
+		linkVisited: "#5A3D8A", // Purple-teal for visited
+		onAccent: "#1A1508", // On gold backgrounds
+		onPrimary: "#FFFFFF", // On teal backgrounds
 	},
 
 	// Status colors — unique to DyPOS palette
@@ -170,7 +170,7 @@ export const brandColors = Object.freeze({
 		"#3C6E6E", // Deep teal
 		"#A08841", // Brass
 	],
-});
+})
 
 // ============================================================================
 // TYPOGRAPHY — Custom Arabic/Latin pairing
@@ -183,7 +183,8 @@ export const typography = Object.freeze({
 		// Latin: Custom Inter variant with Arabic-aware metrics
 		// Numbers: Tabular figures for POS amounts
 		sans: "'DyPOS Arabic', 'Cairo Variable', 'Noto Sans Arabic', system-ui, sans-serif",
-		sansLatin: "'DyPOS Latin', 'Inter Variable', 'Inter', system-ui, sans-serif",
+		sansLatin:
+			"'DyPOS Latin', 'Inter Variable', 'Inter', system-ui, sans-serif",
 		mono: "'DyPOS Mono', 'JetBrains Mono Variable', 'Fira Code', monospace",
 		numbers: "'DyPOS Numbers', 'Cairo Variable', 'Tabular-nums', monospace",
 		// Display: Larger headings with custom weight
@@ -211,15 +212,15 @@ export const typography = Object.freeze({
 	fontSize: {
 		// Mobile-first fluid scaling
 		"2xs": { min: "0.625rem", max: "0.6875rem", lineHeight: 1.5 }, // 10-11px
-		xs: { min: "0.70rem", max: "0.75rem", lineHeight: 1.5 },      // 11-12px
-		sm: { min: "0.81rem", max: "0.875rem", lineHeight: 1.6 },     // 13-14px
-		base: { min: "0.94rem", max: "1rem", lineHeight: 1.7 },       // 15-16px
-		lg: { min: "1.06rem", max: "1.125rem", lineHeight: 1.7 },     // 17-18px
-		xl: { min: "1.25rem", max: "1.25rem", lineHeight: 1.6 },      // 20px
-		"2xl": { min: "1.5rem", max: "1.5rem", lineHeight: 1.5 },     // 24px
+		xs: { min: "0.70rem", max: "0.75rem", lineHeight: 1.5 }, // 11-12px
+		sm: { min: "0.81rem", max: "0.875rem", lineHeight: 1.6 }, // 13-14px
+		base: { min: "0.94rem", max: "1rem", lineHeight: 1.7 }, // 15-16px
+		lg: { min: "1.06rem", max: "1.125rem", lineHeight: 1.7 }, // 17-18px
+		xl: { min: "1.25rem", max: "1.25rem", lineHeight: 1.6 }, // 20px
+		"2xl": { min: "1.5rem", max: "1.5rem", lineHeight: 1.5 }, // 24px
 		"3xl": { min: "1.875rem", max: "1.875rem", lineHeight: 1.4 }, // 30px
-		"4xl": { min: "2.25rem", max: "2.25rem", lineHeight: 1.3 },   // 36px
-		"5xl": { min: "3rem", max: "3rem", lineHeight: 1.2 },         // 48px
+		"4xl": { min: "2.25rem", max: "2.25rem", lineHeight: 1.3 }, // 36px
+		"5xl": { min: "3rem", max: "3rem", lineHeight: 1.2 }, // 48px
 		// Display sizes
 		"display-sm": { min: "2.5rem", max: "3rem", lineHeight: 1.2 },
 		"display-md": { min: "3.5rem", max: "4rem", lineHeight: 1.15 },
@@ -250,7 +251,7 @@ export const typography = Object.freeze({
 		arabicNormal: "0.01em",
 		arabicWide: "0.03em",
 	},
-});
+})
 
 // ============================================================================
 // SPACING — 4px base, musical scale
@@ -259,29 +260,29 @@ export const typography = Object.freeze({
 export const spacing = Object.freeze({
 	0: "0",
 	px: "1px",
-	0.5: "0.125rem",  // 2px
-	1: "0.25rem",     // 4px
-	1.5: "0.375rem",  // 6px
-	2: "0.5rem",      // 8px
-	2.5: "0.625rem",  // 10px
-	3: "0.75rem",     // 12px
-	3.5: "0.875rem",  // 14px
-	4: "1rem",        // 16px
-	5: "1.25rem",     // 20px
-	6: "1.5rem",      // 24px
-	7: "1.75rem",     // 28px
-	8: "2rem",        // 32px
-	9: "2.25rem",     // 36px
-	10: "2.5rem",     // 40px
-	11: "2.75rem",    // 44px
-	12: "3rem",       // 48px
-	14: "3.5rem",     // 56px
-	16: "4rem",       // 64px
-	20: "5rem",       // 80px
-	24: "6rem",       // 96px
-	28: "7rem",       // 112px
-	32: "8rem",       // 128px
-});
+	0.5: "0.125rem", // 2px
+	1: "0.25rem", // 4px
+	1.5: "0.375rem", // 6px
+	2: "0.5rem", // 8px
+	2.5: "0.625rem", // 10px
+	3: "0.75rem", // 12px
+	3.5: "0.875rem", // 14px
+	4: "1rem", // 16px
+	5: "1.25rem", // 20px
+	6: "1.5rem", // 24px
+	7: "1.75rem", // 28px
+	8: "2rem", // 32px
+	9: "2.25rem", // 36px
+	10: "2.5rem", // 40px
+	11: "2.75rem", // 44px
+	12: "3rem", // 48px
+	14: "3.5rem", // 56px
+	16: "4rem", // 64px
+	20: "5rem", // 80px
+	24: "6rem", // 96px
+	28: "7rem", // 112px
+	32: "8rem", // 128px
+})
 
 // ============================================================================
 // RADIUS — Organic, friendly
@@ -289,18 +290,18 @@ export const spacing = Object.freeze({
 
 export const radius = Object.freeze({
 	none: "0",
-	xs: "0.125rem",   // 2px
-	sm: "0.25rem",    // 4px
-	md: "0.375rem",   // 6px
-	lg: "0.5rem",     // 8px
-	xl: "0.75rem",    // 12px
-	"2xl": "1rem",    // 16px
-	"3xl": "1.5rem",  // 24px
+	xs: "0.125rem", // 2px
+	sm: "0.25rem", // 4px
+	md: "0.375rem", // 6px
+	lg: "0.5rem", // 8px
+	xl: "0.75rem", // 12px
+	"2xl": "1rem", // 16px
+	"3xl": "1.5rem", // 24px
 	full: "9999px",
 	// Organic shapes
 	pill: "9999px",
 	blob: "60% 40% 30% 70% / 60% 30% 70% 40%",
-});
+})
 
 // ============================================================================
 // ELEVATION — Layered, soft shadows with teal tint
@@ -325,7 +326,7 @@ export const elevation = Object.freeze({
 		2: "0 4px 8px 0 rgba(200, 169, 81, 0.3)",
 	},
 	inner: "inset 0 2px 4px 0 rgba(13, 38, 38, 0.05)",
-});
+})
 
 // ============================================================================
 // MOTION — Personality-driven, respects reduced motion
@@ -334,12 +335,12 @@ export const elevation = Object.freeze({
 export const motion = Object.freeze({
 	duration: {
 		instant: "0ms",
-		whisper: "50ms",      // Micro-interactions
-		fast: "120ms",        // Hover, simple transitions
-		normal: "180ms",      // Standard transitions
-		slow: "280ms",        // Modals, drawers
-		slower: "400ms",      // Page transitions
-		slowest: "600ms",     // Complex animations
+		whisper: "50ms", // Micro-interactions
+		fast: "120ms", // Hover, simple transitions
+		normal: "180ms", // Standard transitions
+		slow: "280ms", // Modals, drawers
+		slower: "400ms", // Page transitions
+		slowest: "600ms", // Complex animations
 	},
 	easing: {
 		linear: "linear",
@@ -360,7 +361,7 @@ export const motion = Object.freeze({
 		duration: "0.01ms",
 		easing: "linear",
 	},
-});
+})
 
 // ============================================================================
 // ICONS — Custom DyPOS icon system (not Feather)
@@ -387,13 +388,13 @@ export const icons = Object.freeze({
 	},
 	// Visual style
 	style: {
-		corner: "round",      // Rounded corners
-		cap: "round",         // Rounded caps
-		join: "round",        // Rounded joins
+		corner: "round", // Rounded corners
+		cap: "round", // Rounded caps
+		join: "round", // Rounded joins
 		// Optical adjustments for Arabic context
 		arabicAdjust: true,
 	},
-});
+})
 
 // ============================================================================
 // ILLUSTRATIONS — Custom style for empty/loading/error states
@@ -428,11 +429,11 @@ export const illustrations = Object.freeze({
 	},
 	// Character proportions (for human illustrations)
 	character: {
-		headBodyRatio: 1/3.5,
+		headBodyRatio: 1 / 3.5,
 		limbThickness: "medium",
 		style: "geometric-friendly",
 	},
-});
+})
 
 // ============================================================================
 // BREAKPOINTS — Mobile-first
@@ -446,7 +447,7 @@ export const breakpoints = Object.freeze({
 	xl: "1280px",
 	"2xl": "1440px",
 	"3xl": "1600px",
-});
+})
 
 // ============================================================================
 // LAYOUT — Containers, grids
@@ -478,7 +479,7 @@ export const layout = Object.freeze({
 	contentMaxWidth: "1400px",
 	contentPadding: "1.5rem",
 	contentPaddingMobile: "1rem",
-});
+})
 
 // ============================================================================
 // GRID — 12-column
@@ -496,7 +497,7 @@ export const grid = Object.freeze({
 		xl: "1280px",
 		"2xl": "1440px",
 	},
-});
+})
 
 // ============================================================================
 // DENSITY — Compact / Comfortable / Spacious
@@ -521,7 +522,7 @@ export const density = Object.freeze({
 		controlHeight: "48px",
 		iconSize: "24px",
 	},
-});
+})
 
 // ============================================================================
 // Z-INDEX
@@ -537,7 +538,7 @@ export const zIndex = Object.freeze({
 	tooltip: 600,
 	toast: 700,
 	skipLink: 9999,
-});
+})
 
 // ============================================================================
 // TRANSITIONS
@@ -549,11 +550,12 @@ export const transition = Object.freeze({
 	normal: "all 180ms ease",
 	slow: "all 280ms ease",
 	slower: "all 400ms ease",
-	colors: "background-color 180ms ease, color 180ms ease, border-color 180ms ease",
+	colors:
+		"background-color 180ms ease, color 180ms ease, border-color 180ms ease",
 	transform: "transform 180ms ease",
 	opacity: "opacity 180ms ease",
 	shadow: "box-shadow 180ms ease",
-});
+})
 
 // ============================================================================
 // BORDERS
@@ -568,7 +570,7 @@ export const border = Object.freeze({
 		heavy: "3px",
 	},
 	style: "solid",
-});
+})
 
 // ============================================================================
 // ACCESSIBILITY — WCAG 2.2 AA
@@ -593,7 +595,7 @@ export const a11y = Object.freeze({
 		aaaNormal: 7,
 		aaaLarge: 4.5,
 	},
-});
+})
 
 // ============================================================================
 // COMPONENT DEFAULTS
@@ -706,7 +708,7 @@ export const components = Object.freeze({
 		height: "24px",
 		thumbSize: "18px",
 	},
-});
+})
 
 // ============================================================================
 // EXPORT ALL TOKENS
@@ -730,7 +732,7 @@ export const tokens = Object.freeze({
 	border,
 	a11y,
 	components,
-});
+})
 
 /**
  * Generate CSS Custom Properties for runtime theming.

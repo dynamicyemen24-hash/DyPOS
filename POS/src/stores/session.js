@@ -4,7 +4,7 @@
  * Chains: tenant → auth → session → permissions → branch → terminal →
  *         shift → offline sync → POS
  *
- * Wraps the low-level frappe session (data/session.js) and orchestrates the
+ * Wraps the low-level dypossession (data/session.js) and orchestrates the
  * rest of the runtime: bootstrap data, POS context, permission preload, shift
  * resolution and the platform sync manager lifecycle.
  *
@@ -15,7 +15,7 @@
 import { computed, ref } from "vue"
 import { defineStore } from "pinia"
 
-import { session as frappeSession } from "@/data/session"
+import { session as localSession } from "@/data/session"
 import { userResource, userData } from "@/data/user"
 import { shiftState, useShift } from "@/composables/useShift"
 import { usePermissions } from "@/composables/usePermissions"
@@ -75,8 +75,8 @@ export function normalizeInvoiceForSync(payload) {
 }
 
 export const useSessionStore = defineStore("session", () => {
-	// Low-level frappe session layer (source of truth for user identity).
-	const lowSession = frappeSession
+	// Low-level dypossession layer (source of truth for user identity).
+	const lowSession = localSession
 
 	// Runtime lifecycle
 	const isReady = ref(false)
@@ -127,7 +127,7 @@ export const useSessionStore = defineStore("session", () => {
 	// --------------------------------------------------------------------
 
 	/**
-	 * Log in with the current frappe session contract ({ usr, pwd }).
+	 * Log in with the current dypossession contract ({ usr, pwd }).
 	 * @param {{ usr: string, pwd: string }} credentials
 	 * @returns {Promise<string|null>} The logged-in user id.
 	 */
@@ -148,7 +148,7 @@ export const useSessionStore = defineStore("session", () => {
 
 	/**
 	 * Centralized logout: stops the sync loop, revokes platform tokens,
-	 * tears down frappe session + local user data, resets store state.
+	 * tears down dypossession + local user data, resets store state.
 	 * @returns {Promise<boolean>}
 	 */
 	async function logout() {

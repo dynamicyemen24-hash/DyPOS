@@ -6,9 +6,9 @@ Wallet API for POS Next
 Handles wallet payments, validation, and loyalty points conversion
 """
 
-import frappe
-from frappe import _
-from frappe.utils import cint, flt
+import dypos
+from dyposimport _
+from dypos.utils import cint, flt
 
 
 def validate_wallet_payment(doc, method=None):
@@ -29,10 +29,10 @@ def validate_wallet_payment(doc, method=None):
 	wallet_balance = get_customer_wallet_balance(doc.customer, doc.company, exclude_invoice=doc.name)
 
 	if wallet_amount > wallet_balance:
-		frappe.throw(
+		dypos.throw(
 			_("Insufficient wallet balance. Available: {0}, Requested: {1}").format(
-				frappe.format_value(wallet_balance, {"fieldtype": "Currency"}),
-				frappe.format_value(wallet_amount, {"fieldtype": "Currency"}),
+				dypos.format_value(wallet_balance, {"fieldtype": "Currency"}),
+				dypos.format_value(wallet_amount, {"fieldtype": "Currency"}),
 			),
 			title=_("Wallet Balance Error"),
 		)
@@ -57,14 +57,14 @@ def process_loyalty_to_wallet(doc, method=None):
 		return
 
 	# Check if customer has loyalty program
-	loyalty_program = frappe.db.get_value("Customer", doc.customer, "loyalty_program")
+	loyalty_program = dypos.db.get_value("Customer", doc.customer, "loyalty_program")
 	if not loyalty_program:
 		return
 
 	# Check if the invoice amount meets the applicable tier's min_spent threshold.
 	# Single Tier Program: the one rule's min_spent must be met.
 	# Multiple Tier Program: the invoice must reach at least the lowest tier's min_spent.
-	lp_doc = frappe.get_doc("Loyalty Program", loyalty_program)
+	lp_doc = dypos.get_doc("Loyalty Program", loyalty_program)
 	tiers = sorted(
 		[d.as_dict() for d in lp_doc.collection_rules],
 		key=lambda r: flt(r.get("min_spent")),
@@ -79,7 +79,7 @@ def process_loyalty_to_wallet(doc, method=None):
 		return
 
 	# Get the loyalty points earned from this invoice
-	loyalty_entry = frappe.db.get_value(
+	loyalty_entry = dypos.db.get_value(
 		"Loyalty Point Entry",
 		{"invoice_type": "Sales Invoice", "invoice": doc.name, "loyalty_points": [">", 0]},
 		["loyalty_points", "name"],
@@ -90,7 +90,7 @@ def process_loyalty_to_wallet(doc, method=None):
 		return
 
 	# Get conversion rate from Loyalty Program (standard DyPOS field)
-	conversion_rate = flt(frappe.db.get_value("Loyalty Program", loyalty_program, "conversion_factor")) or 1.0
+	conversion_rate = flt(dypos.db.get_value("Loyalty Program", loyalty_program, "conversion_factor")) or 1.0
 
 	# Calculate wallet credit amount
 	credit_amount = flt(loyalty_entry.loyalty_points) * conversion_rate
@@ -115,25 +115,25 @@ def process_loyalty_to_wallet(doc, method=None):
 			remarks=_("Loyalty points conversion from {0}: {1} points = {2}").format(
 				doc.name,
 				loyalty_entry.loyalty_points,
-				frappe.format_value(credit_amount, {"fieldtype": "Currency"}),
+				dypos.format_value(credit_amount, {"fieldtype": "Currency"}),
 			),
 			reference_doctype="Sales Invoice",
 			reference_name=doc.name,
 			submit=True,
 		)
 
-		frappe.msgprint(
+		dypos.msgprint(
 			_("Loyalty points converted to wallet: {0} points = {1}").format(
-				loyalty_entry.loyalty_points, frappe.format_value(credit_amount, {"fieldtype": "Currency"})
+				loyalty_entry.loyalty_points, dypos.format_value(credit_amount, {"fieldtype": "Currency"})
 			),
 			alert=True,
 			indicator="green",
 		)
 
 	except Exception as e:
-		frappe.log_error(
+		dypos.log_error(
 			title="Loyalty to Wallet Conversion Error",
-			message=f"Invoice: {doc.name}, Error: {e!s}\n{frappe.get_traceback()}",
+			message=f"Invoice: {doc.name}, Error: {e!s}\n{dypos.get_traceback()}",
 		)
 
 
@@ -147,7 +147,7 @@ def get_wallet_amount_from_payments(payments):
 		if not payment.mode_of_payment:
 			continue
 
-		is_wallet = frappe.db.get_value("Mode of Payment", payment.mode_of_payment, "is_wallet_payment")
+		is_wallet = dypos.db.get_value("Mode of Payment", payment.mode_of_payment, "is_wallet_payment")
 
 		if is_wallet:
 			wallet_amount += flt(payment.amount)
@@ -155,7 +155,7 @@ def get_wallet_amount_from_payments(payments):
 	return wallet_amount
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_customer_wallet_balance(customer, company=None, exclude_invoice=None):
 	"""
 	Get customer's available wallet balance.
@@ -179,7 +179,7 @@ def get_customer_wallet_balance(customer, company=None, exclude_invoice=None):
 		if company:
 			filters["company"] = company
 
-		wallet = frappe.db.get_value("Wallet", filters, ["name", "account"], as_dict=True)
+		wallet = dypos.db.get_value("Wallet", filters, ["name", "account"], as_dict=True)
 
 		if not wallet:
 			return 0.0
@@ -198,7 +198,7 @@ def get_customer_wallet_balance(customer, company=None, exclude_invoice=None):
 		return available_balance if available_balance > 0 else 0.0
 
 	except Exception:
-		frappe.log_error(frappe.get_traceback(), "Wallet Balance Error")
+		dypos.log_error(dypos.get_traceback(), "Wallet Balance Error")
 		return 0.0
 
 
@@ -208,7 +208,7 @@ def get_pending_wallet_payments(customer, exclude_invoice=None):
 	"""
 	filters = {"customer": customer, "docstatus": ["in", [0, 1]], "outstanding_amount": [">", 0], "is_pos": 1}
 
-	invoices = frappe.get_all("Sales Invoice", filters=filters, fields=["name"])
+	invoices = dypos.get_all("Sales Invoice", filters=filters, fields=["name"])
 
 	pending_amount = 0.0
 
@@ -216,26 +216,26 @@ def get_pending_wallet_payments(customer, exclude_invoice=None):
 		if exclude_invoice and invoice.name == exclude_invoice:
 			continue
 
-		payments = frappe.get_all(
+		payments = dypos.get_all(
 			"Sales Invoice Payment", filters={"parent": invoice.name}, fields=["mode_of_payment", "amount"]
 		)
 
 		for payment in payments:
-			is_wallet = frappe.db.get_value("Mode of Payment", payment.mode_of_payment, "is_wallet_payment")
+			is_wallet = dypos.db.get_value("Mode of Payment", payment.mode_of_payment, "is_wallet_payment")
 			if is_wallet:
 				pending_amount += flt(payment.amount)
 
 	return pending_amount
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_customer_wallet(customer, company=None):
 	"""Get wallet details for a customer."""
 	filters = {"customer": customer}
 	if company:
 		filters["company"] = company
 
-	wallet = frappe.db.get_value(
+	wallet = dypos.db.get_value(
 		"Wallet",
 		filters,
 		["name", "customer", "company", "account", "status", "current_balance"],
@@ -252,12 +252,12 @@ def get_customer_wallet(customer, company=None):
 def create_wallet_on_customer_insert(doc, method=None):
 	"""Hook: after_insert on Customer. Creates a wallet for the default company
 	only when auto_create_wallet is enabled in POS Settings."""
-	company = frappe.get_cached_value("Global Defaults", "Global Defaults", "default_company")
+	company = dypos.get_cached_value("Global Defaults", "Global Defaults", "default_company")
 	if not company:
 		return
 
 	# Only auto-create wallets when a POS profile with auto_create_wallet exists
-	pos_profile = frappe.db.get_value("POS Profile", {"company": company, "disabled": 0}, "name")
+	pos_profile = dypos.db.get_value("POS Profile", {"company": company, "disabled": 0}, "name")
 	if not pos_profile:
 		return
 
@@ -268,15 +268,15 @@ def create_wallet_on_customer_insert(doc, method=None):
 	try:
 		get_or_create_wallet(doc.name, company, pos_settings=pos_settings)
 	except Exception:
-		frappe.log_error(frappe.get_traceback(), f"Wallet auto-create failed for {doc.name}")
+		dypos.log_error(dypos.get_traceback(), f"Wallet auto-create failed for {doc.name}")
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_or_create_wallet(customer, company, pos_settings=None, force_create=False):
 	"""Get existing wallet or create a new one."""
 
 	# Check if wallet exists
-	wallet = frappe.db.get_value(
+	wallet = dypos.db.get_value(
 		"Wallet",
 		{"customer": customer, "company": company},
 		["name", "customer", "company", "account", "status"],
@@ -288,7 +288,7 @@ def get_or_create_wallet(customer, company, pos_settings=None, force_create=Fals
 
 	# Check if auto-create is enabled
 	if not pos_settings:
-		pos_profile = frappe.db.get_value("POS Profile", {"company": company, "disabled": 0}, "name")
+		pos_profile = dypos.db.get_value("POS Profile", {"company": company, "disabled": 0}, "name")
 		if pos_profile:
 			pos_settings = get_pos_settings(pos_profile)
 
@@ -302,7 +302,7 @@ def get_or_create_wallet(customer, company, pos_settings=None, force_create=Fals
 
 	if not wallet_account:
 		# Try to find a receivable account with 'wallet' in name
-		wallet_account = frappe.db.get_value(
+		wallet_account = dypos.db.get_value(
 			"Account",
 			{"company": company, "account_type": "Receivable", "is_group": 0, "name": ["like", "%wallet%"]},
 			"name",
@@ -310,17 +310,17 @@ def get_or_create_wallet(customer, company, pos_settings=None, force_create=Fals
 
 	if not wallet_account:
 		# Use default receivable account
-		wallet_account = frappe.get_cached_value("Company", company, "default_receivable_account")
+		wallet_account = dypos.get_cached_value("Company", company, "default_receivable_account")
 
 	if not wallet_account:
-		frappe.log_error(
+		dypos.log_error(
 			f"Cannot create wallet for {customer}: No wallet account configured", "Wallet Creation Error"
 		)
 		return None
 
 	# Create new wallet
 	try:
-		wallet_doc = frappe.get_doc(
+		wallet_doc = dypos.get_doc(
 			{
 				"doctype": "Wallet",
 				"customer": customer,
@@ -334,7 +334,7 @@ def get_or_create_wallet(customer, company, pos_settings=None, force_create=Fals
 		return wallet_doc
 
 	except Exception as e:
-		frappe.log_error(f"Failed to create wallet for {customer}: {e!s}", "Wallet Creation Error")
+		dypos.log_error(f"Failed to create wallet for {customer}: {e!s}", "Wallet Creation Error")
 		return None
 
 
@@ -343,7 +343,7 @@ def get_pos_settings(pos_profile):
 	if not pos_profile:
 		return None
 
-	return frappe.db.get_value(
+	return dypos.db.get_value(
 		"POS Settings",
 		{"pos_profile": pos_profile},
 		[
@@ -357,16 +357,16 @@ def get_pos_settings(pos_profile):
 	)
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_wallet_payment_methods(pos_profile):
 	"""Get payment methods that are wallet-enabled for a POS profile."""
-	payment_methods = frappe.get_all(
+	payment_methods = dypos.get_all(
 		"POS Payment Method", filters={"parent": pos_profile}, fields=["mode_of_payment", "default"]
 	)
 
 	wallet_methods = []
 	for method in payment_methods:
-		is_wallet = frappe.db.get_value("Mode of Payment", method.mode_of_payment, "is_wallet_payment")
+		is_wallet = dypos.db.get_value("Mode of Payment", method.mode_of_payment, "is_wallet_payment")
 		if is_wallet:
 			wallet_methods.append(
 				{
@@ -379,7 +379,7 @@ def get_wallet_payment_methods(pos_profile):
 	return wallet_methods
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_wallet_info(customer, company, pos_profile=None):
 	"""
 	Get comprehensive wallet information for a customer.
@@ -410,7 +410,7 @@ def get_wallet_info(customer, company, pos_profile=None):
 		return result
 
 	# Get wallet details (support both DyPOS and wallete status values)
-	wallet = frappe.db.get_value(
+	wallet = dypos.db.get_value(
 		"Wallet",
 		{"customer": customer, "company": company, "status": ["in", ["Active", "active"]]},
 		["name", "account"],
@@ -432,7 +432,7 @@ def get_wallet_info(customer, company, pos_profile=None):
 				)
 				result["wallet_balance"] = 0.0  # New wallet starts with 0 balance
 		except Exception as e:
-			frappe.log_error(
+			dypos.log_error(
 				title="Auto-create Wallet Error",
 				message=f"Customer: {customer}, Company: {company}, Error: {e!s}",
 			)
@@ -440,7 +440,7 @@ def get_wallet_info(customer, company, pos_profile=None):
 	return result
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def create_manual_wallet_credit(customer, company, amount, remarks=None):
 	"""
 	Create a manual wallet credit (for admin use).
@@ -454,16 +454,16 @@ def create_manual_wallet_credit(customer, company, amount, remarks=None):
 	Returns:
 		Wallet Transaction document name
 	"""
-	frappe.has_permission("Wallet Transaction", "create", throw=True)
+	dypos.has_permission("Wallet Transaction", "create", throw=True)
 
 	if flt(amount) <= 0:
-		frappe.throw(_("Amount must be greater than zero"))
+		dypos.throw(_("Amount must be greater than zero"))
 
 	# Manual credits should be able to create wallets even when POS auto-create is disabled.
 	wallet = get_or_create_wallet(customer, company, force_create=True)
 
 	if not wallet:
-		frappe.throw(_("Could not create wallet for customer {0}").format(customer))
+		dypos.throw(_("Could not create wallet for customer {0}").format(customer))
 
 	from DyPOS.DyPOS.doctype.wallet_transaction.wallet_transaction import create_wallet_credit
 

@@ -2,7 +2,7 @@
  * Method coverage contract — the POS frontend must never call a
  * /api/method/* path the server doesn't handle (404 "طريقة غير معروفة").
  *
- * Scans POS/src for static frappe call("...") + createResource url:"..."
+ * Scans POS/src for static call("...") + createResource url:"..."
  * method strings and asserts each one is registered in routes/method.js
  * (case-sensitive handlers map, which already includes the lowercase
  * dypos.* aliases). Exit 1 with the missing list.
@@ -29,7 +29,7 @@ function walk(dir) {
 }
 walk(posSrc);
 
-const methods = [...used].filter((m) => /^(DyPOS|dypos|frappe|login|logout|upload_file|get_)[\w.]*$/.test(m));
+const methods = [...used].filter((m) => /^(DyPOS|dypos|dypos|login|logout|upload_file|get_)[\w.]*$/.test(m));
 
 const { handlers } = await import('../routes/method.js');
 

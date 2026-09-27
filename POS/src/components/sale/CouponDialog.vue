@@ -238,7 +238,7 @@ import {
 import { logger } from "@/utils/logger"
 
 const log = logger.create("Coupon")
-import { Button, Dialog, Input, createResource } from "frappe-ui"
+import { Button, Dialog, Input, createResource } from "dypos-ui"
 import { ref, watch } from "vue"
 import { useInvoice } from "@/composables/useInvoice"
 import { useToast } from "@/composables/useToast"
@@ -382,7 +382,7 @@ async function applyCoupon() {
 
 	try {
 		await couponResource.reload()
-		// Frappe wraps response in { message: {...} }
+		// wraps the response in { message: {...} }
 		const result = couponResource.data?.message || couponResource.data
 
 		// Handle if result is the actual response object

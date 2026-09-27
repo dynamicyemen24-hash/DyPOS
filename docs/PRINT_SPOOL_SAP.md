@@ -250,7 +250,7 @@ finished_at, requested_by, terminal_id, reprint_of, payload_hash`. يُرفع ع
 ### تنفيذ التقديم
 - `formRenderer.render(job)` → `{html, paper, orientation, printer}`:
   - يستخدم `buildReceiptHTML` (الموجود) للمستندات المحلية/المؤجلة.
-  - يستخدم `frappe.www.printview.get_html_and_style` أو `silentPrintDoc`
+  - يستخدم `dypos.www.printview.get_html_and_style` أو `silentPrintDoc`
     للمستندات المسجلة — عبر `printInvoice.js` الحالي دون تغيير المسارات.
   - يدمج `printStyles` عند الحاجة (لوحات/تقارير A4).
 - **لا يحدث أي طبع من داخل الـ renderer** — يعيد الـ HTML فقط.

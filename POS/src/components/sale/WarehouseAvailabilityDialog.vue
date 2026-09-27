@@ -853,7 +853,7 @@
  * Translations: All user-facing strings use __() for i18n
  */
 import { ref, computed, watch, nextTick } from "vue"
-import { call, Dialog } from "frappe-ui"
+import { call, Dialog } from "dypos-ui"
 import { __ } from "@/utils/translation"
 import { logger } from "@/utils/logger"
 

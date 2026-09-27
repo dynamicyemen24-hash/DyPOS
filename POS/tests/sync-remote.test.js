@@ -95,7 +95,7 @@ describe("pingDestination / loginDestination", () => {
 describe("mapInvoiceForRemote", () => {
 	const map = new Map([["A1", "uuid-a1"]])
 
-	it("maps Frappe lines to REST lines, drops nothing silently", () => {
+	it("maps method lines to REST lines, drops nothing silently", () => {
 		const r = mapInvoiceForRemote(
 			{
 				offline_id: "pos_offline_1",

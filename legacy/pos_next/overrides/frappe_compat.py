@@ -11,7 +11,7 @@ def patch_round_floats_in_signature(document_class):
 	DyPOS (newer) calls:
 	    doc.round_floats_in(row, do_not_round_fields=[...])
 
-	Older Frappe implementations only accept:
+	Older dyposimplementations only accept:
 	    round_floats_in(doc, fieldnames=None)
 	"""
 

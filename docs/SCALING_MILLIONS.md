@@ -52,7 +52,7 @@
 | `sync/push` fail-closed للأنواع المجهولة | No silent loss | `routes/sync.js` | بدل `SYNCED` كاذب → `FAILED` صريح |
 | QR زاتكا TLV (Base64) عند ضبط `DYPOS_VAT_NUMBER` | ZATCA e-invoicing | `routes/print.js` | `X-QR-Kind: zatca-tlv` جاهز للامتثال |
 | `GET /shifts` + تحقق `closingCash` + تحقق `customers PUT` | Validation parity | `routes/*` | تدقيق الورديات + بيانات نظيفة |
-| تقسيم حِزم الواجهة (`vendor-frappe/charts/realtime/print`) + `target es2020` + `chunkLimit 500` + قاعدة `flagcdn` | Web performance budget | `POS/vite.config.js` | كاش طويل الأمد + PWA أخف |
+| تقسيم حِزم الواجهة (`vendor-dypos/charts/realtime/print`) + `target es2020` + `chunkLimit 500` + قاعدة `flagcdn` | Web performance budget | `POS/vite.config.js` | كاش طويل الأمد + PWA أخف |
 | إصلاح `POSFooter` (كان يستورد `useI18n` غير الموجود → كسر البناء) | Build integrity | `POS/.../POSFooter.vue` | البناء لا ينكسر عند التوسع |
 
 ## 3. التشغيل (SRE)

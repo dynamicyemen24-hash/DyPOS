@@ -1,9 +1,9 @@
 # Copyright (c) 2026, BrainWise and contributors
 # For license information, please see license.txt
 
-import frappe
-from frappe import _
-from frappe.utils import flt
+import dypos
+from dyposimport _
+from dypos.utils import flt
 
 
 def execute(filters=None):
@@ -79,7 +79,7 @@ def get_data(filters):
 		ORDER BY total_sales DESC
 	"""
 
-	data = frappe.db.sql(query, filters, as_dict=1)
+	data = dypos.db.sql(query, filters, as_dict=1)
 
 	# Query 2: Shifts worked per cashier via Sales Invoice Reference
 	# Count distinct closing shifts that contain at least one invoice owned by this cashier
@@ -94,13 +94,13 @@ def get_data(filters):
 		GROUP BY pcs.user
 	"""
 
-	shift_data = frappe.db.sql(shift_query, filters, as_dict=1)
+	shift_data = dypos.db.sql(shift_query, filters, as_dict=1)
 	shift_map = {row.cashier: row.shifts_worked for row in shift_data}
 
 	# Get cashier names and calculate derived metrics
 	for row in data:
 		row.shifts_worked = shift_map.get(row.cashier, 0)
-		row.cashier_name = frappe.db.get_value("User", row.cashier, "full_name")
+		row.cashier_name = dypos.db.get_value("User", row.cashier, "full_name")
 
 		# Calculate derived metrics
 		if row.invoice_count > 0:

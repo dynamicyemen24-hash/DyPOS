@@ -1,7 +1,7 @@
 # Copyright (c) 2025, المنافذ الذكية للبرمجيات
 # For license information, please see license.txt
 
-import frappe
+import dypos
 
 
 def after_install():
@@ -12,13 +12,13 @@ def after_install():
     setup_workspace()
     setup_notifications()
     setup_home_page()
-    frappe.clear_cache()
+    dypos.clear_cache()
 
 
 def setup_company():
     """Create default company"""
-    if not frappe.db.exists("Company", "المنافذ الذكية للبرمجيات"):
-        company = frappe.get_doc(
+    if not dypos.db.exists("Company", "المنافذ الذكية للبرمجيات"):
+        company = dypos.get_doc(
             {
                 "doctype": "Company",
                 "company_name": "المنافذ الذكية للبرمجيات",
@@ -54,17 +54,17 @@ def setup_roles():
     ]
 
     for role in roles:
-        if not frappe.db.exists("Role", role["role_name"]):
-            doc = frappe.get_doc(role)
+        if not dypos.db.exists("Role", role["role_name"]):
+            doc = dypos.get_doc(role)
             doc.insert(ignore_permissions=True)
 
 
 def setup_print_formats():
     """Setup print formats"""
-    if not frappe.db.exists("Print Format", "POS Next Receipt"):
+    if not dypos.db.exists("Print Format", "POS Next Receipt"):
         return
 
-    doc = frappe.get_doc("Print Format", "POS Next Receipt")
+    doc = dypos.get_doc("Print Format", "POS Next Receipt")
     if not doc.html or "المنافذ الذكية" not in str(doc.html):
         doc.html = get_receipt_html()
         doc.save()
@@ -72,8 +72,8 @@ def setup_print_formats():
 
 def setup_workspace():
     """Setup workspace"""
-    if not frappe.db.exists("Workspace", "DyPOS"):
-        doc = frappe.get_doc(
+    if not dypos.db.exists("Workspace", "DyPOS"):
+        doc = dypos.get_doc(
             {
                 "doctype": "Workspace",
                 "name": "DyPOS",
@@ -132,5 +132,5 @@ def before_migrate():
 
 def after_migrate():
     """After migrate"""
-    frappe.reload_doc("DyPOS", "doctype", "pos_settings")
-    frappe.clear_cache()
+    dypos.reload_doc("DyPOS", "doctype", "pos_settings")
+    dypos.clear_cache()

@@ -1,9 +1,9 @@
-/**
+﻿/**
  * Enterprise Resilience Patterns
  * Circuit Breaker, Retry with Backoff, Bulkhead, Timeout
  */
 
-import { logger, childSafe } from "./logger.js"
+import { childSafe } from "./logger.js"
 
 const log = childSafe({ component: "Resilience" })
 
@@ -86,7 +86,7 @@ function onSuccess(circuit) {
 	}
 }
 
-function onFailure(circuit, error) {
+function onFailure(circuit, _error) {
 	circuit.failures++
 	circuit.lastFailure = Date.now()
 	circuit.successes = 0

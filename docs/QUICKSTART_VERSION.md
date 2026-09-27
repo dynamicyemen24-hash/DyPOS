@@ -6,7 +6,7 @@
 
 ```bash
 # Application version
-cd /home/ubuntu/frappe-bench
+cd /home/ubuntu/dypos-bench
 bench --site nexus.local execute DyPOS.utils.get_app_version
 # Output: "1.0.0"
 
@@ -18,7 +18,7 @@ bench --site nexus.local execute DyPOS.utils.get_build_version
 ### Bump Version
 
 ```bash
-cd /home/ubuntu/frappe-bench/apps/DyPOS
+cd /home/ubuntu/dypos-bench/apps/DyPOS
 
 # Patch release (1.0.0 → 1.0.1) - Bug fixes
 ./scripts/version-bump.sh patch
@@ -67,7 +67,7 @@ git push origin develop --tags
 cd POS && yarn build
 
 # 3. Test locally
-cd /home/ubuntu/frappe-bench
+cd /home/ubuntu/dypos-bench
 bench --site nexus.local execute DyPOS.utils.get_build_version
 
 # 4. Commit and tag
@@ -90,7 +90,7 @@ yarn build
 cat ../DyPOS/public/pos/version.json
 
 # 3. Restart bench (optional, for backend changes)
-cd /home/ubuntu/frappe-bench
+cd /home/ubuntu/dypos-bench
 bench restart
 ```
 

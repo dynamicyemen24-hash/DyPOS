@@ -370,7 +370,7 @@ import {
 import { logger } from "@/utils/logger"
 
 const log = logger.create("ItemSelection")
-import { createResource } from "frappe-ui"
+import { createResource } from "dypos-ui"
 import { computed, nextTick, ref, watch } from "vue"
 import TranslatedHTML from "../common/TranslatedHTML.vue"
 import { offlineState } from "@/utils/offline/offlineState"

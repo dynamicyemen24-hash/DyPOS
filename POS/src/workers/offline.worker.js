@@ -1553,7 +1553,7 @@ async function fetchStockFromServer() {
 
 		// Add CSRF token if available
 		if (csrfToken) {
-			headers["X-Frappe-CSRF-Token"] = csrfToken
+			headers["X-DyPOS-CSRF-Token"] = csrfToken
 		}
 
 		const response = await fetch(

@@ -93,9 +93,22 @@ export interface WorkflowTransition {
 
 /** Guard (condition) */
 export interface WorkflowGuard {
-	type: "expression" | "function" | "role" | "permission" | "custom"
-	expression?: string // JavaScript expression evaluating to boolean
-	function?: string // function name to call
+	/**
+	 * Only data-driven and real-callback guards are supported.
+	 *
+	 * Two kinds were REMOVED because neither could be made safe:
+	 * - `"expression"` compiled a definition-supplied string with
+	 *   `new Function(...)`. Since definitions can arrive via
+	 *   `importDefinition`, that was arbitrary code execution inside a context
+	 *   holding every sale, stock and customer record in IndexedDB.
+	 * - `"function"` named a function to call but was never implemented; it
+	 *   returned `true`, so the guard silently always passed (fail-open).
+	 *
+	 * Both now fall through to the `default` branch, which fails CLOSED.
+	 * Use `"role"`, `"permission"`, or `"custom"` (a real callback, which
+	 * cannot be expressed in JSON and so cannot be injected).
+	 */
+	type: "role" | "permission" | "custom"
 	roles?: string[] // required roles
 	permissions?: string[] // required permissions
 	customFn?: (context: WorkflowContext) => Promise<boolean> | boolean
@@ -552,13 +565,6 @@ export class WorkflowEngine {
 		for (const g of guards) {
 			let passed = false
 			switch (g.type) {
-				case "expression":
-					try {
-						passed = new Function("ctx", `return ${g.expression}`)(context)
-					} catch {
-						passed = false
-					}
-					break
 				case "role":
 					passed = g.roles?.some((r) => context.user.roles.includes(r)) ?? false
 					break
@@ -567,13 +573,15 @@ export class WorkflowEngine {
 						g.permissions?.some((p) => context.user.permissions.includes(p)) ??
 						false
 					break
-				case "function":
-					// Would call registered function
-					passed = true
-					break
 				case "custom":
 					if (g.customFn) passed = await g.customFn(context)
 					break
+				// Fail CLOSED for `"expression"`, `"function"`, and any unknown
+				// kind. Do NOT reintroduce `new Function`/eval here: definitions
+				// are importable, so evaluating a definition-supplied string is
+				// arbitrary code execution. See WorkflowGuard.
+				default:
+					passed = false
 			}
 			if (!passed) return false
 		}
@@ -702,10 +710,7 @@ export function useWorkflow(workflowId: string) {
 		}
 	}
 
-	async function transition(
-		transitionId: string,
-		payload?: WorkflowData,
-	) {
+	async function transition(transitionId: string, payload?: WorkflowData) {
 		if (!instance.value) throw new Error("No instance loaded")
 		loading.value = true
 		error.value = null
@@ -832,22 +837,58 @@ export function useWorkflowDesigner() {
 		)
 	}
 
-	function validate(): { valid: boolean; errors: string[] } {
+	/**
+	 * Structural validation. Accepts an explicit definition so it can be used
+	 * to screen untrusted input (see `importDefinition`) before it is ever
+	 * assigned to `definition.value`.
+	 *
+	 * Every access is shape-guarded: this runs against arbitrary parsed JSON, so
+	 * a missing `states`/`transitions` must produce an error, not a TypeError.
+	 */
+	function validate(def: WorkflowDefinition = definition.value): {
+		valid: boolean
+		errors: string[]
+	} {
 		const errors: string[] = []
-		const def = definition.value
 
-		if (!def.initialState) errors.push("No initial state defined")
-		if (!def.states[def.initialState])
+		if (!def || typeof def !== "object" || Array.isArray(def)) {
+			return { valid: false, errors: ["Definition must be an object"] }
+		}
+
+		const states = def.states
+		if (!states || typeof states !== "object" || Array.isArray(states)) {
+			errors.push("No states defined")
+		}
+
+		if (!def.initialState) {
+			errors.push("No initial state defined")
+		} else if (
+			states &&
+			typeof states === "object" &&
+			!states[def.initialState]
+		) {
 			errors.push("Initial state not found in states")
+		}
 
-		for (const t of def.transitions) {
-			const fromStates = Array.isArray(t.from) ? t.from : [t.from]
-			for (const f of fromStates) {
-				if (!def.states[f])
-					errors.push(`Transition ${t.id}: from state ${f} not defined`)
+		const transitions = def.transitions
+		if (!Array.isArray(transitions)) {
+			errors.push("No transitions array")
+		} else if (states && typeof states === "object") {
+			for (const t of transitions) {
+				if (!t || typeof t !== "object") {
+					errors.push("Transition is not an object")
+					continue
+				}
+				const fromStates = Array.isArray(t.from) ? t.from : [t.from]
+				for (const f of fromStates) {
+					if (!states[f]) {
+						errors.push(`Transition ${t.id}: from state ${f} not defined`)
+					}
+				}
+				if (!states[t.to]) {
+					errors.push(`Transition ${t.id}: to state ${t.to} not defined`)
+				}
 			}
-			if (!def.states[t.to])
-				errors.push(`Transition ${t.id}: to state ${t.to} not defined`)
 		}
 
 		return { valid: errors.length === 0, errors }
@@ -858,13 +899,31 @@ export function useWorkflowDesigner() {
 	}
 
 	function importDefinition(json: string) {
+		let parsed: unknown
 		try {
-			const parsed = JSON.parse(json)
-			// Validate and set
-			definition.value = parsed
+			parsed = JSON.parse(json)
 		} catch (e) {
-			throw new Error(`Invalid definition: ${e}`)
+			throw new Error(`Invalid definition: not valid JSON (${e})`)
 		}
+
+		// Reject non-objects and arrays outright: `validate()` below assumes a
+		// definition-shaped object, and importing arbitrary JSON straight into
+		// `definition.value` was the entry point for feeding hostile guard/action
+		// payloads into the engine.
+		if (
+			typeof parsed !== "object" ||
+			parsed === null ||
+			Array.isArray(parsed)
+		) {
+			throw new Error("Invalid definition: expected a JSON object")
+		}
+
+		const candidate = parsed as WorkflowDefinition
+		const result = validate(candidate)
+		if (!result.valid) {
+			throw new Error(`Invalid definition: ${result.errors.join("; ")}`)
+		}
+		definition.value = candidate
 	}
 
 	return {

@@ -80,8 +80,8 @@ bench --site [site_name] install-app DyPOS
 ```bash
 # تحقق من الإعداد
 bench --site [site_name] console
-> import frappe
-> frappe.get_doc("Company", "المنافذ الذكية للبرمجيات")
+> import dypos
+> dypos.get_doc("Company", "المنافذ الذكية للبرمجيات")
 ```
 
 ## الاستخدام

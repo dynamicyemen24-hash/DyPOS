@@ -1,11 +1,11 @@
 # Copyright (c) 2024, BrainWise and contributors
 # For license information, please see license.txt
 
-import frappe
+import dypos
 from DyPOS.accounts.general_ledger import make_gl_entries
 from DyPOS.controllers.accounts_controller import AccountsController
-from frappe import _
-from frappe.utils import flt, today
+from dyposimport _
+from dypos.utils import flt, today
 
 from DyPOS.api.wallet import get_or_create_wallet
 
@@ -19,16 +19,16 @@ class WalletTransaction(AccountsController):
 	def validate_wallet(self):
 		"""Validate wallet exists and is active"""
 		if not self.wallet:
-			frappe.throw(_("Wallet is required"))
+			dypos.throw(_("Wallet is required"))
 
-		wallet_status = frappe.db.get_value("Wallet", self.wallet, "status")
+		wallet_status = dypos.db.get_value("Wallet", self.wallet, "status")
 		if wallet_status != "Active":
-			frappe.throw(_("Wallet {0} is not active").format(self.wallet))
+			dypos.throw(_("Wallet {0} is not active").format(self.wallet))
 
 	def validate_amount(self):
 		"""Validate amount is positive"""
 		if flt(self.amount) <= 0:
-			frappe.throw(_("Amount must be greater than zero"))
+			dypos.throw(_("Amount must be greater than zero"))
 
 		# For debit transactions, check if sufficient balance
 		if self.transaction_type == "Debit":
@@ -36,17 +36,17 @@ class WalletTransaction(AccountsController):
 
 			balance = get_customer_wallet_balance(self.customer, self.company)
 			if flt(self.amount) > flt(balance):
-				frappe.throw(
+				dypos.throw(
 					_("Insufficient wallet balance. Available: {0}, Requested: {1}").format(
-						frappe.format_value(balance, {"fieldtype": "Currency"}),
-						frappe.format_value(self.amount, {"fieldtype": "Currency"}),
+						dypos.format_value(balance, {"fieldtype": "Currency"}),
+						dypos.format_value(self.amount, {"fieldtype": "Currency"}),
 					)
 				)
 
 	def set_customer_from_wallet(self):
 		"""Fetch customer from wallet"""
 		if self.wallet and not self.customer:
-			self.customer = frappe.db.get_value("Wallet", self.wallet, "customer")
+			self.customer = dypos.db.get_value("Wallet", self.wallet, "customer")
 
 	def on_submit(self):
 		"""Create GL entries on submit"""
@@ -61,7 +61,7 @@ class WalletTransaction(AccountsController):
 
 	def update_wallet_balance(self):
 		"""Update the wallet's current balance"""
-		wallet_doc = frappe.get_doc("Wallet", self.wallet)
+		wallet_doc = dypos.get_doc("Wallet", self.wallet)
 		wallet_doc.update_balance()
 
 	def make_gl_entries(self, cancel=False):
@@ -73,24 +73,24 @@ class WalletTransaction(AccountsController):
 				gl_entries,
 				cancel=cancel,
 				update_outstanding="Yes",
-				merge_entries=frappe.db.get_single_value("Accounts Settings", "merge_similar_account_heads"),
+				merge_entries=dypos.db.get_single_value("Accounts Settings", "merge_similar_account_heads"),
 			)
 
 	def build_gl_entries(self):
 		"""Build GL entry list based on transaction type"""
 		gl_entries = []
 
-		wallet_account = frappe.db.get_value("Wallet", self.wallet, "account")
+		wallet_account = dypos.db.get_value("Wallet", self.wallet, "account")
 		if not wallet_account:
-			frappe.throw(_("Wallet {0} does not have an account configured").format(self.wallet))
+			dypos.throw(_("Wallet {0} does not have an account configured").format(self.wallet))
 
 		# Get source account based on source type
 		source_account = self.get_source_account()
 
 		if not source_account:
-			frappe.throw(_("Source account is required for wallet transaction"))
+			dypos.throw(_("Source account is required for wallet transaction"))
 
-		cost_center = self.cost_center or frappe.get_cached_value("Company", self.company, "cost_center")
+		cost_center = self.cost_center or dypos.get_cached_value("Company", self.company, "cost_center")
 
 		amount = flt(self.amount, self.precision("amount"))
 
@@ -106,7 +106,7 @@ class WalletTransaction(AccountsController):
 			}
 			# Receivable/Payable accounts require party information
 			if not hasattr(self, "_source_account_type"):
-				self._source_account_type = frappe.get_cached_value("Account", source_account, "account_type")
+				self._source_account_type = dypos.get_cached_value("Account", source_account, "account_type")
 			if self._source_account_type in ("Receivable", "Payable") and self.customer:
 				source_gl["party_type"] = "Customer"
 				source_gl["party"] = self.customer
@@ -150,7 +150,7 @@ class WalletTransaction(AccountsController):
 			}
 			# Receivable/Payable accounts require party information
 			if not hasattr(self, "_source_account_type"):
-				self._source_account_type = frappe.get_cached_value("Account", source_account, "account_type")
+				self._source_account_type = dypos.get_cached_value("Account", source_account, "account_type")
 			if self._source_account_type in ("Receivable", "Payable") and self.customer:
 				debit_source_gl["party_type"] = "Customer"
 				debit_source_gl["party"] = self.customer
@@ -168,27 +168,27 @@ class WalletTransaction(AccountsController):
 
 		if self.source_type == "Loyalty Program":
 			# Get loyalty expense account from loyalty program or company
-			loyalty_account = frappe.db.get_value(
+			loyalty_account = dypos.db.get_value(
 				"Loyalty Program", {"company": self.company}, "expense_account"
 			)
 			if loyalty_account:
 				return loyalty_account
 
 			# Fallback to company's default expense account
-			return frappe.get_cached_value("Company", self.company, "default_expense_account")
+			return dypos.get_cached_value("Company", self.company, "default_expense_account")
 
 		if self.source_type == "Refund":
 			# Use company's default receivable account
-			return frappe.get_cached_value("Company", self.company, "default_receivable_account")
+			return dypos.get_cached_value("Company", self.company, "default_receivable_account")
 
 		if self.source_type == "Manual Adjustment":
 			# Use company's adjustment account or default expense
-			return frappe.get_cached_value("Company", self.company, "default_expense_account")
+			return dypos.get_cached_value("Company", self.company, "default_expense_account")
 
 		return None
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def create_wallet_credit(
 	wallet,
 	amount,
@@ -213,19 +213,19 @@ def create_wallet_credit(
 	Returns:
 		Wallet Transaction document
 	"""
-	wallet_doc = frappe.get_doc("Wallet", wallet)
+	wallet_doc = dypos.get_doc("Wallet", wallet)
 
 	# Get source account based on source type
 	source_account = None
 	if source_type == "Loyalty Program":
-		loyalty_program = frappe.db.get_value("Loyalty Program", {"company": wallet_doc.company}, "name")
+		loyalty_program = dypos.db.get_value("Loyalty Program", {"company": wallet_doc.company}, "name")
 		if loyalty_program:
-			source_account = frappe.db.get_value("Loyalty Program", loyalty_program, "expense_account")
+			source_account = dypos.db.get_value("Loyalty Program", loyalty_program, "expense_account")
 
 	if not source_account:
-		source_account = frappe.get_cached_value("Company", wallet_doc.company, "default_expense_account")
+		source_account = dypos.get_cached_value("Company", wallet_doc.company, "default_expense_account")
 
-	transaction = frappe.get_doc(
+	transaction = dypos.get_doc(
 		{
 			"doctype": "Wallet Transaction",
 			"transaction_type": "Loyalty Credit" if source_type == "Loyalty Program" else "Credit",
@@ -249,7 +249,7 @@ def create_wallet_credit(
 	return transaction
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def credit_loyalty_points_to_wallet(customer, company, loyalty_points, conversion_factor=None):
 	"""
 	Convert loyalty points to wallet credit.
@@ -268,9 +268,9 @@ def credit_loyalty_points_to_wallet(customer, company, loyalty_points, conversio
 
 	# Get conversion factor from loyalty program if not provided
 	if not conversion_factor:
-		loyalty_program = frappe.db.get_value("Customer", customer, "loyalty_program")
+		loyalty_program = dypos.db.get_value("Customer", customer, "loyalty_program")
 		if loyalty_program:
-			conversion_factor = frappe.db.get_value("Loyalty Program", loyalty_program, "conversion_factor")
+			conversion_factor = dypos.db.get_value("Loyalty Program", loyalty_program, "conversion_factor")
 
 	if not conversion_factor:
 		conversion_factor = 1.0  # Default: 1 point = 1 currency
@@ -290,7 +290,7 @@ def credit_loyalty_points_to_wallet(customer, company, loyalty_points, conversio
 		amount=credit_amount,
 		source_type="Loyalty Program",
 		remarks=_("Loyalty points conversion: {0} points = {1}").format(
-			loyalty_points, frappe.format_value(credit_amount, {"fieldtype": "Currency"})
+			loyalty_points, dypos.format_value(credit_amount, {"fieldtype": "Currency"})
 		),
 		submit=True,
 	)
@@ -315,7 +315,7 @@ def credit_return_to_wallet(return_invoice, amount=None):
 	Returns:
 		Wallet Transaction document or None
 	"""
-	return_data = frappe.db.get_value(
+	return_data = dypos.db.get_value(
 		"Sales Invoice",
 		return_invoice,
 		["customer", "company", "grand_total", "is_return", "return_against"],
@@ -323,7 +323,7 @@ def credit_return_to_wallet(return_invoice, amount=None):
 	)
 
 	if not return_data or not return_data.is_return:
-		frappe.log_error(
+		dypos.log_error(
 			title="Wallet Credit on Return Error", message=f"Invoice {return_invoice} is not a return invoice"
 		)
 		return None
@@ -341,17 +341,17 @@ def credit_return_to_wallet(return_invoice, amount=None):
 	wallet = get_or_create_wallet(customer, company, force_create=True)
 
 	if not wallet:
-		frappe.log_error(
+		dypos.log_error(
 			title="Wallet Credit on Return Error",
 			message=f"Could not get or create wallet for customer {customer}, company {company}",
 		)
 		return None
 
 	# Determine source account — use company's default receivable account for refunds
-	source_account = frappe.get_cached_value("Company", company, "default_receivable_account")
+	source_account = dypos.get_cached_value("Company", company, "default_receivable_account")
 
 	if not source_account:
-		frappe.log_error(
+		dypos.log_error(
 			title="Wallet Credit on Return Error",
 			message=f"No default receivable account for company {company}",
 		)
@@ -359,7 +359,7 @@ def credit_return_to_wallet(return_invoice, amount=None):
 
 	# Idempotency guard: if submit_invoice is retried for the same return invoice,
 	# reuse the existing wallet credit transaction instead of creating duplicates.
-	existing_transaction_name = frappe.db.get_value(
+	existing_transaction_name = dypos.db.get_value(
 		"Wallet Transaction",
 		{
 			"reference_doctype": "Sales Invoice",
@@ -371,7 +371,7 @@ def credit_return_to_wallet(return_invoice, amount=None):
 		"name",
 	)
 	if existing_transaction_name:
-		existing_transaction = frappe.get_doc("Wallet Transaction", existing_transaction_name)
+		existing_transaction = dypos.get_doc("Wallet Transaction", existing_transaction_name)
 		if existing_transaction.docstatus == 0:
 			# Recover stuck draft created by a crashed prior attempt.
 			existing_transaction.flags.ignore_permissions = True
@@ -381,24 +381,24 @@ def credit_return_to_wallet(return_invoice, amount=None):
 		if existing_transaction.docstatus == 1:
 			# Check if GL entries exist — a previous attempt may have set docstatus=1
 			# but failed during make_gl_entries(), leaving a broken transaction.
-			has_gl = frappe.db.exists("GL Entry", {"voucher_no": existing_transaction.name})
+			has_gl = dypos.db.exists("GL Entry", {"voucher_no": existing_transaction.name})
 			if has_gl:
 				return existing_transaction
 			# No GL entries → broken submission. Cancel and recreate below.
-			# NOTE: We intentionally do NOT call frappe.db.commit() here so
+			# NOTE: We intentionally do NOT call dypos.db.commit() here so
 			# the cancellation stays within the caller's transaction boundary
 			# and can be rolled back if the subsequent re-creation fails.
 			try:
 				existing_transaction.flags.ignore_permissions = True
 				existing_transaction.cancel()
 			except Exception:
-				frappe.log_error(
+				dypos.log_error(
 					title="Wallet Transaction Recovery Error",
-					message=f"Could not cancel broken WT {existing_transaction.name}: {frappe.get_traceback()}",
+					message=f"Could not cancel broken WT {existing_transaction.name}: {dypos.get_traceback()}",
 				)
 				return None
 
-	transaction = frappe.get_doc(
+	transaction = dypos.get_doc(
 		{
 			"doctype": "Wallet Transaction",
 			"transaction_type": "Credit",
@@ -413,7 +413,7 @@ def credit_return_to_wallet(return_invoice, amount=None):
 			"remarks": _("Return credit to wallet for {0} against {1}: {2}").format(
 				return_invoice,
 				return_data.return_against or "",
-				frappe.format_value(credit_amount, {"fieldtype": "Currency"}),
+				dypos.format_value(credit_amount, {"fieldtype": "Currency"}),
 			),
 		}
 	)
@@ -421,9 +421,9 @@ def credit_return_to_wallet(return_invoice, amount=None):
 	transaction.insert(ignore_permissions=True)
 	transaction.submit()
 
-	frappe.msgprint(
+	dypos.msgprint(
 		_("Credited {0} to customer wallet for return {1}").format(
-			frappe.format_value(credit_amount, {"fieldtype": "Currency"}), return_invoice
+			dypos.format_value(credit_amount, {"fieldtype": "Currency"}), return_invoice
 		),
 		alert=True,
 		indicator="green",
@@ -431,7 +431,7 @@ def credit_return_to_wallet(return_invoice, amount=None):
 	return transaction
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def reverse_wallet_transactions_for_return(original_invoice, return_invoice):
 	"""
 	Reverse wallet transactions linked to the original invoice when a return is made.
@@ -444,13 +444,13 @@ def reverse_wallet_transactions_for_return(original_invoice, return_invoice):
 		return_invoice: Return Sales Invoice name (is_return=1)
 	"""
 	# Get the return invoice to calculate return ratio
-	return_doc = frappe.get_doc("Sales Invoice", return_invoice)
-	original_doc = frappe.get_doc("Sales Invoice", original_invoice)
+	return_doc = dypos.get_doc("Sales Invoice", return_invoice)
+	original_doc = dypos.get_doc("Sales Invoice", original_invoice)
 
 	if not return_doc.is_return or return_doc.return_against != original_invoice:
 		return
 
-	existing = frappe.db.exists(
+	existing = dypos.db.exists(
 		"Wallet Transaction",
 		{
 			"reference_doctype": "Sales Invoice",
@@ -463,7 +463,7 @@ def reverse_wallet_transactions_for_return(original_invoice, return_invoice):
 	if existing:
 		return
 	# Find all submitted Wallet Transactions linked to the original invoice
-	wallet_transactions = frappe.get_all(
+	wallet_transactions = dypos.get_all(
 		"Wallet Transaction",
 		filters={
 			"reference_doctype": "Sales Invoice",
@@ -501,12 +501,12 @@ def reverse_wallet_transactions_for_return(original_invoice, return_invoice):
 	# Get loyalty program details for tier-aware reversal of Loyalty Credit.
 	# Supports both "Single Tier Program" (one rule) and "Multiple Tier Program" (many rules).
 	# Original credit: points = int(eligible_amount / collection_factor), wallet = points * conversion_factor
-	loyalty_program = frappe.db.get_value("Customer", original_doc.customer, "loyalty_program")
+	loyalty_program = dypos.db.get_value("Customer", original_doc.customer, "loyalty_program")
 
 	tiers = []
 	conversion_factor = 1.0
 	if loyalty_program:
-		lp_doc = frappe.get_doc("Loyalty Program", loyalty_program)
+		lp_doc = dypos.get_doc("Loyalty Program", loyalty_program)
 		conversion_factor = flt(lp_doc.conversion_factor) or 1.0
 		tiers = sorted(
 			[d.as_dict() for d in lp_doc.collection_rules],
@@ -558,23 +558,23 @@ def reverse_wallet_transactions_for_return(original_invoice, return_invoice):
 		# ── Execute the reversal ──
 		if should_cancel:
 			try:
-				wt_doc = frappe.get_doc("Wallet Transaction", wt.name)
+				wt_doc = dypos.get_doc("Wallet Transaction", wt.name)
 				wt_doc.flags.ignore_permissions = True
 				wt_doc.cancel()
-				frappe.msgprint(
+				dypos.msgprint(
 					_("Cancelled Wallet Transaction {0} due to return").format(wt.name),
 					alert=True,
 					indicator="blue",
 				)
 			except Exception as e:
-				frappe.log_error(
+				dypos.log_error(
 					title="Wallet Transaction Cancel on Return Error",
-					message=f"WT: {wt.name}, Return: {return_invoice}, Error: {e!s}\n{frappe.get_traceback()}",
+					message=f"WT: {wt.name}, Return: {return_invoice}, Error: {e!s}\n{dypos.get_traceback()}",
 				)
 
 		elif reverse_amount > 0:
 			try:
-				reverse_wt = frappe.get_doc(
+				reverse_wt = dypos.get_doc(
 					{
 						"doctype": "Wallet Transaction",
 						"transaction_type": "Debit",
@@ -591,8 +591,8 @@ def reverse_wallet_transactions_for_return(original_invoice, return_invoice):
 						).format(
 							return_invoice,
 							original_invoice,
-							frappe.format_value(returned_amount, {"fieldtype": "Currency"}),
-							frappe.format_value(reverse_amount, {"fieldtype": "Currency"}),
+							dypos.format_value(returned_amount, {"fieldtype": "Currency"}),
+							dypos.format_value(reverse_amount, {"fieldtype": "Currency"}),
 						),
 					}
 				)
@@ -600,19 +600,19 @@ def reverse_wallet_transactions_for_return(original_invoice, return_invoice):
 				reverse_wt.insert()
 				reverse_wt.submit()
 
-				frappe.msgprint(
+				dypos.msgprint(
 					_("Created wallet debit of {0} for partial return {1}").format(
-						frappe.format_value(reverse_amount, {"fieldtype": "Currency"}), return_invoice
+						dypos.format_value(reverse_amount, {"fieldtype": "Currency"}), return_invoice
 					),
 					alert=True,
 					indicator="blue",
 				)
 			except Exception as e:
-				frappe.log_error(
+				dypos.log_error(
 					title="Wallet Transaction Reverse on Partial Return Error",
 					message=(
 						f"WT: {wt.name}, Return: {return_invoice}, "
 						f"Original: {original_invoice}, Reverse Amount: {reverse_amount}, "
-						f"Error: {e!s}\n{frappe.get_traceback()}"
+						f"Error: {e!s}\n{dypos.get_traceback()}"
 					),
 				)

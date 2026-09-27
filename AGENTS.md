@@ -13,15 +13,20 @@
 ## Verify before you claim done (all must be green)
 
 ```powershell
-# server/ — 362 tests
-node --test --import ./tests/setup.js "tests/**/*.test.js"
+# server/ — 484 tests
+npm test                              # = node scripts/run-tests.mjs
 npx @biomejs/biome check .
-node scripts/check-pg-parity.mjs
-node scripts/check-method-coverage.mjs
-# POS/ — 552 tests
+npm run parity
+npm run contract
+# POS/ — 732 tests
 npm run test:run
 npx biome check src/<touched-file>
 ```
+
+`POS/node_modules` is disposable — if a command hangs on `npx … Ok to proceed?`,
+the install is missing: `npm ci` in `POS/` (and add the package to
+`POS/package.json`; a dependency used by shipped code but absent from the
+manifest breaks both the build and any test that compiles CSS).
 
 ## Invariants (never break)
 
@@ -48,15 +53,30 @@ npx biome check src/<touched-file>
    - Offline invoice numbering (POS-{branch}-{terminal}-{date}-{seq}).
    - Stock reservations prevent overselling across terminals offline.
    - Auto-sync when backend reachesable (SQLite on server).
-   - `npm run build` produces installable PWA at `DyPOS/public/pos/`.
+   - `npm run build` produces installable PWA at `POS/dist/pos/`.
    - Cloudflare Pages deployment serves the PWA with proper headers.
+9. **No third-party runtime, no desk globals**: the runtime stack is
+   Vue + Dexie + the first-party `dypos-ui` kit (`POS/packages/dypos-ui`).
+   - Non-Vue code reaches the server through `src/utils/methodClient.js`
+     (`methodCall` / `methodGetList`) — never a `window.<desk>` global, which
+     does not exist standalone and silently disables whole features.
+   - Identity comes from the local session (`@/data/session`: `sessionUser()`,
+     `sessionRole()`), never from a global.
+   - Renaming a third-party name is **not** a licence to `find/replace` it:
+     `server/tests/branding-integrity.test.js` fails on glued brand tokens
+     (`dyposerror`), dead globals and resurrected legacy identifiers.
 
 ## Gotchas
+
+- **A glob handed to `node --test` runs nothing and still exits 0.** Node does
+  not expand `tests/**/...`; unquoted it only works on POSIX shells. Always go
+  through `server/scripts/run-tests.mjs` (`npm test`), which enumerates the
+  files and refuses to report green when it finds none.
 
 - `off += takeLen()`-style compound assignment with mutating RHS reads the
   LHS **before** the call — split into two statements (bit us in QZ DER code).
 - Express 4.22, no `cookie-parser`/`multer` — `upload_file` is JSON-base64.
 - `users` has no `preferred_locale` — locale defaults to `'ar'`.
 - `scale7.test.js` is occasionally flaky — rerun before blaming your change.
-- Frontend adapter: `frappe-ui call()` POSTs `/api/method/<path>`, unwraps
+- Frontend adapter: `dypos-ui call()` POSTs `/api/method/<path>`, unwraps
   `{ message }`; `login` returns the full payload (short-circuit path).

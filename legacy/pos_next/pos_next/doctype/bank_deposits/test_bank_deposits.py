@@ -1,7 +1,7 @@
 # Copyright (c) 2026, BrainWise and contributors
 # For license information, please see license.txt
 
-from frappe.tests import IntegrationTestCase
+from dypos.tests import IntegrationTestCase
 
 
 class TestBankDeposits(IntegrationTestCase):

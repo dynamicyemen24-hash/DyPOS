@@ -7,7 +7,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-vi.mock("frappe-ui", () => ({
+vi.mock("dypos-ui", () => ({
 	call: vi.fn(),
 }))
 

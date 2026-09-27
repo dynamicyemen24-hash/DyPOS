@@ -5,7 +5,7 @@
 @import "@fontsource/cairo/arabic-800.css";
 
 @import "@abdulrysr/saudi-riyal-new-symbol-font/style.css";
-@import "frappe-ui/style.css";
+@import "dypos-ui/style.css";
 @import "./assets/Inter/inter.css";
 
 /* =============================================================================
@@ -204,10 +204,10 @@ summary:focus-visible,
 }
 
 /* =============================================================================
-   07. Frappe UI — Dialog Compatibility
+   07. DyPOS UI — Dialog Compatibility
    =============================================================================
    These are compatibility rules only.
-   Actual modal behavior remains owned by Frappe UI / DyPOS components.
+   Actual modal behavior remains owned by the DyPOS UI kit.
    ============================================================================= */
 
 .dialog-overlay {
@@ -221,9 +221,9 @@ summary:focus-visible,
 }
 
 /* =============================================================================
-   08. Frappe UI — RTL Input Compatibility
+   08. DyPOS UI — RTL Input Compatibility
    =============================================================================
-   Frappe UI may generate physical left/right utility classes.
+   The DyPOS UI kit may generate physical left/right utility classes.
    DyPOS remains logical/RTL-first at application level.
    ============================================================================= */
 
@@ -309,7 +309,7 @@ button.active\:scale-95:active:not(:disabled),
    11. Theme Compatibility
    =============================================================================
    themes.css remains the source of truth.
-   These rules only map legacy Frappe/Tailwind utilities.
+   These rules only map legacy third-party utility classes.
    ============================================================================= */
 
 [data-theme="light"] body {

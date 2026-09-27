@@ -106,7 +106,7 @@
 <script setup>
 import { computed } from "vue"
 import { useRouter } from "vue-router"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 import { useLocale } from "@/composables/useLocale"
 import { t } from "@/utils/translation"
 

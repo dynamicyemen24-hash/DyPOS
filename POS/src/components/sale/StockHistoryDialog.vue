@@ -153,7 +153,7 @@ import {
 	FormControl,
 	FeatherIcon,
 	LoadingIndicator,
-} from "frappe-ui"
+} from "dypos-ui"
 import SelectInput from "@/components/common/SelectInput.vue"
 import ReportTable from "@/components/reports/ui/tables/ReportTable.vue"
 import Pagination from "@/components/ui/Pagination.vue"

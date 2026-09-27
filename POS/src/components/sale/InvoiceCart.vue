@@ -1497,10 +1497,10 @@ import { useCartSort } from "@/composables/useCartSort"
 import { isOffline } from "@/utils/offline"
 import { offlineWorker } from "@/utils/offline/workerClient"
 import { logger } from "@/utils/logger"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 
 const log = logger.create("InvoiceCart")
-import { createResource } from "frappe-ui"
+import { createResource } from "dypos-ui"
 import { computed, onBeforeUnmount, onMounted, ref, watch, nextTick } from "vue"
 import EditItemDialog from "./EditItemDialog.vue"
 

@@ -67,7 +67,7 @@ export async function withTimeout(promise, ms, label = "operation") {
 // Error classification
 // ---------------------------------------------------------------------------
 
-/** Extract an HTTP status-like code from frappe/axios/fetch errors. */
+/** Extract an HTTP status-like code from dypos/axios/fetch errors. */
 export function extractStatus(error) {
 	if (typeof error?.status === "number") return error.status
 	if (typeof error?.statusCode === "number") return error.statusCode

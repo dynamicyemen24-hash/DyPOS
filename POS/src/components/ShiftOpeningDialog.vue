@@ -247,8 +247,8 @@
 </template>
 
 <script setup>
-import { Button, Dialog, Input } from "frappe-ui"
-import { createResource } from "frappe-ui"
+import { Button, Dialog, Input } from "dypos-ui"
+import { createResource } from "dypos-ui"
 import { computed, ref, watch } from "vue"
 import { logger } from "@/utils/logger"
 

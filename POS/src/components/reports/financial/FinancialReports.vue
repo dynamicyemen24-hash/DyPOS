@@ -59,10 +59,11 @@
 </template>
 
 <script setup>
-import { Button } from "frappe-ui"
+import { Button } from "dypos-ui"
 import { computed, onMounted, ref } from "vue"
 import DateRangeFilter from "../ui/filters/DateRangeFilter.vue"
 import { loadFinancialData } from "../../core/data/financialData"
+import { NO_DYPOS_API } from "@/utils/methodClient"
 import { usePOSShiftStore } from "@/stores/posShift"
 import { FINANCIAL_REPORTS } from "./index"
 
@@ -102,12 +103,12 @@ async function load() {
 	} catch (err) {
 		facts.value = {}
 		warnings.value = []
-		if (err?.code === "NO_FRAPPE") {
+		if (err?.code === NO_DYPOS_API) {
 			error.value = __(
-				"Frappe API is not available. Financial reports require an active connection.",
+				"واجهة DyPOS غير متاحة — التقارير المالية تحتاج اتصالًا بالخادم. ستتكتمل البيانات تلقائيًا عند عودة الاتصال.",
 			)
 		} else {
-			error.value = __("Failed to load financial data. Please try again.")
+			error.value = __("تعذّر تحميل البيانات المالية. حاول مرة أخرى.")
 		}
 	} finally {
 		loading.value = false

@@ -41,7 +41,7 @@ def _get_item_group_with_descendants(item_group):
 
     # Get the parent group's lft/rgt values
     group_data = (
-        frappe.qb.from_(ItemGroup)
+        dypos.qb.from_(ItemGroup)
         .select(ItemGroup.lft, ItemGroup.rgt, ItemGroup.is_group)
         .where(ItemGroup.name == item_group)
         .run(as_dict=True)
@@ -56,7 +56,7 @@ def _get_item_group_with_descendants(item_group):
 
     # Get all descendants using nested set (lft/rgt)
     descendants = (
-        frappe.qb.from_(ItemGroup)
+        dypos.qb.from_(ItemGroup)
         .select(ItemGroup.name)
         .where(ItemGroup.lft > group.lft)
         .where(ItemGroup.rgt < group.rgt)
@@ -73,7 +73,7 @@ def _get_item_group_with_descendants(item_group):
 Fetches items from multiple item groups in a single query, eliminating N+1 problem.
 
 ```python
-@frappe.whitelist()
+@dypos.whitelist()
 def get_items_bulk(pos_profile, item_groups=None, limit=2000):
     """
     Fetch items from multiple item groups in a SINGLE query.
@@ -436,7 +436,7 @@ function formatCompactNumber(num) {
 ### `get_items_bulk`
 
 ```python
-@frappe.whitelist()
+@dypos.whitelist()
 def get_items_bulk(pos_profile, item_groups=None, limit=2000):
     """
     Fetch items from multiple item groups in a single query.
@@ -454,7 +454,7 @@ def get_items_bulk(pos_profile, item_groups=None, limit=2000):
 ### `get_item_groups`
 
 ```python
-@frappe.whitelist()
+@dypos.whitelist()
 def get_item_groups(pos_profile):
     """
     Get item groups configured in POS Profile with hierarchy info.

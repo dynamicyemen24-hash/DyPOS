@@ -1,4 +1,4 @@
-import { createResource } from "frappe-ui"
+import { createResource } from "dypos-ui"
 import { defineStore } from "pinia"
 import { computed, ref } from "vue"
 import { countryCodeLabel, countryFlagEmoji } from "@/utils/flags"
@@ -14,7 +14,7 @@ export const useCountriesStore = defineStore("countries", () => {
 
 	// Resource for fetching countries
 	const countriesResource = createResource({
-		url: "frappe.geo.country_info.get_country_timezone_info",
+		url: "dypos.geo.country_info.get_country_timezone_info",
 		auto: false,
 		onSuccess(data) {
 			if (data?.country_info) {

@@ -83,13 +83,20 @@ export interface PurchaseInvoiceFact {
 
 export interface DailyFinancialRow {
 	date: string
-	value: number
-	[key: string]: number | string
+	/**
+	 * Optional: no calculator in this folder emits it. It was declared required,
+	 * which forced the daily-row builders to fabricate a value or fail the
+	 * typecheck. KPI objects (`{ id, label, value }`) are a different shape.
+	 */
+	value?: number
+	[key: string]: number | string | undefined
 }
 
 export interface AgingBucket {
 	label: string
-	minDays: number
+	/** `null` for the open-ended lower bound ("Not Due" has no minimum). */
+	minDays: number | null
+	/** `null` for the open-ended upper bound ("Over 90 Days"). */
 	maxDays: number | null
 	count: number
 	amount: number

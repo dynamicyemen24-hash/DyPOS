@@ -10,11 +10,11 @@ import base64
 import hashlib
 import json
 
-import frappe
-from frappe import _
+import dypos
+from dyposimport _
 
 
-@frappe.whitelist(allow_guest=False)
+@dypos.whitelist(allow_guest=False)
 def get_branding_config():
 	"""
 	Get branding configuration with encryption
@@ -22,11 +22,11 @@ def get_branding_config():
 	"""
 	try:
 		# Check if doctype exists and get config
-		if not frappe.db.exists("DocType", "BrainWise Branding"):
+		if not dypos.db.exists("DocType", "BrainWise Branding"):
 			# Return default config if doctype doesn't exist yet
 			return get_default_config()
 
-		doc = frappe.get_single("BrainWise Branding")
+		doc = dypos.get_single("BrainWise Branding")
 
 		if not doc.enabled:
 			return get_default_config()
@@ -38,7 +38,7 @@ def get_branding_config():
 			"_u": base64.b64encode(doc.brand_url.encode()).decode(),
 			"_i": doc.check_interval or 10000,
 			"_sig": doc.encrypted_signature,
-			"_ts": frappe.utils.now(),
+			"_ts": dypos.utils.now(),
 			"_v": doc.enable_server_validation,
 			"_c": "pos-footer-component",
 			"_s": {
@@ -54,7 +54,7 @@ def get_branding_config():
 
 		return config
 	except Exception as e:
-		frappe.log_error(f"Error fetching branding config: {e!s}", "BrainWise Branding API")
+		dypos.log_error(f"Error fetching branding config: {e!s}", "BrainWise Branding API")
 		return get_default_config()
 
 
@@ -79,7 +79,7 @@ def get_default_config():
 	}
 
 
-@frappe.whitelist(allow_guest=False)
+@dypos.whitelist(allow_guest=False)
 def validate_branding(client_signature=None, brand_name=None, brand_url=None):
 	"""
 	Validate branding integrity from client
@@ -87,10 +87,10 @@ def validate_branding(client_signature=None, brand_name=None, brand_url=None):
 	"""
 	try:
 		# Check if doctype exists
-		if not frappe.db.exists("DocType", "BrainWise Branding"):
+		if not dypos.db.exists("DocType", "BrainWise Branding"):
 			return {"valid": True, "message": "Branding doctype not installed"}
 
-		doc = frappe.get_single("BrainWise Branding")
+		doc = dypos.get_single("BrainWise Branding")
 
 		if not doc.enabled or not doc.enable_server_validation:
 			return {"valid": True, "message": "Validation disabled"}
@@ -104,32 +104,32 @@ def validate_branding(client_signature=None, brand_name=None, brand_url=None):
 				doc,
 				{
 					"type": "validation_failed",
-					"user": frappe.session.user,
-					"timestamp": frappe.utils.now(),
+					"user": dypos.session.user,
+					"timestamp": dypos.utils.now(),
 					"client_signature": client_signature,
 					"expected_brand": doc.brand_name,
 					"received_brand": brand_name,
 					"expected_url": doc.brand_url,
 					"received_url": brand_url,
-					"ip_address": frappe.local.request_ip if hasattr(frappe.local, "request_ip") else None,
+					"ip_address": dypos.local.request_ip if hasattr(dypos.local, "request_ip") else None,
 				},
 			)
 
 		# Update last validation time
-		frappe.db.set_value("BrainWise Branding", doc.name, "last_validation", frappe.utils.now())
-		frappe.db.commit()
+		dypos.db.set_value("BrainWise Branding", doc.name, "last_validation", dypos.utils.now())
+		dypos.db.commit()
 
 		return {
 			"valid": is_valid,
-			"timestamp": frappe.utils.now(),
+			"timestamp": dypos.utils.now(),
 			"message": "Validation successful" if is_valid else "Branding mismatch detected",
 		}
 	except Exception as e:
-		frappe.log_error(f"Error validating branding: {e!s}", "BrainWise Branding Validation")
+		dypos.log_error(f"Error validating branding: {e!s}", "BrainWise Branding Validation")
 		return {"valid": False, "error": str(e)}
 
 
-@frappe.whitelist(allow_guest=False)
+@dypos.whitelist(allow_guest=False)
 def log_client_event(event_type=None, details=None):
 	"""
 	Log client-side events (clicks, removals, modifications)
@@ -137,10 +137,10 @@ def log_client_event(event_type=None, details=None):
 	"""
 	try:
 		# Check if doctype exists
-		if not frappe.db.exists("DocType", "BrainWise Branding"):
+		if not dypos.db.exists("DocType", "BrainWise Branding"):
 			return {"logged": False, "message": "Branding doctype not installed"}
 
-		doc = frappe.get_single("BrainWise Branding")
+		doc = dypos.get_single("BrainWise Branding")
 
 		if not doc.log_tampering_attempts:
 			return {"logged": False, "message": "Logging disabled"}
@@ -158,20 +158,20 @@ def log_client_event(event_type=None, details=None):
 				doc,
 				{
 					"event_type": event_type,
-					"user": frappe.session.user,
-					"timestamp": frappe.utils.now(),
+					"user": dypos.session.user,
+					"timestamp": dypos.utils.now(),
 					"details": details,
-					"ip_address": frappe.local.request_ip if hasattr(frappe.local, "request_ip") else None,
+					"ip_address": dypos.local.request_ip if hasattr(dypos.local, "request_ip") else None,
 				},
 			)
 
 			return {"logged": True, "message": f"Event {event_type} logged"}
 		elif event_type == "link_click":
 			# Log link clicks (for analytics)
-			frappe.log_error(
+			dypos.log_error(
 				title="BrainWise Branding - Link Click",
 				message=json.dumps(
-					{"user": frappe.session.user, "timestamp": frappe.utils.now(), "details": details},
+					{"user": dypos.session.user, "timestamp": dypos.utils.now(), "details": details},
 					indent=2,
 				),
 			)
@@ -179,7 +179,7 @@ def log_client_event(event_type=None, details=None):
 
 		return {"logged": False, "message": f"Unknown event type: {event_type}"}
 	except Exception as e:
-		frappe.log_error(f"Error logging client event: {e!s}", "BrainWise Branding Event Log")
+		dypos.log_error(f"Error logging client event: {e!s}", "BrainWise Branding Event Log")
 		return {"logged": False, "error": str(e)}
 
 
@@ -187,30 +187,30 @@ def log_tampering_attempt(doc, details):
 	"""Internal function to log tampering attempts"""
 	try:
 		# Increment tampering counter
-		current_attempts = frappe.db.get_value("BrainWise Branding", doc.name, "tampering_attempts") or 0
-		frappe.db.set_value("BrainWise Branding", doc.name, "tampering_attempts", current_attempts + 1)
-		frappe.db.commit()
+		current_attempts = dypos.db.get_value("BrainWise Branding", doc.name, "tampering_attempts") or 0
+		dypos.db.set_value("BrainWise Branding", doc.name, "tampering_attempts", current_attempts + 1)
+		dypos.db.commit()
 
 		# Create error log
-		frappe.log_error(
+		dypos.log_error(
 			title="BrainWise Branding - Tampering Detected",
 			message=json.dumps(details, indent=2, default=str),
 		)
 	except Exception as e:
-		frappe.log_error(f"Error logging tampering: {e!s}", "BrainWise Branding")
+		dypos.log_error(f"Error logging tampering: {e!s}", "BrainWise Branding")
 
 
-@frappe.whitelist(allow_guest=False)
+@dypos.whitelist(allow_guest=False)
 def get_tampering_stats():
 	"""Get tampering statistics (admin only)"""
-	if "System Manager" not in frappe.get_roles():
-		frappe.throw(_("Insufficient permissions"), frappe.PermissionError)
+	if "System Manager" not in dypos.get_roles():
+		dypos.throw(_("Insufficient permissions"), dypos.PermissionError)
 
 	try:
-		if not frappe.db.exists("DocType", "BrainWise Branding"):
+		if not dypos.db.exists("DocType", "BrainWise Branding"):
 			return {"enabled": False, "message": "Branding doctype not installed"}
 
-		doc = frappe.get_single("BrainWise Branding")
+		doc = dypos.get_single("BrainWise Branding")
 
 		return {
 			"enabled": doc.enabled,
@@ -220,5 +220,5 @@ def get_tampering_stats():
 			"logging_enabled": doc.log_tampering_attempts,
 		}
 	except Exception as e:
-		frappe.log_error(f"Error getting tampering stats: {e!s}", "BrainWise Branding Stats")
+		dypos.log_error(f"Error getting tampering stats: {e!s}", "BrainWise Branding Stats")
 		return {"error": str(e)}

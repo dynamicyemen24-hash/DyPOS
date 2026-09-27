@@ -1,10 +1,7 @@
-# DyPOS PWA (Cloudflare Pages) + API Worker
-# Pages deploy: wrangler pages deploy DyPOS/public/pos --project-name=dypos-pos
-# Worker deploy: wrangler deploy
-
 # DyPOS PWA (Cloudflare Pages) — static assets only.
-# Pages deploy: wrangler pages deploy DyPOS/public/pos --project-name=dypos-pos
+# Build:  cd POS && npm run build:pages      → POS/dist/pos
+# Deploy: wrangler pages deploy POS/dist/pos --project-name=dypos-pos
 # API Worker deploys separately via wrangler.api.toml (dypos-api).
 name = "dypos-pos"
-pages_build_output_dir = "DyPOS/public/pos"
+pages_build_output_dir = "POS/dist/pos"
 compatibility_date = "2026-09-24"

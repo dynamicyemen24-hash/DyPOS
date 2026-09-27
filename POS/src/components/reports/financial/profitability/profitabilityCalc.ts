@@ -17,11 +17,11 @@ import { sumBy } from "../revenue/revenueCalc"
  */
 
 export function buildProfitabilityModel(
-	invoices,
-	items = [],
+	invoices: SalesInvoiceFact[] = [],
+	items: SalesInvoiceItemFact[] = [],
 ): ProfitabilityReportModel {
 	const rows = invoices || []
-	const itemRows = items || []
+	const itemRows: SalesInvoiceItemFact[] = items || []
 
 	const netSales = sumBy(rows, "base_net_total")
 	const taxes = sumBy(rows, "base_total_taxes_and_charges")
@@ -30,8 +30,8 @@ export function buildProfitabilityModel(
 	const costDataAvailable =
 		itemRows.length > 0 && itemRows.some((row) => row.valuation_rate != null)
 
-	const cogs = costDataAvailable
-		? itemRows.reduce(
+	const cogs: number | null = costDataAvailable
+		? itemRows.reduce<number>(
 				(total, row) =>
 					total + (Number(row.qty) || 0) * (Number(row.valuation_rate) || 0),
 				0,
@@ -73,12 +73,20 @@ export function buildProfitabilityModel(
 	}
 }
 
+interface ProfitabilityBucket {
+	itemCode: string
+	itemName: string
+	qty: number
+	revenue: number
+	cost: number
+}
+
 function buildItemRows(
-	itemRows,
-	netSales,
-	costDataAvailable,
+	itemRows: SalesInvoiceItemFact[],
+	netSales: number,
+	costDataAvailable: boolean,
 ): ProfitabilityItemRow[] {
-	const byItem = new Map()
+	const byItem = new Map<string, ProfitabilityBucket>()
 	for (const row of itemRows) {
 		const key = String(row.item_code || "-")
 		let bucket = byItem.get(key)

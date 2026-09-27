@@ -69,13 +69,13 @@ Welcome to the DyPOS documentation directory. This folder contains comprehensive
 
 **Check current version:**
 ```bash
-cd /home/ubuntu/frappe-bench
+cd /home/ubuntu/dypos-bench
 bench --site nexus.local execute DyPOS.utils.get_app_version
 ```
 
 **Bump version:**
 ```bash
-cd /home/ubuntu/frappe-bench/apps/DyPOS
+cd /home/ubuntu/dypos-bench/apps/DyPOS
 ./scripts/version-bump.sh patch  # or minor/major
 ```
 
@@ -110,7 +110,7 @@ docs/
 
 - [DyPOS Repository](https://github.com/your-org/DyPOS)
 - [DyPOS Documentation](https://docs.DyPOS.com)
-- [Frappe Framework Documentation](https://frappeframework.com/docs)
+- [DyPOS Documentation](https://dypos.smartportssoft.com/)
 - [Vite Documentation](https://vitejs.dev)
 
 ## 📧 Support

@@ -1,4 +1,4 @@
-import { createResource } from "frappe-ui"
+import { createResource } from "dypos-ui"
 import { ref } from "vue"
 
 export function usePosProfile() {

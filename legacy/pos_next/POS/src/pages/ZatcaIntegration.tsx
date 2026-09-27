@@ -1,3 +1,36 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// ⛔ QUARANTINED — DO NOT REUSE, COPY, PORT, OR MINE THIS FILE.
+//
+// The header below claims "ZATCA Phase 2 Compliance". That claim is FALSE. This
+// file cannot produce a single ZATCA-compliant artefact:
+//
+//   • computeHashSHA256 (L~132) — NOT SHA-256. A 32-bit roll, then fakes a
+//     digest by concatenating the hash with its own reverse:
+//     `absHash + absHash.split("").reverse().join("")`. 16 hex chars of noise.
+//   • computeSHA256 (L~150)     — correct in the browser via crypto.subtle, but
+//     its Node path falls back to the fake above, so the invoice hash CHANGES
+//     between environments. ZATCA hashes must be identical everywhere.
+//   • generateQRCodeSVG (L~169) — draws a decorative pattern from
+//     `(charCodeAt(idx) + y*modules + x) % 2`. Not a QR code; it has no encoding,
+//     no error correction, and the tax authority's verifier cannot scan it.
+//   • generateXMLInvoice (L~214)— emits the SUNAT/PERU namespace
+//     (`urn:sunat:...peru...`) and `CustomizationID 1.0` (ZATCA requires
+//     reporting:1.0|1.1 or clearance:1.0). It omits every mandatory Phase 2
+//     element: `cac:Signature` (ECDSA), the QR extension, the ICV counter, and
+//     the previous-invoice-hash chain. It emits ZERO `cac:InvoiceLine` while
+//     declaring `LineCountNumeric 1`, hardcodes 15% VAT and "Saudi Arabia"
+//     (no zero-rated/exempt), and interpolates customer/counter values into XML
+//     with no escaping (XML injection).
+//   • It is also React + lucide-react + @/components, whereas the product is
+//     Vue 3 — it is not even loadable by the active app.
+//
+// Retained only as a historical artefact of the abandoned `legacy/pos_next`
+// React app. Its 9-tag field list is a usable REQUIREMENTS checklist only.
+// For the real implementation see docs/LEGACY_DECISION.md.
+// Enforcement: server/tests/crypto-integrity.test.js
+// تحذير: هذا الملف معزول وممنوع إعادة استخدامه — ولا ينتج فاتورة مطابقة لمتطلبات هيئة الزكاة.
+// ═══════════════════════════════════════════════════════════════════════════
+
 // (c) 2025 المنافذ الذكية للبرمجيات
 // ZATCA Phase 2 Compliance Implementation
 // TLV Encoding, QR Code, XML Export, Compliance Checking

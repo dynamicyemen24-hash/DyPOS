@@ -6,7 +6,7 @@
 UI → Application Services → Repositories → SQLite (local source of truth)
 ```
 
-Frappe is **not** a runtime dependency. The POS must open, sell, and print
+DyPOS is **not** a runtime dependency. The POS must open, sell, and print
 with no network, no Frappe, no cloud.
 
 ## Startup order (offline-first)
@@ -21,12 +21,12 @@ with no network, no Frappe, no cloud.
 8. Optionally probe backend (`/api/ping`) — failure = offline mode, never a blocker
 9. Queue sync operations for later
 
-Forbidden at startup: `frappe.auth.get_logged_user`, `/api/method/*` Frappe
+Forbidden at startup: `dypos.auth.get_logged_user`, `/api/method/*` Frappe
 whitelists, CSRF fetch, remote localization, remote device/features.
 
 ## Layers
 
-- **UI (Vue)**: never touches SQL or Frappe directly.
+- **UI (Vue)**: never touches SQL or the database directly.
 - **Application services**: Checkout, Pricing, Tax, Inventory, Payment, Shift,
   Customer, Receipt, Auth, Sync (target layout; partially consolidated —
   see MIGRATION_PLAN.md).
@@ -46,7 +46,7 @@ Events (`SALE_CREATED`, `PAYMENT_CREATED`, `INVENTORY_MOVEMENT_CREATED`,
 
 ## PWA
 
-- Dual-target build: Frappe desk (`/assets/DyPOS/pos/`, `npm run build`)
+- Dual-target build: DyPOS desk (`/assets/DyPOS/pos/`, `npm run build`)
   and Pages root (`/`, `npm run build:pages` via `DYPOS_PAGES_BUILD=1`).
 - Manifest scope/start_url follow the base, so the SW scope error
   (`'/' not under '/assets/DyPOS/pos/'`) cannot recur.

@@ -2,10 +2,28 @@ import path from "node:path"
 import { promises as fs } from "node:fs"
 import { existsSync } from "node:fs"
 import vue from "@vitejs/plugin-vue"
-import frappeui from "frappe-ui/vite"
 import { defineConfig } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
 import { viteStaticCopy } from "vite-plugin-static-copy"
+
+// ── DyPOS UI Kit (first-party) ──────────────────────────────────────────────
+// The kit lives in the repo (POS/packages/dypos-ui) and is aliased in, not
+// installed from a registry. It replaced a third-party component+data library
+// that dragged in a WYSIWYG editor, an icon font and four chart engines, forced
+// a Windows-only postinstall patch on every machine, and shipped a bench-walk
+// loop that hung `vite build` before printing anything.
+const UI_KIT = path.resolve(import.meta.dirname, "packages", "dypos-ui")
+
+/**
+ * Build output root — the single source of truth for "where the PWA lives".
+ *
+ * It used to be `<repo>/DyPOS/public/pos`, a path that no longer exists (the
+ * Frappe app folder was removed) and that four files each re-derived on their
+ * own, so a build and its deploy target could silently disagree — which is
+ * exactly how a stale bundle reached production. One constant, referenced by
+ * every script, exported for tooling.
+ */
+const OUT_DIR = path.resolve(import.meta.dirname, "dist", "pos")
 
 // Get build version from environment or use timestamp
 import { createRequire } from "node:module"
@@ -16,7 +34,7 @@ const buildVersion = process.env.DyPOS_BUILD_VERSION || Date.now().toString()
 const enableSourceMap = process.env.DyPOS_ENABLE_SOURCEMAP === "true"
 
 // Dual-target PWA:
-// - Frappe desk embed (default): base /assets/DyPOS/pos/, SW scope under it.
+// - DyPOS desk embed (default): base /assets/DyPOS/pos/, SW scope under it.
 // - Cloudflare Pages root (DYPOS_PAGES_BUILD=1): base /, SW scope /.
 // A root scope with a SW script nested under /assets/... is rejected by
 // browsers ("scope not under max scope allowed"), so scope must follow base.
@@ -30,7 +48,7 @@ const pwaIconPrefix = isPagesBuild ? "/" : "/assets/DyPOS/pos/"
 
 /**
  * Post-build font cleanup.
- * 1) Removes the frappe-ui variable Inter fonts (Inter.var / Inter-Italic.var)
+ * 1) Removes the dypos-ui variable Inter fonts (Inter.var / Inter-Italic.var)
  *    that are dead weight in the build and PWA precache.
  * 2) Strips every `.woff` (legacy) fallback from emitted @font-face src lists
  *    and deletes the orphaned `.woff` asset files. Modern browsers all support
@@ -42,8 +60,7 @@ function stripDeadFontFallbacks() {
 		name: "pos-next-strip-font-fallbacks",
 		apply: "build",
 		async writeBundle() {
-			const outDir = path.resolve(import.meta.dirname, "../DyPOS/public/pos")
-			const assetsDir = path.join(outDir, "assets")
+			const assetsDir = path.join(OUT_DIR, "assets")
 
 			// 1) Delete the variable-font asset files (unreferenced after CSS strip).
 			let removedVar = 0
@@ -127,8 +144,7 @@ function pruneStaleAssetsPlugin() {
 		name: "pos-next-prune-stale-assets",
 		apply: "build",
 		async writeBundle(_options, bundle) {
-			const outDir = path.resolve(import.meta.dirname, "../DyPOS/public/pos")
-			const assetsDir = path.join(outDir, "assets")
+			const assetsDir = path.join(OUT_DIR, "assets")
 			if (!existsSync(assetsDir)) return
 
 			const emitted = new Set(Object.keys(bundle))
@@ -172,10 +188,7 @@ function DyPOSBuildVersionPlugin(version, appVersion) {
 		name: "pos-next-build-version",
 		apply: "build",
 		async writeBundle() {
-			const versionFile = path.resolve(
-				import.meta.dirname,
-				"../DyPOS/public/pos/version.json",
-			)
+			const versionFile = path.join(OUT_DIR, "version.json")
 			await fs.mkdir(path.dirname(versionFile), { recursive: true })
 			await fs.writeFile(
 				versionFile,
@@ -204,24 +217,6 @@ function DyPOSBuildVersionPlugin(version, appVersion) {
 export default defineConfig({
 	plugins: [
 		DyPOSBuildVersionPlugin(buildVersion, appVersion),
-		frappeui({
-			frappeProxy: true,
-			jinjaBootData: true,
-			lucideIcons: true,
-			buildConfig: {
-				indexHtmlPath: path.join("..", "DyPOS", "www", "pos.html"),
-				// مطلق عمدًا: حماية من انحراف الإخراج مع اختلاف دليل التشغيل
-				outDir: path.resolve(
-					import.meta.dirname,
-					"..",
-					"DyPOS",
-					"public",
-					"pos",
-				),
-				emptyOutDir: false,
-				sourcemap: enableSourceMap,
-			},
-		}),
 		vue(),
 		viteStaticCopy({
 			targets: [
@@ -358,7 +353,7 @@ export default defineConfig({
 	],
 	build: {
 		chunkSizeWarningLimit: 500,
-		outDir: path.resolve(import.meta.dirname, "..", "DyPOS", "public", "pos"),
+		outDir: OUT_DIR,
 		emptyOutDir: false,
 		// es2022: top-level await in src/adapters/index.js (backend selector).
 		// Baseline 2026: Chrome/Edge 89+, Firefox 89+, Safari 15+ — كل أجهزة الكاشير الحديثة.
@@ -388,8 +383,8 @@ export default defineConfig({
 					if (/[\\/]node_modules[\\/](dexie|idb|@vertexvis)[\\/]/.test(id)) {
 						return "vendor-offline"
 					}
-					if (/[\\/]node_modules[\\/](frappe-ui)[\\/]/.test(id)) {
-						return "vendor-frappe"
+					if (/[\\/]node_modules[\\/](dypos-ui)[\\/]/.test(id)) {
+						return "vendor-dypos"
 					}
 					if (/[\\/]node_modules[\\/](chart\.js|vue-chartjs)[\\/]/.test(id)) {
 						return "vendor-charts"
@@ -418,20 +413,37 @@ export default defineConfig({
 		},
 	},
 	resolve: {
-		alias: {
-			"@": path.resolve(import.meta.dirname, "src"),
-			"tailwind.config.js": path.resolve(
-				import.meta.dirname,
-				"tailwind.config.js",
-			),
-		},
+		// Regex anchors keep the three entry points exact: a bare `dypos-ui`
+		// must never swallow `dypos-ui/style.css` (and vice versa).
+		alias: [
+			{
+				find: /^dypos-ui$/,
+				replacement: path.join(UI_KIT, "index.js"),
+			},
+			{
+				find: /^dypos-ui\/tailwind$/,
+				replacement: path.join(UI_KIT, "tailwind", "index.js"),
+			},
+			{
+				find: /^dypos-ui\/style\.css$/,
+				replacement: path.join(UI_KIT, "style.css"),
+			},
+			{
+				find: "@",
+				replacement: path.resolve(import.meta.dirname, "src"),
+			},
+			{
+				find: "tailwind.config.js",
+				replacement: path.resolve(import.meta.dirname, "tailwind.config.js"),
+			},
+		],
 	},
 	define: {
 		__BUILD_VERSION__: JSON.stringify(buildVersion),
 	},
 	optimizeDeps: {
 		// Note: these mirror the exact modules the app imports (see src/utils/qzTray.js,
-		// components that pull feather-icons via frappe-ui, highlight.js/interactjs from
+		// components that pull feather-icons via dypos-ui, highlight.js/interactjs from
 		// dependency trees). `showdown` was removed — it is not used anywhere.
 		include: [
 			"feather-icons",

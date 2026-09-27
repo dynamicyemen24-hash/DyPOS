@@ -76,9 +76,9 @@ Invoices are linked to shifts via the `Sales Invoice Reference` child table
 stored at shift-close time — the authoritative source, no fuzzy matching.
 """
 
-import frappe
-from frappe import _
-from frappe.utils import cint, flt, getdate, time_diff_in_hours
+import dypos
+from dyposimport _
+from dypos.utils import cint, flt, getdate, time_diff_in_hours
 
 
 def execute(filters=None):
@@ -400,12 +400,12 @@ def get_report_message(data):
 				}}
 			}}
 
-			/* Frappe Report Summary - Add spacing below */
+			/* dyposReport Summary - Add spacing below */
 			.report-summary {{
 				margin-bottom: 20px !important;
 			}}
 
-			/* Frappe Report Summary - Mobile Grid Layout */
+			/* dyposReport Summary - Mobile Grid Layout */
 			@media screen and (max-width: 768px) {{
 				.report-summary {{
 					display: grid !important;
@@ -633,7 +633,7 @@ def get_shift_data(filters):
 	if cashier_ids:
 		cashier_names = {
 			u.name: u.full_name or u.name
-			for u in frappe.get_all(
+			for u in dypos.get_all(
 				"User", filters={"name": ["in", cashier_ids]}, fields=["name", "full_name"]
 			)
 		}
@@ -692,7 +692,7 @@ def fetch_shifts_with_invoices(filters):
 		ORDER BY pcs.period_start_date DESC
 	"""
 
-	return frappe.db.sql(query, filters, as_dict=True)
+	return dypos.db.sql(query, filters, as_dict=True)
 
 
 def build_conditions(filters):
@@ -745,7 +745,7 @@ def fetch_payment_data_single(shift):
 		GROUP BY LOWER(sip.mode_of_payment)
 	"""
 
-	payments = frappe.db.sql(
+	payments = dypos.db.sql(
 		query,
 		{
 			"shift": shift.shift_id,
@@ -788,7 +788,7 @@ def fetch_salesperson_data_single(shift):
 		ORDER BY contribution DESC
 	"""
 
-	sales_persons = frappe.db.sql(
+	sales_persons = dypos.db.sql(
 		query,
 		{
 			"shift": shift.shift_id,
@@ -803,7 +803,7 @@ def fetch_salesperson_data_single(shift):
 	names = []
 	total = 0
 	for sp in sales_persons[:3]:  # Top 3
-		sp_name = frappe.db.get_value("Sales Person", sp.sales_person, "sales_person_name") or sp.sales_person
+		sp_name = dypos.db.get_value("Sales Person", sp.sales_person, "sales_person_name") or sp.sales_person
 		names.append(sp_name)
 		total += flt(sp.contribution)
 
@@ -840,7 +840,7 @@ def fetch_peak_hour_single(shift):
 		LIMIT 1
 	"""
 
-	result = frappe.db.sql(
+	result = dypos.db.sql(
 		query,
 		{
 			"shift": shift.shift_id,
@@ -1136,10 +1136,10 @@ def get_chart(data):
 # =============================================================================
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_hourly_breakdown(filters):
 	"""Get hourly sales breakdown"""
-	filters = frappe.parse_json(filters) if isinstance(filters, str) else filters
+	filters = dypos.parse_json(filters) if isinstance(filters, str) else filters
 
 	conditions = []
 	if filters.get("from_date"):
@@ -1153,7 +1153,7 @@ def get_hourly_breakdown(filters):
 
 	where = " AND " + " AND ".join(conditions) if conditions else ""
 
-	return frappe.db.sql(
+	return dypos.db.sql(
 		f"""
 		SELECT
 			HOUR(si.posting_time) AS hour,
@@ -1170,10 +1170,10 @@ def get_hourly_breakdown(filters):
 	)
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_payment_method_breakdown(filters):
 	"""Get payment method breakdown"""
-	filters = frappe.parse_json(filters) if isinstance(filters, str) else filters
+	filters = dypos.parse_json(filters) if isinstance(filters, str) else filters
 
 	conditions = []
 	if filters.get("from_date"):
@@ -1187,7 +1187,7 @@ def get_payment_method_breakdown(filters):
 
 	where = " AND " + " AND ".join(conditions) if conditions else ""
 
-	return frappe.db.sql(
+	return dypos.db.sql(
 		f"""
 		SELECT
 			sip.mode_of_payment,
@@ -1205,10 +1205,10 @@ def get_payment_method_breakdown(filters):
 	)
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_daily_trend(filters):
 	"""Get daily sales trend"""
-	filters = frappe.parse_json(filters) if isinstance(filters, str) else filters
+	filters = dypos.parse_json(filters) if isinstance(filters, str) else filters
 
 	conditions = []
 	if filters.get("from_date"):
@@ -1222,7 +1222,7 @@ def get_daily_trend(filters):
 
 	where = " AND " + " AND ".join(conditions) if conditions else ""
 
-	return frappe.db.sql(
+	return dypos.db.sql(
 		f"""
 		SELECT
 			si.posting_date AS date,

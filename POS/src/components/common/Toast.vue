@@ -50,7 +50,7 @@ import { computed } from "vue"
 import { useToast } from "@/composables/useToast"
 import { useLocale } from "@/composables/useLocale"
 import { __ } from "@/utils/translation"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 
 const { toastNotification, showToast, hideToast, pauseToast, resumeToast } =
 	useToast()

@@ -2,8 +2,8 @@
 # For license information, please see license.txt
 
 import os
-import frappe
-from frappe.utils import get_bench_path
+import dypos
+from dypos.utils import get_bench_path
 
 
 def install(app_name="DyPOS"):
@@ -33,7 +33,7 @@ def install(app_name="DyPOS"):
         setup_branding_assets()
 
         # Clear cache
-        frappe.clear_cache()
+        dypos.clear_cache()
 
         print("✅ Setup completed successfully!")
         print(f"   Company: المنافذ الذكية للبرمجيات")
@@ -41,7 +41,7 @@ def install(app_name="DyPOS"):
         print(f"   Module: POS Next")
 
     except Exception as e:
-        frappe.log_error(title="POS Next Setup Error", message=str(e))
+        dypos.log_error(title="POS Next Setup Error", message=str(e))
         raise
 
 
@@ -49,8 +49,8 @@ def setup_company():
     """Create default company"""
     company_name = "المنافذ الذكية للبرمجيات"
 
-    if not frappe.db.exists("Company", company_name):
-        doc = frappe.get_doc({
+    if not dypos.db.exists("Company", company_name):
+        doc = dypos.get_doc({
             "doctype": "Company",
             "company_name": company_name,
             "short_name": "SP",
@@ -73,16 +73,16 @@ def setup_roles():
     ]
 
     for role in roles:
-        if not frappe.db.exists("Role", role["role_name"]):
-            doc = frappe.get_doc({"doctype": "Role", **role})
+        if not dypos.db.exists("Role", role["role_name"]):
+            doc = dypos.get_doc({"doctype": "Role", **role})
             doc.insert(ignore_permissions=True)
             print(f"✅ Role created: {role['role_name']}")
 
 
 def setup_workspace():
     """Setup workspace"""
-    if not frappe.db.exists("Workspace", "DyPOS"):
-        doc = frappe.get_doc({
+    if not dypos.db.exists("Workspace", "DyPOS"):
+        doc = dypos.get_doc({
             "doctype": "Workspace",
             "name": "DyPOS",
             "label": "المنافذ الذكية POS",
@@ -120,19 +120,19 @@ def after_install():
     try:
         install()
     except Exception as e:
-        frappe.log_error(title="After Install Error", message=str(e))
+        dypos.log_error(title="After Install Error", message=str(e))
 
 
 def after_migrate():
     """After migrate hook"""
     try:
-        frappe.reload_doc("DyPOS", "doctype", "pos_settings")
-        frappe.reload_doc("DyPOS", "doctype", "pos_profile")
-        frappe.reload_doc("DyPOS", "workspace", "DyPOS")
-        frappe.clear_cache()
+        dypos.reload_doc("DyPOS", "doctype", "pos_settings")
+        dypos.reload_doc("DyPOS", "doctype", "pos_profile")
+        dypos.reload_doc("DyPOS", "workspace", "DyPOS")
+        dypos.clear_cache()
         print("✅ Migration completed")
     except Exception as e:
-        frappe.log_error(title="Migration Error", message=str(e))
+        dypos.log_error(title="Migration Error", message=str(e))
 
 
 def before_install():

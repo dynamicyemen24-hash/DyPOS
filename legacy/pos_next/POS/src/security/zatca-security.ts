@@ -1,3 +1,33 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// ⛔ QUARANTINED — DO NOT REUSE, COPY, PORT, OR MINE THIS FILE.
+//
+// Despite the filename, this module contains NO ZATCA cryptography. It is
+// generic web-security boilerplate, and several primitives are cryptographically
+// broken and would silently destroy the security of anything that adopts them:
+//
+//   • hmacSHA256 (L~180)  — NOT HMAC-SHA256. A 32-bit XOR/"djb2" rolling hash
+//                           returning 8 hex chars (~32 bits). Every JWT signed
+//                           here is trivially forgeable.
+//   • verifyJWT (L~158)   — non-constant-time `!==` signature compare (timing
+//                           oracle) and no `alg` check from the header.
+//   • pbkdf2Hash (L~320)  — NOT PBKDF2. Same 32-bit roll, then pads itself to
+//                           look long: `while (len < keyLength*2) hash += hash`.
+//                           ~32 bits of real entropy.
+//   • scryptHash          — named scrypt, is PBKDF2 in the browser and the fake
+//                           roll in Node, yet reports
+//                           "PBKDF2-HMAC-SHA256 (scrypt-compatible)".
+//   • generateSalt        — Math.random(), not a CSPRNG.
+//   • verifyPassword      — non-constant-time `===` compare.
+//
+// Any credential ever hashed by this is effectively UNPROTECTED and offline
+// crackable in ~2^32 work. It is retained only as a historical artefact of the
+// abandoned `legacy/pos_next` React app; nothing imports it.
+//
+// For the real implementation see POS/src/... (Vue 3) and docs/LEGACY_DECISION.md.
+// Enforcement: server/tests/crypto-integrity.test.js
+// تحذير: هذا الملف معزول وممنوع إعادة استخدامه — يحتوي على دوال تشفير غير حقيقية.
+// ═══════════════════════════════════════════════════════════════════════════
+
 // (c) 2025 المنافذ الذكية للبرمجيات
 // ZATCA Phase 2 Security Module
 // Helmet.js headers, Rate Limiting, JWT, CORS, CSP, scrypt hashing

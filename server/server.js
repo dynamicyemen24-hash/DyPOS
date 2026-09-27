@@ -8,7 +8,6 @@
  */
 import dotenv from 'dotenv';
 import express from 'express';
-import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
@@ -67,7 +66,6 @@ import { ah, isSqliteLockError } from './lib/async.js';
 import { createRateStore } from './lib/rate-store.js';
 import { VERSION } from './lib/version.js';
 import { logger } from './lib/logger.js';
-import { createLogger } from './lib/structuredLog.js';
 import { registerService, registerHealthCheck, initialize, deepHealthCheck, isReady, shutdown } from './lib/lifecycle.js';
 import { registerSecurityHeaders } from './middleware/securityHeaders.js';
 import { cspNonceMiddleware, buildCspWithNonce } from './middleware/cspNonce.js';
@@ -250,6 +248,16 @@ async function ensureLifecycleInitialized() {
   }
 }
 
+// Liveness/readiness endpoints served by this process.
+//   /api/health — documented contract path (OpenAPI, SRE dashboards, tests)
+//   /api/ready  — readiness probe (Docker healthcheck)
+//   /health     — the alias every uptime monitor, container orchestrator and
+//                 platform probe hits by default; the Cloudflare API Worker
+//                 answers the same alias, so both origins behave identically.
+// All three are exempt from per-IP rate limiting and request logging: a probe
+// that gets throttled looks like an outage.
+const HEALTH_PATHS = new Set(['/health', '/api/health', '/api/ready']);
+
 // Request-ID + structured request logger (skips health probes to save I/O)
 // + X-Response-Time for LB observability at millions-of-requests scale.
 function requestLogger(req, res, next) {
@@ -259,7 +267,7 @@ function requestLogger(req, res, next) {
   res.on('finish', () => {
     const duration = Date.now() - start;
     try { res.setHeader('X-Response-Time', `${duration}ms`); } catch { /* headers sent */ }
-    if (req.path === '/api/health' || req.path === '/api/ready') return;
+    if (HEALTH_PATHS.has(req.path)) return;
     const logFields = {
       req_id: req.id, method: req.method, url: req.url, status: res.statusCode,
       duration_ms: duration, ip: req.ip,
@@ -301,18 +309,24 @@ app.use(helmet({
 }));
 
 // Dynamic CSP with nonce
-app.use((req, res, next) => {
+app.use((_req, res, next) => {
   const nonce = res.locals?.cspNonce;
   if (nonce) {
     const csp = buildCspWithNonce(nonce, {
       apiOrigins: process.env.DYPOS_API_ORIGIN,
-      frappeOrigin: process.env.DYPOS_FRAPPE_ORIGIN,
+      deskOrigin: process.env.DYPOS_DESK_ORIGIN || process.env.DYPOS_FRAPPE_ORIGIN,
       isProduction,
     });
     res.setHeader('Content-Security-Policy', csp);
   }
   next();
 });
+
+// Remaining response hardening: Permissions-Policy, COOP, Referrer-Policy and
+// Cache-Control: no-store on /api/*. This was imported but never mounted, so
+// none of those headers were ever sent. Mounted AFTER the nonce CSP above so
+// the nonce policy wins and this only fills in the rest.
+registerSecurityHeaders(app);
 
 // Realtime SSE hub — MUST mount BEFORE compression: gzip would buffer SSE
 // frames and break live delivery. JWT-authed per-tenant stream with heartbeat
@@ -332,7 +346,7 @@ app.use(rateLimit({
   windowMs: GLOBAL_WINDOW_MS, max: Number(process.env.DYPOS_RATE_LIMIT_MAX) || (isProduction ? 2000 : 1000),
   standardHeaders: true, legacyHeaders: false,
   store: createRateStore(GLOBAL_WINDOW_MS, 'global'),
-  skip: (req) => req.path === '/api/health' || req.path === '/api/ready' || req.path.startsWith('/api/import'),
+  skip: (req) => HEALTH_PATHS.has(req.path) || req.path.startsWith('/api/import'),
   message: { error: 'Too many requests. Please try again later.' },
 }));
 
@@ -361,8 +375,12 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Deep health check + readiness (DB + cache + outbox + memory — SRE standard)
-app.get('/api/health', ah(async (_req, res) => {
+// Deep health check + readiness (DB + cache + outbox + memory — SRE standard).
+// Registered on two paths on purpose: `/health` is the alias uptime monitors and
+// container orchestrators probe by default (and the API Worker answers it too),
+// while `/api/health` stays the documented, versioned contract path that
+// OpenAPI, dashboards and the version-drift test assert against.
+const deepHealthHandler = ah(async (_req, res) => {
   const health = await deepHealthCheck();
   const response = { ...health, version: VERSION, status: health.healthy ? 'ok' : 'degraded' };
   // Backward compat: include database at top level
@@ -376,7 +394,9 @@ app.get('/api/health', ah(async (_req, res) => {
   response.stock = health.checks?.stock?.details || health.checks?.stock;
   response.disk = health.checks?.disk?.details || health.checks?.disk;
   return res.status(health.healthy ? 200 : 503).json(response);
-}));
+});
+app.get('/health', deepHealthHandler);
+app.get('/api/health', deepHealthHandler);
 // Fleet version visibility: every API response carries the running build
 // so any terminal can detect drift without a separate version call.
 app.use('/api', (_req, res, next) => {
@@ -432,7 +452,7 @@ app.use('/api/auth', authRateLimit, authRoutes);
 app.use(requirePrimary);
 
 // Protected routes
-// Frappe-compat dual GET/POST method router (localization, auth, client, items, …)
+// Method-router compat: dual GET/POST (localization, auth, client, items, …)
 app.use('/api/method', methodRoutes);
 
 app.use('/api/admin', authMiddleware, adminRoutes);
@@ -480,9 +500,9 @@ app.get('/admin', (_req, res) => {
   res.sendFile(join(__dirname, 'public', 'admin.html'));
 });
 
-// Serve POS frontend (SPA) — Vite builds to DyPOS/public/pos
-const posDist = resolve(process.env.DYPOS_FRONTEND_DIST || join(__dirname, '..', 'DyPOS', 'public', 'pos'));
-// Frappe-style file uploads (upload_file method) → /uploads/*
+// Serve POS frontend (SPA) — Vite builds to POS/dist/pos
+const posDist = resolve(process.env.DYPOS_FRONTEND_DIST || join(__dirname, '..', 'POS', 'dist', 'pos'));
+// Method-router file uploads (upload_file method) → /uploads/*
 const uploadsDir = join(__dirname, 'uploads');
 if (existsSync(uploadsDir)) {
   app.use('/uploads', express.static(uploadsDir, { maxAge: '1y', etag: true, index: false }));

@@ -4,9 +4,9 @@
  * Complements the helmet presets already mounted in server.js with the
  * campaign's stricter contract:
  *   - Content-Security-Policy: enforced, self-hardened; connect-src allows only
- *     self + configured API/Frappe origins (falls back to https:/wss: so the
+ *     self + configured API origins (falls back to https:/wss: so the
  *     POS keeps talking to its own backend when no origin is configured); the
- *     browser app frame is restricted to self + Frappe origin.
+ *     browser app frame is restricted to self + the configured origin.
  *   - HSTS (max-age 31536000, includeSubDomains, preload): prod only — HSTS on a
  *     dev box would pin a throwaway localhost cert the operator has no way to
  *     unpin.
@@ -14,8 +14,8 @@
  *   - Referrer-Policy: strict-origin-when-cross-origin — no full URL leaks.
  *   - Permissions-Policy: deny high-value browser APIs by default.
  *   - Cross-Origin-Opener-Policy: same-origin to blunt Spectre-style window
- *     cross-origin leaks; disabled when a Frappe origin is configured (the
- *     published pos.html is a Frappe page) or DYPOS_COOP=0.
+ *     cross-origin leaks; disabled when an origin is configured (the
+ *     published pos.html is a top-level page) or DYPOS_COOP=0.
  *   - Cache-Control: no-store for /api/* unless a route already set one
  *     (invoices are financial records — they must never be cached).
  *
@@ -24,25 +24,60 @@
  */
 const isProduction = () => process.env.NODE_ENV === 'production';
 
-function splitOrigins(raw) {
+/**
+ * Split a comma-separated origin list. Exported so the nonce-based CSP builder
+ * in cspNonce.js validates origins identically instead of re-implementing it.
+ */
+export function splitOrigins(raw) {
   return String(raw || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
 }
 
-function toOriginWhitelist(candidates) {
-  return candidates.filter((o) => /^https?:\/\//.test(o));
+/**
+ * Keep only well-formed, bare http(s) origins.
+ *
+ * CSP directives are space-separated and ';'-terminated, so a naive
+ * `/^https?:\/\//` test is NOT enough: "https://a.test; script-src *" starts
+ * with a valid scheme and would smuggle an extra directive into the policy.
+ * So we reject CSP-breaking characters outright, then require the value to
+ * parse as a URL with a bare http(s) origin (no path, query, fragment or
+ * userinfo), and emit the parsed origin rather than the raw input.
+ */
+export function toOriginWhitelist(candidates) {
+  const out = [];
+  for (const raw of candidates) {
+    const value = String(raw || '').trim();
+    // Whitespace, ';' and quoting chars can all terminate or forge a directive.
+    if (!value || /[\s;,<>"'()\\]/.test(value)) continue;
+    let url;
+    try {
+      url = new URL(value);
+    } catch {
+      continue;
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') continue;
+    if (url.pathname !== '/' || url.search || url.hash) continue;
+    if (url.username || url.password) continue;
+    out.push(url.origin);
+  }
+  return out;
 }
 
 /**
  * Build the production security-header middleware.
- * @param {{ apiOrigins?: string, frappeOrigin?: string, coop?: boolean }} [options]
+ * @param {{ apiOrigins?: string, deskOrigin?: string, coop?: boolean }} [options]
  */
 export function securityHeaders(options = {}) {
+  // Resolved once at construction, not per request. These used to be declared
+  // here AND re-declared inside the middleware, which made the outer copies
+  // dead and recomputed the env lookups on every single response.
   const apiOrigins = toOriginWhitelist(splitOrigins(options.apiOrigins ?? process.env.DYPOS_API_ORIGIN));
-  const frappeOrigin = String(options.frappeOrigin ?? process.env.DYPOS_FRAPPE_ORIGIN ?? '').trim();
-  const allowCode = options.coop !== false && !frappeOrigin && String(process.env.DYPOS_COOP || '1') !== '0';
+  const deskOrigin = String(options.deskOrigin ?? process.env.DYPOS_FRAPPE_ORIGIN ?? '').trim();
+  const allowCode = options.coop !== false && !deskOrigin && String(process.env.DYPOS_COOP || '1') !== '0';
+  // Clickjacking: allowlisted origins may frame us only when explicitly allowed.
+  const allowFraming = options.allowFraming === true;
 
   return function securityHeadersMiddleware(req, res, next) {
     if (isProduction()) {
@@ -50,17 +85,17 @@ export function securityHeaders(options = {}) {
     }
     // Skip CSP if already set by nonce middleware
     if (!res.getHeader('Content-Security-Policy')) {
-      const apiOrigins = toOriginWhitelist(splitOrigins(options.apiOrigins ?? process.env.DYPOS_API_ORIGIN));
-      const frappeOrigin = String(options.frappeOrigin ?? process.env.DYPOS_FRAPPE_ORIGIN ?? '').trim();
-      const connectSrc = ["'self'", ...toOriginWhitelist(splitOrigins(frappeOrigin)), ...apiOrigins];
+      const connectSrc = ["'self'", ...toOriginWhitelist(splitOrigins(deskOrigin)), ...apiOrigins];
       if (!connectSrc.some((o) => o.startsWith('http'))) connectSrc.push('https:', 'wss:');
-      const frameAncestors = ["'self'", ...toOriginWhitelist(splitOrigins(frappeOrigin))];
+      const frameAncestors = ["'self'"];
+      if (allowFraming) frameAncestors.push(...toOriginWhitelist(splitOrigins(deskOrigin)));
       const csp = [
         "default-src 'self'",
         `script-src 'self' blob:`,
         `style-src 'self' 'unsafe-inline'`,
         `img-src 'self' data: blob: https:`,
-        `font-src 'self' data: https://fonts.gstatic.com`,
+        // No external font origin: the app self-hosts its fonts.
+        `font-src 'self' data:`,
         `connect-src ${connectSrc.join(' ')}`,
         `media-src 'self' blob:`,
         `object-src 'none'`,

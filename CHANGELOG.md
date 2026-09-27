@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.37.0] - 2026-09-25 — حملة الكفاءة والجودة: Offline-First ناضج، PWA مخفّضة، وإنتاج عالمي
 ### Added
-- Offline-First: إزالة اعتمادات Frappe التشغيلية (الجلسة، الترجمة، اللغة، CSRF، المستخدم) واستبدالها بطبقة محلية؛ بدء التشغيل لا ينتظر أي شبكة.
+- Offline-First: إزالة الاعتمادات التشغيلية (الجلسة، الترجمة، اللغة، CSRF، المستخدم) واستبدالها بطبقة محلية؛ بدء التشغيل لا ينتظر أي شبكة.
 - منبّه انتهاء الجلسة أُزيل من شاشات الضيوف (Login/Register/Forgot/Reset)؛ `useSessionTimeout` صريح `start()` فقط.
 - PWA مزدوجة البناء (`build` للتضمين + `build:pages` للجذر)؛ النطاق يتبع القاعدة — خطأ الـ scope مستحيل.
 - تقليم مخرجات البناء الحتمي (`prune-pages-output.mjs`): precache من 729 مدخلًا/29MB إلى ~98 مدخلًا/4MB.
@@ -18,12 +18,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - واجهة 603/603 · خادم 365/365 · biome نظيف · parity `ok:true` · عقد 105/105 · ميزانية الحزمة 831KB ≤ 900KB.
 
 ## [Unreleased]
+### Fixed — تشغيل النظام وبوابات الجودة
+- **`POS/node_modules` كان فارغًا** ⇒ لا بناء ولا اختبارات ولا تنصيب ممكن: `npm ci` (597 حزمة).
+- **`dompurify` غير معلَن في `POS/package.json`** ⇒ `TranslatedHTML.vue` (منقّي HTML) لا يُحلّ: اختبار إقلاع الواجهة يفشل والبناء ينكسر.
+- **`@tailwindcss/forms` غير معلَن** ⇒ `packages/dypos-ui/tailwind` يرمي `Cannot find module` عند أي ترجمة CSS (اختبار + بناء PWA). أُضيفت الحزمتان إلى البيان والقفل.
+- **بوابة الخادم كانت تُشغّل صفر اختبار**: النمط `tests/**/*.test.js` لا يوسّعه Node، فيُخرَج بـ 0 رغم وجود 40 ملف اختبار — بما فيها خطوة «API regression» في CI. أُضيف `server/scripts/run-tests.mjs` يعدّ الملفات بنفسه **ويرفض الإبلاغ بالأخضر إن لم يجد شيئًا**؛ `npm test` = 484 اختبارًا.
+- **حارس التسمية**: `server/tests/branding-integrity.test.js` (6 اختبارات) يمنع تكرار تلف الاستبدال.
+### Changed — استبدال التسمية بمكوّنات حديثة تعمل بلا إنترنت
+- **طبقة عميل method-router واحدة** (`POS/src/utils/methodClient.js`): لوحات التقارير والمخزون ومتجر SaaS كانت تستطلع `window.<desk>` غير الموجود أصلًا ⇒ تفشل صامتة «API not available» حتى مع خادم يعمل. الآن تمرّ عبر `@/utils/methodClient` مع تدهور صريح (قائمة فارغة بدل انفجار)، وتصدير/حذف بيانات المستخدم ينجز محليًا حتى لو مات الخادم.
+- تسمية موحّدة بلا تغيير سلوكي: `NO_FRAPPE` ⇒ `NO_DYPOS_API` (ورسالة عربية)، `adapters/frappe/` ⇒ `adapters/method/` (ويبقى `VITE_DYPOS_BACKEND=frappe` مقبولًا)، `frappeError` ⇒ `methodError`، `frappeOrigin` ⇒ `deskOrigin` (مع `DYPOS_DESK_ORIGIN` الجديد والقديم `DYPOS_FRAPPE_ORIGIN` كبديل)، `getFrappeBoot` ⇒ `getRuntimeBoot`، `X-Frappe-CSRF-Token` ⇒ `X-DyPOS-CSRF-Token`، وحذف `frappeRequest` من حزمة الواجهة.
+- إصلاح 98 موضعًا تضرّرت من جملة استبدال أعمى: كلمات ملتصقة مثل `dyposerror`، ومعرّفات ميتة (`dypos.session.user`، `dypos.user_roles`) كانت `ReferenceError` محتمَلة في مسارَي تسجيل الدخول وتصدير البيانات.
 ### Added
-- موجة SEC: دخول `/api/method/login` يشارك قفل اسم المستخدم + حد رشّ IP، `password_hash` لا يغادر `frappe.client.*` أبدًا، نطاق مستأجر fail-closed في كل قوائم الـ method مع حراس بالمعرف، إصلاح XSS في التمييز، telemetry آمن ESM، trust-proxy افتراضي 0، metrics مرفوض افتراضيًا في الإنتاج.
+- موجة SEC: دخول `/api/method/login` يشارك قفل اسم المستخدم + حد رشّ IP، `password_hash` لا يغادر `dypos.client.*` أبدًا، نطاق مستأجر fail-closed في كل قوائم الـ method مع حراس بالمعرف، إصلاح XSS في التمييز، telemetry آمن ESM، trust-proxy افتراضي 0، metrics مرفوض افتراضيًا في الإنتاج.
 - موجة FUNC (35 معالج method جديدًا، العقد 105/105): المرتجعات end-to-end عبر `submit_invoice` بنفس `applyInvoiceReturn`، فحص مزامنة `offline_id`، ائتمان/محفظة/حسابات/أعلام، كوبونات وعروض CRUD، إدارة الأصناف، التوفر بالمستودعات، batch-serial، استردادات لمرة واحدة، تحديث الإعدادات والمستودع، شهادة QZ + توقيع SHA-512، المتغيرات، أنواع `POS Coupon/Shifts`، ودعم `order_by` في `get_list`.
 - عمليات: `npm run contract` + بوابته في سير النشر، DDL مرجعي لأجهزة/نمو (`schema.js`)، إصلاح `seed` (أنواع الكوبونات، مخزون يتيم، كلمات مرور عند إعادة التشغيل).
 ### Verified
-- خلفية 362/362 · واجهة 552/552 · biome نظيف · parity `ok:true` · CI والنشر أخضر والتحقق الحي سليم.
+- خادم **484/484** عبر `npm test` (المُشغِّل الجديد) · واجهة **732/732** · `vue-tsc` نظيف · biome نظيف في الطرفين · `npm run parity` `ok:true` · عقد method 97/97 · بناء PWA ناجح (precache 89 مدخلًا / 3.3MB) · ميزانية الحزمة 569KB ≤ 900KB.
+- سابقة هذه الجولة (قبل الإصلاح) كانت: خلفية 362/362 · واجهة 552/552 — أرقام لم تكن تُشغَّل فعليًا في CI لأن أمر الخادم لا يوسّع النمط.
 
 ## [1.36.0] - 2026-09-22 — حملة الترقية النهائية: Real-time، تحصين أمني، Observability، وخروج أُحادي
 ### Added
@@ -157,14 +168,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.29.0] - 2026-09-21 — سداد الديون: ترقيات verified + إصلاح تجمد البناء + ديون وظيفية/عملياتية
 
 ### Fixed — تجمد `vite build` على Windows (سبب جذري)
-- رقعة `patch-frappe-ui-windows.js` القديمة كانت تطابق نصًا حرفيًا ففشلت
+- رقعة `patch-dypos-ui-windows.js` القديمة كانت تطابق نصًا حرفيًا ففشلت
   بصمت أمام أي إعادة صياغة upstream → حلقة `while (currentDir !== '/')`
   لا نهائية قبل أي مخرجات. أُعيدت كتابتها regex version-proof (أي guard
   + حقن helper كشف الجذر) — تشخيص كامل بالتنصيف حتى `CALL-DONE`.
 - حارس CI جديد يفشل Pipeline إذا بقي guard هش بعد التثبيت.
 
 ### Added — ترقيات verified (اختبارات + بناء أخضر لكل منها)
-- الواجهة: `vue 3.5.43` (pin دقيق) و`frappe-ui 0.1.278`.
+- الواجهة: `vue 3.5.43` (pin دقيق) و`dypos-ui 0.1.278`.
 - الخادم: `dotenv 18` و`bcryptjs 3` و`pino 10` و`pino-http 11` و`uuid 14`
   و`express-rate-limit 8` و`@biomejs/biome 2` (مع `biome migrate` +
   `server/.gitignore` idiomatic).
@@ -237,7 +248,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   test-utils `2.5.1`، autoprefixer `10.6.1`، baseline-mapping `2.11.25`،
   browserslist `4.29.0` — الاختبارات والبناء خضراء بعدها.
   أُجّلت الكبرى لنوافذ هجرة مستقلة: vite 5→8، tailwind 3→4، vue-router 4→5،
-  pinia 3→4، vitest 2→5، frappe-ui 0.1.240→0.1.278، express 4→5، zod 3→4.
+  pinia 3→4، vitest 2→5، dypos-ui 0.1.240→0.1.278، express 4→5، zod 3→4.
 
 ## [1.27.0] - 2026-09-20 — محرّك الاشتراكات + سلامة فوترة لا تتكرر (Recurring Commerce)
 
@@ -273,9 +284,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `POS/src/adapters/rest/api.js`: صنف `ApiClient` كان بلا فعل `patch()` بينما
   `updateSubscriptionPlan` ينادي `api.patch(...)` → انهيار `TypeError` عند أول
   تعديل باقة (تعارض مع مسار الخادم `PATCH /plans/:id`). أُضيف الفعل ليكتمل العقد.
-- `POS/src/adapters/frappe/api.js`: كان يُصدِّر 9 أسماء فقط من 39 تُصدِّرها
+- `POS/src/adapters/dypos/api.js`: كان يُصدِّر 9 أسماء فقط من 39 تُصدِّرها
   الواجهة الموحّدة `adapters/index.js` → 30 اسمًا تصبح `undefined` **بصمت**
-  عند `VITE_DYPOS_BACKEND=frappe` (انهيار وسط البيع). الآن كل اسم إما منفَّذ
+  عند `VITE_DYPOS_BACKEND=dypos` (انهيار وسط البيع). الآن كل اسم إما منفَّذ
   فعليًا أو **يفشل بصوت عالٍ** برسالة عربية صريحة — لا سلوك وهمي ولا
   `undefined is not a function`.
 
@@ -312,8 +323,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### CI — تحصين البوابة
 - `.github/workflows/ci.yml`: الفرع `main` صار مُبوَّبًا (كان `develop` فقط ⇒
   إصدارات `main` بلا أي CI)، وأُضيفت خطوتا **lint** و**parity** لوظيفة الخادم.
-- وظيفة Frappe القديمة (`tests`) كانت مستحيلة النجاح (تثبيت من
-  `frappe/DyPOS@version-15` غير موجود + تثبيت مزدوج + وحدة تقع في
+- وظيفة dyposالقديمة (`tests`) كانت مستحيلة النجاح (تثبيت من
+  `dypos/DyPOS@version-15` غير موجود + تثبيت مزدوج + وحدة تقع في
   `legacy/pos_next`) → `if: false` بتوثيق السبب (سابقة موجودة في `linter.yml`).
 
 ### Verified — Quality gates (إصدار إنتاجي)
@@ -502,7 +513,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `GET /api/ready`: ~18ms | `GET /api/health`: ~18ms |
   `GET /api/openapi.json`: ~37ms.
 - Frontend bundle: JS 35 files / 1451KB, CSS 9 files / 352KB, precache
-  73 entries; heaviest chunks route-split (frappe 281KB, charts 191KB
+  73 entries; heaviest chunks route-split (dypos281KB, charts 191KB
   dashboard-only, print 118KB on demand).
 - Note: `localhost` hostname resolution on this host adds seconds vs
   `127.0.0.1` (OS-level IPv6 fallback) — production uses relative URLs
@@ -871,7 +882,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `POST /api/invoices/:id/return` (يعكس مخزون/ولاء/ائتمان، حالة `RETURNED`) — تقرير `daily refunds` صار حيًا.
 - `GET /api/shifts` (سجل الورديات المرقم) + فلاتر `low/threshold` و`offset` للمخزون + `sort/order` و`includeInactive` للأصناف + `offset` للتصدير + `total/hasMore` في كل القوائم.
 - QR زاتكا TLV (Base64) عند ضبط `DYPOS_VAT_NUMBER` (`X-QR-Kind: zatca-tlv` وإلا `json`).
-- واجهة: إصلاح كسر البناء `POSFooter→useI18n` (استبدال بـ `useLocale+__`) + تقسيم حِزم (`vendor-frappe/charts/realtime/print`) + `target es2020` + حد 500KB + قاعدة `flagcdn` في PWA.
+- واجهة: إصلاح كسر البناء `POSFooter→useI18n` (استبدال بـ `useLocale+__`) + تقسيم حِزم (`vendor-dypos/charts/realtime/print`) + `target es2020` + حد 500KB + قاعدة `flagcdn` في PWA.
 - توثيق `docs/SCALING_MILLIONS.md` (معمارية Single-Writer + حدود معلنة + خطوة Postgres/Redis التالية).
 - اختبارات `tests/scale.test.js` (18 حارسًا جديدًا) + إصلاح حملة الضغط لتسجيل ADMIN (ضروري بعد RBAC).
 
@@ -1020,7 +1031,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **POS-Only Pricing Rules** (#169)
   - New "POS Only" checkbox for Promotional Schemes and Pricing Rules
   - POS-only rules are automatically excluded from non-POS documents (desk, website)
-  - Module-level monkey-patch for `get_other_conditions` since no Frappe hook exists
+  - Module-level monkey-patch for `get_other_conditions` since no dyposhook exists
 
 - **Sales Persons Offline Caching** (#174)
   - Sales persons list cached for offline use
@@ -1096,7 +1107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Customer Search** (#208)
   - Server-side search filtering on name, customer_name, mobile_no, email_id (was browse-only before)
-  - Customer creation routed through `DyPOS.api.customers.create_customer` instead of generic `frappe.client.insert`
+  - Customer creation routed through `DyPOS.api.customers.create_customer` instead of generic `dypos.client.insert`
 
 - **Loyalty Program Assignment** (#208)
   - Context-aware loyalty assignment using explicit company/POS Profile
@@ -1236,7 +1247,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **DyPOS v15/v16 Compatibility**
   - Support both `post_change_gl_entries` field locations (Accounts Settings vs Singles table)
   - Support both v15 `make_gle_for_change_amount()` and v16 `get_gle_for_change_amount()` methods
-  - Convert `get_stock_availability` from SQL string to Query Builder for Frappe 16
+  - Convert `get_stock_availability` from SQL string to Query Builder for dypos16
 
 - **Shift Timer**
   - Fixed negative shift duration (-1 Hours -60 Minutes) caused by timezone mismatch between server and browser
@@ -1247,10 +1258,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.14.0] - 2026-01-25
 
 ### Added
-- **Frappe 16 Compatibility**
-  - Converted SQL queries to Query Builder for full Frappe 16 support
+- **dypos16 Compatibility**
+  - Converted SQL queries to Query Builder for full dypos16 support
   - Updated item filtering conditions using Query Builder patterns
-  - Replaced pypika date functions with frappe.utils for date filtering
+  - Replaced pypika date functions with dypos.utils for date filtering
 
 - **Enhanced Barcode Support**
   - Added POS Barcode Rules DocType for configurable barcode parsing
@@ -1378,7 +1389,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Improved i18n coverage across the application
 
 - **Build & Dependencies**
-  - Updated frappe-ui imports to use proper exports
+  - Updated dypos-ui imports to use proper exports
   - Improved build compatibility
 
 ### Fixed
@@ -1591,7 +1602,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Dependency Updates**
-  - Fixed frappe-ui dependency version format in package.json
+  - Fixed dypos-ui dependency version format in package.json
 
 - **POS Settings Configuration**
   - Removed problematic autoname field from POS settings configuration
@@ -1805,7 +1816,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Item Group Filter and Toast Notifications**
   - Fixed empty items display when updating item group filters
   - Added forceServerFetch parameter to bypass cache and fetch fresh data
-  - Migrated from frappe-ui toast to custom useToast composable
+  - Migrated from dypos-ui toast to custom useToast composable
   - Reduced notification noise by removing low-value success notifications
   - Kept critical error and warning notifications only
 - **IndexedDB and Caching Issues**
@@ -1940,7 +1951,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Item Query Function Whitelisting**
   - Fixed "Function not whitelisted" error when adding Tax Rules
-  - Added `@frappe.whitelist()` decorator to `item_query` function
+  - Added `@dypos.whitelist()` decorator to `item_query` function
   - Parse JSON filters parameter when called from frontend
   - Remove mandatory company validation to allow global items
   - Set `custom_company` to empty string for new items without company

@@ -13,10 +13,10 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-// frappe-ui's bare package import breaks under vitest module resolution
+// dypos-ui's bare package import breaks under vitest module resolution
 // (extensionless internal import); this suite tests OUR boot logic, so the
 // transport layer is stubbed. Production behavior is proven by vite build.
-vi.mock("frappe-ui", () => ({
+vi.mock("dypos-ui", () => ({
 	createResource: vi.fn(() => ({
 		fetch: vi.fn(async () => null),
 		promise: null,

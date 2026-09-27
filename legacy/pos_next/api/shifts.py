@@ -4,19 +4,19 @@
 
 import json
 
-import frappe
-from frappe import _
-from frappe.utils import nowdate, nowtime, get_datetime, flt, cint
+import dypos
+from dyposimport _
+from dypos.utils import nowdate, nowtime, get_datetime, flt, cint
 from DyPOS.api.utilities import get_wallet_payment_modes
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_opening_dialog_data():
 	"""Get data required for opening shift dialog"""
 	data = {}
 
 	# Get POS Profiles where current user is defined in POS Profile User table
-	pos_profiles_data = frappe.db.sql(
+	pos_profiles_data = dypos.db.sql(
 		"""
 		SELECT DISTINCT p.name, p.company, p.currency, p.warehouse, p.selling_price_list
 		FROM `tabPOS Profile` p
@@ -24,7 +24,7 @@ def get_opening_dialog_data():
 		WHERE p.disabled = 0 AND u.user = %s
 		ORDER BY p.name
 		""",
-		frappe.session.user,
+		dypos.session.user,
 		as_dict=1,
 	)
 
@@ -48,7 +48,7 @@ def get_opening_dialog_data():
 		if wallet_modes:
 			payment_filters["mode_of_payment"] = ["not in", wallet_modes]
 
-		data["payments_method"] = frappe.get_list(
+		data["payments_method"] = dypos.get_list(
 			"POS Payment Method",
 			filters=payment_filters,
 			fields=["*"],
@@ -59,20 +59,20 @@ def get_opening_dialog_data():
 
 		# Set currency from pos profile
 		for mode in data["payments_method"]:
-			mode["currency"] = frappe.get_cached_value("POS Profile", mode["parent"], "currency")
+			mode["currency"] = dypos.get_cached_value("POS Profile", mode["parent"], "currency")
 	else:
 		data["payments_method"] = []
 
 	return data
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def check_opening_shift(user=None):
 	"""Check if user has an open shift"""
 	if not user:
-		user = frappe.session.user
+		user = dypos.session.user
 
-	open_shifts = frappe.db.get_all(
+	open_shifts = dypos.db.get_all(
 		"POS Opening Shift",
 		filters={
 			"user": user,
@@ -90,9 +90,9 @@ def check_opening_shift(user=None):
 	# Get the latest open shift
 	shift_data = open_shifts[0]
 	data = {}
-	data["pos_opening_shift"] = frappe.get_doc("POS Opening Shift", shift_data["name"])
-	data["pos_profile"] = frappe.get_doc("POS Profile", shift_data["pos_profile"])
-	data["company"] = frappe.get_doc("Company", data["pos_profile"].company)
+	data["pos_opening_shift"] = dypos.get_doc("POS Opening Shift", shift_data["name"])
+	data["pos_profile"] = dypos.get_doc("POS Profile", shift_data["pos_profile"])
+	data["company"] = dypos.get_doc("Company", data["pos_profile"].company)
 	# Include server timestamp so frontend can compute shift duration
 	# without timezone mismatch (period_start_date is in server timezone)
 	data["server_now"] = str(get_datetime())
@@ -100,25 +100,25 @@ def check_opening_shift(user=None):
 	return data
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def create_opening_shift(pos_profile, company, balance_details):
 	"""Create a new POS Opening Shift"""
 	balance_details = json.loads(balance_details) if isinstance(balance_details, str) else balance_details
 
 	# Check if user already has an open shift
-	existing_shift = check_opening_shift(frappe.session.user)
+	existing_shift = check_opening_shift(dypos.session.user)
 	if existing_shift:
-		frappe.throw(
+		dypos.throw(
 			_("You already have an open shift: {0}").format(existing_shift["pos_opening_shift"].name)
 		)
 
-	new_pos_opening = frappe.get_doc(
+	new_pos_opening = dypos.get_doc(
 		{
 			"doctype": "POS Opening Shift",
 			"period_start_date": get_datetime(),
 			"posting_date": nowdate(),
 			"posting_time": nowtime(),
-			"user": frappe.session.user,
+			"user": dypos.session.user,
 			"pos_profile": pos_profile,
 			"company": company,
 			"status": "Open",
@@ -138,20 +138,20 @@ def create_opening_shift(pos_profile, company, balance_details):
 
 	data = {}
 	data["pos_opening_shift"] = new_pos_opening.as_dict()
-	data["pos_profile"] = frappe.get_doc("POS Profile", pos_profile)
-	data["company"] = frappe.get_doc("Company", company)
+	data["pos_profile"] = dypos.get_doc("POS Profile", pos_profile)
+	data["company"] = dypos.get_doc("Company", company)
 
 	return data
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_closing_shift_data(opening_shift):
 	"""Get data for closing shift"""
 	from DyPOS.DyPOS.doctype.pos_closing_shift.pos_closing_shift import make_closing_shift_from_opening
 
 	try:
 		# Get the opening shift document
-		opening_shift_doc = frappe.get_doc("POS Opening Shift", opening_shift)
+		opening_shift_doc = dypos.get_doc("POS Opening Shift", opening_shift)
 
 		# Convert to dict with proper datetime serialization
 		opening_shift_dict = opening_shift_doc.as_dict()
@@ -163,11 +163,11 @@ def get_closing_shift_data(opening_shift):
 		# Ensure datetime values are JSON serializable
 		return json.loads(json.dumps(closing_data, default=str))
 	except Exception as e:
-		frappe.log_error(frappe.get_traceback(), "Get Closing Shift Data Error")
-		frappe.throw(_("Error getting closing shift data: {0}").format(str(e)))
+		dypos.log_error(dypos.get_traceback(), "Get Closing Shift Data Error")
+		dypos.throw(_("Error getting closing shift data: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def submit_closing_shift(closing_shift):
 	"""Submit closing shift"""
 	from DyPOS.DyPOS.doctype.pos_closing_shift.pos_closing_shift import (
@@ -183,11 +183,11 @@ def submit_closing_shift(closing_shift):
 		result = submit_shift(closing_shift)
 		return {"name": result, "status": "success"}
 	except Exception as e:
-		frappe.log_error(frappe.get_traceback(), "Submit Closing Shift Error")
-		frappe.throw(_("Error submitting closing shift: {0}").format(str(e)))
+		dypos.log_error(dypos.get_traceback(), "Submit Closing Shift Error")
+		dypos.throw(_("Error submitting closing shift: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_shift_history(filters=None, limit=25, offset=0, pos_profile=None):
 	"""Return paginated shift history for the current session user only.
 
@@ -209,8 +209,8 @@ def get_shift_history(filters=None, limit=25, offset=0, pos_profile=None):
 	Security: The session user restriction is always enforced server-side.
 	Clients cannot override it by passing filters.
 	"""
-	if not frappe.has_permission("POS Opening Shift", "read"):
-		frappe.throw(_("Insufficient permissions to view shift history"))
+	if not dypos.has_permission("POS Opening Shift", "read"):
+		dypos.throw(_("Insufficient permissions to view shift history"))
 
 	if isinstance(filters, str):
 		filters = json.loads(filters)
@@ -225,7 +225,7 @@ def get_shift_history(filters=None, limit=25, offset=0, pos_profile=None):
 		"os.user = %(session_user)s",
 	]
 	values = {
-		"session_user": frappe.session.user,
+		"session_user": dypos.session.user,
 		"limit":        page_size,
 		"offset":       page_offset,
 	}
@@ -281,7 +281,7 @@ def get_shift_history(filters=None, limit=25, offset=0, pos_profile=None):
 		LIMIT %(limit)s OFFSET %(offset)s
 	"""
 
-	data = frappe.db.sql(rows_query, values, as_dict=True)
+	data = dypos.db.sql(rows_query, values, as_dict=True)
 
 	for row in data:
 		row.opening_amount = flt(row.opening_amount)
@@ -309,7 +309,7 @@ def get_shift_history(filters=None, limit=25, offset=0, pos_profile=None):
 	"""
 	# Exclude pagination keys from totals query values
 	totals_values = {k: v for k, v in values.items() if k not in ("limit", "offset")}
-	totals_row = frappe.db.sql(totals_query, totals_values, as_dict=True)
+	totals_row = dypos.db.sql(totals_query, totals_values, as_dict=True)
 	totals = totals_row[0] if totals_row else {}
 
 	return {

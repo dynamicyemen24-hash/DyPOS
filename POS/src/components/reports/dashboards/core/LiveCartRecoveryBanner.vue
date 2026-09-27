@@ -10,7 +10,7 @@
 <script setup>
 import { onMounted } from "vue"
 import { useLiveCartRecovery } from "@/composables/useLiveCartRecovery"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 import DyButton from "@/components/ui/DyButton.vue"
 
 const {

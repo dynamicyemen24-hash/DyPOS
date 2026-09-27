@@ -6,11 +6,11 @@ from __future__ import unicode_literals
 import json
 from functools import lru_cache
 
-import frappe
+import dypos
 from DyPOS.accounts.doctype.sales_invoice.sales_invoice import get_bank_cash_account
 from DyPOS.stock.doctype.batch.batch import get_batch_no, get_batch_qty
-from frappe import _
-from frappe.utils import cint, cstr, flt, get_datetime, nowdate, nowtime
+from dyposimport _
+from dypos.utils import cint, cstr, flt, get_datetime, nowdate, nowtime
 
 # ==========================================
 # Constants for field names (avoid typos and enable refactoring)
@@ -129,7 +129,7 @@ def validate_manual_rate_edit(item, pos_profile=None, pos_settings_cache=None):
 	# Use cached POS Settings if provided, otherwise fetch from DB
 	pos_settings = pos_settings_cache
 	if pos_settings is None:
-		pos_settings = frappe.db.get_value(
+		pos_settings = dypos.db.get_value(
 			DOCTYPE_POS_SETTINGS,
 			{"pos_profile": pos_profile},
 			[FIELD_ALLOW_USER_TO_EDIT_RATE, FIELD_MAX_DISCOUNT_ALLOWED],
@@ -188,7 +188,7 @@ def log_manual_rate_edit(item, invoice_name, user=None):
 	if not cint(item.get(FIELD_IS_RATE_MANUALLY_EDITED)):
 		return
 
-	user = user or frappe.session.user
+	user = user or dypos.session.user
 	item_code = item.get(FIELD_ITEM_CODE)
 	original_rate = flt(item.get(FIELD_ORIGINAL_RATE) or item.get(FIELD_PRICE_LIST_RATE) or 0)
 	new_rate = flt(item.get(FIELD_RATE) or 0)
@@ -206,7 +206,7 @@ def log_manual_rate_edit(item, invoice_name, user=None):
 			change_type = "increase"
 
 	# Create audit comment on the invoice
-	frappe.get_doc(
+	dypos.get_doc(
 		{
 			"doctype": DOCTYPE_COMMENT,
 			"comment_type": "Comment",
@@ -217,8 +217,8 @@ def log_manual_rate_edit(item, invoice_name, user=None):
 			).format(
 				user=user,
 				item_code=item_code,
-				original=frappe.format_value(original_rate, {"fieldtype": "Currency"}),
-				new=frappe.format_value(new_rate, {"fieldtype": "Currency"}),
+				original=dypos.format_value(original_rate, {"fieldtype": "Currency"}),
+				new=dypos.format_value(new_rate, {"fieldtype": "Currency"}),
 				change_pct=change_pct,
 				change_type=change_type,
 			),
@@ -273,7 +273,7 @@ def _pricing_rule_to_string(value):
 			return ",".join(str(r) for r in parsed if r)
 	except (json.JSONDecodeError, TypeError, ValueError):
 		# Malformed JSON that looks like array - clear it to prevent issues
-		frappe.log_error(f"Invalid pricing_rules JSON: {stripped[:100]}", "Pricing Rules Normalization")
+		dypos.log_error(f"Invalid pricing_rules JSON: {stripped[:100]}", "Pricing Rules Normalization")
 		return ""
 
 	return ""
@@ -297,7 +297,7 @@ def get_payment_account(mode_of_payment, company):
 	Tries multiple fallback methods to find a suitable account.
 	"""
 	# Try 1: Mode of Payment Account table
-	account = frappe.db.get_value(
+	account = dypos.db.get_value(
 		"Mode of Payment Account",
 		{"parent": mode_of_payment, "company": company},
 		"default_account",
@@ -306,7 +306,7 @@ def get_payment_account(mode_of_payment, company):
 		return {"account": account}
 
 	# Try 2: POS Payment Method from POS Profile
-	account = frappe.db.sql(
+	account = dypos.db.sql(
 		"""
 		SELECT ppm.default_account
 		FROM `tabPOS Payment Method` ppm
@@ -325,17 +325,17 @@ def get_payment_account(mode_of_payment, company):
 
 	# Try 3: Company default cash account (for cash payments)
 	if "cash" in mode_of_payment.lower():
-		account = frappe.get_value("Company", company, "default_cash_account")
+		account = dypos.get_value("Company", company, "default_cash_account")
 		if account:
 			return {"account": account}
 
 	# Try 4: Company default bank account
-	account = frappe.get_value("Company", company, "default_bank_account")
+	account = dypos.get_value("Company", company, "default_bank_account")
 	if account:
 		return {"account": account}
 
 	# Try 5: Any Cash/Bank account for the company
-	account = frappe.db.get_value(
+	account = dypos.db.get_value(
 		"Account",
 		{"company": company, "account_type": ["in", ["Cash", "Bank"]], "is_group": 0},
 		"name",
@@ -344,7 +344,7 @@ def get_payment_account(mode_of_payment, company):
 		return {"account": account}
 
 	# No account found - throw error
-	frappe.throw(
+	dypos.throw(
 		_(
 			"Please set default Cash or Bank account in Mode of Payment {0} or set default accounts in Company {1}"
 		).format(mode_of_payment, company),
@@ -364,30 +364,30 @@ def _validate_receivable_account(account, company, pos_profile):
 		return
 
 	if not company:
-		frappe.throw(_("Company is required to set a receivable account"))
+		dypos.throw(_("Company is required to set a receivable account"))
 
-	acc = frappe.db.get_value(
+	acc = dypos.db.get_value(
 		"Account",
 		account,
 		["company", "account_type", "is_group", "disabled"],
 		as_dict=True,
 	)
 	if not acc:
-		frappe.throw(_("Receivable account {0} does not exist").format(account))
+		dypos.throw(_("Receivable account {0} does not exist").format(account))
 	if acc.company != company:
-		frappe.throw(_("Receivable account {0} does not belong to company {1}").format(account, company))
+		dypos.throw(_("Receivable account {0} does not belong to company {1}").format(account, company))
 	if acc.account_type != "Receivable":
-		frappe.throw(_("Account {0} is not a Receivable account").format(account))
+		dypos.throw(_("Account {0} is not a Receivable account").format(account))
 	if cint(acc.is_group):
-		frappe.throw(_("Receivable account {0} is a group account").format(account))
+		dypos.throw(_("Receivable account {0} is a group account").format(account))
 	if cint(acc.disabled):
-		frappe.throw(_("Receivable account {0} is disabled").format(account))
+		dypos.throw(_("Receivable account {0} is disabled").format(account))
 
 	allow_credit_sale = cint(
-		frappe.db.get_value(DOCTYPE_POS_SETTINGS, {"pos_profile": pos_profile}, "allow_credit_sale")
+		dypos.db.get_value(DOCTYPE_POS_SETTINGS, {"pos_profile": pos_profile}, "allow_credit_sale")
 	)
 	if not allow_credit_sale:
-		frappe.throw(_("Credit sales are not enabled for this POS Profile."))
+		dypos.throw(_("Credit sales are not enabled for this POS Profile."))
 
 
 def _set_payment_accounts(payments, company):
@@ -413,7 +413,7 @@ def _set_payment_accounts(payments, company):
 				else:
 					payment["account"] = account
 		except Exception as e:
-			frappe.log_error(
+			dypos.log_error(
 				f"Failed to get payment account for {mode_of_payment}: {e}",
 				"Payment Account Lookup",
 			)
@@ -437,7 +437,7 @@ def _get_available_stock(item):
 		return get_batch_qty(batch_no, warehouse) or 0
 
 	# Get stock from Bin
-	bin_qty = frappe.db.get_value("Bin", {"item_code": item_code, "warehouse": warehouse}, "actual_qty")
+	bin_qty = dypos.db.get_value("Bin", {"item_code": item_code, "warehouse": warehouse}, "actual_qty")
 	return flt(bin_qty) or 0
 
 
@@ -474,7 +474,7 @@ def _collect_stock_errors(items):
 def _item_has_allow_negative_stock_field():
 	"""Check whether Item doctype has an allow_negative_stock field."""
 	try:
-		return frappe.get_meta("Item").has_field("allow_negative_stock")
+		return dypos.get_meta("Item").has_field("allow_negative_stock")
 	except Exception:
 		return False
 
@@ -489,7 +489,7 @@ def _get_item_negative_stock_allow_set(items):
 		return set()
 
 	return set(
-		frappe.get_all(
+		dypos.get_all(
 			"Item",
 			filters={"name": ["in", item_codes], "allow_negative_stock": 1},
 			pluck="name",
@@ -501,7 +501,7 @@ def _get_item_negative_stock_allow_set(items):
 def _should_block(pos_profile):
 	"""Check if sale should be blocked for insufficient stock."""
 	# First check global DyPOS Stock Settings
-	allow_negative = cint(frappe.db.get_single_value("Stock Settings", "allow_negative_stock") or 0)
+	allow_negative = cint(dypos.db.get_single_value("Stock Settings", "allow_negative_stock") or 0)
 	if allow_negative:
 		return False
 
@@ -509,14 +509,14 @@ def _should_block(pos_profile):
 	if pos_profile:
 		# Check if POS Settings allows negative stock
 		pos_settings_allow_negative = cint(
-			frappe.db.get_value("POS Settings", {"pos_profile": pos_profile}, "allow_negative_stock") or 0
+			dypos.db.get_value("POS Settings", {"pos_profile": pos_profile}, "allow_negative_stock") or 0
 		)
 		if pos_settings_allow_negative:
 			return False
 
 		# Try to get custom field (may not exist in vanilla DyPOS)
 		block_sale = cint(
-			frappe.db.get_value("POS Profile", pos_profile, "posa_block_sale_beyond_available_qty") or 1
+			dypos.db.get_value("POS Profile", pos_profile, "posa_block_sale_beyond_available_qty") or 1
 		)
 		return bool(block_sale)
 
@@ -541,7 +541,7 @@ def _validate_stock_on_invoice(invoice_doc):
 
 	# Throw error if stock insufficient and blocking is enabled
 	if errors and _should_block(invoice_doc.pos_profile):
-		frappe.throw(frappe.as_json({"errors": errors}), frappe.ValidationError)
+		dypos.throw(dypos.as_json({"errors": errors}), dypos.ValidationError)
 
 
 def _auto_set_return_batches(invoice_doc):
@@ -558,7 +558,7 @@ def _auto_set_return_batches(invoice_doc):
 		if not d.get("item_code") or not d.get("warehouse"):
 			continue
 
-		has_batch = frappe.db.get_value("Item", d.item_code, "has_batch_no")
+		has_batch = dypos.db.get_value("Item", d.item_code, "has_batch_no")
 		if has_batch and not d.get("batch_no"):
 			batch_list = get_batch_qty(item_code=d.item_code, warehouse=d.warehouse) or []
 			batch_list = [b for b in batch_list if flt(b.get("qty")) > 0]
@@ -567,7 +567,7 @@ def _auto_set_return_batches(invoice_doc):
 				# FIFO: batches are already sorted by posting/expiry in DyPOS
 				d.batch_no = batch_list[0].get("batch_no")
 			else:
-				frappe.throw(_("No batches available in {0} for {1}.").format(d.warehouse, d.item_code))
+				dypos.throw(_("No batches available in {0} for {1}.").format(d.warehouse, d.item_code))
 
 
 # ==========================================
@@ -575,7 +575,7 @@ def _auto_set_return_batches(invoice_doc):
 # ==========================================
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def validate_cart_items(items, pos_profile=None):
 	"""Validate cart items for available stock.
 
@@ -585,7 +585,7 @@ def validate_cart_items(items, pos_profile=None):
 	if isinstance(items, str):
 		items = json.loads(items)
 
-	if pos_profile and not frappe.db.exists("POS Profile", pos_profile):
+	if pos_profile and not dypos.db.exists("POS Profile", pos_profile):
 		pos_profile = None
 
 	if not _should_block(pos_profile):
@@ -598,7 +598,7 @@ def validate_cart_items(items, pos_profile=None):
 	return errors
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def validate_return_items(original_invoice_name, return_items, doctype="Sales Invoice"):
 	"""Ensure that return items do not exceed the quantity from the original invoice.
 	Also validates return time frame based on POS Settings.
@@ -606,16 +606,16 @@ def validate_return_items(original_invoice_name, return_items, doctype="Sales In
 	Uses query builder for parameterized queries. Fetches invoice details, original
 	item quantities, and already-returned quantities in 3 queries total.
 	"""
-	from frappe.query_builder.functions import Abs, Sum
-	from frappe.utils import date_diff, getdate
+	from dypos.query_builder.functions import Abs, Sum
+	from dypos.utils import date_diff, getdate
 
 	if isinstance(return_items, str):
 		return_items = json.loads(return_items)
 
 	# Fetch invoice pos_profile and posting_date for validation
-	si = frappe.qb.DocType(doctype)
+	si = dypos.qb.DocType(doctype)
 	invoice_data = (
-		frappe.qb.from_(si).select(si.pos_profile, si.posting_date).where(si.name == original_invoice_name)
+		dypos.qb.from_(si).select(si.pos_profile, si.posting_date).where(si.name == original_invoice_name)
 	).run(as_dict=True)
 
 	if not invoice_data:
@@ -626,7 +626,7 @@ def validate_return_items(original_invoice_name, return_items, doctype="Sales In
 	# Check return validity period from POS Settings
 	if invoice_info.pos_profile:
 		return_validity_days = cint(
-			frappe.db.get_value(
+			dypos.db.get_value(
 				"POS Settings", {"pos_profile": invoice_info.pos_profile}, "return_validity_days"
 			)
 			or 0
@@ -644,9 +644,9 @@ def validate_return_items(original_invoice_name, return_items, doctype="Sales In
 				}
 
 	# Aggregate original item quantities by item_code
-	si_item = frappe.qb.DocType(f"{doctype} Item")
+	si_item = dypos.qb.DocType(f"{doctype} Item")
 	original_items = (
-		frappe.qb.from_(si_item)
+		dypos.qb.from_(si_item)
 		.select(si_item.item_code, Sum(si_item.qty).as_("total_qty"))
 		.where(si_item.parent == original_invoice_name)
 		.groupby(si_item.item_code)
@@ -655,11 +655,11 @@ def validate_return_items(original_invoice_name, return_items, doctype="Sales In
 	original_item_qty = {item.item_code: flt(item.total_qty) for item in original_items}
 
 	# Aggregate quantities already returned from previous return invoices
-	ret_si = frappe.qb.DocType(doctype)
-	ret_item = frappe.qb.DocType(f"{doctype} Item")
+	ret_si = dypos.qb.DocType(doctype)
+	ret_item = dypos.qb.DocType(f"{doctype} Item")
 
 	returned_qty_data = (
-		frappe.qb.from_(ret_si)
+		dypos.qb.from_(ret_si)
 		.inner_join(ret_item)
 		.on(ret_item.parent == ret_si.name)
 		.select(ret_item.item_code, Sum(Abs(ret_item.qty)).as_("returned_qty"))
@@ -697,7 +697,7 @@ def validate_return_items(original_invoice_name, return_items, doctype="Sales In
 # ==========================================
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def update_invoice(data):
 	"""Create or update invoice draft (Step 1)."""
 	try:
@@ -715,22 +715,22 @@ def update_invoice(data):
 
 		# Create or update invoice
 		if data.get("name"):
-			invoice_doc = frappe.get_doc(doctype, data.get("name"))
+			invoice_doc = dypos.get_doc(doctype, data.get("name"))
 			invoice_doc.update(data)
 		else:
-			invoice_doc = frappe.get_doc(data)
+			invoice_doc = dypos.get_doc(data)
 
 		# Important: set before set_missing_values()/pricing/validation paths that may
 		# read linked docs (e.g., Customer) and trigger controller permission checks.
 		invoice_doc.flags.ignore_permissions = True
-		frappe.flags.ignore_account_permission = True
+		dypos.flags.ignore_account_permission = True
 
 		pos_profile_doc = None
 		if pos_profile:
 			try:
-				pos_profile_doc = frappe.get_cached_doc("POS Profile", pos_profile)
+				pos_profile_doc = dypos.get_cached_doc("POS Profile", pos_profile)
 			except Exception:
-				frappe.throw(_("Unable to load POS Profile {0}").format(pos_profile))
+				dypos.throw(_("Unable to load POS Profile {0}").format(pos_profile))
 
 			invoice_doc.pos_profile = pos_profile
 
@@ -760,13 +760,13 @@ def update_invoice(data):
 				doctype=invoice_doc.doctype,
 			)
 			if not validation.get("valid"):
-				frappe.throw(validation.get("message"))
+				dypos.throw(validation.get("message"))
 
 		# Ensure customer exists
 		customer_name = invoice_doc.get("customer")
-		if customer_name and not frappe.db.exists("Customer", customer_name):
+		if customer_name and not dypos.db.exists("Customer", customer_name):
 			try:
-				cust = frappe.get_doc(
+				cust = dypos.get_doc(
 					{
 						"doctype": "Customer",
 						"customer_name": customer_name,
@@ -780,7 +780,7 @@ def update_invoice(data):
 				invoice_doc.customer = cust.name
 				invoice_doc.customer_name = cust.customer_name
 			except Exception as e:
-				frappe.log_error(f"Failed to create customer {customer_name}: {e}")
+				dypos.log_error(f"Failed to create customer {customer_name}: {e}")
 
 		# Disable automatic pricing rules (we handle discounts manually from POS)
 		invoice_doc.ignore_pricing_rule = 1
@@ -792,14 +792,14 @@ def update_invoice(data):
 		# ========================================================================
 		pos_settings_cache = None
 		if pos_profile:
-			pos_settings_cache = frappe.db.get_value(
+			pos_settings_cache = dypos.db.get_value(
 				DOCTYPE_POS_SETTINGS,
 				{"pos_profile": pos_profile},
 				[FIELD_ALLOW_USER_TO_EDIT_RATE, FIELD_MAX_DISCOUNT_ALLOWED, FIELD_ALLOW_NEGATIVE_STOCK],
 				as_dict=True,
 			)
 			# disable_rounded_total is on POS Profile, not POS Settings
-			pos_profile_rounded = frappe.db.get_value(
+			pos_profile_rounded = dypos.db.get_value(
 				DOCTYPE_POS_PROFILE, pos_profile, FIELD_DISABLE_ROUNDED_TOTAL
 			)
 			if pos_settings_cache:
@@ -834,7 +834,7 @@ def update_invoice(data):
 				# Validate manual rate edit against business rules (uses cached settings)
 				validation = validate_manual_rate_edit(item, pos_profile, pos_settings_cache)
 				if not validation.get("valid"):
-					frappe.throw(validation.get("message"))
+					dypos.throw(validation.get("message"))
 			else:
 				# NORMAL FLOW: Trust frontend's price_list_rate if provided and valid
 				if frontend_price_list_rate > 0:
@@ -889,7 +889,7 @@ def update_invoice(data):
 
 		if doctype == "Sales Invoice":
 			one_time_applied = (
-				frappe.get_all(
+				dypos.get_all(
 					"Pricing Rule",
 					filters={
 						"name": ["in", list(applied_rule_names_seen)],
@@ -977,7 +977,7 @@ def update_invoice(data):
 		coupon_code = data.get("coupon_code")
 		if coupon_code:
 			# Validate POS Coupon exists and is valid
-			if frappe.db.table_exists("POS Coupon"):
+			if dypos.db.table_exists("POS Coupon"):
 				from DyPOS.DyPOS.doctype.pos_coupon.pos_coupon import check_coupon_code
 
 				coupon_result = check_coupon_code(
@@ -990,7 +990,7 @@ def update_invoice(data):
 						if coupon_result
 						else "Invalid coupon code"
 					)
-					frappe.throw(_(error_msg))
+					dypos.throw(_(error_msg))
 
 				# Store coupon code on invoice for tracking
 				invoice_doc.coupon_code = coupon_code
@@ -1002,7 +1002,7 @@ def update_invoice(data):
 			item_codes = list({d.item_code for d in invoice_doc.items if d.get("item_code")})
 			if item_codes:
 				stock_item_set = set(
-					frappe.get_all(
+					dypos.get_all(
 						"Item", filters={"name": ["in", item_codes], "is_stock_item": 1}, pluck="name"
 					)
 				)
@@ -1010,17 +1010,17 @@ def update_invoice(data):
 				if stock_items:
 					errors = _collect_stock_errors(stock_items)
 					if errors:
-						frappe.throw(frappe.as_json({"errors": errors}), frappe.ValidationError)
+						dypos.throw(dypos.as_json({"errors": errors}), dypos.ValidationError)
 
 		# Save as draft
 		invoice_doc.flags.ignore_permissions = True
-		frappe.flags.ignore_account_permission = True
+		dypos.flags.ignore_account_permission = True
 		invoice_doc.docstatus = 0
 		invoice_doc.save()
 
 		return invoice_doc.as_dict()
 	except Exception:
-		frappe.log_error(frappe.get_traceback(), "Update Invoice Error")
+		dypos.log_error(dypos.get_traceback(), "Update Invoice Error")
 		raise
 
 
@@ -1031,13 +1031,13 @@ def _is_pending_expired(modified_time):
 	"""Check if a pending record has expired based on modified time."""
 	if not modified_time:
 		return True  # No timestamp means treat as expired
-	age_minutes = (frappe.utils.now_datetime() - modified_time).total_seconds() / 60
+	age_minutes = (dypos.utils.now_datetime() - modified_time).total_seconds() / 60
 	return age_minutes > PENDING_TIMEOUT_MINUTES
 
 
 def _reuse_sync_record(sync_record_name):
 	"""Reset an existing sync record to Pending status for retry."""
-	sync_doc = frappe.get_doc("Offline Invoice Sync", sync_record_name)
+	sync_doc = dypos.get_doc("Offline Invoice Sync", sync_record_name)
 	sync_doc.status = "Pending"
 	sync_doc.synced_at = None
 	sync_doc.flags.ignore_permissions = True
@@ -1070,7 +1070,7 @@ def _ensure_offline_uniqueness(offline_id, pos_profile=None, customer=None):
 	    - sync_record_name (str): Name of the sync record for this attempt
 	"""
 	# Acquire row-level lock to prevent race conditions
-	existing_sync = frappe.db.get_value(
+	existing_sync = dypos.db.get_value(
 		"Offline Invoice Sync",
 		{"offline_id": offline_id},
 		["name", "sales_invoice", "status", "modified"],
@@ -1089,9 +1089,9 @@ def _ensure_offline_uniqueness(offline_id, pos_profile=None, customer=None):
 				return _reuse_sync_record(sync_record_name)
 			else:
 				# Active pending - reject with specific error code
-				frappe.throw(
+				dypos.throw(
 					_("This invoice is currently being processed. Please wait."),
-					exc=frappe.ValidationError,
+					exc=dypos.ValidationError,
 					title="SYNC_IN_PROGRESS",
 				)
 
@@ -1101,8 +1101,8 @@ def _ensure_offline_uniqueness(offline_id, pos_profile=None, customer=None):
 
 		# Handle Synced status - verify invoice still valid
 		if sync_status == "Synced" and existing_sync.sales_invoice:
-			if frappe.db.exists("Sales Invoice", existing_sync.sales_invoice):
-				existing_invoice = frappe.get_doc("Sales Invoice", existing_sync.sales_invoice)
+			if dypos.db.exists("Sales Invoice", existing_sync.sales_invoice):
+				existing_invoice = dypos.get_doc("Sales Invoice", existing_sync.sales_invoice)
 				if existing_invoice.docstatus == 1:
 					return {
 						"already_synced": True,
@@ -1128,7 +1128,7 @@ def _ensure_offline_uniqueness(offline_id, pos_profile=None, customer=None):
 
 	# No existing record - create pending reservation
 	try:
-		pending_sync = frappe.get_doc(
+		pending_sync = dypos.get_doc(
 			{
 				"doctype": "Offline Invoice Sync",
 				"offline_id": offline_id,
@@ -1142,7 +1142,7 @@ def _ensure_offline_uniqueness(offline_id, pos_profile=None, customer=None):
 		pending_sync.insert()
 
 		return {"already_synced": False, "sync_record_name": pending_sync.name}
-	except frappe.DuplicateEntryError:
+	except dypos.DuplicateEntryError:
 		# Race condition: another request just created the record
 		# Retry the check to get the new record
 		return _ensure_offline_uniqueness(offline_id, pos_profile, customer)
@@ -1160,14 +1160,14 @@ def _complete_offline_sync(sync_record_name, invoice_name):
 		return
 
 	try:
-		sync_doc = frappe.get_doc("Offline Invoice Sync", sync_record_name)
+		sync_doc = dypos.get_doc("Offline Invoice Sync", sync_record_name)
 		sync_doc.sales_invoice = invoice_name
 		sync_doc.status = "Synced"
-		sync_doc.synced_at = frappe.utils.now_datetime()
+		sync_doc.synced_at = dypos.utils.now_datetime()
 		sync_doc.flags.ignore_permissions = True
 		sync_doc.save()
 	except Exception as error:
-		frappe.log_error(
+		dypos.log_error(
 			title="Offline Sync Completion Error",
 			message=f"Failed to complete sync record {sync_record_name} for invoice {invoice_name}: {error!s}",
 		)
@@ -1189,19 +1189,19 @@ def _cleanup_failed_sync(sync_record_name):
 		return
 
 	try:
-		sync_doc = frappe.get_doc("Offline Invoice Sync", sync_record_name)
+		sync_doc = dypos.get_doc("Offline Invoice Sync", sync_record_name)
 		sync_doc.status = "Failed"
-		sync_doc.synced_at = frappe.utils.now_datetime()
+		sync_doc.synced_at = dypos.utils.now_datetime()
 		sync_doc.flags.ignore_permissions = True
 		sync_doc.save()
 	except Exception as error:
-		frappe.log_error(
+		dypos.log_error(
 			title="Offline Sync Cleanup Error",
 			message=f"Failed to mark sync record {sync_record_name} as failed: {error!s}",
 		)
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def check_offline_invoice_synced(offline_id):
 	"""
 	Check if an offline invoice has already been synced.
@@ -1227,8 +1227,8 @@ def check_offline_invoice_synced(offline_id):
 
 	# Additionally verify the sales invoice still exists and is submitted
 	if result.get("synced") and result.get("sales_invoice"):
-		if frappe.db.exists("Sales Invoice", result["sales_invoice"]):
-			docstatus = frappe.db.get_value("Sales Invoice", result["sales_invoice"], "docstatus")
+		if dypos.db.exists("Sales Invoice", result["sales_invoice"]):
+			docstatus = dypos.db.get_value("Sales Invoice", result["sales_invoice"], "docstatus")
 			if docstatus == 1:  # Submitted
 				return result
 
@@ -1238,7 +1238,7 @@ def check_offline_invoice_synced(offline_id):
 	return result
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def submit_invoice(invoice=None, data=None):
 	"""Submit the invoice (Step 2)."""
 	# Handle different calling conventions
@@ -1247,7 +1247,7 @@ def submit_invoice(invoice=None, data=None):
 			# Check if data is a JSON string containing both params
 			data_parsed = json.loads(data) if isinstance(data, str) else data
 
-			# frappe-ui might send all params nested in data
+			# dypos-ui might send all params nested in data
 			if isinstance(data_parsed, dict):
 				if "invoice" in data_parsed:
 					invoice = data_parsed.get("invoice")
@@ -1257,15 +1257,15 @@ def submit_invoice(invoice=None, data=None):
 					invoice = data_parsed
 					data = {}
 				else:
-					frappe.throw(
+					dypos.throw(
 						_("Missing invoice parameter. Received data: {0}").format(
 							json.dumps(data_parsed, default=str)
 						)
 					)
 			else:
-				frappe.throw(_("Missing invoice parameter"))
+				dypos.throw(_("Missing invoice parameter"))
 		else:
-			frappe.throw(_("Both invoice and data parameters are missing"))
+			dypos.throw(_("Both invoice and data parameters are missing"))
 
 	# Parse JSON strings if needed
 	if isinstance(data, str):
@@ -1275,7 +1275,7 @@ def submit_invoice(invoice=None, data=None):
 
 	# Ensure invoice and data are dicts
 	if not isinstance(invoice, dict):
-		frappe.throw(_("Invalid invoice format"))
+		dypos.throw(_("Invalid invoice format"))
 		return  # Never reached, but helps type checker
 	if not isinstance(data, dict):
 		data = {}
@@ -1318,21 +1318,21 @@ def submit_invoice(invoice=None, data=None):
 		invoice_name = invoice.get("name")
 
 		# Get or create invoice
-		if not invoice_name or not frappe.db.exists(doctype, invoice_name):
+		if not invoice_name or not dypos.db.exists(doctype, invoice_name):
 			created = update_invoice(json.dumps(invoice))
 			if not created or not isinstance(created, dict):
-				frappe.throw(_("Failed to create invoice draft"))
+				dypos.throw(_("Failed to create invoice draft"))
 			invoice_name = created.get("name")
 			if not invoice_name:
-				frappe.throw(_("Failed to get invoice name from draft"))
-			invoice_doc = frappe.get_doc(doctype, invoice_name)
+				dypos.throw(_("Failed to get invoice name from draft"))
+			invoice_doc = dypos.get_doc(doctype, invoice_name)
 		else:
-			invoice_doc = frappe.get_doc(doctype, invoice_name)
+			invoice_doc = dypos.get_doc(doctype, invoice_name)
 			invoice_doc.update(invoice)
 
 		# Keep permission bypass consistent for POS API flow.
 		invoice_doc.flags.ignore_permissions = True
-		frappe.flags.ignore_account_permission = True
+		dypos.flags.ignore_account_permission = True
 
 		# Ensure update_stock is set for Sales Invoice
 		if doctype == "Sales Invoice":
@@ -1348,7 +1348,7 @@ def submit_invoice(invoice=None, data=None):
 		# Copy accounting dimensions from POS Profile if not already set
 		if pos_profile and not invoice_doc.get("branch"):
 			try:
-				pos_profile_doc = frappe.get_cached_doc("POS Profile", pos_profile)
+				pos_profile_doc = dypos.get_cached_doc("POS Profile", pos_profile)
 				if hasattr(pos_profile_doc, "branch") and pos_profile_doc.branch:
 					invoice_doc.branch = pos_profile_doc.branch
 					# Also set branch on all items for GL entries
@@ -1357,7 +1357,7 @@ def submit_invoice(invoice=None, data=None):
 							item.branch = pos_profile_doc.branch
 			except Exception as e:
 				# Branch is optional, log and continue
-				frappe.log_error(
+				dypos.log_error(
 					f"Failed to set branch from POS Profile {pos_profile}: {e}", "POS Profile Branch"
 				)
 
@@ -1386,13 +1386,13 @@ def submit_invoice(invoice=None, data=None):
 		coupon_code = invoice.get("coupon_code") or data.get("coupon_code")
 		if coupon_code:
 			# Increment usage counter for POS Coupon
-			if frappe.db.table_exists("POS Coupon"):
+			if dypos.db.table_exists("POS Coupon"):
 				try:
 					from DyPOS.DyPOS.doctype.pos_coupon.pos_coupon import increment_coupon_usage
 
 					increment_coupon_usage(coupon_code)
 				except Exception as e:
-					frappe.log_error(
+					dypos.log_error(
 						title="Failed to increment coupon usage",
 						message=f"Coupon: {coupon_code}, Error: {e!s}",
 					)
@@ -1406,14 +1406,14 @@ def submit_invoice(invoice=None, data=None):
 			# Get write-off account and cost center from POS Profile
 			if pos_profile:
 				try:
-					pos_profile_doc = frappe.get_cached_doc("POS Profile", pos_profile)
+					pos_profile_doc = dypos.get_cached_doc("POS Profile", pos_profile)
 					write_off_account = pos_profile_doc.write_off_account
 					write_off_cost_center = pos_profile_doc.write_off_cost_center
 					write_off_limit = flt(pos_profile_doc.write_off_limit or 0)
 
 					# Validate write-off amount is within limit
 					if write_off_limit > 0 and write_off_amount > write_off_limit:
-						frappe.throw(
+						dypos.throw(
 							_("Write-off amount {0} exceeds limit {1}").format(
 								write_off_amount, write_off_limit
 							)
@@ -1426,7 +1426,7 @@ def submit_invoice(invoice=None, data=None):
 						invoice_doc.write_off_amount = write_off_amount
 						invoice_doc.base_write_off_amount = write_off_amount  # Assuming same currency
 				except Exception as e:
-					frappe.log_error(
+					dypos.log_error(
 						f"Failed to apply write-off from POS Profile {pos_profile}: {e}",
 						"POS Write-Off Error",
 					)
@@ -1452,15 +1452,15 @@ def submit_invoice(invoice=None, data=None):
 		is_credit_sale = cint(data.get("is_credit_sale") or invoice.get("is_credit_sale"))
 		if is_credit_sale and not invoice_doc.payments and flt(invoice_doc.grand_total) > 0:
 			allow_credit_sale = cint(
-				frappe.db.get_value(DOCTYPE_POS_SETTINGS, {"pos_profile": pos_profile}, "allow_credit_sale")
+				dypos.db.get_value(DOCTYPE_POS_SETTINGS, {"pos_profile": pos_profile}, "allow_credit_sale")
 			)
 			if not allow_credit_sale:
-				frappe.throw(_("Credit sales are not enabled for this POS Profile."))
+				dypos.throw(_("Credit sales are not enabled for this POS Profile."))
 			invoice_doc.flags.DyPOS_credit_sale = 1
 
 		# Save before submit
 		invoice_doc.flags.ignore_permissions = True
-		frappe.flags.ignore_account_permission = True
+		dypos.flags.ignore_account_permission = True
 		invoice_doc.save()
 
 		# Submit invoice
@@ -1479,15 +1479,15 @@ def submit_invoice(invoice=None, data=None):
 				)
 				wallet_reversal_ok = True
 			except Exception as wallet_reversal_error:
-				frappe.log_error(
+				dypos.log_error(
 					title="Wallet Reversal Error",
 					message=(
 						f"Return invoice: {invoice_doc.name}, "
 						f"Original invoice: {invoice_doc.return_against}, "
-						f"Error: {wallet_reversal_error!s}\n{frappe.get_traceback()}"
+						f"Error: {wallet_reversal_error!s}\n{dypos.get_traceback()}"
 					),
 				)
-				frappe.msgprint(
+				dypos.msgprint(
 					_(
 						"Return invoice submitted successfully, but wallet reversal failed. Please contact administrator."
 					),
@@ -1511,14 +1511,14 @@ def submit_invoice(invoice=None, data=None):
 						return_invoice=invoice_doc.name, amount=abs(flt(invoice_doc.grand_total))
 					)
 				except Exception as wallet_credit_error:
-					frappe.log_error(
+					dypos.log_error(
 						title="Wallet Credit on Return Error",
 						message=(
 							f"Return invoice: {invoice_doc.name}, "
-							f"Error: {wallet_credit_error!s}\n{frappe.get_traceback()}"
+							f"Error: {wallet_credit_error!s}\n{dypos.get_traceback()}"
 						),
 					)
-					frappe.msgprint(
+					dypos.msgprint(
 						_("Return submitted but wallet credit failed. Please contact administrator."),
 						alert=True,
 						indicator="orange",
@@ -1534,12 +1534,12 @@ def submit_invoice(invoice=None, data=None):
 
 				redeem_customer_credit(invoice_doc.name, customer_credit_dict)
 			except Exception as credit_error:
-				frappe.log_error(
+				dypos.log_error(
 					title="Credit Redemption Error",
-					message=f"Invoice: {invoice_doc.name}, Error: {credit_error!s}\n{frappe.get_traceback()}",
+					message=f"Invoice: {invoice_doc.name}, Error: {credit_error!s}\n{dypos.get_traceback()}",
 				)
 				# Don't fail the entire transaction, just log the error
-				frappe.msgprint(
+				dypos.msgprint(
 					_(
 						"Invoice submitted successfully but credit redemption failed. Please contact administrator."
 					),
@@ -1584,7 +1584,7 @@ def submit_invoice(invoice=None, data=None):
 		return result
 
 	except Exception:
-		frappe.log_error(frappe.get_traceback(), "Submit Invoice Error")
+		dypos.log_error(dypos.get_traceback(), "Submit Invoice Error")
 		raise
 
 	finally:
@@ -1598,7 +1598,7 @@ def submit_invoice(invoice=None, data=None):
 # ==========================================
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_invoice(invoice_name):
 	"""
 	Get a single invoice with all details for POS.
@@ -1610,22 +1610,22 @@ def get_invoice(invoice_name):
 		Complete invoice document with items and payments
 	"""
 	if not invoice_name:
-		frappe.throw(_("Invoice name is required"))
+		dypos.throw(_("Invoice name is required"))
 
-	if not frappe.db.exists("Sales Invoice", invoice_name):
-		frappe.throw(_("Invoice {0} does not exist").format(invoice_name))
+	if not dypos.db.exists("Sales Invoice", invoice_name):
+		dypos.throw(_("Invoice {0} does not exist").format(invoice_name))
 
 	# Check permissions
-	if not frappe.has_permission("Sales Invoice", "read", invoice_name):
-		frappe.throw(_("You don't have permission to view this invoice"))
+	if not dypos.has_permission("Sales Invoice", "read", invoice_name):
+		dypos.throw(_("You don't have permission to view this invoice"))
 
 	# Get invoice document
-	invoice = frappe.get_doc("Sales Invoice", invoice_name)
+	invoice = dypos.get_doc("Sales Invoice", invoice_name)
 
 	return invoice.as_dict()
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_invoices(pos_profile: str, search=None, limit: int = 20, offset=0, from_date=None, to_date=None, include_items=False, docstatus=None, start: int = 0) -> list:
 	"""
 	Get paginated, server-side filtered list of invoices for a POS Profile.
@@ -1644,15 +1644,15 @@ def get_invoices(pos_profile: str, search=None, limit: int = 20, offset=0, from_
 		List of invoice dicts with basic fields (no per-invoice item loading)
 	"""
 	if not pos_profile:
-		frappe.throw(_("POS Profile is required"))
+		dypos.throw(_("POS Profile is required"))
 
 	limit = cint(limit) or 100
 	start = cint(start) or 0
 
 	# Permission check
-	has_access = frappe.db.exists("POS Profile User", {"parent": pos_profile, "user": frappe.session.user})
-	if not has_access and not frappe.has_permission("Sales Invoice", "read"):
-		frappe.throw(_("You don't have access to this POS Profile"))
+	has_access = dypos.db.exists("POS Profile User", {"parent": pos_profile, "user": dypos.session.user})
+	if not has_access and not dypos.has_permission("Sales Invoice", "read"):
+		dypos.throw(_("You don't have access to this POS Profile"))
 
 	# Clamp page size securely: minimum 1, maximum 100
 	limit = max(1, min(cint(limit) or 20, 100))
@@ -1693,7 +1693,7 @@ def get_invoices(pos_profile: str, search=None, limit: int = 20, offset=0, from_
 	params["limit"] = limit
 	params["offset"] = offset
 
-	invoices = frappe.db.sql(
+	invoices = dypos.db.sql(
 		f"""
 		SELECT
 			name,
@@ -1725,7 +1725,7 @@ def get_invoices(pos_profile: str, search=None, limit: int = 20, offset=0, from_
 	invoice_names = [invoice.name for invoice in invoices]
 	payments_by_invoice = {}
 	if invoice_names:
-		payments = frappe.db.sql(
+		payments = dypos.db.sql(
 			"""
 			SELECT
 				parent,
@@ -1754,7 +1754,7 @@ def get_invoices(pos_profile: str, search=None, limit: int = 20, offset=0, from_
 	# Load items for each invoice for filtering purposes
 	for invoice in invoices:
 		invoice.payments = payments_by_invoice.get(invoice.name, [])
-		items = frappe.db.sql(
+		items = dypos.db.sql(
 			"""
 			SELECT
 				item_code,
@@ -1782,7 +1782,7 @@ def get_invoices(pos_profile: str, search=None, limit: int = 20, offset=0, from_
 # ==========================================
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_draft_invoices(pos_opening_shift, doctype="Sales Invoice"):
 	"""Get all draft invoices for a POS opening shift."""
 	filters = {
@@ -1790,11 +1790,11 @@ def get_draft_invoices(pos_opening_shift, doctype="Sales Invoice"):
 	}
 
 	# Add pos_opening_shift filter if the field exists
-	if frappe.db.has_column(doctype, "pos_opening_shift"):
+	if dypos.db.has_column(doctype, "pos_opening_shift"):
 		filters["pos_opening_shift"] = pos_opening_shift
 
 	# Performance: Get all invoice names first
-	invoices_list = frappe.get_list(
+	invoices_list = dypos.get_list(
 		doctype,
 		filters=filters,
 		fields=["name"],
@@ -1806,28 +1806,28 @@ def get_draft_invoices(pos_opening_shift, doctype="Sales Invoice"):
 	# This leverages Frappe's internal caching and is faster than individual queries
 	data = []
 	for invoice in invoices_list:
-		data.append(frappe.get_cached_doc(doctype, invoice["name"]))
+		data.append(dypos.get_cached_doc(doctype, invoice["name"]))
 
 	return data
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def delete_invoice(invoice):
 	"""Delete draft invoice."""
 	doctype = "Sales Invoice"
 
-	if not frappe.db.exists(doctype, invoice):
-		frappe.throw(_("Invoice {0} does not exist").format(invoice))
+	if not dypos.db.exists(doctype, invoice):
+		dypos.throw(_("Invoice {0} does not exist").format(invoice))
 
 	# Check if it's a draft
-	if frappe.db.get_value(doctype, invoice, "docstatus") != 0:
-		frappe.throw(_("Cannot delete submitted invoice {0}").format(invoice))
+	if dypos.db.get_value(doctype, invoice, "docstatus") != 0:
+		dypos.throw(_("Cannot delete submitted invoice {0}").format(invoice))
 
-	frappe.delete_doc(doctype, invoice, force=1)
+	dypos.delete_doc(doctype, invoice, force=1)
 	return _("Invoice {0} Deleted").format(invoice)
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def cleanup_old_drafts(pos_profile=None, max_age_hours=48):
 	"""
 	Clean up old draft invoices to prevent stock reservation issues.
@@ -1849,7 +1849,7 @@ def cleanup_old_drafts(pos_profile=None, max_age_hours=48):
 		filters["pos_profile"] = pos_profile
 
 	# Get old drafts
-	old_drafts = frappe.get_all(
+	old_drafts = dypos.get_all(
 		doctype,
 		filters=filters,
 		fields=["name", "modified"],
@@ -1859,10 +1859,10 @@ def cleanup_old_drafts(pos_profile=None, max_age_hours=48):
 	deleted_count = 0
 	for draft in old_drafts:
 		try:
-			frappe.delete_doc(doctype, draft["name"], force=True, ignore_permissions=True)
+			dypos.delete_doc(doctype, draft["name"], force=True, ignore_permissions=True)
 			deleted_count += 1
 		except Exception as e:
-			frappe.log_error(
+			dypos.log_error(
 				f"Failed to delete draft {draft['name']}: {e!s}",
 				"Draft Cleanup Error",
 			)
@@ -1888,14 +1888,14 @@ def _filter_fully_returned(invoices):
 	if not invoices:
 		return []
 
-	from frappe.query_builder.functions import Abs, Sum
+	from dypos.query_builder.functions import Abs, Sum
 
 	invoice_names = [inv["name"] for inv in invoices]
 
 	# Original qty per invoice
-	si_item = frappe.qb.DocType("Sales Invoice Item")
+	si_item = dypos.qb.DocType("Sales Invoice Item")
 	orig_rows = (
-		frappe.qb.from_(si_item)
+		dypos.qb.from_(si_item)
 		.select(si_item.parent, Sum(si_item.qty).as_("total_original_qty"))
 		.where(si_item.parent.isin(invoice_names))
 		.groupby(si_item.parent)
@@ -1903,10 +1903,10 @@ def _filter_fully_returned(invoices):
 	orig_map = {r["parent"]: flt(r["total_original_qty"]) for r in orig_rows}
 
 	# Returned qty per original invoice
-	ret_si = frappe.qb.DocType("Sales Invoice")
-	ret_item = frappe.qb.DocType("Sales Invoice Item")
+	ret_si = dypos.qb.DocType("Sales Invoice")
+	ret_item = dypos.qb.DocType("Sales Invoice Item")
 	ret_rows = (
-		frappe.qb.from_(ret_si)
+		dypos.qb.from_(ret_si)
 		.inner_join(ret_item)
 		.on(ret_item.parent == ret_si.name)
 		.select(ret_si.return_against, Sum(Abs(ret_item.qty)).as_("total_returned_qty"))
@@ -1924,7 +1924,7 @@ def _filter_fully_returned(invoices):
 	return [inv for inv in invoices if inv["total_original_qty"] > inv["total_returned_qty"]]
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_returnable_invoices(limit=50, pos_profile=None):
 	"""Get list of invoices that have items available for return.
 	Filters by return validity period if configured in POS Settings.
@@ -1933,23 +1933,23 @@ def get_returnable_invoices(limit=50, pos_profile=None):
 	1. Fetch recent POS invoices (fast indexed query, no JOINs)
 	2. Filter out fully-returned ones via _filter_fully_returned
 	"""
-	from frappe.utils import add_days, today
+	from dypos.utils import add_days, today
 
 	# Check return validity days from POS Settings
 	return_validity_days = 0
 	if pos_profile:
 		return_validity_days = cint(
-			frappe.db.get_value("POS Settings", {"pos_profile": pos_profile}, "return_validity_days") or 0
+			dypos.db.get_value("POS Settings", {"pos_profile": pos_profile}, "return_validity_days") or 0
 		)
 
-	si = frappe.qb.DocType("Sales Invoice")
+	si = dypos.qb.DocType("Sales Invoice")
 
 	# Over-fetch to compensate for fully-returned invoices removed in step 2
 	fetch_limit = cint(limit) * 2
 
 	# Step 1: fetch candidates (lightweight, no JOINs)
 	query = (
-		frappe.qb.from_(si)
+		dypos.qb.from_(si)
 		.select(
 			si.name,
 			si.customer,
@@ -1960,8 +1960,8 @@ def get_returnable_invoices(limit=50, pos_profile=None):
 			si.status,
 		)
 		.where((si.docstatus == 1) & (si.is_return == 0) & (si.is_pos == 1))
-		.orderby(si.posting_date, order=frappe.qb.desc)
-		.orderby(si.creation, order=frappe.qb.desc)
+		.orderby(si.posting_date, order=dypos.qb.desc)
+		.orderby(si.creation, order=dypos.qb.desc)
 		.limit(fetch_limit)
 	)
 
@@ -1975,7 +1975,7 @@ def get_returnable_invoices(limit=50, pos_profile=None):
 	return _filter_fully_returned(candidates)[: cint(limit)]
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def search_invoice_by_number(search_term, pos_profile=None):
 	"""Search for invoices by invoice number across the entire database.
 	No date restrictions - searches all returnable invoices matching the term.
@@ -1995,14 +1995,14 @@ def search_invoice_by_number(search_term, pos_profile=None):
 		return []
 
 	# Escape LIKE wildcards in user input to prevent pattern abuse.
-	# frappe.db.escape() returns a quoted string for raw SQL — not usable with
-	# frappe.qb's .like() which parameterizes internally. Manual escaping needed.
+	# dypos.db.escape() returns a quoted string for raw SQL — not usable with
+	# dypos.qb's .like() which parameterizes internally. Manual escaping needed.
 	search_term = cstr(search_term).strip().replace("%", r"\%").replace("_", r"\_")
-	si = frappe.qb.DocType("Sales Invoice")
+	si = dypos.qb.DocType("Sales Invoice")
 
 	# Step 1: find matching invoices (lightweight, no JOINs)
 	candidates = (
-		frappe.qb.from_(si)
+		dypos.qb.from_(si)
 		.select(
 			si.name,
 			si.customer,
@@ -2015,8 +2015,8 @@ def search_invoice_by_number(search_term, pos_profile=None):
 		.where(
 			(si.docstatus == 1) & (si.is_return == 0) & (si.is_pos == 1) & (si.name.like(f"%{search_term}%"))
 		)
-		.orderby(si.posting_date, order=frappe.qb.desc)
-		.orderby(si.creation, order=frappe.qb.desc)
+		.orderby(si.posting_date, order=dypos.qb.desc)
+		.orderby(si.creation, order=dypos.qb.desc)
 		.limit(10)
 	).run(as_dict=True)
 
@@ -2024,7 +2024,7 @@ def search_invoice_by_number(search_term, pos_profile=None):
 	return _filter_fully_returned(candidates)
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def check_invoice_return_validity(invoice_name):
 	"""Check if an invoice is within the return validity period.
 
@@ -2033,12 +2033,12 @@ def check_invoice_return_validity(invoice_name):
 	- error_type: 'not_found' or 'return_period_expired' if invalid
 	- Additional context (invoice_date, days_since, allowed_days) for expired returns
 	"""
-	from frappe.utils import date_diff, formatdate, getdate
+	from dypos.utils import date_diff, formatdate, getdate
 
 	# Fetch only the fields needed for validation
-	si = frappe.qb.DocType("Sales Invoice")
+	si = dypos.qb.DocType("Sales Invoice")
 	invoice_data = (
-		frappe.qb.from_(si).select(si.pos_profile, si.posting_date).where(si.name == invoice_name)
+		dypos.qb.from_(si).select(si.pos_profile, si.posting_date).where(si.name == invoice_name)
 	).run(as_dict=True)
 
 	if not invoice_data:
@@ -2053,7 +2053,7 @@ def check_invoice_return_validity(invoice_name):
 	# Check return validity period from POS Settings
 	if invoice_info.pos_profile:
 		return_validity_days = cint(
-			frappe.db.get_value(
+			dypos.db.get_value(
 				"POS Settings", {"pos_profile": invoice_info.pos_profile}, "return_validity_days"
 			)
 			or 0
@@ -2075,7 +2075,7 @@ def check_invoice_return_validity(invoice_name):
 	return {"valid": True}
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_invoice_for_return(invoice_name):
 	"""Get invoice with return tracking - calculates remaining qty for each item.
 	Also validates return validity period based on POS Settings.
@@ -2083,24 +2083,24 @@ def get_invoice_for_return(invoice_name):
 	Returns the full invoice document with each item's qty adjusted to show
 	only the remaining returnable quantity (original qty minus already returned).
 	"""
-	from frappe.query_builder.functions import Abs, Coalesce, Sum
-	from frappe.utils import date_diff, getdate
+	from dypos.query_builder.functions import Abs, Coalesce, Sum
+	from dypos.utils import date_diff, getdate
 
 	# Validate invoice exists and get fields needed for return period check
-	si = frappe.qb.DocType("Sales Invoice")
+	si = dypos.qb.DocType("Sales Invoice")
 	invoice_check = (
-		frappe.qb.from_(si).select(si.pos_profile, si.posting_date).where(si.name == invoice_name)
+		dypos.qb.from_(si).select(si.pos_profile, si.posting_date).where(si.name == invoice_name)
 	).run(as_dict=True)
 
 	if not invoice_check:
-		frappe.throw(_("Invoice {0} does not exist").format(invoice_name))
+		dypos.throw(_("Invoice {0} does not exist").format(invoice_name))
 
 	invoice_info = invoice_check[0]
 
 	# Check return validity period from POS Settings
 	if invoice_info.pos_profile:
 		return_validity_days = cint(
-			frappe.db.get_value(
+			dypos.db.get_value(
 				"POS Settings", {"pos_profile": invoice_info.pos_profile}, "return_validity_days"
 			)
 			or 0
@@ -2109,7 +2109,7 @@ def get_invoice_for_return(invoice_name):
 		if return_validity_days > 0:
 			days_since_invoice = date_diff(getdate(nowdate()), getdate(invoice_info.posting_date))
 			if days_since_invoice > return_validity_days:
-				frappe.throw(
+				dypos.throw(
 					_(
 						"Return period has expired. Invoice {0} was created {1} days ago. "
 						"Returns are only allowed within {2} days of purchase."
@@ -2118,11 +2118,11 @@ def get_invoice_for_return(invoice_name):
 
 	# Aggregate quantities already returned from previous return invoices.
 	# Uses COALESCE to match by sales_invoice_item (row ID) first, then item_code as fallback.
-	ret_si = frappe.qb.DocType("Sales Invoice")
-	ret_item = frappe.qb.DocType("Sales Invoice Item")
+	ret_si = dypos.qb.DocType("Sales Invoice")
+	ret_item = dypos.qb.DocType("Sales Invoice Item")
 
 	returned_qty_results = (
-		frappe.qb.from_(ret_si)
+		dypos.qb.from_(ret_si)
 		.inner_join(ret_item)
 		.on(ret_item.parent == ret_si.name)
 		.select(
@@ -2136,7 +2136,7 @@ def get_invoice_for_return(invoice_name):
 	returned_qty = {row["key_field"]: flt(row["returned_qty"]) for row in returned_qty_results}
 
 	# Get the full invoice document (needed for complete response)
-	invoice = frappe.get_doc("Sales Invoice", invoice_name)
+	invoice = dypos.get_doc("Sales Invoice", invoice_name)
 	invoice_dict = invoice.as_dict()
 
 	# Calculate remaining quantities
@@ -2232,7 +2232,7 @@ def _remap_foreign_payment_modes(payments_data, current_profile, original_profil
 	    - No default_mode could be determined (empty profile)
 
 	Args:
-	    payments_data: list of frappe._dict with mode_of_payment, amount, etc.
+	    payments_data: list of dypos._dict with mode_of_payment, amount, etc.
 	                   (from Sales Invoice Payment child table of original invoice)
 	    current_profile: POS Profile name where the return is being processed
 	    original_profile: POS Profile name where the original sale happened
@@ -2260,7 +2260,7 @@ def _remap_foreign_payment_modes(payments_data, current_profile, original_profil
 	# Get current profile's payment modes
 	current_modes = {
 		row.mode_of_payment
-		for row in frappe.get_all(
+		for row in dypos.get_all(
 			"POS Payment Method",
 			filters={"parent": current_profile, "parenttype": "POS Profile"},
 			fields=["mode_of_payment"],
@@ -2274,11 +2274,11 @@ def _remap_foreign_payment_modes(payments_data, current_profile, original_profil
 
 	# Build type->mode map for the current profile.
 	# Uses setdefault so the first mode of each type wins (matches profile order).
-	mop = frappe.qb.DocType("Mode of Payment")
-	ppm = frappe.qb.DocType("POS Payment Method")
+	mop = dypos.qb.DocType("Mode of Payment")
+	ppm = dypos.qb.DocType("POS Payment Method")
 	current_type_map = {}
 	rows = (
-		frappe.qb.from_(ppm)
+		dypos.qb.from_(ppm)
 		.inner_join(mop)
 		.on(mop.name == ppm.mode_of_payment)
 		.select(ppm.mode_of_payment, mop.type)
@@ -2290,7 +2290,7 @@ def _remap_foreign_payment_modes(payments_data, current_profile, original_profil
 
 	# Default fallback: posa_cash_mode_of_payment > first Cash type > first mode
 	default_mode = (
-		frappe.db.get_value("POS Profile", current_profile, "posa_cash_mode_of_payment")
+		dypos.db.get_value("POS Profile", current_profile, "posa_cash_mode_of_payment")
 		or current_type_map.get("Cash")
 		or (rows[0].mode_of_payment if rows else None)
 	)
@@ -2302,7 +2302,7 @@ def _remap_foreign_payment_modes(payments_data, current_profile, original_profil
 	foreign_modes = [p.mode_of_payment for p in payments_data if p.mode_of_payment not in current_modes]
 	foreign_types = {}
 	if foreign_modes:
-		type_rows = frappe.get_all(
+		type_rows = dypos.get_all(
 			"Mode of Payment",
 			filters={"name": ["in", foreign_modes]},
 			fields=["name", "type"],
@@ -2320,7 +2320,7 @@ def _remap_foreign_payment_modes(payments_data, current_profile, original_profil
 	return payments_data
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def prepare_return_invoice(invoice_name, pos_opening_shift=None):
 	"""Prepare a return invoice using DyPOS's make_sales_return.
 
@@ -2346,13 +2346,13 @@ def prepare_return_invoice(invoice_name, pos_opening_shift=None):
 	        - Each item includes original_qty, already_returned, and remaining_qty
 	"""
 	from DyPOS.accounts.doctype.sales_invoice.sales_invoice import make_sales_return
-	from frappe.query_builder.functions import Abs, Coalesce, Sum
-	from frappe.utils import date_diff, getdate
+	from dypos.query_builder.functions import Abs, Coalesce, Sum
+	from dypos.utils import date_diff, getdate
 
 	# Validate invoice and get fields needed for return period check
-	si = frappe.qb.DocType("Sales Invoice")
+	si = dypos.qb.DocType("Sales Invoice")
 	invoice_check = (
-		frappe.qb.from_(si)
+		dypos.qb.from_(si)
 		.select(
 			si.docstatus,
 			si.is_return,
@@ -2371,22 +2371,22 @@ def prepare_return_invoice(invoice_name, pos_opening_shift=None):
 	).run(as_dict=True)
 
 	if not invoice_check:
-		frappe.throw(_("Invoice {0} does not exist").format(invoice_name))
+		dypos.throw(_("Invoice {0} does not exist").format(invoice_name))
 
 	invoice_info = invoice_check[0]
 
 	# Validate docstatus
 	if invoice_info.docstatus != 1:
-		frappe.throw(_("Invoice must be submitted to create a return"))
+		dypos.throw(_("Invoice must be submitted to create a return"))
 
 	# Check if it's already a return
 	if invoice_info.is_return:
-		frappe.throw(_("Cannot create return against a return invoice"))
+		dypos.throw(_("Cannot create return against a return invoice"))
 
 	# Check return validity period from POS Settings
 	if invoice_info.pos_profile:
 		return_validity_days = cint(
-			frappe.db.get_value(
+			dypos.db.get_value(
 				"POS Settings", {"pos_profile": invoice_info.pos_profile}, "return_validity_days"
 			)
 			or 0
@@ -2395,7 +2395,7 @@ def prepare_return_invoice(invoice_name, pos_opening_shift=None):
 		if return_validity_days > 0:
 			days_since_invoice = date_diff(getdate(nowdate()), getdate(invoice_info.posting_date))
 			if days_since_invoice > return_validity_days:
-				frappe.throw(
+				dypos.throw(
 					_(
 						"Return period has expired. Invoice {0} was created {1} days ago. "
 						"Returns are only allowed within {2} days of purchase."
@@ -2415,11 +2415,11 @@ def prepare_return_invoice(invoice_name, pos_opening_shift=None):
 	return_doc.pos_profile = invoice_info.pos_profile
 
 	# Aggregate quantities already returned from previous return invoices
-	ret_si = frappe.qb.DocType("Sales Invoice")
-	ret_item = frappe.qb.DocType("Sales Invoice Item")
+	ret_si = dypos.qb.DocType("Sales Invoice")
+	ret_item = dypos.qb.DocType("Sales Invoice Item")
 
 	returned_qty_results = (
-		frappe.qb.from_(ret_si)
+		dypos.qb.from_(ret_si)
 		.inner_join(ret_item)
 		.on(ret_item.parent == ret_si.name)
 		.select(
@@ -2436,9 +2436,9 @@ def prepare_return_invoice(invoice_name, pos_opening_shift=None):
 	return_dict = return_doc.as_dict()
 
 	# Fetch original invoice payments for refund handling in frontend
-	si_payment = frappe.qb.DocType("Sales Invoice Payment")
+	si_payment = dypos.qb.DocType("Sales Invoice Payment")
 	payments_data = (
-		frappe.qb.from_(si_payment)
+		dypos.qb.from_(si_payment)
 		.select(si_payment.mode_of_payment, si_payment.amount, si_payment.base_amount, si_payment.account)
 		.where(si_payment.parent == invoice_name)
 	).run(as_dict=True)
@@ -2457,7 +2457,7 @@ def prepare_return_invoice(invoice_name, pos_opening_shift=None):
 	# (e.g. no pos_opening_shift provided) or for already-submitted invoices
 	# with the wrong payment mode.
 	if pos_opening_shift:
-		current_profile = frappe.db.get_value("POS Opening Shift", pos_opening_shift, "pos_profile")
+		current_profile = dypos.db.get_value("POS Opening Shift", pos_opening_shift, "pos_profile")
 		if current_profile:
 			payments_data = _remap_foreign_payment_modes(
 				payments_data, current_profile, invoice_info.pos_profile
@@ -2488,7 +2488,7 @@ def prepare_return_invoice(invoice_name, pos_opening_shift=None):
 		tax.get("included_in_print_rate") for tax in applicable_taxes
 	)
 
-	precision = cint(frappe.get_cached_value("System Settings", None, "currency_precision")) or 2
+	precision = cint(dypos.get_cached_value("System Settings", None, "currency_precision")) or 2
 
 	def process_return_item(item):
 		"""Process single item for return, returns None if not returnable."""
@@ -2542,12 +2542,12 @@ def prepare_return_invoice(invoice_name, pos_opening_shift=None):
 
 	# Check if all items have been fully returned
 	if not return_dict["items"]:
-		frappe.throw(_("All items from this invoice have already been returned"))
+		dypos.throw(_("All items from this invoice have already been returned"))
 
 	return return_dict
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def search_invoices_for_return(
 	invoice_name=None,
 	company=None,
@@ -2572,22 +2572,22 @@ def search_invoices_for_return(
 
 	Returns invoices with their items adjusted to show remaining returnable quantities.
 	"""
-	from frappe.query_builder.functions import Abs, Count, Sum
+	from dypos.query_builder.functions import Abs, Count, Sum
 
 	page = cint(page) or 1
 	page_length = 100
 	start = (page - 1) * page_length
 
 	# Build main invoice query
-	si = frappe.qb.DocType(doctype)
+	si = dypos.qb.DocType(doctype)
 
 	# Start building the query
 	query = (
-		frappe.qb.from_(si)
+		dypos.qb.from_(si)
 		.select(si.name, si.customer, si.customer_name, si.posting_date, si.grand_total, si.status)
 		.where((si.docstatus == 1) & (si.is_return == 0))
-		.orderby(si.posting_date, order=frappe.qb.desc)
-		.orderby(si.name, order=frappe.qb.desc)
+		.orderby(si.posting_date, order=dypos.qb.desc)
+		.orderby(si.name, order=dypos.qb.desc)
 		.limit(page_length)
 		.offset(start)
 	)
@@ -2618,8 +2618,8 @@ def search_invoices_for_return(
 
 	# Search customers matching any of the provided criteria (OR logic)
 	if customer_name or customer_id or mobile_no:
-		cust = frappe.qb.DocType("Customer")
-		cust_query = frappe.qb.from_(cust).select(cust.name).limit(100)
+		cust = dypos.qb.DocType("Customer")
+		cust_query = dypos.qb.from_(cust).select(cust.name).limit(100)
 
 		# Build OR conditions for customer search
 		cust_conditions = []
@@ -2655,7 +2655,7 @@ def search_invoices_for_return(
 
 	# Count total matching invoices for pagination
 	count_query = (
-		frappe.qb.from_(si)
+		dypos.qb.from_(si)
 		.select(Count(si.name).as_("total"))
 		.where((si.docstatus == 1) & (si.is_return == 0))
 	)
@@ -2685,11 +2685,11 @@ def search_invoices_for_return(
 	total_count = count_result[0].total if count_result else 0
 
 	# Batch fetch returned quantities for all invoices in current page
-	ret_si = frappe.qb.DocType(doctype)
-	ret_item = frappe.qb.DocType(f"{doctype} Item")
+	ret_si = dypos.qb.DocType(doctype)
+	ret_item = dypos.qb.DocType(f"{doctype} Item")
 
 	returned_qty_results = (
-		frappe.qb.from_(ret_si)
+		dypos.qb.from_(ret_si)
 		.inner_join(ret_item)
 		.on(ret_item.parent == ret_si.name)
 		.select(
@@ -2712,9 +2712,9 @@ def search_invoices_for_return(
 		returned_qty_map[inv_name][row["item_code"]] = flt(row["returned_qty"])
 
 	# Batch fetch all items for invoices in current page
-	si_item = frappe.qb.DocType(f"{doctype} Item")
+	si_item = dypos.qb.DocType(f"{doctype} Item")
 	all_items = (
-		frappe.qb.from_(si_item)
+		dypos.qb.from_(si_item)
 		.select(
 			si_item.parent,
 			si_item.name,
@@ -2758,11 +2758,11 @@ def search_invoices_for_return(
 				new_item["amount"] = remaining_qty * flt(item["rate"])
 				if item.get("stock_qty") and item.get("qty"):
 					new_item["stock_qty"] = flt(item["stock_qty"]) / flt(item["qty"]) * remaining_qty
-				filtered_items.append(frappe._dict(new_item))
+				filtered_items.append(dypos._dict(new_item))
 
 		# Only include invoices with returnable items
 		if filtered_items or not returned_qty:
-			invoice_data = frappe._dict(invoice)
+			invoice_data = dypos._dict(invoice)
 			invoice_data["items"] = filtered_items if filtered_items else items
 			data.append(invoice_data)
 
@@ -2808,7 +2808,7 @@ def _evaluate_transaction_offers(
 	if total <= 0:
 		return {"free_items": {}, "applied_rules": set()}
 
-	doc = frappe.new_doc("Sales Invoice")
+	doc = dypos.new_doc("Sales Invoice")
 	doc.update(
 		{
 			"is_pos": 1,
@@ -2864,7 +2864,7 @@ def _evaluate_transaction_offers(
 	except Exception:
 		# A misconfigured transaction-scoped rule must not break the per-item
 		# discounts that have already been computed by the caller.
-		frappe.log_error(frappe.get_traceback(), "POS Apply Offers (Transaction Rules)")
+		dypos.log_error(dypos.get_traceback(), "POS Apply Offers (Transaction Rules)")
 		return {
 			"free_items": {},
 			"applied_rules": set(),
@@ -2883,7 +2883,7 @@ def _evaluate_transaction_offers(
 			continue
 		if selected_offer_names and rule_name not in selected_offer_names:
 			continue
-		fid = frappe._dict(row.as_dict())
+		fid = dypos._dict(row.as_dict())
 		fid.applied_promotional_scheme = rule_map[rule_name].promotional_scheme
 		free_items[(row.item_code, rule_name)] = fid
 		applied_rules.add(rule_name)
@@ -2908,7 +2908,7 @@ def _evaluate_transaction_offers(
 				continue
 			if details.get("price_or_product_discount") != "Price":
 				continue
-			if frappe.db.get_value("Pricing Rule", rule_name, "apply_on") != "Transaction":
+			if dypos.db.get_value("Pricing Rule", rule_name, "apply_on") != "Transaction":
 				continue
 			applied_rules.add(rule_name)
 
@@ -2921,7 +2921,7 @@ def _evaluate_transaction_offers(
 	}
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def apply_offers(invoice_data, selected_offers=None):
 	"""Calculate and apply promotional offers using DyPOS Pricing Rules.
 
@@ -2935,7 +2935,7 @@ def apply_offers(invoice_data, selected_offers=None):
 		if isinstance(invoice_data, str):
 			invoice_data = json.loads(invoice_data or "{}")
 
-		invoice = frappe._dict(invoice_data or {})
+		invoice = dypos._dict(invoice_data or {})
 		items = invoice.get("items") or []
 
 		if isinstance(selected_offers, str):
@@ -2956,7 +2956,7 @@ def apply_offers(invoice_data, selected_offers=None):
 			# Either no POS profile supplied or DyPOS promotional engine unavailable
 			return {"items": items}
 
-		profile = frappe.get_cached_doc("POS Profile", invoice.get("pos_profile"))
+		profile = dypos.get_cached_doc("POS Profile", invoice.get("pos_profile"))
 
 		# Respect POS Profile's ignore_pricing_rule setting
 		if profile.ignore_pricing_rule:
@@ -2966,7 +2966,7 @@ def apply_offers(invoice_data, selected_offers=None):
 		item_codes = list({item.get("item_code") for item in items if item.get("item_code")})
 		item_details_map = {}
 		if item_codes:
-			item_records = frappe.get_all(
+			item_records = dypos.get_all(
 				"Item",
 				filters={"name": ["in", item_codes]},
 				fields=["name", "item_name", "item_group", "brand", "stock_uom"],
@@ -2975,7 +2975,7 @@ def apply_offers(invoice_data, selected_offers=None):
 
 		pricing_items = []
 		index_map = []
-		prepared_items = [frappe._dict(row) for row in items]
+		prepared_items = [dypos._dict(row) for row in items]
 
 		for idx, item in enumerate(prepared_items):
 			item_code = item.get("item_code")
@@ -2991,7 +2991,7 @@ def apply_offers(invoice_data, selected_offers=None):
 			price_list_rate = flt(item.get("price_list_rate") or item.get("rate") or 0)
 
 			pricing_items.append(
-				frappe._dict(
+				dypos._dict(
 					{
 						"doctype": "Sales Invoice Item",
 						"name": item.get("name") or f"POS-{idx}",
@@ -3029,7 +3029,7 @@ def apply_offers(invoice_data, selected_offers=None):
 		if not pricing_items:
 			return {"items": items}
 
-		company_currency = frappe.get_cached_value("Company", profile.company, "default_currency")
+		company_currency = dypos.get_cached_value("Company", profile.company, "default_currency")
 
 		# Get customer details if customer is provided
 		customer = invoice.get("customer")
@@ -3039,7 +3039,7 @@ def apply_offers(invoice_data, selected_offers=None):
 		if customer and not customer_group:
 			# Fetch customer_group from customer
 			try:
-				customer_data = frappe.get_cached_value(
+				customer_data = dypos.get_cached_value(
 					"Customer", customer, ["customer_group", "territory"], as_dict=1
 				)
 				if customer_data:
@@ -3048,13 +3048,13 @@ def apply_offers(invoice_data, selected_offers=None):
 						territory = customer_data.get("territory")
 			except Exception as e:
 				# Customer lookup failed, will use defaults
-				frappe.log_error(f"Failed to fetch customer data for {customer}: {e}", "Customer Data Lookup")
+				dypos.log_error(f"Failed to fetch customer data for {customer}: {e}", "Customer Data Lookup")
 
 		# If still no customer_group, use default
 		if not customer_group:
 			customer_group = "All Customer Groups"
 
-		pricing_args = frappe._dict(
+		pricing_args = dypos._dict(
 			{
 				"doctype": invoice.get("doctype") or "Sales Invoice",
 				"name": invoice.get("name") or "POS-INVOICE",
@@ -3130,7 +3130,7 @@ def apply_offers(invoice_data, selected_offers=None):
 
 		rule_map = {}
 		if raw_rule_names:
-			rule_records = frappe.get_all(
+			rule_records = dypos.get_all(
 				"Pricing Rule",
 				filters={"name": ["in", list(raw_rule_names)]},
 				fields=[
@@ -3154,7 +3154,7 @@ def apply_offers(invoice_data, selected_offers=None):
 				if record.one_time_per_customer:
 					if not customer or customer == default_customer:
 						continue
-					if frappe.db.exists("One Time Customer Offer Usage", f"{customer}::{record.name}"):
+					if dypos.db.exists("One Time Customer Offer Usage", f"{customer}::{record.name}"):
 						continue
 
 				# Include both promotional scheme rules and standalone pricing rules
@@ -3166,7 +3166,7 @@ def apply_offers(invoice_data, selected_offers=None):
 		# DyPOS's own SQL inside apply_pricing_rule_on_transaction handles
 		# date/currency/pos_only filtering, so a broad superset is sufficient.
 		if DyPOS_apply_pricing_rule_on_transaction:
-			txn_rule_records = frappe.get_all(
+			txn_rule_records = dypos.get_all(
 				"Pricing Rule",
 				filters={
 					"disable": 0,
@@ -3245,7 +3245,7 @@ def apply_offers(invoice_data, selected_offers=None):
 						continue
 
 					# Fetch full pricing rule to get discount values
-					full_rule = frappe.get_cached_doc("Pricing Rule", rule_name)
+					full_rule = dypos.get_cached_doc("Pricing Rule", rule_name)
 
 					# Min/Max rules are deferred to apply_min_max_price_discounts
 					# (cross-item ranking). Applying them here would discount every
@@ -3293,7 +3293,7 @@ def apply_offers(invoice_data, selected_offers=None):
 				rule_name = free_item.get("pricing_rules")
 				if not rule_name or rule_name not in rule_map:
 					continue
-				free_item_doc = frappe._dict(free_item)
+				free_item_doc = dypos._dict(free_item)
 				free_item_doc.applied_promotional_scheme = rule_map[rule_name].promotional_scheme
 				free_items_map[(free_item.get("item_code"), rule_name)] = free_item_doc
 
@@ -3326,7 +3326,7 @@ def apply_offers(invoice_data, selected_offers=None):
 		# calculate_taxes_and_totals(); the post-processor materialises rate/amount
 		# on each discounted item directly.
 		if apply_min_max_price_discounts:
-			mock_doc = frappe._dict(
+			mock_doc = dypos._dict(
 				{
 					"doctype": invoice.get("doctype") or "Sales Invoice",
 					"items": prepared_items,
@@ -3361,5 +3361,5 @@ def apply_offers(invoice_data, selected_offers=None):
 			"apply_discount_on": txn_result.get("apply_discount_on"),
 		}
 	except Exception as e:
-		frappe.log_error(frappe.get_traceback(), "Apply Offers Error")
-		frappe.throw(_("Error applying offers: {0}").format(str(e)))
+		dypos.log_error(dypos.get_traceback(), "Apply Offers Error")
+		dypos.throw(_("Error applying offers: {0}").format(str(e)))

@@ -23,9 +23,9 @@ them in a single bulk pass (``apply_min_max_price_discounts``) instead.
 
 from collections import defaultdict
 
-import frappe
-from frappe import _
-from frappe.utils import flt
+import dypos
+from dyposimport _
+from dypos.utils import flt
 
 from DyPOS.accounts.doctype.pricing_rule.pricing_rule import (
 	apply_price_discount_rule as _original_apply_price_discount_rule,
@@ -49,12 +49,12 @@ def _has_pos_only_column():
 	if not hasattr(_has_pos_only_column, "_cache"):
 		_has_pos_only_column._cache = {}
 
-	site = getattr(frappe.local, "site", None)
+	site = getattr(dypos.local, "site", None)
 	if site in _has_pos_only_column._cache:
 		return _has_pos_only_column._cache[site]
 
 	try:
-		result = frappe.db.has_column("Pricing Rule", "pos_only")
+		result = dypos.db.has_column("Pricing Rule", "pos_only")
 	except Exception:
 		result = False
 
@@ -71,7 +71,7 @@ def sync_pos_only_to_pricing_rules(doc, method=None):
 	Propagates both ``pos_only`` and ``one_time_per_customer`` so a scheme acts as
 	the single source of truth for the rules it generates.
 	"""
-	frappe.db.set_value(
+	dypos.db.set_value(
 		"Pricing Rule",
 		{"promotional_scheme": doc.name},
 		{
@@ -85,7 +85,7 @@ def sync_pos_only_to_pricing_rules(doc, method=None):
 def patch_get_other_conditions(pr_utils):
 	"""Monkey-patch get_other_conditions to filter pos_only pricing rules.
 
-	No Frappe hook exists for non-whitelisted module-level functions,
+	No dyposhook exists for non-whitelisted module-level functions,
 	so monkey-patching is the only option for this SQL condition injection.
 	"""
 	_original_get_other_conditions = pr_utils.get_other_conditions
@@ -142,7 +142,7 @@ def enforce_min_max_pricing_config(doc, method=None):
 		doc.mixed_conditions = 1
 		for slab in min_max_slabs:
 			if flt(slab.get("min_or_max_discount_qty_limit")) < 0:
-				frappe.throw(
+				dypos.throw(
 					_(
 						"<b>Min/Max Discount Qty Limit</b> cannot be negative on the price "
 						"discount row using <b>{0}</b> discount. Use 0 for no limit."
@@ -155,7 +155,7 @@ def enforce_min_max_pricing_config(doc, method=None):
 		return
 	doc.mixed_conditions = 1
 	if flt(doc.get("min_or_max_discount_qty_limit")) < 0:
-		frappe.throw(
+		dypos.throw(
 			_(
 				"<b>Min/Max Discount Qty Limit</b> cannot be negative when "
 				"<b>Apply Discount On</b> is <b>{0}</b>. Use 0 for no limit."
@@ -216,7 +216,7 @@ def apply_min_max_price_discounts(doc, method=None, allowed_rules=None):
 	same item is therefore not supported.
 
 	Args:
-		doc: Document (or ``frappe._dict`` mock) exposing ``items`` and price-list info.
+		doc: Document (or ``dypos._dict`` mock) exposing ``items`` and price-list info.
 		method: Unused hook signature argument.
 		allowed_rules: Optional iterable of rule names; when given, only those rules
 			are applied (used by the POS UI to honour explicitly selected offers).
@@ -265,9 +265,9 @@ def apply_min_max_price_discounts(doc, method=None, allowed_rules=None):
 		if hasattr(doc, "calculate_taxes_and_totals") and callable(doc.calculate_taxes_and_totals):
 			doc.calculate_taxes_and_totals()
 	except Exception:
-		frappe.log_error(frappe.get_traceback(), "Min/Max Pricing Rule Failed")
-		if not frappe.flags.in_test:
-			frappe.msgprint(
+		dypos.log_error(dypos.get_traceback(), "Min/Max Pricing Rule Failed")
+		if not dypos.flags.in_test:
+			dypos.msgprint(
 				_("Some Min/Max pricing rules could not be applied. Please review the cart discounts."),
 				indicator="orange",
 			)
@@ -363,7 +363,7 @@ def _collect_min_max_rule_items(doc):
 
 		for pr_name in get_applied_pricing_rules(item.get("pricing_rules")):
 			if pr_name not in pricing_rules_cache:
-				pr = frappe.get_cached_doc("Pricing Rule", pr_name)
+				pr = dypos.get_cached_doc("Pricing Rule", pr_name)
 				if (
 					pr.get("price_or_product_discount") == "Price"
 					and pr.get("apply_discount_on_price") in MIN_MAX_OPTIONS

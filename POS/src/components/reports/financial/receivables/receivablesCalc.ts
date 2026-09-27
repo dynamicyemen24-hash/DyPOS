@@ -16,7 +16,13 @@ import { sumBy } from "../revenue/revenueCalc"
  * so the payables calculator reuses the exact same aging rules.
  */
 
-export const AGING_BUCKETS = [
+interface AgingBucketSpec {
+	label: string
+	minDays: number | null
+	maxDays: number | null
+}
+
+export const AGING_BUCKETS: AgingBucketSpec[] = [
 	{ label: "Not Due", minDays: null, maxDays: 0 },
 	{ label: "1-30 Days", minDays: 1, maxDays: 30 },
 	{ label: "31-60 Days", minDays: 31, maxDays: 60 },
@@ -24,7 +30,10 @@ export const AGING_BUCKETS = [
 	{ label: "Over 90 Days", minDays: 91, maxDays: null },
 ]
 
-export function daysOverdue(dueDate, now = new Date()) {
+export function daysOverdue(
+	dueDate: string | null | undefined,
+	now: Date = new Date(),
+): number {
 	if (!dueDate) return 0
 	const due = new Date(dueDate)
 	if (Number.isNaN(due.getTime())) return 0
@@ -32,8 +41,11 @@ export function daysOverdue(dueDate, now = new Date()) {
 	return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)))
 }
 
-export function buildAgingBuckets(invoices, now = new Date()): AgingBucket[] {
-	const buckets = AGING_BUCKETS.map((bucket) => ({
+export function buildAgingBuckets(
+	invoices: Array<{ due_date?: string; outstanding_amount: number }>,
+	now: Date = new Date(),
+): AgingBucket[] {
+	const buckets: AgingBucket[] = AGING_BUCKETS.map((bucket) => ({
 		...bucket,
 		count: 0,
 		amount: 0,
@@ -53,23 +65,41 @@ export function buildAgingBuckets(invoices, now = new Date()): AgingBucket[] {
 	return buckets
 }
 
-export function buildPartyLedgerModel(
-	rows,
-	partyField,
-	partyNameField,
-	now = new Date(),
-) {
+/** Minimal shape the shared ledger engine needs, independent of party. */
+interface LedgerInvoice {
+	due_date?: string
+	outstanding_amount: number
+}
+
+interface PartyBucket<T extends LedgerInvoice> {
+	party: string
+	partyName: string
+	invoices: T[]
+}
+
+/**
+ * Shared ledger/aging engine for both sides of the ledger: receivables
+ * (Sales Invoice → `customer` / `customer_name`) and payables
+ * (Purchase Invoice → `supplier` / `supplier_name`). Both sides therefore
+ * share exactly one set of aging rules.
+ */
+export function buildPartyLedgerModel<T extends LedgerInvoice>(
+	rows: T[],
+	partyField: keyof T,
+	partyNameField: keyof T,
+	now: Date = new Date(),
+): { kpis: KPI[]; parties: ReceivableRow[]; aging: AgingBucket[] } {
 	const invoices = rows || []
 	const total = sumBy(invoices, "outstanding_amount")
 
-	const byParty = new Map()
+	const byParty = new Map<string, PartyBucket<T>>()
 	for (const invoice of invoices) {
 		const key = String(invoice[partyField] || "-")
 		let bucket = byParty.get(key)
 		if (!bucket) {
 			bucket = {
 				party: key,
-				partyName: invoice[partyNameField] || key,
+				partyName: String(invoice[partyNameField] || key),
 				invoices: [],
 			}
 			byParty.set(key, bucket)
@@ -78,11 +108,11 @@ export function buildPartyLedgerModel(
 	}
 
 	const parties: ReceivableRow[] = [...byParty.values()]
-		.map((bucket) => {
+		.map((bucket): ReceivableRow => {
 			const outstanding = sumBy(bucket.invoices, "outstanding_amount")
 			const dueDates = bucket.invoices
 				.map((invoice) => invoice.due_date)
-				.filter(Boolean)
+				.filter((date): date is string => Boolean(date))
 				.sort()
 			const oldestDueDate = dueDates.length ? dueDates[0] : null
 			const overdueDays = daysOverdue(oldestDueDate, now)
@@ -128,8 +158,8 @@ export function buildPartyLedgerModel(
 }
 
 export function buildReceivablesModel(
-	rows,
-	now = new Date(),
+	rows: SalesInvoiceFact[],
+	now: Date = new Date(),
 ): ReceivablesReportModel {
 	return buildPartyLedgerModel(rows, "customer", "customer_name", now)
 }

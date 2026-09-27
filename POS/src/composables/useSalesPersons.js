@@ -4,7 +4,7 @@
  */
 
 import { ref, computed } from "vue"
-import { createResource } from "frappe-ui"
+import { createResource } from "dypos-ui"
 import { usePOSSettingsStore } from "@/stores/posSettings"
 import { logger } from "@/utils/logger"
 

@@ -4,6 +4,7 @@
  */
 
 import crypto from 'crypto';
+import { splitOrigins, toOriginWhitelist } from './securityHeaders.js';
 
 const NONCE_BYTES = 16;
 
@@ -18,47 +19,49 @@ function generateNonce() {
  * Middleware to generate CSP nonce and attach to request/response
  */
 export function cspNonceMiddleware() {
-  return function (req, res, next) {
+  // `req` is unused but MUST stay: Express identifies middleware by arity, so
+  // dropping the parameter would stop this function being invoked at all.
+  return function cspNonceMiddlewareImpl(_req, res, next) {
     const nonce = generateNonce();
-    
+
     // Store nonce on response locals for use in CSP and HTML injection
     res.locals = res.locals || {};
     res.locals.cspNonce = nonce;
-    
+
     // Add nonce to response headers for CSP
     res.setHeader('X-CSP-Nonce', nonce);
-    
+
     next();
   };
 }
 
 /**
  * Build CSP string with nonce for styles
+ *
+ * `allowFraming` is opt-in: `frame-ancestors` starts at 'self' and only gains
+ * the origin when the caller explicitly allows it. This is the
+ * clickjacking control, so the permissive value must be requested, not assumed.
  */
 export function buildCspWithNonce(nonce, options = {}) {
   const {
     apiOrigins = [],
-    frappeOrigin = '',
-    allowFraming = true,
-    isProduction = process.env.NODE_ENV === 'production'
+    deskOrigin = '',
+    allowFraming = false,
   } = options;
 
-  const apiOriginsWhitelist = String(apiOrigins || '')
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean);
+  // Reuse the hardened origin parser: values that are not absolute http(s)
+  // origins are dropped, so a malformed env var cannot inject a CSP directive.
+  const apiOriginsWhitelist = toOriginWhitelist(splitOrigins(apiOrigins));
+  const deskOriginWhitelist = toOriginWhitelist(splitOrigins(deskOrigin));
 
-  const frappeOriginClean = String(frappeOrigin || '').trim();
-  const allowFramingFromFrappe = frappeOriginClean && allowCode;
-
-  const connectSrc = ["'self'", ...frappeOriginClean.split(',').map(s => s.trim()).filter(Boolean), ...apiOriginsWhitelist];
-  if (!connectSrc.some(o => o.startsWith('http'))) {
+  const connectSrc = ["'self'", ...deskOriginWhitelist, ...apiOriginsWhitelist];
+  if (!connectSrc.some((o) => o.startsWith('http'))) {
     connectSrc.push('https:', 'wss:');
   }
 
   const frameAncestors = ["'self'"];
-  if (frappeOriginClean) {
-    frameAncestors.push(...frappeOriginClean.split(',').map(s => s.trim()).filter(Boolean));
+  if (allowFraming) {
+    frameAncestors.push(...deskOriginWhitelist);
   }
 
   const nonceAttr = `'nonce-${nonce}'`;
@@ -68,7 +71,8 @@ export function buildCspWithNonce(nonce, options = {}) {
     `script-src 'self' blob:`,
     `style-src 'self' ${nonceAttr}`,
     `img-src 'self' data: blob: https:`,
-    `font-src 'self' data: https://fonts.gstatic.com`,
+    // No external font origin: the app self-hosts its fonts.
+    `font-src 'self' data:`,
     `connect-src ${connectSrc.join(' ')}`,
     `media-src 'self' blob:`,
     `object-src 'none'`,
@@ -86,13 +90,13 @@ export function buildCspWithNonce(nonce, options = {}) {
  * Reads index.html, injects nonce into style tags, serves modified HTML
  */
 export function htmlNonceInjector(staticDir) {
+  // Must be CALLED: a bare function reference is always truthy, which made this
+  // 1 hour in dev too (contradicting the "no cache in dev" intent).
+  const isProd = process.env.NODE_ENV === 'production';
+  const CACHE_TTL = isProd ? 3600000 : 0; // 1 hour in production, no cache in dev
+
   let indexHtmlCache = null;
   let cacheTime = 0;
-  const CACHE_TTL = isProduction ? 3600000 : 0; // 1 hour in production, no cache in dev
-
-  function isProduction() {
-    return process.env.NODE_ENV === 'production';
-  }
 
   async function getIndexHtml() {
     const now = Date.now();
@@ -103,7 +107,7 @@ export function htmlNonceInjector(staticDir) {
     const fs = await import('fs');
     const path = await import('path');
     const indexPath = path.join(staticDir, 'index.html');
-    
+
     try {
       indexHtmlCache = await fs.promises.readFile(indexPath, 'utf-8');
       cacheTime = now;
@@ -137,7 +141,7 @@ export function htmlNonceInjector(staticDir) {
   return async function htmlNonceMiddleware(req, res, next) {
     // Only process GET requests for HTML
     if (req.method !== 'GET') return next();
-    
+
     const accept = req.headers.accept || '';
     if (!accept.includes('text/html')) return next();
 
@@ -148,11 +152,11 @@ export function htmlNonceInjector(staticDir) {
     if (req.path.includes('.') && !req.path.endsWith('.html')) return next();
 
     const nonce = res.locals?.cspNonce || generateNonce();
-    
+
     // Update CSP with nonce
     const csp = buildCspWithNonce(nonce, {
       apiOrigins: process.env.DYPOS_API_ORIGIN,
-      frappeOrigin: process.env.DYPOS_FRAPPE_ORIGIN,
+      deskOrigin: process.env.DYPOS_FRAPPE_ORIGIN,
     });
     res.setHeader('Content-Security-Policy', csp);
 

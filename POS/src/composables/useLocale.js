@@ -123,7 +123,7 @@ async function fetchLanguageFromServer() {
 /**
  * Detect current language from cache sources (when offline)
  * Priority: explicit in-app switch (localStorage) → POS Settings locale → Arabic default.
- * The browser and Frappe boot languages are intentionally NOT considered so that
+ * The browser and boot-payload languages are intentionally NOT considered so that
  * Arabic is the enforced default from the login screen to the last screen.
  * @returns {string} Language code
  */
@@ -239,11 +239,11 @@ export function useLocale() {
 	const isRTL = computed(() => currentDir.value === "rtl")
 	const localeConfig = computed(() => {
 		const config = SUPPORTED_LOCALES[locale.value] || SUPPORTED_LOCALES.en
-			return {
-				...config,
-				flagEmoji: countryFlagEmoji(config.countryCode),
-				flagCode: countryCodeLabel(config.countryCode),
-			}
+		return {
+			...config,
+			flagEmoji: countryFlagEmoji(config.countryCode),
+			flagCode: countryCodeLabel(config.countryCode),
+		}
 	})
 
 	/**
@@ -281,7 +281,7 @@ export function useLocale() {
 		// layer may propagate it; it must never block the switch.
 
 		// Fetch new translations dynamically (no page reload needed)
-		// The API returns translations based on the user's current Frappe language setting
+		// The API returns translations based on the user's current language setting
 		if (typeof window !== "undefined" && window.$changeLanguage) {
 			try {
 				await window.$changeLanguage(newLocale)
@@ -372,11 +372,11 @@ export function useLocale() {
 		for (const [code, config] of Object.entries(SUPPORTED_LOCALES)) {
 			// If allowed locales are set, filter by them; otherwise show all
 			if (allowed === null || allowed.length === 0 || allowed.includes(code)) {
-			result[code] = {
-				...config,
-				flagEmoji: countryFlagEmoji(config.countryCode),
-				flagCode: countryCodeLabel(config.countryCode),
-			}
+				result[code] = {
+					...config,
+					flagEmoji: countryFlagEmoji(config.countryCode),
+					flagCode: countryCodeLabel(config.countryCode),
+				}
 			}
 		}
 		return result

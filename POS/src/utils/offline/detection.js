@@ -22,7 +22,7 @@ const CONFIG = {
 	// Health check endpoints (try in order)
 	HEALTH_ENDPOINTS: [
 		"/api/method/DyPOS.api.ping",
-		"/api/method/frappe.ping",
+		"/api/method/dypos.ping",
 		"/api/device",
 	],
 

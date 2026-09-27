@@ -179,7 +179,6 @@ try {
 
   // 3. Organization + branches + warehouses
   console.log('  → Branches + warehouses...');
-  const ORG_ID = '11111111-1111-1111-1111-111111111111';
   upsert('organizations', 'id', { id: ORG_ID, tenant_id: TENANT_ID, name: BUSINESS_NAME, code: 'RGT', vat_number: '1000000000', is_active: 1, created_at: now(), updated_at: now() });
   const BR = {
     [BRANCH_SANAA]: ['فرع صنعاء الرئيسي', 'BR-SANAA', WH_SANAA, 'مستودع صنعاء المركزي', 'صنعاء - شارع حدة'],

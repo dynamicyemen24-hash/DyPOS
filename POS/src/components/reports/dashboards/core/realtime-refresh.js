@@ -1,7 +1,7 @@
 /**
  * Real-time dashboard refresh manager.
  *
- * Provides socket-based live updates for dashboards when the Frappe
+ * Provides socket-based live updates for dashboards when the
  * backend pushes document change events. Falls back to polling when
  * sockets are unavailable.
  */
@@ -34,9 +34,8 @@ export function useRealtimeRefresh(options = {}) {
 
 	function connectSocket() {
 		try {
-			if (typeof window === "undefined" || !window.frappe?.socketio)
-				return false
-			const socket = window.frappe.socketio
+			if (typeof window === "undefined" || !window.dypos?.socketio) return false
+			const socket = window.dypos.socketio
 			for (const dt of doctypes) {
 				const event = `doc_update:${dt}`
 				socket.on(event, handleDocUpdate)
@@ -62,9 +61,9 @@ export function useRealtimeRefresh(options = {}) {
 	}
 
 	function stop() {
-		if (mode.value === "socket" && window.frappe?.socketio) {
+		if (mode.value === "socket" && window.dypos?.socketio) {
 			for (const dt of doctypes) {
-				window.frappe.socketio.off(`doc_update:${dt}`, handleDocUpdate)
+				window.dypos.socketio.off(`doc_update:${dt}`, handleDocUpdate)
 			}
 		}
 		if (pollTimer) {

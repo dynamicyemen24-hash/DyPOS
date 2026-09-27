@@ -92,7 +92,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from "vue"
-import { Button, Badge, FeatherIcon } from "frappe-ui"
+import { Button, Badge, FeatherIcon } from "dypos-ui"
 import { useToast } from "@/composables/useToast"
 import { timeAgo } from "./dashboardUtils"
 

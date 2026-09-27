@@ -62,7 +62,7 @@ const pinia = createPinia()
 
 // Plugins
 app.use(pinia)              // State management
-app.use(resourcesPlugin)    // Frappe-UI resources
+app.use(resourcesPlugin)    // dypos-ui resources
 app.use(pageMetaPlugin)     // Page meta tags
 app.use(translationPlugin)  // i18n support
 

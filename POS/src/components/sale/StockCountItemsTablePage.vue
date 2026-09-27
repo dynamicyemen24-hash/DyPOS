@@ -331,7 +331,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from "vue"
 import { DEFAULT_CURRENCY } from "@/utils/currency"
-import { Badge, Button, FeatherIcon, LoadingIndicator } from "frappe-ui"
+import { Badge, Button, FeatherIcon, LoadingIndicator } from "dypos-ui"
 import { t } from "@/utils/translation"
 import { apiGet, apiPost, apiDownload } from "@/utils/restApi"
 import { logger } from "@/utils/logger"

@@ -23,8 +23,13 @@
  * @module translation
  */
 import { type App, ref } from "vue"
-import { translationCache } from "./offline/translationCache"
-import { logger } from "./logger"
+// Imported via the `@/` alias (not a relative path) so the ambient
+// declarations in `src/types/js-modules.d.ts` can name them. Relative ambient
+// module names are resolved against the DECLARING file (`src/types/`), not
+// against this importer, so `declare module "./logger"` would look for
+// `src/types/logger` and never match.
+import { translationCache } from "@/utils/offline/translationCache"
+import { logger } from "@/utils/logger"
 
 const log = logger.create("Translation")
 
@@ -123,7 +128,7 @@ export const t = __
  * Determines the preferred locale for the current session.
  * Arabic is the enforced default; only an explicit in-app switch
  * (persisted to localStorage) can select another language. The
- * browser/Frappe boot language is intentionally ignored so every
+ * browser/boot-payload language is intentionally ignored so every
  * startup — including the login screen — renders in Arabic.
  * @returns Lowercase locale code
  */

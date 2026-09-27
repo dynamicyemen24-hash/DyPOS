@@ -1,4 +1,4 @@
-import frappe
+import dypos
 
 CUSTOM_FIELDS = [
 	"Brand-custom_company",
@@ -14,7 +14,7 @@ CUSTOM_FIELDS = [
 
 def execute():
 	for field_name in CUSTOM_FIELDS:
-		if frappe.db.exists("Custom Field", field_name):
-			frappe.delete_doc("Custom Field", field_name, force=True, ignore_permissions=True)
+		if dypos.db.exists("Custom Field", field_name):
+			dypos.delete_doc("Custom Field", field_name, force=True, ignore_permissions=True)
 
-	frappe.cache().delete_keys("pos_settings_allow_global_items:*")
+	dypos.cache().delete_keys("pos_settings_allow_global_items:*")

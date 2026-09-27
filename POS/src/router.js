@@ -10,7 +10,7 @@ const log = logger.create("Router")
  * Dual-mode router base (offline-first on any device, anywhere served).
  *
  * - Standalone deployments (Cloudflare Worker / PWA at domain root) → "/".
- * - Frappe-embedded desk page (served under /pos) → "/pos".
+ * - Desk-embedded page (served under /pos) → "/pos".
  * - VITE_ROUTER_BASE overrides both (exotic embeds).
  *
  * A hardcoded "/pos" base while served at "/" breaks EVERY route (blank

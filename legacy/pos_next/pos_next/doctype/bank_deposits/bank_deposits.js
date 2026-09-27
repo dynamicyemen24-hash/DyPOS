@@ -10,10 +10,10 @@ function set_pos_closing_shift_query(frm) {
 	}));
 }
 
-frappe.ui.form.on("Bank Deposits", {
+dypos.ui.form.on("Bank Deposits", {
 	onload(frm) {
 		if (frm.is_new() && !frm.doc.posting_date) {
-			frm.set_value("posting_date", frappe.datetime.get_today());
+			frm.set_value("posting_date", dypos.datetime.get_today());
 		}
 
 		frm.set_query("pos_profile", () => ({
@@ -36,7 +36,7 @@ frappe.ui.form.on("Bank Deposits", {
 	pos_closing_shift(frm) {
 		if (!frm.doc.pos_closing_shift) return;
 
-		frappe.db.get_value(
+		dypos.db.get_value(
 			"POS Closing Shift",
 			frm.doc.pos_closing_shift,
 			["pos_profile", "docstatus"],
@@ -44,7 +44,7 @@ frappe.ui.form.on("Bank Deposits", {
 				if (!r) return;
 
 				if (r.docstatus !== 1) {
-					frappe.msgprint({
+					dypos.msgprint({
 						title: __("Invalid Shift"),
 						message: __("Only submitted POS Closing Shifts can be selected."),
 						indicator: "red",

@@ -3,7 +3,7 @@
 
 import unittest
 
-import frappe
+import dypos
 
 from DyPOS.DyPOS.doctype.pos_closing_shift.pos_closing_shift import _process_invoice
 
@@ -20,7 +20,7 @@ def _invoice(
 	taxes=None,
 ):
 	"""Build a minimal Sales Invoice as_dict() shape for _process_invoice()."""
-	return frappe._dict(
+	return dypos._dict(
 		{
 			"name": name,
 			"posting_date": "2026-06-12",
@@ -68,7 +68,7 @@ class TestPOSClosingShift(unittest.TestCase):
 			"INV-FULL",
 			grand_total=100,
 			paid_amount=100,
-			payments=[frappe._dict({"mode_of_payment": "Cash", "amount": 100, "base_amount": 100})],
+			payments=[dypos._dict({"mode_of_payment": "Cash", "amount": 100, "base_amount": 100})],
 		)
 		# (b) pure credit sale (Pay-on-Account): 200 invoiced, nothing collected
 		credit = _invoice("INV-CREDIT", grand_total=200, paid_amount=0, payments=[])
@@ -77,7 +77,7 @@ class TestPOSClosingShift(unittest.TestCase):
 			"INV-PARTIAL",
 			grand_total=300,
 			paid_amount=120,
-			payments=[frappe._dict({"mode_of_payment": "Cash", "amount": 120, "base_amount": 120})],
+			payments=[dypos._dict({"mode_of_payment": "Cash", "amount": 120, "base_amount": 120})],
 		)
 
 		txn_full = _process_invoice(full, "sales_invoice", "USD", "Cash", payments, taxes, summary)
@@ -133,7 +133,7 @@ class TestPOSClosingShift(unittest.TestCase):
 			grand_total=100,
 			paid_amount=50,
 			net_total=90,
-			payments=[frappe._dict({"mode_of_payment": "Cash", "amount": 50, "base_amount": 50})],
+			payments=[dypos._dict({"mode_of_payment": "Cash", "amount": 50, "base_amount": 50})],
 		)
 		_process_invoice(partial, "sales_invoice", "USD", "Cash", payments, taxes, summary)
 
@@ -176,7 +176,7 @@ class TestPOSClosingShift(unittest.TestCase):
 			grand_total=-40,
 			paid_amount=-40,
 			is_return=1,
-			payments=[frappe._dict({"mode_of_payment": "Cash", "amount": -40, "base_amount": -40})],
+			payments=[dypos._dict({"mode_of_payment": "Cash", "amount": -40, "base_amount": -40})],
 		)
 		refund["return_against"] = "INV-FULL"
 
@@ -201,7 +201,7 @@ class TestPOSClosingShift(unittest.TestCase):
 			grand_total=15.50,
 			paid_amount=20,
 			change_amount=4.50,
-			payments=[frappe._dict({"mode_of_payment": "Cash", "amount": 20, "base_amount": 20})],
+			payments=[dypos._dict({"mode_of_payment": "Cash", "amount": 20, "base_amount": 20})],
 		)
 		txn = _process_invoice(sale, "sales_invoice", "USD", "Cash", payments, taxes, summary)
 
@@ -226,9 +226,9 @@ class TestPOSClosingShift(unittest.TestCase):
 			grand_total=110,
 			paid_amount=55,
 			net_total=100,
-			payments=[frappe._dict({"mode_of_payment": "Cash", "amount": 55, "base_amount": 55})],
+			payments=[dypos._dict({"mode_of_payment": "Cash", "amount": 55, "base_amount": 55})],
 			taxes=[
-				frappe._dict({"account_head": "VAT - T", "rate": 10, "tax_amount": 10, "base_tax_amount": 10})
+				dypos._dict({"account_head": "VAT - T", "rate": 10, "tax_amount": 10, "base_tax_amount": 10})
 			],
 		)
 		_process_invoice(partial, "sales_invoice", "USD", "Cash", payments, taxes, summary)
@@ -250,9 +250,9 @@ class TestPOSClosingShift(unittest.TestCase):
 			paid_amount=0,
 			net_total=-100,
 			is_return=1,
-			payments=[frappe._dict({"mode_of_payment": "Cash", "amount": -110, "base_amount": -110})],
+			payments=[dypos._dict({"mode_of_payment": "Cash", "amount": -110, "base_amount": -110})],
 			taxes=[
-				frappe._dict(
+				dypos._dict(
 					{"account_head": "VAT - T", "rate": 10, "tax_amount": -10, "base_tax_amount": -10}
 				)
 			],
@@ -278,9 +278,9 @@ class TestPOSClosingShift(unittest.TestCase):
 			grand_total=100,
 			paid_amount=90,
 			net_total=99,
-			payments=[frappe._dict({"mode_of_payment": "Cash", "amount": 90, "base_amount": 90})],
+			payments=[dypos._dict({"mode_of_payment": "Cash", "amount": 90, "base_amount": 90})],
 			taxes=[
-				frappe._dict({"account_head": "VAT - T", "rate": 1, "tax_amount": 1, "base_tax_amount": 1})
+				dypos._dict({"account_head": "VAT - T", "rate": 1, "tax_amount": 1, "base_tax_amount": 1})
 			],
 		)
 		txn = _process_invoice(written_off, "sales_invoice", "USD", "Cash", payments, taxes, summary)

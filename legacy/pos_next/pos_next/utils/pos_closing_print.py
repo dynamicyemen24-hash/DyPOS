@@ -2,16 +2,16 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-import frappe
-from frappe.query_builder import DocType
-from frappe.utils import flt
+import dypos
+from dypos.query_builder import DocType
+from dypos.utils import flt
 from pypika import Order
 from pypika.functions import Sum
 
 
 def _as_closing_doc(doc):
 	if isinstance(doc, str):
-		return frappe.get_doc("POS Closing Shift", doc)
+		return dypos.get_doc("POS Closing Shift", doc)
 	return doc
 
 
@@ -38,7 +38,7 @@ def _get_pos_invoice_parent_targets(pos_invoices: set[str]) -> set[tuple[str, st
 		return set()
 
 	targets: set[tuple[str, str]] = set()
-	rows = frappe.get_all(
+	rows = dypos.get_all(
 		"POS Invoice",
 		filters={"name": ["in", list(pos_invoices)]},
 		fields=["name", "consolidated_invoice"],
@@ -69,7 +69,7 @@ def _fetch_items_for_targets(parent_targets: set[tuple[str, str]]) -> list[dict]
 		condition = current if condition is None else (condition | current)
 
 	query = (
-		frappe.qb.from_(sales_invoice_item)
+		dypos.qb.from_(sales_invoice_item)
 		.select(
 			sales_invoice_item.item_code,
 			sales_invoice_item.item_name,

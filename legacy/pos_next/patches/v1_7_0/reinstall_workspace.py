@@ -1,19 +1,19 @@
 import json
 from pathlib import Path
 
-import frappe
+import dypos
 
 
 def execute():
 	"""Reinstall DyPOS workspace with latest configuration."""
 	app_name = "DyPOS"
-	workspace_dir = Path(frappe.get_app_path(app_name)) / f"{app_name}/workspace"
+	workspace_dir = Path(dypos.get_app_path(app_name)) / f"{app_name}/workspace"
 
 	# Discover all workspace JSON files
 	workspace_files = list(workspace_dir.rglob("*.json"))
 
 	if not workspace_files:
-		frappe.logger().warning(f"No workspace files found in {workspace_dir}")
+		dypos.logger().warning(f"No workspace files found in {workspace_dir}")
 		return
 
 	# Process each workspace
@@ -33,7 +33,7 @@ def _reinstall_workspace_from_file(workspace_file: Path):
 
 	workspace_name = workspace_data.get("name") or workspace_data.get("label")
 	if not workspace_name:
-		frappe.log_error(
+		dypos.log_error(
 			title="Workspace Migration Failed", message=f"Workspace in {workspace_file} has no name or label"
 		)
 		return
@@ -48,16 +48,16 @@ def _remove_workspace(workspace_name: str):
 	Args:
 		workspace_name: Name of the workspace to remove
 	"""
-	if not frappe.db.exists("Workspace", workspace_name):
-		frappe.logger().debug(f"Workspace '{workspace_name}' does not exist")
+	if not dypos.db.exists("Workspace", workspace_name):
+		dypos.logger().debug(f"Workspace '{workspace_name}' does not exist")
 		return
 
 	try:
-		frappe.delete_doc("Workspace", workspace_name, force=True, ignore_permissions=True)
-		frappe.logger().info(f"Removed workspace: {workspace_name}")
+		dypos.delete_doc("Workspace", workspace_name, force=True, ignore_permissions=True)
+		dypos.logger().info(f"Removed workspace: {workspace_name}")
 	except Exception:
-		frappe.log_error(
-			title=f"Failed to Remove Workspace: {workspace_name}", message=frappe.get_traceback()
+		dypos.log_error(
+			title=f"Failed to Remove Workspace: {workspace_name}", message=dypos.get_traceback()
 		)
 
 
@@ -69,12 +69,12 @@ def _install_workspace(workspace_data: dict, workspace_name: str):
 		workspace_name: Name of the workspace
 	"""
 	try:
-		workspace_doc = frappe.get_doc(workspace_data)
+		workspace_doc = dypos.get_doc(workspace_data)
 		workspace_doc.insert(ignore_permissions=True, ignore_if_duplicate=True)
-		frappe.logger().info(f"Successfully installed workspace: {workspace_name}")
+		dypos.logger().info(f"Successfully installed workspace: {workspace_name}")
 	except Exception:
-		frappe.log_error(
-			title=f"Workspace Installation Failed: {workspace_name}", message=frappe.get_traceback()
+		dypos.log_error(
+			title=f"Workspace Installation Failed: {workspace_name}", message=dypos.get_traceback()
 		)
 
 
@@ -88,7 +88,7 @@ def _load_workspace_data(workspace_file: Path):
 		dict: Workspace document data or None if loading fails
 	"""
 	if not workspace_file.exists():
-		frappe.log_error(
+		dypos.log_error(
 			title="Workspace File Not Found", message=f"Expected workspace file at: {workspace_file}"
 		)
 		return None
@@ -96,14 +96,14 @@ def _load_workspace_data(workspace_file: Path):
 	try:
 		workspace_data = json.loads(workspace_file.read_text(encoding="utf-8"))
 	except json.JSONDecodeError:
-		frappe.log_error(
+		dypos.log_error(
 			title="Invalid Workspace JSON",
-			message=f"Failed to parse: {workspace_file}\n\n{frappe.get_traceback()}",
+			message=f"Failed to parse: {workspace_file}\n\n{dypos.get_traceback()}",
 		)
 		return None
 
 	if not isinstance(workspace_data, list) or not workspace_data:
-		frappe.log_error(
+		dypos.log_error(
 			title="Invalid Workspace Structure",
 			message=f"Workspace JSON must be a non-empty array: {workspace_file}",
 		)

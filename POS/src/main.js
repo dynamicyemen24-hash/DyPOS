@@ -71,11 +71,11 @@ import {
 	FormControl,
 	Input,
 	TextInput,
-	frappeRequest,
+	request,
 	pageMetaPlugin,
 	resourcesPlugin,
 	setConfig,
-} from "frappe-ui"
+} from "dypos-ui"
 
 import "./index.css"
 import "./styles/brand/variables.css"
@@ -344,7 +344,7 @@ function startBuildVersionWatchdog() {
 startBuildVersionWatchdog()
 
 /* =============================================================================
-   Global Frappe UI components
+   Global DyPOS UI components
    ============================================================================= */
 
 const globalComponents = Object.freeze({
@@ -461,12 +461,12 @@ function setupCSRFRefreshListener() {
 }
 
 /**
- * Configure the Frappe request pipeline before authenticated resources are
+ * Configure the request pipeline before authenticated resources are
  * fetched.
  */
 function configureCSRFRequestPipeline() {
 	try {
-		const csrfAwareRequest = createCSRFAwareRequest(frappeRequest)
+		const csrfAwareRequest = createCSRFAwareRequest(request)
 
 		setConfig("resourceFetcher", csrfAwareRequest)
 
@@ -542,7 +542,7 @@ async function initializeCSRF() {
 /**
  * Resolve the current authenticated user (offline-first).
  * Local session + cookies are authoritative. No network request is made
- * here: a Frappe user fetch must never gate POS startup.
+ * here: a user fetch must never gate POS startup.
  */
 async function initializeUser() {
 	try {
@@ -651,8 +651,8 @@ async function initializeRealtime(bootstrapStore) {
 	}
 
 	try {
-		if (!window.frappe) {
-			window.frappe = {}
+		if (!window.dypos) {
+			window.dypos = {}
 		}
 
 		const siteName = bootstrapStore?.getSiteName?.()
@@ -665,7 +665,7 @@ async function initializeRealtime(bootstrapStore) {
 
 		const realtime = initSocket(siteName)
 
-		window.frappe.realtime = realtime
+		window.dypos.realtime = realtime
 
 		bootstrapState.socketInitialized = true
 

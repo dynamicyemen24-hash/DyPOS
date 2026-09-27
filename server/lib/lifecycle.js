@@ -1,10 +1,9 @@
-/**
+﻿/**
  * Application Lifecycle Manager
  * Startup ordering, health checks, graceful shutdown, readiness gates
  */
 
-import { logger, childSafe } from "./logger.js"
-import { createLogger } from "./structuredLog.js"
+import { childSafe } from "./logger.js"
 import { getCircuitStatuses, getBulkheadStatus } from "./resilience.js"
 
 const log = childSafe({ component: "Lifecycle" })

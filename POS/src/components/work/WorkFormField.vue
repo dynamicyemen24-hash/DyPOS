@@ -317,7 +317,7 @@
 <script setup>
 import { ref, computed, watch, nextTick } from "vue"
 import { t } from "@/utils/translation"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 import WorkSearch from "./WorkSearch.vue"
 
 const props = defineProps({

@@ -25,7 +25,7 @@ import logging
 from functools import lru_cache
 from typing import TypedDict
 
-import frappe
+import dypos
 from DyPOS.stock.get_item_details import get_conversion_factor
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,7 @@ def is_barcode_resolver_available() -> bool:
 	Note:
 	    Result is cached for performance. Server restart clears the cache.
 	"""
-	return "barcode_resolver" in frappe.get_installed_apps()
+	return "barcode_resolver" in dypos.get_installed_apps()
 
 
 def resolve_barcode(barcode: str, pos_profile: str) -> BarcodeResult | None:
@@ -108,9 +108,9 @@ def resolve_barcode(barcode: str, pos_profile: str) -> BarcodeResult | None:
 	try:
 		result = _resolve_barcode(barcode, barcode_rules)
 	except Exception:
-		frappe.log_error(
+		dypos.log_error(
 			title="Barcode Resolver Error",
-			message=f"Error resolving barcode {barcode!r} for profile {pos_profile!r}\n\n{frappe.get_traceback()}",
+			message=f"Error resolving barcode {barcode!r} for profile {pos_profile!r}\n\n{dypos.get_traceback()}",
 		)
 		logger.exception("resolve_barcode: upstream raised for barcode=%r", barcode)
 		return None
@@ -138,7 +138,7 @@ def _get_barcode_rules_for_profile(pos_profile: str) -> list[str] | None:
 	POS Next `POS Settings` doctype (which adds `pos_profile` +
 	`barcode_rules`).
 	"""
-	settings_name = frappe.db.get_value("POS Settings", {"pos_profile": pos_profile}, "name")
+	settings_name = dypos.db.get_value("POS Settings", {"pos_profile": pos_profile}, "name")
 	if not settings_name:
 		logger.info(
 			"resolve_barcode: no POS Settings row for profile=%r — falling back to all active rules",
@@ -147,7 +147,7 @@ def _get_barcode_rules_for_profile(pos_profile: str) -> list[str] | None:
 		return None
 
 	try:
-		settings_doc = frappe.get_cached_doc("POS Settings", settings_name)
+		settings_doc = dypos.get_cached_doc("POS Settings", settings_name)
 	except Exception:
 		logger.warning(
 			"resolve_barcode: could not load POS Settings %r — falling back",
@@ -236,7 +236,7 @@ def compute_resolved_item_data(
 	item_price = item.get("rate")
 	item_name = item.get("item_code")
 	if item_name is None:
-		frappe.log_error(
+		dypos.log_error(
 			title="Barcode Resolver Error",
 			message=f"Item code is missing in item data: {item}",
 		)

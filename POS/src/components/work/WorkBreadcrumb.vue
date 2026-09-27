@@ -51,7 +51,7 @@
 <script setup>
 import { computed, watch, onMounted } from "vue"
 import { useRouter, useRoute } from "vue-router"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
 import { useLocale } from "@/composables/useLocale"
 

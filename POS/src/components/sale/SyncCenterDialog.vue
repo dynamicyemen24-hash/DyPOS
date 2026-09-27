@@ -245,7 +245,7 @@
 </template>
 
 <script setup>
-import { Button, Dialog } from "frappe-ui"
+import { Button, Dialog } from "dypos-ui"
 import { computed, onMounted, ref, watch } from "vue"
 
 import { usePOSSyncStore } from "@/stores/posSync"

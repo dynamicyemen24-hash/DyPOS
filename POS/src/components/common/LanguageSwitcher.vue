@@ -94,7 +94,7 @@
  * <LanguageSwitcher />
  */
 import { ref, onMounted, onUnmounted } from "vue"
-import { FeatherIcon, LoadingIndicator } from "frappe-ui"
+import { FeatherIcon, LoadingIndicator } from "dypos-ui"
 import { useLocale } from "@/composables/useLocale"
 
 // Locale state from composable

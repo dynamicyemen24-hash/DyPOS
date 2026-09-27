@@ -8,8 +8,8 @@ Scheduled task to monitor branding integrity and log suspicious activity
 
 import json
 
-import frappe
-from frappe.utils import get_datetime, now
+import dypos
+from dypos.utils import get_datetime, now
 
 
 def monitor_branding_integrity():
@@ -19,10 +19,10 @@ def monitor_branding_integrity():
 	"""
 	try:
 		# Check if BrainWise Branding doctype exists
-		if not frappe.db.exists("DocType", "BrainWise Branding"):
+		if not dypos.db.exists("DocType", "BrainWise Branding"):
 			return
 
-		doc = frappe.get_single("BrainWise Branding")
+		doc = dypos.get_single("BrainWise Branding")
 
 		if not doc.enabled:
 			return
@@ -34,18 +34,18 @@ def monitor_branding_integrity():
 
 		# Verify signature integrity
 		if not doc.encrypted_signature:
-			frappe.log_error(
+			dypos.log_error(
 				title="BrainWise Branding - Missing Signature",
 				message="Branding configuration is missing encrypted signature. Please resave the BrainWise Branding document.",
 			)
 
 		# Log monitoring activity
-		frappe.logger().info(
+		dypos.logger().info(
 			f"BrainWise Branding Monitor - Checked at {now()}, Tampering attempts: {doc.tampering_attempts or 0}"
 		)
 
 	except Exception as e:
-		frappe.log_error(
+		dypos.log_error(
 			title="BrainWise Branding Monitor Error", message=f"Error running branding monitor: {e!s}"
 		)
 
@@ -54,7 +54,7 @@ def send_tampering_alert(doc):
 	"""Send alert to system managers about excessive tampering attempts"""
 	try:
 		# Get all System Managers
-		system_managers = frappe.get_all(
+		system_managers = dypos.get_all(
 			"Has Role", filters={"role": "System Manager", "parenttype": "User"}, fields=["parent"]
 		)
 
@@ -74,7 +74,7 @@ def send_tampering_alert(doc):
 
 		for user in users:
 			try:
-				frappe.get_doc(
+				dypos.get_doc(
 					{
 						"doctype": "Notification Log",
 						"subject": "BrainWise Branding - Tampering Alert",
@@ -88,10 +88,10 @@ def send_tampering_alert(doc):
 			except Exception:
 				pass
 
-		frappe.db.commit()
+		dypos.db.commit()
 
 	except Exception as e:
-		frappe.log_error(
+		dypos.log_error(
 			title="BrainWise Branding Alert Error", message=f"Error sending tampering alert: {e!s}"
 		)
 
@@ -102,10 +102,10 @@ def reset_tampering_counter():
 	Keeps historical data manageable
 	"""
 	try:
-		if not frappe.db.exists("DocType", "BrainWise Branding"):
+		if not dypos.db.exists("DocType", "BrainWise Branding"):
 			return
 
-		doc = frappe.get_single("BrainWise Branding")
+		doc = dypos.get_single("BrainWise Branding")
 
 		if not doc.enabled:
 			return
@@ -114,7 +114,7 @@ def reset_tampering_counter():
 
 		# Log the reset
 		if old_count > 0:
-			frappe.log_error(
+			dypos.log_error(
 				title="BrainWise Branding - Monthly Counter Reset",
 				message=json.dumps(
 					{
@@ -127,11 +127,11 @@ def reset_tampering_counter():
 			)
 
 		# Reset counter
-		frappe.db.set_value("BrainWise Branding", doc.name, "tampering_attempts", 0)
-		frappe.db.commit()
+		dypos.db.set_value("BrainWise Branding", doc.name, "tampering_attempts", 0)
+		dypos.db.commit()
 
 	except Exception as e:
-		frappe.log_error(
+		dypos.log_error(
 			title="BrainWise Branding Counter Reset Error",
 			message=f"Error resetting tampering counter: {e!s}",
 		)
@@ -143,16 +143,16 @@ def validate_all_active_sessions():
 	This helps detect if users are using modified clients
 	"""
 	try:
-		if not frappe.db.exists("DocType", "BrainWise Branding"):
+		if not dypos.db.exists("DocType", "BrainWise Branding"):
 			return
 
-		doc = frappe.get_single("BrainWise Branding")
+		doc = dypos.get_single("BrainWise Branding")
 
 		if not doc.enabled or not doc.enable_server_validation:
 			return
 
 		# Get active sessions (sessions from last 24 hours)
-		active_sessions = frappe.db.sql(
+		active_sessions = dypos.db.sql(
 			"""
 			SELECT user, COUNT(*) as session_count
 			FROM `tabSessions`
@@ -163,10 +163,10 @@ def validate_all_active_sessions():
 		)
 
 		if active_sessions:
-			frappe.logger().info(f"BrainWise Branding - Active sessions: {len(active_sessions)}")
+			dypos.logger().info(f"BrainWise Branding - Active sessions: {len(active_sessions)}")
 
 	except Exception as e:
-		frappe.log_error(
+		dypos.log_error(
 			title="BrainWise Branding Session Validation Error",
 			message=f"Error validating active sessions: {e!s}",
 		)

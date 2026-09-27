@@ -110,7 +110,7 @@ Cart Change → Debounce (150ms) → processOffersInternal()
 Located in `DyPOS/api/invoices.py`
 
 ```python
-@frappe.whitelist()
+@dypos.whitelist()
 def apply_offers(invoice_data, selected_offers=None):
     """Calculate and apply promotional offers using DyPOS Pricing Rules."""
 ```

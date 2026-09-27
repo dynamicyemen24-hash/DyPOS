@@ -1,7 +1,7 @@
 # POS Sale Integration Plan - DyPOS
 
 ## Overview
-This document outlines the strategy for integrating the POS sale functionality into DyPOS, following Frappe UI design patterns and maintaining consistency with the existing login/shift management implementation.
+This document outlines the strategy for integrating the POS sale functionality into DyPOS, following DyPOS UI design patterns and maintaining consistency with the existing login/shift management implementation.
 
 ## Current State Analysis
 
@@ -26,11 +26,11 @@ This document outlines the strategy for integrating the POS sale functionality i
 
 ### DyPOS Current State
 **Existing:**
-- ✅ Login page with Frappe UI components
+- ✅ Login page with DyPOS UI components
 - ✅ Shift management (opening/closing)
 - ✅ Backend API for shifts (`DyPOS/api/shifts.py`)
 - ✅ Composables pattern (`useShift.js`)
-- ✅ Frappe UI theme integration
+- ✅ DyPOS UI theme integration
 
 **Missing:**
 - ❌ POS sale page
@@ -56,41 +56,41 @@ This document outlines the strategy for integrating the POS sale functionality i
 
 ```python
 # API Endpoints needed:
-@frappe.whitelist()
+@dypos.whitelist()
 def get_items(pos_profile, search_term=None, item_group=None, start=0, limit=20):
     """Get items for POS with stock, price, and tax details"""
     # Return: items with barcode, price, stock, image, tax template
     pass
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_item_details(item_code, pos_profile, customer=None, qty=1):
     """Get detailed item info including price, tax, stock"""
     # Implement item details logic
     pass
 
-@frappe.whitelist()
+@dypos.whitelist()
 def create_draft_invoice(invoice_data):
     """Save invoice draft to IndexedDB queue"""
     # Return: draft_id
     pass
 
-@frappe.whitelist()
+@dypos.whitelist()
 def submit_invoice(invoice_data):
     """Create and submit POS Invoice or Sales Invoice"""
     # Implement invoice submission logic
     pass
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_customers(pos_profile, search_term=None, start=0, limit=20):
     """Get customers for autocomplete"""
     pass
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_payment_methods(pos_profile):
     """Get available payment methods from POS Profile"""
     pass
 
-@frappe.whitelist()
+@dypos.whitelist()
 def apply_offers(invoice_data):
     """Calculate and apply promotional offers"""
     # Implement promotional offer logic
@@ -101,17 +101,17 @@ def apply_offers(invoice_data):
 **File:** `DyPOS/api/items.py`
 
 ```python
-@frappe.whitelist()
+@dypos.whitelist()
 def search_by_barcode(barcode, pos_profile):
     """Search item by barcode"""
     pass
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_item_stock(item_code, warehouse):
     """Get real-time stock for item"""
     pass
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_batch_serial_details(item_code, warehouse):
     """Get batch/serial number details"""
     pass
@@ -124,7 +124,7 @@ def get_batch_serial_details(item_code, warehouse):
 
 ```javascript
 import { ref, computed } from 'vue'
-import { createResource } from 'frappe-ui'
+import { createResource } from 'dypos-ui'
 
 export function useInvoice() {
   // State
@@ -277,7 +277,7 @@ export function useInvoice() {
 
 ```javascript
 import { ref, computed } from 'vue'
-import { createResource } from 'frappe-ui'
+import { createResource } from 'dypos-ui'
 
 export function useItems(posProfile) {
   const items = ref([])
@@ -412,7 +412,7 @@ export function useItems(posProfile) {
 import { ref, onMounted } from 'vue'
 import { useInvoice } from '../composables/useInvoice'
 import { useShift } from '../composables/useShift'
-import { Button } from 'frappe-ui'
+import { Button } from 'dypos-ui'
 import ItemsSelector from '../components/sale/ItemsSelector.vue'
 import InvoiceCart from '../components/sale/InvoiceCart.vue'
 import PaymentDialog from '../components/sale/PaymentDialog.vue'
@@ -542,7 +542,7 @@ function confirmCloseShift() {
 
 <script setup>
 import { ref } from 'vue'
-import { Input } from 'frappe-ui'
+import { Input } from 'dypos-ui'
 import { useItems } from '../../composables/useItems'
 
 const props = defineProps({
@@ -677,7 +677,7 @@ function formatCurrency(amount) {
 </template>
 
 <script setup>
-import { Button } from 'frappe-ui'
+import { Button } from 'dypos-ui'
 
 const props = defineProps({
   items: Array,
@@ -796,8 +796,8 @@ export default router
 
 ## Key Design Decisions
 
-### 1. **Follow Frappe UI Patterns**
-- Use Frappe UI components (Button, Input, Dialog)
+### 1. **Follow DyPOS UI Patterns**
+- Use DyPOS UI components (Button, Input, Dialog)
 - Consistent with Login and Shift dialogs
 - No custom Vuetify components
 
@@ -838,7 +838,7 @@ export default router
 2. Applies pricing rules
 3. Validates stock
 4. Integrates with shift management
-5. Follows Frappe UI theme
+5. Follows the DyPOS UI theme
 6. Maintains consistency with existing code
 
 ## Next Steps

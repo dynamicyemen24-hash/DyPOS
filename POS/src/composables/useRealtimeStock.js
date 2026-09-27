@@ -108,14 +108,14 @@ function startListening() {
 		return
 	}
 
-	if (!window.frappe?.realtime) {
+	if (!window.dypos?.realtime) {
 		log.warn("Socket.IO not available")
 		return
 	}
 
 	// Subscribe to stock update events
-	window.frappe.realtime.on("pos_stock_update", handleStockUpdate)
-	window.frappe.realtime.on("pos_invoice_created", handleInvoiceCreated)
+	window.dypos.realtime.on("pos_stock_update", handleStockUpdate)
+	window.dypos.realtime.on("pos_invoice_created", handleInvoiceCreated)
 
 	isListening.value = true
 }
@@ -128,9 +128,9 @@ function stopListening() {
 		return
 	}
 
-	if (window.frappe?.realtime) {
-		window.frappe.realtime.off("pos_stock_update", handleStockUpdate)
-		window.frappe.realtime.off("pos_invoice_created", handleInvoiceCreated)
+	if (window.dypos?.realtime) {
+		window.dypos.realtime.off("pos_stock_update", handleStockUpdate)
+		window.dypos.realtime.off("pos_invoice_created", handleInvoiceCreated)
 	}
 
 	// Clear pending updates

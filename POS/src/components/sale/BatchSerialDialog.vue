@@ -297,7 +297,7 @@
 </template>
 
 <script setup>
-import { Button, Dialog, createResource } from "frappe-ui"
+import { Button, Dialog, createResource } from "dypos-ui"
 import { computed, ref, watch } from "vue"
 import { useSerialNumberStore } from "@/stores/serialNumber"
 import { usePOSCartStore } from "@/stores/posCart"

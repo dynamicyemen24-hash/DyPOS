@@ -127,7 +127,7 @@ before_uninstall = "DyPOS.uninstall.before_uninstall"
 
 # Desk Notifications
 # ------------------
-# See frappe.core.notifications.get_notification_config
+# See dypos.core.notifications.get_notification_config
 
 # notification_config = "DyPOS.notifications.get_notification_config"
 
@@ -206,12 +206,12 @@ scheduler_events = {
 # ------------------------------
 #
 # override_whitelisted_methods = {
-# 	"frappe.desk.doctype.event.event.get_events": "DyPOS.event.get_events"
+# 	"dypos.desk.doctype.event.event.get_events": "DyPOS.event.get_events"
 # }
 #
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,
-# along with any modifications made in other Frappe apps
+# along with any modifications made in other dyposapps
 # override_doctype_dashboards = {
 # 	"Task": "DyPOS.task.get_dashboard_data"
 # }

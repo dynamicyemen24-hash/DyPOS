@@ -2,7 +2,7 @@
 Compatibility patch for mixed Frappe/DyPOS versions.
 
 DyPOS may call Document.round_floats_in(..., do_not_round_fields=[...]),
-while older Frappe versions only support round_floats_in(doc, fieldnames=None).
+while older dyposversions only support round_floats_in(doc, fieldnames=None).
 This patch adds backward-compatible handling in POS Next without core edits.
 """
 

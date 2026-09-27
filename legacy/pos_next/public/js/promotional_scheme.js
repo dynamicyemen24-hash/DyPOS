@@ -1,7 +1,7 @@
 // Copyright (c) 2026, BrainWise and contributors
 // For license information, please see license.txt
 
-frappe.ui.form.on("Promotional Scheme", {
+dypos.ui.form.on("Promotional Scheme", {
 	refresh(frm) {
 		pn_sync_min_max(frm);
 	},
@@ -10,7 +10,7 @@ frappe.ui.form.on("Promotional Scheme", {
 	},
 });
 
-frappe.ui.form.on("Promotional Scheme Price Discount", {
+dypos.ui.form.on("Promotional Scheme Price Discount", {
 	apply_discount_on_price(frm) {
 		pn_sync_min_max(frm);
 	},

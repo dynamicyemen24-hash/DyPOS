@@ -9,12 +9,12 @@ Handles credit sale operations including:
 - Journal Entry creation for GL posting
 """
 
-import frappe
-from frappe import _
-from frappe.utils import cint, flt, get_datetime, nowdate, today
+import dypos
+from dyposimport _
+from dypos.utils import cint, flt, get_datetime, nowdate, today
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_customer_balance(customer, company=None):
 	"""
 	Get customer balance from Sales Invoices.
@@ -42,11 +42,11 @@ def get_customer_balance(customer, company=None):
 		}
 	"""
 	if not customer:
-		frappe.throw(_("Customer is required"))
+		dypos.throw(_("Customer is required"))
 
 	try:
-		from frappe.query_builder import DocType
-		from frappe.query_builder.functions import Abs, Coalesce, Sum
+		from dypos.query_builder import DocType
+		from dypos.query_builder.functions import Abs, Coalesce, Sum
 		from pypika import Case
 
 		SalesInvoice = DocType("Sales Invoice")
@@ -61,7 +61,7 @@ def get_customer_balance(customer, company=None):
 		# Negative outstanding on regular invoices comes from returns linked to them,
 		# so we don't count it here to avoid double-counting (credit comes from returns only)
 		regular_query = (
-			frappe.qb.from_(SalesInvoice)
+			dypos.qb.from_(SalesInvoice)
 			.select(
 				Coalesce(
 					Sum(
@@ -80,7 +80,7 @@ def get_customer_balance(customer, company=None):
 		# If cash refund was given, outstanding_amount = 0 and should NOT count as credit
 		# If no cash refund (added to customer credit), outstanding_amount < 0
 		return_query = (
-			frappe.qb.from_(SalesInvoice)
+			dypos.qb.from_(SalesInvoice)
 			.select(Coalesce(Sum(Abs(SalesInvoice.outstanding_amount)), 0).as_("return_credit"))
 			.where(base_filters & (SalesInvoice.is_return == 1) & (SalesInvoice.outstanding_amount < 0))
 		)
@@ -104,9 +104,9 @@ def get_customer_balance(customer, company=None):
 		}
 
 	except Exception as e:
-		frappe.log_error(
+		dypos.log_error(
 			title="Customer Balance Error",
-			message=f"Customer: {customer}, Company: {company}, Error: {str(e)}\n{frappe.get_traceback()}",
+			message=f"Customer: {customer}, Company: {company}, Error: {str(e)}\n{dypos.get_traceback()}",
 		)
 		return {"total_outstanding": 0.0, "total_credit": 0.0, "net_balance": 0.0}
 
@@ -125,14 +125,14 @@ def check_credit_sale_enabled(pos_profile):
 		return False
 
 	# Get POS Settings for the profile
-	pos_settings = frappe.db.get_value(
+	pos_settings = dypos.db.get_value(
 		"POS Settings", {"pos_profile": pos_profile}, "allow_credit_sale", as_dict=False
 	)
 
 	return bool(pos_settings)
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_available_credit(customer, company, pos_profile=None):
 	"""
 	Get list of available credit sources for a customer.
@@ -152,10 +152,10 @@ def get_available_credit(customer, company, pos_profile=None):
 		list: Available credit sources with amounts and modified timestamps
 	"""
 	if not customer:
-		frappe.throw(_("Customer is required"))
+		dypos.throw(_("Customer is required"))
 
 	if not company:
-		frappe.throw(_("Company is required"))
+		dypos.throw(_("Company is required"))
 
 	total_credit = []
 
@@ -164,7 +164,7 @@ def get_available_credit(customer, company, pos_profile=None):
 	# sale's outstanding, so a regular SI with negative outstanding represents the
 	# same money as its linked return — counting both would double the credit.
 	# This matches the logic in get_customer_balance.
-	outstanding_invoices = frappe.get_all(
+	outstanding_invoices = dypos.get_all(
 		"Sales Invoice",
 		filters={
 			"outstanding_amount": ["<", 0],
@@ -197,7 +197,7 @@ def get_available_credit(customer, company, pos_profile=None):
 			)
 
 	# Get unallocated advance payments
-	advances = frappe.get_all(
+	advances = dypos.get_all(
 		"Payment Entry",
 		filters={
 			"unallocated_amount": [">", 0],
@@ -229,7 +229,7 @@ def get_available_credit(customer, company, pos_profile=None):
 	return total_credit
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def redeem_customer_credit(invoice_name, customer_credit_dict):
 	"""
 	Redeem customer credit by creating Journal Entries.
@@ -251,16 +251,16 @@ def redeem_customer_credit(invoice_name, customer_credit_dict):
 		customer_credit_dict = json.loads(customer_credit_dict)
 
 	if not invoice_name:
-		frappe.throw(_("Invoice name is required"))
+		dypos.throw(_("Invoice name is required"))
 
 	if not customer_credit_dict:
 		return []
 
 	# Get invoice document
-	invoice_doc = frappe.get_doc("Sales Invoice", invoice_name)
+	invoice_doc = dypos.get_doc("Sales Invoice", invoice_name)
 
 	if invoice_doc.docstatus != 1:
-		frappe.throw(_("Invoice must be submitted to redeem credit"))
+		dypos.throw(_("Invoice must be submitted to redeem credit"))
 
 	created_journal_entries = []
 
@@ -306,10 +306,10 @@ def redeem_customer_credit(invoice_name, customer_credit_dict):
 def _validate_credit_source_ownership(source_name, source_customer, source_company, customer, company):
 	"""Ensure a credit source belongs to the same customer and company as the target invoice."""
 	if source_customer != customer:
-		frappe.throw(_("Credit source {0} does not belong to customer {1}").format(source_name, customer))
+		dypos.throw(_("Credit source {0} does not belong to customer {1}").format(source_name, customer))
 
 	if source_company != company:
-		frappe.throw(_("Credit source {0} does not belong to company {1}").format(source_name, company))
+		dypos.throw(_("Credit source {0} does not belong to company {1}").format(source_name, company))
 
 
 def _validate_and_lock_invoice_credit(invoice_name, amount_to_redeem, customer, company):
@@ -324,16 +324,16 @@ def _validate_and_lock_invoice_credit(invoice_name, amount_to_redeem, customer, 
 		company: Target invoice company
 
 	Raises:
-		frappe.ValidationError: If insufficient credit available
+		dypos.ValidationError: If insufficient credit available
 	"""
-	from frappe.query_builder import DocType
+	from dypos.query_builder import DocType
 
 	SalesInvoice = DocType("Sales Invoice")
 
 	# Use SELECT FOR UPDATE to lock the row
 	# This blocks other transactions from reading/modifying until we commit
 	query = (
-		frappe.qb.from_(SalesInvoice)
+		dypos.qb.from_(SalesInvoice)
 		.select(
 			SalesInvoice.name,
 			SalesInvoice.outstanding_amount,
@@ -347,7 +347,7 @@ def _validate_and_lock_invoice_credit(invoice_name, amount_to_redeem, customer, 
 	result = query.run(as_dict=True)
 
 	if not result:
-		frappe.throw(_("Credit source invoice {0} not found or not submitted").format(invoice_name))
+		dypos.throw(_("Credit source invoice {0} not found or not submitted").format(invoice_name))
 
 	_validate_credit_source_ownership(
 		invoice_name,
@@ -361,11 +361,11 @@ def _validate_and_lock_invoice_credit(invoice_name, amount_to_redeem, customer, 
 	available_credit = -current_outstanding  # Credit is negative outstanding
 
 	if available_credit < amount_to_redeem:
-		frappe.throw(
+		dypos.throw(
 			_("Insufficient credit available from {0}. Available: {1}, Requested: {2}").format(
 				invoice_name,
-				frappe.format_value(available_credit, {"fieldtype": "Currency"}),
-				frappe.format_value(amount_to_redeem, {"fieldtype": "Currency"}),
+				dypos.format_value(available_credit, {"fieldtype": "Currency"}),
+				dypos.format_value(amount_to_redeem, {"fieldtype": "Currency"}),
 			)
 		)
 
@@ -382,15 +382,15 @@ def _validate_and_lock_advance_credit(payment_entry_name, amount_to_redeem, cust
 		company: Target invoice company
 
 	Raises:
-		frappe.ValidationError: If insufficient unallocated amount
+		dypos.ValidationError: If insufficient unallocated amount
 	"""
-	from frappe.query_builder import DocType
+	from dypos.query_builder import DocType
 
 	PaymentEntry = DocType("Payment Entry")
 
 	# Use SELECT FOR UPDATE to lock the row
 	query = (
-		frappe.qb.from_(PaymentEntry)
+		dypos.qb.from_(PaymentEntry)
 		.select(
 			PaymentEntry.name,
 			PaymentEntry.unallocated_amount,
@@ -406,10 +406,10 @@ def _validate_and_lock_advance_credit(payment_entry_name, amount_to_redeem, cust
 	result = query.run(as_dict=True)
 
 	if not result:
-		frappe.throw(_("Payment Entry {0} not found or not submitted").format(payment_entry_name))
+		dypos.throw(_("Payment Entry {0} not found or not submitted").format(payment_entry_name))
 
 	if result[0].party_type != "Customer" or result[0].payment_type != "Receive":
-		frappe.throw(_("Payment Entry {0} is not a valid customer advance").format(payment_entry_name))
+		dypos.throw(_("Payment Entry {0} is not a valid customer advance").format(payment_entry_name))
 
 	_validate_credit_source_ownership(
 		payment_entry_name,
@@ -422,11 +422,11 @@ def _validate_and_lock_advance_credit(payment_entry_name, amount_to_redeem, cust
 	available_amount = flt(result[0].unallocated_amount)
 
 	if available_amount < amount_to_redeem:
-		frappe.throw(
+		dypos.throw(
 			_("Insufficient unallocated amount in {0}. Available: {1}, Requested: {2}").format(
 				payment_entry_name,
-				frappe.format_value(available_amount, {"fieldtype": "Currency"}),
-				frappe.format_value(amount_to_redeem, {"fieldtype": "Currency"}),
+				dypos.format_value(available_amount, {"fieldtype": "Currency"}),
+				dypos.format_value(amount_to_redeem, {"fieldtype": "Currency"}),
 			)
 		)
 
@@ -448,7 +448,7 @@ def _create_credit_allocation_journal_entry(invoice_doc, original_invoice_name, 
 		str: Journal Entry name
 	"""
 	# Get original invoice
-	original_invoice = frappe.get_doc("Sales Invoice", original_invoice_name)
+	original_invoice = dypos.get_doc("Sales Invoice", original_invoice_name)
 
 	_validate_credit_source_ownership(
 		original_invoice.name,
@@ -459,12 +459,12 @@ def _create_credit_allocation_journal_entry(invoice_doc, original_invoice_name, 
 	)
 
 	# Get cost center
-	cost_center = invoice_doc.get("cost_center") or frappe.get_cached_value(
+	cost_center = invoice_doc.get("cost_center") or dypos.get_cached_value(
 		"Company", invoice_doc.company, "cost_center"
 	)
 
 	# Create Journal Entry
-	jv_doc = frappe.get_doc(
+	jv_doc = dypos.get_doc(
 		{
 			"doctype": "Journal Entry",
 			"voucher_type": "Journal Entry",
@@ -508,7 +508,7 @@ def _create_credit_allocation_journal_entry(invoice_doc, original_invoice_name, 
 	jv_doc.save()
 	jv_doc.submit()
 
-	frappe.msgprint(_("Journal Entry {0} created for credit redemption").format(jv_doc.name), alert=True)
+	dypos.msgprint(_("Journal Entry {0} created for credit redemption").format(jv_doc.name), alert=True)
 
 	return jv_doc.name
 
@@ -527,10 +527,10 @@ def _create_payment_entry_from_advance(invoice_doc, payment_entry_name, amount):
 		str: Payment Entry name
 	"""
 	# Get payment entry
-	payment_entry = frappe.get_doc("Payment Entry", payment_entry_name)
+	payment_entry = dypos.get_doc("Payment Entry", payment_entry_name)
 
 	if payment_entry.party_type != "Customer" or payment_entry.payment_type != "Receive":
-		frappe.throw(_("Payment Entry {0} is not a valid customer advance").format(payment_entry_name))
+		dypos.throw(_("Payment Entry {0} is not a valid customer advance").format(payment_entry_name))
 
 	_validate_credit_source_ownership(
 		payment_entry.name,
@@ -542,7 +542,7 @@ def _create_payment_entry_from_advance(invoice_doc, payment_entry_name, amount):
 
 	# Check if already allocated
 	if payment_entry.unallocated_amount < amount:
-		frappe.throw(_("Payment Entry {0} has insufficient unallocated amount").format(payment_entry_name))
+		dypos.throw(_("Payment Entry {0} has insufficient unallocated amount").format(payment_entry_name))
 
 	# Add reference to invoice
 	payment_entry.append(
@@ -563,7 +563,7 @@ def _create_payment_entry_from_advance(invoice_doc, payment_entry_name, amount):
 	payment_entry.flags.ignore_validate_update_after_submit = True
 	payment_entry.save()
 
-	frappe.msgprint(_("Payment Entry {0} allocated to invoice").format(payment_entry.name), alert=True)
+	dypos.msgprint(_("Payment Entry {0} allocated to invoice").format(payment_entry.name), alert=True)
 
 	return payment_entry.name
 
@@ -573,7 +573,7 @@ def get_credit_redeem_remark(invoice_name):
 	return f"POS Next credit redemption for invoice {invoice_name}"
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def cancel_credit_journal_entries(invoice_name):
 	"""
 	Cancel journal entries created for credit redemption when invoice is cancelled.
@@ -584,14 +584,14 @@ def cancel_credit_journal_entries(invoice_name):
 	remark = get_credit_redeem_remark(invoice_name)
 
 	# Find linked journal entries
-	linked_journal_entries = frappe.get_all(
+	linked_journal_entries = dypos.get_all(
 		"Journal Entry", filters={"docstatus": 1, "user_remark": remark}, pluck="name"
 	)
 
 	cancelled_count = 0
 	for journal_entry_name in linked_journal_entries:
 		try:
-			je_doc = frappe.get_doc("Journal Entry", journal_entry_name)
+			je_doc = dypos.get_doc("Journal Entry", journal_entry_name)
 
 			# Verify it references this invoice
 			has_reference = any(
@@ -606,20 +606,20 @@ def cancel_credit_journal_entries(invoice_name):
 			je_doc.cancel()
 			cancelled_count += 1
 		except Exception as e:
-			frappe.log_error(
+			dypos.log_error(
 				f"Failed to cancel Journal Entry {journal_entry_name}: {str(e)}",
 				"Credit Sale JE Cancellation",
 			)
 
 	if cancelled_count > 0:
-		frappe.msgprint(
+		dypos.msgprint(
 			_("Cancelled {0} credit redemption journal entries").format(cancelled_count), alert=True
 		)
 
 	return cancelled_count
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_credit_sale_summary(pos_profile):
 	"""
 	Get summary of credit sales for a POS Profile.
@@ -631,10 +631,10 @@ def get_credit_sale_summary(pos_profile):
 		dict: Summary statistics
 	"""
 	if not pos_profile:
-		frappe.throw(_("POS Profile is required"))
+		dypos.throw(_("POS Profile is required"))
 
 	# Get credit sales (outstanding > 0)
-	summary = frappe.db.sql(
+	summary = dypos.db.sql(
 		"""
 		SELECT
 			COUNT(*) as count,
@@ -657,7 +657,7 @@ def get_credit_sale_summary(pos_profile):
 	return summary[0] if summary else {"count": 0, "total_outstanding": 0, "total_amount": 0, "total_paid": 0}
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_credit_invoices(pos_profile, limit=100):
 	"""
 	Get list of credit sale invoices (with outstanding amount).
@@ -670,16 +670,16 @@ def get_credit_invoices(pos_profile, limit=100):
 		list: Credit sale invoices
 	"""
 	if not pos_profile:
-		frappe.throw(_("POS Profile is required"))
+		dypos.throw(_("POS Profile is required"))
 
 	# Check if user has access to this POS Profile
-	has_access = frappe.db.exists("POS Profile User", {"parent": pos_profile, "user": frappe.session.user})
+	has_access = dypos.db.exists("POS Profile User", {"parent": pos_profile, "user": dypos.session.user})
 
-	if not has_access and not frappe.has_permission("Sales Invoice", "read"):
-		frappe.throw(_("You don't have access to this POS Profile"))
+	if not has_access and not dypos.has_permission("Sales Invoice", "read"):
+		dypos.throw(_("You don't have access to this POS Profile"))
 
 	# Query for credit invoices
-	invoices = frappe.db.sql(
+	invoices = dypos.db.sql(
 		"""
 		SELECT
 			name,

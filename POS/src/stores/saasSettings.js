@@ -7,6 +7,8 @@
 import { defineStore } from "pinia"
 import { ref, computed } from "vue"
 import { DEFAULT_CURRENCY } from "@/utils/currency"
+import { methodCall } from "@/utils/methodClient"
+import { sessionUser } from "@/data/session"
 
 export const useSaaSStore = defineStore("saas", () => {
 	/** Company / tenant branding */
@@ -74,23 +76,22 @@ export const useSaaSStore = defineStore("saas", () => {
 				features: features.value,
 				exportedAt: new Date().toISOString(),
 			}
-			if (typeof window !== "undefined" && window.frappe?.call) {
-				const result = await window.frappe.call({
-					method: "frappe.client.get_list",
-					args: {
-						doctype: "DyPOS User Data",
-						filters: { user: frappe.session.user },
-					},
-				})
-				userData.records = result?.message || []
-			}
+			// Server-side records are a best-effort enrichment: the export file
+			// must still be produced while offline, so a dead backend degrades
+			// to "local data only" instead of failing the whole export.
+			const user = sessionUser()
+			const result = await methodCall("dypos.client.get_list", {
+				doctype: "DyPOS User Data",
+				filters: { user },
+			}).catch(() => null)
+			userData.records = result?.message || result || []
 			const blob = new Blob([JSON.stringify(userData, null, 2)], {
 				type: "application/json",
 			})
 			const url = URL.createObjectURL(blob)
 			const a = document.createElement("a")
 			a.href = url
-			a.download = `dypos-user-data-${frappe.session.user}-${new Date().toISOString().split("T")[0]}.json`
+			a.download = `dypos-user-data-${user || "guest"}-${new Date().toISOString().split("T")[0]}.json`
 			a.click()
 			URL.revokeObjectURL(url)
 			return userData
@@ -101,15 +102,12 @@ export const useSaaSStore = defineStore("saas", () => {
 
 	async function deleteUserData() {
 		try {
-			if (typeof window !== "undefined" && window.frappe?.call) {
-				await window.frappe.call({
-					method: "frappe.delete_doc",
-					args: {
-						doctype: "DyPOS User Data",
-						name: frappe.session.user,
-					},
-				})
-			}
+			// Best-effort remote delete: the local reset below always runs, so a
+			// dead backend can never block the cashier from clearing the device.
+			await methodCall("dypos.delete_doc", {
+				doctype: "DyPOS User Data",
+				name: sessionUser(),
+			}).catch(() => null)
 			companyName.value = ""
 			companyLogo.value = ""
 			primaryColor.value = "#6366f1"
@@ -141,29 +139,25 @@ export const useSaaSStore = defineStore("saas", () => {
 
 	async function loadSaaSConfig() {
 		try {
-			if (typeof window !== "undefined" && window.frappe?.call) {
-				const result = await window.frappe.call({
-					method: "frappe.client.get_value",
-					args: {
-						doctype: "DyPOS Settings",
-						filters: {},
-						fieldname: [
-							"company_name",
-							"company_logo",
-							"primary_color",
-							"currency",
-						],
-					},
+			// Tenant branding is a nicety, not a boot requirement: offline the
+			// defaults stay in place and the tenant gets them on reconnect.
+			const data = await methodCall("dypos.client.get_value", {
+				doctype: "DyPOS Settings",
+				filters: {},
+				fieldname: [
+					"company_name",
+					"company_logo",
+					"primary_color",
+					"currency",
+				],
+			}).catch(() => null)
+			if (data) {
+				setBranding({
+					companyName: data.company_name,
+					companyLogo: data.company_logo,
+					primaryColor: data.primary_color,
+					currency: data.currency,
 				})
-				const data = result?.message
-				if (data) {
-					setBranding({
-						companyName: data.company_name,
-						companyLogo: data.company_logo,
-						primaryColor: data.primary_color,
-						currency: data.currency,
-					})
-				}
 			}
 		} catch {
 			// Non-critical: use defaults

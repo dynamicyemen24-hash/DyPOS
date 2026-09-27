@@ -1,7 +1,7 @@
 // Copyright (c) 2026, BrainWise and contributors
 // For license information, please see license.txt
 
-frappe.ui.form.on("Customer", {
+dypos.ui.form.on("Customer", {
 	refresh(frm) {
 		frm.set_query("custom_district", () => {
 			return {

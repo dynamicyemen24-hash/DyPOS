@@ -10,8 +10,8 @@ from DyPOS.DyPOS.doctype.pos_coupon.pos_coupon import (
 
 
 class TestPOSCoupon(unittest.TestCase):
-	@patch("DyPOS.DyPOS.doctype.pos_coupon.pos_coupon.frappe.get_meta")
-	@patch("DyPOS.DyPOS.doctype.pos_coupon.pos_coupon.frappe.db")
+	@patch("DyPOS.DyPOS.doctype.pos_coupon.pos_coupon.dypos.get_meta")
+	@patch("DyPOS.DyPOS.doctype.pos_coupon.pos_coupon.dypos.db")
 	def test_one_use_coupon_counts_sales_invoice_and_pos_invoice(self, mock_db, mock_get_meta):
 		def table_exists(doctype):
 			return doctype in {"Sales Invoice", "POS Invoice"}
@@ -36,8 +36,8 @@ class TestPOSCoupon(unittest.TestCase):
 			filters={"customer": "Customer A", "coupon_code": "SAVE10", "docstatus": 1},
 		)
 
-	@patch("DyPOS.DyPOS.doctype.pos_coupon.pos_coupon.frappe.get_meta")
-	@patch("DyPOS.DyPOS.doctype.pos_coupon.pos_coupon.frappe.db")
+	@patch("DyPOS.DyPOS.doctype.pos_coupon.pos_coupon.dypos.get_meta")
+	@patch("DyPOS.DyPOS.doctype.pos_coupon.pos_coupon.dypos.db")
 	def test_one_use_coupon_skips_doctypes_without_coupon_field(self, mock_db, mock_get_meta):
 		mock_db.table_exists.return_value = True
 		mock_db.count.return_value = 4

@@ -18,13 +18,21 @@ import type {
  * computed over the full invoice set (returns net themselves out).
  */
 
-export function sumBy(rows, pick) {
-	return rows.reduce((total, row) => total + (Number(row?.[pick]) || 0), 0)
+/**
+ * Sum one numeric field across rows. Generic over the row type so `pick` is
+ * checked against the real keys — a typo like "base_net_totals" is a compile
+ * error rather than a silent zero.
+ */
+export function sumBy<T, K extends keyof T>(rows: T[], pick: K): number {
+	return rows.reduce<number>(
+		(total, row) => total + (Number(row?.[pick]) || 0),
+		0,
+	)
 }
 
 export function buildRevenueModel(
-	invoices,
-	previousInvoices = [],
+	invoices: SalesInvoiceFact[] = [],
+	previousInvoices: SalesInvoiceFact[] = [],
 ): RevenueReportModel {
 	const rows = invoices || []
 	const previous = previousInvoices || []
@@ -80,7 +88,17 @@ export function buildRevenueModel(
 	return { kpis, daily, topCustomers }
 }
 
-function buildKpi(id, label, value, previousValue) {
+/**
+ * `previousValue` is intentionally optional: KPIs built for the current period
+ * only (average ticket, collection rate) are passed three arguments and simply
+ * carry no comparison baseline.
+ */
+function buildKpi(
+	id: string,
+	label: string,
+	value: number,
+	previousValue?: number,
+): KPI {
 	const kpi: KPI = { id, label, value }
 	if (previousValue !== undefined) {
 		kpi.previousValue = previousValue
@@ -90,8 +108,8 @@ function buildKpi(id, label, value, previousValue) {
 	return kpi
 }
 
-function buildDailyRows(rows): RevenueDailyRow[] {
-	const byDate = new Map()
+function buildDailyRows(rows: SalesInvoiceFact[]): RevenueDailyRow[] {
+	const byDate = new Map<string, RevenueDailyRow>()
 	for (const row of rows) {
 		const date = String(row.posting_date || "").slice(0, 10)
 		if (!date) continue
@@ -121,8 +139,18 @@ function buildDailyRows(rows): RevenueDailyRow[] {
 	return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))
 }
 
-function buildTopCustomers(rows, netSales): RevenueCustomerRow[] {
-	const byCustomer = new Map()
+interface CustomerBucket {
+	customer: string
+	customerName: string
+	invoices: number
+	netSales: number
+}
+
+function buildTopCustomers(
+	rows: SalesInvoiceFact[],
+	netSales: number,
+): RevenueCustomerRow[] {
+	const byCustomer = new Map<string, CustomerBucket>()
 	for (const row of rows) {
 		if (row.is_return) continue
 		const key = String(row.customer || "-")

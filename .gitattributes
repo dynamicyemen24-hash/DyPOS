@@ -1,0 +1,64 @@
+# Git line-ending policy — LF everywhere, with deliberate exceptions.
+#
+# Why this exists: the repo had no .gitattributes, so 39 tracked files were
+# committed with CRLF while the rest used LF. `biome check .` (the `lint`
+# script) includes the formatter, which expects LF, so those files failed the
+# lint gate locally on Windows. CI passed only because Linux checkouts are LF.
+# With `core.autocrlf=true` locally, the CRLF files were reintroduced on every
+# fresh checkout, so the fix could not stick.
+#
+# `text=auto` lets git detect binary content, and `eol=lf` forces LF in the
+# working tree. The explicit binary rules below are belt-and-braces for the
+# asset types this repo actually tracks.
+
+* text=auto eol=lf
+
+# --- Source and config: LF explicitly (defence against auto-detect misses) ---
+*.js    text eol=lf
+*.mjs   text eol=lf
+*.cjs   text eol=lf
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.vue   text eol=lf
+*.json  text eol=lf
+*.css   text eol=lf
+*.html  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.txt   text eol=lf
+*.sql   text eol=lf
+*.svg   text eol=lf
+
+# Lockfiles stay LF so npm resolves byte-identically on every platform.
+package-lock.json text eol=lf
+
+# --- Windows scripts: CRLF by convention ---
+# cmd.exe batch parsing is the one place LF-only line endings are genuinely
+# fragile (labels and multi-line blocks), so these keep CRLF deliberately.
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# --- Binary: never let git touch line endings ---
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.avif  binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.eot   binary
+*.mp3   binary
+*.mp4   binary
+*.pdf   binary
+*.zip   binary
+*.gz    binary
+*.wasm  binary
+*.sqlite binary
+*.sqlite3 binary
+*.db    binary

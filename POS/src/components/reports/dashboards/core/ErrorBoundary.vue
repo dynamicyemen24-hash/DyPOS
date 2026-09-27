@@ -24,7 +24,7 @@
 
 <script setup>
 import { ref, onErrorCaptured } from "vue"
-import { Button, FeatherIcon } from "frappe-ui"
+import { Button, FeatherIcon } from "dypos-ui"
 import { goToPOS } from "@/router"
 
 const hasError = ref(false)

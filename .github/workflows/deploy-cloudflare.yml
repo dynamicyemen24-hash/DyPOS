@@ -55,7 +55,7 @@ jobs:
         run: npm run verify
 
       # Backend gates (deterministic subset of CI): the POS talks to the
-      # Frappe-compat method router, so a deploy must prove the contract
+      # method-router contract, so a deploy must prove it
       # (every POS call site resolves), lint, and schema parity. The full
       # backend suite + backup drills run in CI (server-api job).
       - name: Install backend dependencies
@@ -135,7 +135,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy DyPOS/public/pos --project-name=dypos-pos --branch=main --commit-dirty=true
+          command: pages deploy POS/dist/pos --project-name=dypos-pos --branch=main --commit-dirty=true
 
       # ── Deploy-time failure → one clear remediation line. ──
       - name: Deploy failed → actionable secret error

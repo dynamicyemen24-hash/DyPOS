@@ -1,54 +1,54 @@
 # Copyright (c) 2021, Youssef Restom and contributors
 # For license information, please see license.txt
 
-import frappe
-from frappe import _
-from frappe.model.document import Document
-from frappe.utils import add_days, flt, strip, today
+import dypos
+from dyposimport _
+from dypos.model.document import Document
+from dypos.utils import add_days, flt, strip, today
 
 
 class ReferralCode(Document):
 	def autoname(self):
 		if not self.referral_name:
-			self.referral_name = strip(self.customer) + "-" + frappe.generate_hash()[:5].upper()
+			self.referral_name = strip(self.customer) + "-" + dypos.generate_hash()[:5].upper()
 			self.name = self.referral_name
 		else:
 			self.referral_name = strip(self.referral_name)
 			self.name = self.referral_name
 
 		if not self.referral_code:
-			self.referral_code = frappe.generate_hash()[:10].upper()
+			self.referral_code = dypos.generate_hash()[:10].upper()
 
 	def validate(self):
 		# Validate Referrer (Primary Customer) rewards
 		if not self.referrer_discount_type:
-			frappe.throw(_("Referrer Discount Type is required"))
+			dypos.throw(_("Referrer Discount Type is required"))
 
 		if self.referrer_discount_type == "Percentage":
 			if not self.referrer_discount_percentage:
-				frappe.throw(_("Referrer Discount Percentage is required"))
+				dypos.throw(_("Referrer Discount Percentage is required"))
 			if flt(self.referrer_discount_percentage) <= 0 or flt(self.referrer_discount_percentage) > 100:
-				frappe.throw(_("Referrer Discount Percentage must be between 0 and 100"))
+				dypos.throw(_("Referrer Discount Percentage must be between 0 and 100"))
 		elif self.referrer_discount_type == "Amount":
 			if not self.referrer_discount_amount:
-				frappe.throw(_("Referrer Discount Amount is required"))
+				dypos.throw(_("Referrer Discount Amount is required"))
 			if flt(self.referrer_discount_amount) <= 0:
-				frappe.throw(_("Referrer Discount Amount must be greater than 0"))
+				dypos.throw(_("Referrer Discount Amount must be greater than 0"))
 
 		# Validate Referee (New Customer) rewards
 		if not self.referee_discount_type:
-			frappe.throw(_("Referee Discount Type is required"))
+			dypos.throw(_("Referee Discount Type is required"))
 
 		if self.referee_discount_type == "Percentage":
 			if not self.referee_discount_percentage:
-				frappe.throw(_("Referee Discount Percentage is required"))
+				dypos.throw(_("Referee Discount Percentage is required"))
 			if flt(self.referee_discount_percentage) <= 0 or flt(self.referee_discount_percentage) > 100:
-				frappe.throw(_("Referee Discount Percentage must be between 0 and 100"))
+				dypos.throw(_("Referee Discount Percentage must be between 0 and 100"))
 		elif self.referee_discount_type == "Amount":
 			if not self.referee_discount_amount:
-				frappe.throw(_("Referee Discount Amount is required"))
+				dypos.throw(_("Referee Discount Amount is required"))
 			if flt(self.referee_discount_amount) <= 0:
-				frappe.throw(_("Referee Discount Amount must be greater than 0"))
+				dypos.throw(_("Referee Discount Amount must be greater than 0"))
 
 
 def create_referral_code(
@@ -76,7 +76,7 @@ def create_referral_code(
 	    referee_discount_amount: Fixed amount discount for referee (if type is Amount)
 	    campaign: Optional campaign name
 	"""
-	doc = frappe.new_doc("Referral Code")
+	doc = dypos.new_doc("Referral Code")
 	doc.company = company
 	doc.customer = customer
 	doc.campaign = campaign
@@ -92,7 +92,7 @@ def create_referral_code(
 	doc.referee_discount_amount = referee_discount_amount
 
 	doc.insert()
-	frappe.db.commit()
+	dypos.db.commit()
 	return doc
 
 
@@ -108,23 +108,23 @@ def apply_referral_code(referral_code, referee_customer):
 	    dict with generated coupons info
 	"""
 	# Get referral code document
-	if not frappe.db.exists("Referral Code", {"referral_code": referral_code.upper()}):
-		frappe.throw(_("Invalid referral code"))
+	if not dypos.db.exists("Referral Code", {"referral_code": referral_code.upper()}):
+		dypos.throw(_("Invalid referral code"))
 
-	referral = frappe.get_doc("Referral Code", {"referral_code": referral_code.upper()})
+	referral = dypos.get_doc("Referral Code", {"referral_code": referral_code.upper()})
 
 	# Check if disabled
 	if referral.disabled:
-		frappe.throw(_("This referral code has been disabled"))
+		dypos.throw(_("This referral code has been disabled"))
 
 	# Check if referee has already used this referral code
-	existing_coupon = frappe.db.exists(
+	existing_coupon = dypos.db.exists(
 		"POS Coupon",
 		{"referral_code": referral.name, "customer": referee_customer, "coupon_type": "Promotional"},
 	)
 
 	if existing_coupon:
-		frappe.throw(_("You have already used this referral code"))
+		dypos.throw(_("You have already used this referral code"))
 
 	result = {"referrer_coupon": None, "referee_coupon": None}
 
@@ -137,7 +137,7 @@ def apply_referral_code(referral_code, referee_customer):
 			"customer": referrer_coupon.customer,
 		}
 	except Exception as e:
-		frappe.log_error(
+		dypos.log_error(
 			title="Referrer Coupon Generation Failed", message=f"Failed to generate referrer coupon: {e!s}"
 		)
 
@@ -150,22 +150,22 @@ def apply_referral_code(referral_code, referee_customer):
 			"customer": referee_customer,
 		}
 	except Exception as e:
-		frappe.log_error(
+		dypos.log_error(
 			title="Referee Coupon Generation Failed", message=f"Failed to generate referee coupon: {e!s}"
 		)
-		frappe.throw(_("Failed to generate your welcome coupon"))
+		dypos.throw(_("Failed to generate your welcome coupon"))
 
 	# Increment referrals count
 	referral.referrals_count = (referral.referrals_count or 0) + 1
 	referral.save()
-	frappe.db.commit()
+	dypos.db.commit()
 
 	return result
 
 
 def generate_referrer_coupon(referral):
 	"""Generate a Gift Card coupon for the referrer"""
-	coupon = frappe.new_doc("POS Coupon")
+	coupon = dypos.new_doc("POS Coupon")
 
 	# Calculate validity dates
 	valid_from = today()
@@ -174,7 +174,7 @@ def generate_referrer_coupon(referral):
 
 	coupon.update(
 		{
-			"coupon_name": f"Referral Reward - {referral.customer} - {frappe.utils.now_datetime().strftime('%Y%m%d%H%M%S')}",
+			"coupon_name": f"Referral Reward - {referral.customer} - {dypos.utils.now_datetime().strftime('%Y%m%d%H%M%S')}",
 			"coupon_type": "Gift Card",
 			"customer": referral.customer,
 			"company": referral.company,
@@ -205,7 +205,7 @@ def generate_referrer_coupon(referral):
 
 def generate_referee_coupon(referral, referee_customer):
 	"""Generate a Promotional coupon for the referee (new customer)"""
-	coupon = frappe.new_doc("POS Coupon")
+	coupon = dypos.new_doc("POS Coupon")
 
 	# Calculate validity dates
 	valid_from = today()
@@ -214,7 +214,7 @@ def generate_referee_coupon(referral, referee_customer):
 
 	coupon.update(
 		{
-			"coupon_name": f"Welcome Referral - {referee_customer} - {frappe.utils.now_datetime().strftime('%Y%m%d%H%M%S')}",
+			"coupon_name": f"Welcome Referral - {referee_customer} - {dypos.utils.now_datetime().strftime('%Y%m%d%H%M%S')}",
 			"coupon_type": "Promotional",
 			"customer": referee_customer,
 			"company": referral.company,

@@ -1,5 +1,5 @@
 <script setup>
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 
 const props = defineProps({
 	icon: { type: String, required: true },

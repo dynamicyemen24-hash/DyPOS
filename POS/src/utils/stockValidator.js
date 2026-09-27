@@ -1,4 +1,4 @@
-import { call } from "frappe-ui"
+import { call } from "dypos-ui"
 
 import { logger } from "@/utils/logger"
 
@@ -15,7 +15,7 @@ const log = logger.create("StockValidation")
  * - Determine whether stock validation applies.
  * - Normalize stock quantities safely.
  * - Validate requested quantities.
- * - Read warehouse stock from Frappe.
+ * - Read warehouse stock from the server.
  * - Produce consistent user-facing messages.
  *
  * This module deliberately does NOT:
@@ -268,7 +268,7 @@ export function checkStockAvailability(item, requestedQty, warehouse) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Frappe stock API                                                           */
+/* Stock API                                                           */
 /* -------------------------------------------------------------------------- */
 
 /**
@@ -301,7 +301,7 @@ export async function getItemStock(itemCode, warehouse) {
 	}
 
 	try {
-		const result = await call("frappe.client.get_value", {
+		const result = await call("dypos.client.get_value", {
 			doctype: "Bin",
 			filters: {
 				item_code: normalizedItemCode,
@@ -311,7 +311,7 @@ export async function getItemStock(itemCode, warehouse) {
 		})
 
 		/**
-		 * Frappe can return null when the Bin does not exist.
+		 * can return null when the Bin does not exist.
 		 *
 		 * In that case, zero is a legitimate availability result.
 		 */

@@ -135,7 +135,7 @@ function handleCustomerUpdate(data) {
  * @returns {boolean}
  */
 function isSocketAvailable() {
-	return !!(typeof window !== "undefined" && window.frappe?.realtime)
+	return !!(typeof window !== "undefined" && window.dypos?.realtime)
 }
 
 /**
@@ -157,7 +157,7 @@ function startListening() {
 
 	try {
 		isConnecting.value = true
-		window.frappe.realtime.on(EVENT_NAME, handleCustomerUpdate)
+		window.dypos.realtime.on(EVENT_NAME, handleCustomerUpdate)
 		isListening.value = true
 		isConnecting.value = false
 		retryAttempts = 0
@@ -187,7 +187,7 @@ function stopListening() {
 
 	try {
 		if (isSocketAvailable()) {
-			window.frappe.realtime.off(EVENT_NAME, handleCustomerUpdate)
+			window.dypos.realtime.off(EVENT_NAME, handleCustomerUpdate)
 		}
 		isListening.value = false
 		retryAttempts = 0

@@ -1,0 +1,42 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"jsx": "preserve",
+
+		/* The app is JavaScript-first: only src/**\/*.{ts,tsx} is type-checked.
+		   allowJs stays off so the ~600 .js/.vue files are not pulled in (no SFC
+		   in this repo declares lang="ts", so there is nothing to check there). */
+		"allowJs": false,
+		"checkJs": false,
+
+		"strict": true,
+		"noImplicitOverride": true,
+		"noFallthroughCasesInSwitch": true,
+		"forceConsistentCasingInFileNames": true,
+
+		"esModuleInterop": true,
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"verbatimModuleSyntax": true,
+		"skipLibCheck": true,
+		"noEmit": true,
+
+		"types": ["vite/client"],
+		"baseUrl": ".",
+		"paths": {
+			"@/*": ["./src/*"]
+		}
+	},
+	"include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"],
+	"exclude": [
+		"node_modules",
+		"dist",
+		"dev-dist",
+		"stock-template",
+		"coverage",
+		"src/components/reports/operational"
+	]
+}

@@ -10,10 +10,11 @@ const log = logger.create("LocalSession")
 const SESSION_STORAGE_KEY = "dypos_user_session"
 
 /**
- * Local session management — completely offline, no Frappe dependency.
+ * Local session management — completely offline, no runtime framework needed.
  *
  * Contract (same surface the app already uses):
  * - `sessionUser()` → user id/email or null
+ * - `sessionRole()` → persisted role (or "POS User" when unknown)
  * - `session.login.submit({ email, password })` → local-first login
  * - `session.logout.submit()` → local teardown, never throws
  * - `session.user`, `session.isLoggedIn`
@@ -39,6 +40,25 @@ export function sessionUser() {
 		/* non-browser bundling */
 	}
 	return null
+}
+
+/**
+ * Role of the current local session.
+ *
+ * Identity lives in the local session only — there is no server/desk global to
+ * read a role from, so this is the single source of truth for the POS.
+ */
+export function sessionRole() {
+	try {
+		const raw = localStorage.getItem(SESSION_STORAGE_KEY)
+		if (raw) {
+			const parsed = JSON.parse(raw)
+			if (parsed?.role) return parsed.role
+		}
+	} catch {
+		/* corrupted session payload — fall through to the default role */
+	}
+	return "POS User"
 }
 
 function persistSession(user) {

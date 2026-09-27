@@ -14,5 +14,5 @@
 
 ## API Calls
 - Always use `call` function from `@/utils/apiWrapper` for API calls
-- Never use `window.frappe.call` or `frappe.call` directly
+- Never use `window.dypos.call` or `dypos.call` directly
 - Import as: `import { call } from "@/utils/apiWrapper"`

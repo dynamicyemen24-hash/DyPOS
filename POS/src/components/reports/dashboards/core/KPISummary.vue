@@ -27,7 +27,7 @@
 </template>
 
 <script setup>
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 import { computed } from "vue"
 import {
 	formatMoney,

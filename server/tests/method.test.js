@@ -1,5 +1,5 @@
 /**
- * Frappe-compat /api/method router tests — dual GET + POST coverage.
+ * /api/method router tests — dual GET + POST coverage.
  * Env is set up via tests/setup.js (loaded with --import).
  */
 import { describe, it, before, after } from 'node:test';
@@ -106,14 +106,14 @@ describe('/api/method — dual GET + POST', () => {
     assert.strictEqual(res.body.message.ar.native, 'العربية');
   });
 
-  it('unknown method → 404 with Frappe error shape', async () => {
+  it('unknown method → 404 with DyPOS error shape', async () => {
     const res = await call('POST', '/api/method/DyPOS.api.does.not.exist');
     assert.strictEqual(res.status, 404);
     assert.strictEqual(res.body.exc_type, 'NotFoundError');
     assert.ok(res.body._error_message);
   });
 
-  it('unknown method GET → 404 with Frappe error shape', async () => {
+  it('unknown method GET → 404 with DyPOS error shape', async () => {
     const res = await call('GET', '/api/method/no.such.method');
     assert.strictEqual(res.status, 404);
     assert.strictEqual(res.body.exc_type, 'NotFoundError');
@@ -134,7 +134,7 @@ describe('/api/method — auth (login / get_logged_user / has_permission)', () =
   };
 
   before(async () => {
-    const reg = await call('POST', '/api/method/frappe.auth.register', {
+    const reg = await call('POST', '/api/method/dypos.auth.register', {
       body: { ...user, role: 'CASHIER' },
     });
     assert.strictEqual(reg.status, 200);
@@ -146,7 +146,7 @@ describe('/api/method — auth (login / get_logged_user / has_permission)', () =
       body: { usr: user.username, pwd: user.password },
     });
     assert.strictEqual(res.status, 200);
-    // frappeRequest short-circuits on /login → full body, not only message
+    // request short-circuits on /login → full body, not only message
     assert.ok(res.body.token || res.body.message?.token);
     const cookies = res.setCookie.join(';');
     assert.ok(cookies.includes('dypos_token='));
@@ -154,7 +154,7 @@ describe('/api/method — auth (login / get_logged_user / has_permission)', () =
     assert.ok(cookies.includes('full_name='));
   });
 
-  it('POST login with wrong password → 401 Frappe error', async () => {
+  it('POST login with wrong password → 401 DyPOS error', async () => {
     const res = await call('POST', '/api/method/login', {
       body: { usr: user.username, pwd: 'WrongP@55!' },
     });
@@ -162,48 +162,48 @@ describe('/api/method — auth (login / get_logged_user / has_permission)', () =
     assert.strictEqual(res.body.exc_type, 'AuthenticationError');
   });
 
-  it('GET frappe.auth.get_logged_user with Bearer token returns username', async () => {
+  it('GET dypos.auth.get_logged_user with Bearer token returns username', async () => {
     const login = await call('POST', '/api/method/login', {
       body: { usr: user.username, pwd: user.password },
     });
     const token = login.body.token || login.body.message?.token;
     assert.ok(token);
-    const res = await call('GET', '/api/method/frappe.auth.get_logged_user', { token });
+    const res = await call('GET', '/api/method/dypos.auth.get_logged_user', { token });
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.message, user.username);
   });
 
-  it('GET frappe.auth.get_logged_user via dypos_token cookie returns username', async () => {
+  it('GET dypos.auth.get_logged_user via dypos_token cookie returns username', async () => {
     const login = await call('POST', '/api/method/login', {
       body: { usr: user.username, pwd: user.password },
     });
     const token = login.body.token || login.body.message?.token;
-    const res = await call('GET', '/api/method/frappe.auth.get_logged_user', {
+    const res = await call('GET', '/api/method/dypos.auth.get_logged_user', {
       cookie: `dypos_token=${encodeURIComponent(token)}`,
     });
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.message, user.username);
   });
 
-  it('GET frappe.auth.get_logged_user without auth → 401 Frappe error', async () => {
-    const res = await call('GET', '/api/method/frappe.auth.get_logged_user');
+  it('GET dypos.auth.get_logged_user without auth → 401 DyPOS error', async () => {
+    const res = await call('GET', '/api/method/dypos.auth.get_logged_user');
     assert.strictEqual(res.status, 401);
     assert.strictEqual(res.body.exc_type, 'AuthenticationError');
   });
 
-  it('POST frappe.client.has_permission → { has_permission: boolean }', async () => {
+  it('POST dypos.client.has_permission → { has_permission: boolean }', async () => {
     const login = await call('POST', '/api/method/login', {
       body: { usr: user.username, pwd: user.password },
     });
     const token = login.body.token || login.body.message?.token;
-    const yes = await call('POST', '/api/method/frappe.client.has_permission', {
+    const yes = await call('POST', '/api/method/dypos.client.has_permission', {
       token,
       body: { doctype: 'Customer', perm_type: 'read' },
     });
     assert.strictEqual(yes.status, 200);
     assert.strictEqual(yes.body.message.has_permission, true);
 
-    const no = await call('POST', '/api/method/frappe.client.has_permission', {
+    const no = await call('POST', '/api/method/dypos.client.has_permission', {
       token,
       body: { doctype: 'User', perm_type: 'write' },
     });
@@ -211,8 +211,8 @@ describe('/api/method — auth (login / get_logged_user / has_permission)', () =
     assert.strictEqual(no.body.message.has_permission, false);
   });
 
-  it('POST frappe.client.has_permission without auth → 401', async () => {
-    const res = await call('POST', '/api/method/frappe.client.has_permission', {
+  it('POST dypos.client.has_permission without auth → 401', async () => {
+    const res = await call('POST', '/api/method/dypos.client.has_permission', {
       body: { doctype: 'Item', perm_type: 'read' },
     });
     assert.strictEqual(res.status, 401);
@@ -228,12 +228,12 @@ describe('/api/method — auth (login / get_logged_user / has_permission)', () =
     assert.strictEqual(res.body.message.logged_out, true);
 
     // Token should now be rejected
-    const after = await call('GET', '/api/method/frappe.auth.get_logged_user', { token });
+    const after = await call('GET', '/api/method/dypos.auth.get_logged_user', { token });
     assert.strictEqual(after.status, 401);
   });
 });
 
-describe('/api/method — frappe.client get_list / get_value', () => {
+describe('/api/method — dypos.client get_list / get_value', () => {
   let token;
   const user = {
     username: `cl_${Date.now()}`,
@@ -242,7 +242,7 @@ describe('/api/method — frappe.client get_list / get_value', () => {
   };
 
   before(async () => {
-    await call('POST', '/api/method/frappe.auth.register', {
+    await call('POST', '/api/method/dypos.auth.register', {
       body: { ...user, role: 'CASHIER' },
     });
     const login = await call('POST', '/api/method/login', {
@@ -252,14 +252,14 @@ describe('/api/method — frappe.client get_list / get_value', () => {
     assert.ok(token);
   });
 
-  it('GET frappe.client.get_list Item returns array', async () => {
-    const res = await call('GET', '/api/method/frappe.client.get_list?doctype=Item&limit_page_length=5', { token });
+  it('GET dypos.client.get_list Item returns array', async () => {
+    const res = await call('GET', '/api/method/dypos.client.get_list?doctype=Item&limit_page_length=5', { token });
     assert.strictEqual(res.status, 200);
     assert.ok(Array.isArray(res.body.message));
   });
 
-  it('POST frappe.client.get_list Customer returns array', async () => {
-    const res = await call('POST', '/api/method/frappe.client.get_list', {
+  it('POST dypos.client.get_list Customer returns array', async () => {
+    const res = await call('POST', '/api/method/dypos.client.get_list', {
       token,
       body: { doctype: 'Customer', limit_page_length: 5 },
     });
@@ -267,19 +267,19 @@ describe('/api/method — frappe.client get_list / get_value', () => {
     assert.ok(Array.isArray(res.body.message));
   });
 
-  it('GET frappe.client.get_list unknown doctype → empty array (never 500)', async () => {
-    const res = await call('GET', '/api/method/frappe.client.get_list?doctype=NoSuchDoctype', { token });
+  it('GET dypos.client.get_list unknown doctype → empty array (never 500)', async () => {
+    const res = await call('GET', '/api/method/dypos.client.get_list?doctype=NoSuchDoctype', { token });
     assert.strictEqual(res.status, 200);
     assert.deepStrictEqual(res.body.message, []);
   });
 
-  it('GET frappe.client.get_list without auth → 401', async () => {
-    const res = await call('GET', '/api/method/frappe.client.get_list?doctype=Item');
+  it('GET dypos.client.get_list without auth → 401', async () => {
+    const res = await call('GET', '/api/method/dypos.client.get_list?doctype=Item');
     assert.strictEqual(res.status, 401);
   });
 
-  it('POST frappe.client.get_value Item with filters returns mapped row or null', async () => {
-    const res = await call('POST', '/api/method/frappe.client.get_value', {
+  it('POST dypos.client.get_value Item with filters returns mapped row or null', async () => {
+    const res = await call('POST', '/api/method/dypos.client.get_value', {
       token,
       body: {
         doctype: 'Item',
@@ -292,8 +292,8 @@ describe('/api/method — frappe.client get_list / get_value', () => {
     assert.ok(res.body.message === null || typeof res.body.message === 'object');
   });
 
-  it('POST frappe.client.get unknown doctype → 404 Frappe error', async () => {
-    const res = await call('POST', '/api/method/frappe.client.get', {
+  it('POST dypos.client.get unknown doctype → 404 DyPOS error', async () => {
+    const res = await call('POST', '/api/method/dypos.client.get', {
       token,
       body: { doctype: 'NoSuchDoctype', name: 'x' },
     });
@@ -311,7 +311,7 @@ describe('/api/method — items / customers / bootstrap (authed)', () => {
   };
 
   before(async () => {
-    await call('POST', '/api/method/frappe.auth.register', {
+    await call('POST', '/api/method/dypos.auth.register', {
       body: { ...user, role: 'CASHIER' },
     });
     const login = await call('POST', '/api/method/login', {
@@ -321,7 +321,7 @@ describe('/api/method — items / customers / bootstrap (authed)', () => {
     assert.ok(token);
   });
 
-  it('POST DyPOS.api.items.get_items returns array of Frappe-shaped items', async () => {
+  it('POST DyPOS.api.items.get_items returns array of method-shaped items', async () => {
     const res = await call('POST', '/api/method/DyPOS.api.items.get_items', {
       token,
       body: { limit: 10 },
@@ -385,14 +385,14 @@ describe('/api/method — items / customers / bootstrap (authed)', () => {
 
 describe('/api/method — error contract', () => {
   it('POST methods that throw mid-handler never hang (async catch)', async () => {
-    // login with empty body → validation Frappe error, not hang
+    // login with empty body → validation DyPOS error, not hang
     const res = await call('POST', '/api/method/login', { body: {} });
     assert.strictEqual(res.status, 400);
     assert.strictEqual(res.body.exc_type, 'ValidationError');
   });
 
-  it('frappeError responses always include _error_message', async () => {
-    const res = await call('POST', '/api/method/frappe.auth.register', {
+  it('methodError responses always include _error_message', async () => {
+    const res = await call('POST', '/api/method/dypos.auth.register', {
       body: { username: 'x', password: 'short' },
     });
     assert.strictEqual(res.status, 400);
@@ -413,7 +413,7 @@ describe('/api/method — invoices / shifts / customers / partials / offers / au
   before(async () => {
     // Earlier suite consumed bootstrap as CASHIER — register CASHIER here and
     // seed the product via REST only if we can (need ADMIN/MANAGER).
-    await call('POST', '/api/method/frappe.auth.register', {
+    await call('POST', '/api/method/dypos.auth.register', {
       body: { ...user, role: 'CASHIER' },
     });
     const login = await call('POST', '/api/method/login', {

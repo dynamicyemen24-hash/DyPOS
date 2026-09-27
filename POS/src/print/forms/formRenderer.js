@@ -26,7 +26,7 @@ const DOC_TYPE_TO_DOCTYPE = Object.freeze({
 	eod: "POS Closing Shift",
 })
 
-/** Map a spool docType to its Frappe register doctype. */
+/** Map a spool doc type to its registered doc type. */
 export function docTypeToDoctype(docType) {
 	return DOC_TYPE_TO_DOCTYPE[docType] || "Sales Invoice"
 }
@@ -249,7 +249,7 @@ function wrapDocument(innerHtml, { paper = "80mm", css = BUILT_IN_CSS } = {}) {
  */
 export async function fetchServerPrintHTML(doctype, name, printFormat) {
 	const { call } = await import("@/utils/apiWrapper")
-	const result = await call("frappe.www.printview.get_html_and_style", {
+	const result = await call("dypos.www.printview.get_html_and_style", {
 		doc: doctype,
 		name,
 		print_format: printFormat || "DyPOS Receipt",

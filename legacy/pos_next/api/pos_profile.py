@@ -2,17 +2,17 @@
 # For license information, please see license.txt
 
 
-import frappe
-from frappe import _
-from frappe.utils import cint
+import dypos
+from dyposimport _
+from dypos.utils import cint
 
 from DyPOS.api.utilities import _parse_list_parameter, check_user_company
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_pos_profiles():
 	"""Get all POS Profiles accessible by current user"""
-	pos_profiles = frappe.db.sql(
+	pos_profiles = dypos.db.sql(
 		"""
 		SELECT DISTINCT p.name, p.company, p.currency, p.warehouse,
 			p.selling_price_list, p.write_off_account, p.write_off_cost_center
@@ -21,27 +21,27 @@ def get_pos_profiles():
 		WHERE p.disabled = 0 AND u.user = %s
 		ORDER BY p.name
 		""",
-		frappe.session.user,
+		dypos.session.user,
 		as_dict=1,
 	)
 
 	return pos_profiles
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_pos_profile_data(pos_profile):
 	"""Get detailed POS Profile data with hierarchical item groups for instant UI rendering."""
 	if not pos_profile:
-		frappe.throw(_("POS Profile is required"))
+		dypos.throw(_("POS Profile is required"))
 
 	# Check if user has access to this POS Profile
-	has_access = frappe.db.exists("POS Profile User", {"parent": pos_profile, "user": frappe.session.user})
+	has_access = dypos.db.exists("POS Profile User", {"parent": pos_profile, "user": dypos.session.user})
 
 	if not has_access:
-		frappe.throw(_("You don't have access to this POS Profile"))
+		dypos.throw(_("You don't have access to this POS Profile"))
 
-	profile_doc = frappe.get_doc("POS Profile", pos_profile)
-	company_doc = frappe.get_doc("Company", profile_doc.company)
+	profile_doc = dypos.get_doc("POS Profile", pos_profile)
+	company_doc = dypos.get_doc("Company", profile_doc.company)
 
 	# Get POS Settings for this profile
 	pos_settings = get_pos_settings(pos_profile)
@@ -65,7 +65,7 @@ def get_pos_profile_data(pos_profile):
 	}
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_pos_settings(pos_profile):
 	"""Get POS Settings for a given POS Profile"""
 	from DyPOS.api.constants import DEFAULT_POS_SETTINGS, POS_SETTINGS_FIELDS
@@ -75,7 +75,7 @@ def get_pos_settings(pos_profile):
 
 	try:
 		# Get POS Settings linked to this POS Profile
-		pos_settings = frappe.db.get_value(
+		pos_settings = dypos.db.get_value(
 			"POS Settings", {"pos_profile": pos_profile, "enabled": 1}, POS_SETTINGS_FIELDS, as_dict=True
 		)
 
@@ -84,23 +84,23 @@ def get_pos_settings(pos_profile):
 
 		return pos_settings
 	except Exception:
-		frappe.log_error(frappe.get_traceback(), "Get POS Settings Error")
+		dypos.log_error(dypos.get_traceback(), "Get POS Settings Error")
 		return DEFAULT_POS_SETTINGS.copy()
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_payment_methods(pos_profile):
 	"""Get available payment methods from POS Profile with optimized queries"""
 	try:
 		# Validate pos_profile parameter
 		if not pos_profile:
-			frappe.throw(_("POS Profile is required"))
+			dypos.throw(_("POS Profile is required"))
 
 		# Get company from POS Profile
-		company = frappe.db.get_value("POS Profile", pos_profile, "company")
+		company = dypos.db.get_value("POS Profile", pos_profile, "company")
 
-		from frappe.query_builder import DocType
-		from frappe.query_builder.functions import Coalesce
+		from dypos.query_builder import DocType
+		from dypos.query_builder.functions import Coalesce
 
 		POSPaymentMethod = DocType("POS Payment Method")
 		ModeOfPayment = DocType("Mode of Payment")
@@ -109,7 +109,7 @@ def get_payment_methods(pos_profile):
 
 		# Single query with JOINs to get payment methods with type and account info
 		query = (
-			frappe.qb.from_(POSPaymentMethod)
+			dypos.qb.from_(POSPaymentMethod)
 			.left_join(ModeOfPayment)
 			.on(POSPaymentMethod.mode_of_payment == ModeOfPayment.name)
 			.left_join(ModeOfPaymentAccount)
@@ -133,11 +133,11 @@ def get_payment_methods(pos_profile):
 		payment_methods = query.run(as_dict=True)
 		return payment_methods
 	except Exception as e:
-		frappe.log_error(frappe.get_traceback(), "Get Payment Methods Error")
-		frappe.throw(_("Error fetching payment methods: {0}").format(str(e)))
+		dypos.log_error(dypos.get_traceback(), "Get Payment Methods Error")
+		dypos.throw(_("Error fetching payment methods: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_receivable_accounts(pos_profile):
 	"""Receivable accounts selectable for the "Pay on Receivable Account" feature.
 
@@ -147,21 +147,21 @@ def get_receivable_accounts(pos_profile):
 	for the profile, so the feature stays hidden behind the same gate.
 	"""
 	if not pos_profile:
-		frappe.throw(_("POS Profile is required"))
+		dypos.throw(_("POS Profile is required"))
 
-	company = frappe.db.get_value("POS Profile", pos_profile, "company")
+	company = dypos.db.get_value("POS Profile", pos_profile, "company")
 	if not company:
 		return []
 
 	allow_credit_sale = cint(
-		frappe.db.get_value("POS Settings", {"pos_profile": pos_profile}, "allow_credit_sale")
+		dypos.db.get_value("POS Settings", {"pos_profile": pos_profile}, "allow_credit_sale")
 	)
 	if not allow_credit_sale:
 		return []
 
-	default_ar = frappe.get_cached_value("Company", company, "default_receivable_account")
+	default_ar = dypos.get_cached_value("Company", company, "default_receivable_account")
 
-	accounts = frappe.get_all(
+	accounts = dypos.get_all(
 		"Account",
 		filters={
 			"company": company,
@@ -176,7 +176,7 @@ def get_receivable_accounts(pos_profile):
 	return [a for a in accounts if a.name != default_ar]
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_taxes(pos_profile):
 	"""Get tax configuration from POS Profile"""
 	try:
@@ -184,14 +184,14 @@ def get_taxes(pos_profile):
 			return []
 
 		# Get the POS Profile
-		profile_doc = frappe.get_cached_doc("POS Profile", pos_profile)
+		profile_doc = dypos.get_cached_doc("POS Profile", pos_profile)
 		taxes_and_charges = getattr(profile_doc, "taxes_and_charges", None)
 
 		if not taxes_and_charges:
 			return []
 
 		# Get the tax template
-		template_doc = frappe.get_cached_doc("Sales Taxes and Charges Template", taxes_and_charges)
+		template_doc = dypos.get_cached_doc("Sales Taxes and Charges Template", taxes_and_charges)
 
 		# Extract tax rows
 		taxes = []
@@ -209,12 +209,12 @@ def get_taxes(pos_profile):
 
 		return taxes
 	except Exception:
-		frappe.log_error(frappe.get_traceback(), "Get Taxes Error")
+		dypos.log_error(dypos.get_traceback(), "Get Taxes Error")
 		# Return empty array instead of throwing - taxes are optional
 		return []
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_warehouses(pos_profile):
 	"""Get all warehouses for the company in POS Profile"""
 	try:
@@ -222,13 +222,13 @@ def get_warehouses(pos_profile):
 			return []
 
 		# Get the company from POS Profile
-		company = frappe.db.get_value("POS Profile", pos_profile, "company")
+		company = dypos.db.get_value("POS Profile", pos_profile, "company")
 
 		if not company:
 			return []
 
 		# Get all active warehouses for the company
-		warehouses = frappe.get_list(
+		warehouses = dypos.get_list(
 			"Warehouse",
 			filters={"company": company, "disabled": 0, "is_group": 0},
 			fields=["name", "warehouse_name"],
@@ -239,11 +239,11 @@ def get_warehouses(pos_profile):
 		# Return warehouses with human-readable names
 		return warehouses
 	except Exception:
-		frappe.log_error(frappe.get_traceback(), "Get Warehouses Error")
+		dypos.log_error(dypos.get_traceback(), "Get Warehouses Error")
 		return []
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_default_customer(pos_profile):
 	"""Get the default customer configured in POS Profile"""
 	try:
@@ -251,11 +251,11 @@ def get_default_customer(pos_profile):
 			return {"customer": None}
 
 		# Get the default customer from POS Profile
-		default_customer = frappe.db.get_value("POS Profile", pos_profile, "customer")
+		default_customer = dypos.db.get_value("POS Profile", pos_profile, "customer")
 
 		if default_customer:
 			# Get customer details
-			customer_doc = frappe.get_doc("Customer", default_customer)
+			customer_doc = dypos.get_doc("Customer", default_customer)
 			return {
 				"customer": default_customer,
 				"customer_name": customer_doc.customer_name,
@@ -264,39 +264,39 @@ def get_default_customer(pos_profile):
 
 		return {"customer": None}
 	except Exception:
-		frappe.log_error(frappe.get_traceback(), "Get Default Customer Error")
+		dypos.log_error(dypos.get_traceback(), "Get Default Customer Error")
 		return {"customer": None}
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def update_warehouse(pos_profile, warehouse):
 	"""Update warehouse in POS Profile"""
 	try:
 		if not pos_profile:
-			frappe.throw(_("POS Profile is required"))
+			dypos.throw(_("POS Profile is required"))
 
 		if not warehouse:
-			frappe.throw(_("Warehouse is required"))
+			dypos.throw(_("Warehouse is required"))
 
 		# Check if user has access to this POS Profile
-		has_access = frappe.db.exists(
-			"POS Profile User", {"parent": pos_profile, "user": frappe.session.user}
+		has_access = dypos.db.exists(
+			"POS Profile User", {"parent": pos_profile, "user": dypos.session.user}
 		)
 
-		if not has_access and not frappe.has_permission("POS Profile", "write"):
-			frappe.throw(_("You don't have permission to update this POS Profile"))
+		if not has_access and not dypos.has_permission("POS Profile", "write"):
+			dypos.throw(_("You don't have permission to update this POS Profile"))
 
 		# Get POS Profile to check company
-		profile_doc = frappe.get_doc("POS Profile", pos_profile)
+		profile_doc = dypos.get_doc("POS Profile", pos_profile)
 
 		# Validate warehouse exists and is active
-		warehouse_doc = frappe.get_doc("Warehouse", warehouse)
+		warehouse_doc = dypos.get_doc("Warehouse", warehouse)
 		if warehouse_doc.disabled:
-			frappe.throw(_("Warehouse {0} is disabled").format(warehouse))
+			dypos.throw(_("Warehouse {0} is disabled").format(warehouse))
 
 		# Validate warehouse belongs to same company
 		if warehouse_doc.company != profile_doc.company:
-			frappe.throw(
+			dypos.throw(
 				_("Warehouse {0} belongs to {1}, but POS Profile belongs to {2}").format(
 					warehouse, warehouse_doc.company, profile_doc.company
 				)
@@ -308,11 +308,11 @@ def update_warehouse(pos_profile, warehouse):
 
 		return {"success": True, "message": _("Warehouse updated successfully"), "warehouse": warehouse}
 	except Exception as e:
-		frappe.log_error(frappe.get_traceback(), "Update Warehouse Error")
-		frappe.throw(_("Error updating warehouse: {0}").format(str(e)))
+		dypos.log_error(dypos.get_traceback(), "Update Warehouse Error")
+		dypos.throw(_("Error updating warehouse: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_wallet_payment_flags(methods):
 	"""
 	Get is_wallet_payment flags for multiple payment methods in a single query.
@@ -338,12 +338,12 @@ def get_wallet_payment_flags(methods):
 	if not isinstance(methods, list) or len(methods) == 0:
 		return {}
 
-	from frappe.query_builder import DocType
+	from dypos.query_builder import DocType
 
 	ModeOfPayment = DocType("Mode of Payment")
 
 	query = (
-		frappe.qb.from_(ModeOfPayment)
+		dypos.qb.from_(ModeOfPayment)
 		.select(ModeOfPayment.name, ModeOfPayment.is_wallet_payment)
 		.where(ModeOfPayment.name.isin(methods))
 	)
@@ -354,7 +354,7 @@ def get_wallet_payment_flags(methods):
 	return {r["name"]: r["is_wallet_payment"] or 0 for r in results}
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_sales_persons(pos_profile=None):
 	"""Get all active individual sales persons (not groups) for POS"""
 	try:
@@ -365,12 +365,12 @@ def get_sales_persons(pos_profile=None):
 
 		# If company is specified via POS Profile, filter by company (if Sales Person has company field)
 		if pos_profile:
-			company = frappe.db.get_value("POS Profile", pos_profile, "company")
+			company = dypos.db.get_value("POS Profile", pos_profile, "company")
 			# Check if Sales Person doctype has a company field
-			if frappe.db.has_column("Sales Person", "company") and company:
+			if dypos.db.has_column("Sales Person", "company") and company:
 				filters["company"] = company
 
-		sales_persons = frappe.get_list(
+		sales_persons = dypos.get_list(
 			"Sales Person",
 			filters=filters,
 			fields=["name", "sales_person_name", "commission_rate", "employee"],
@@ -380,11 +380,11 @@ def get_sales_persons(pos_profile=None):
 
 		return sales_persons
 	except Exception:
-		frappe.log_error(frappe.get_traceback(), "Get Sales Persons Error")
+		dypos.log_error(dypos.get_traceback(), "Get Sales Persons Error")
 		return []
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_create_pos_profile(*args, **kwargs):
 	"""
 	Get selection data for creating POS Profile
@@ -406,40 +406,40 @@ def get_create_pos_profile(*args, **kwargs):
 		user_company = check_user_company()
 		user_company = user_company.get("company")
 		if not user_company:
-			frappe.throw(_("User must have a company assigned"))
+			dypos.throw(_("User must have a company assigned"))
 
-		warehouses = frappe.get_list(
+		warehouses = dypos.get_list(
 			"Warehouse",
 			filters={"disabled": 0, "is_group": 0, "company": user_company},
 			fields=["name"],
 			order_by="name",
 		)
-		customers = frappe.get_list(
+		customers = dypos.get_list(
 			"Customer",
 			filters={"disabled": 0},
 		)
 
-		currencies = frappe.get_list(
+		currencies = dypos.get_list(
 			"Currency",
 			filters={"enabled": 1},
 			fields=["name", "currency_name", "symbol"],
 		)
 
-		payments = frappe.get_list("Mode of Payment")
+		payments = dypos.get_list("Mode of Payment")
 
 		posa_cash_mode_of_payment = payments
 
-		write_off_accounts = frappe.get_list(
+		write_off_accounts = dypos.get_list(
 			"Account",
 			filters={"report_type": "Profit and Loss", "disabled": 0, "is_group": 0, "company": user_company},
 		)
 
-		write_off_cost_centers = frappe.get_list(
+		write_off_cost_centers = dypos.get_list(
 			"Cost Center",
 			filters={"is_group": 0, "disabled": 0, "company": user_company},
 		)
 
-		applicable_for_users = frappe.get_list(
+		applicable_for_users = dypos.get_list(
 			"User",
 			filters={
 				"enabled": 1,
@@ -447,16 +447,16 @@ def get_create_pos_profile(*args, **kwargs):
 			fields=["name", "full_name"],
 			order_by="full_name",
 		)
-		item_groups = frappe.get_list(
+		item_groups = dypos.get_list(
 			"Item Group",
 			filters={"is_group": 0},
 		)
 
-		customer_groups = frappe.get_list(
+		customer_groups = dypos.get_list(
 			"Customer Group",
 			filters={"is_group": 0},
 		)
-		brands = frappe.get_list(
+		brands = dypos.get_list(
 			"Brand",
 			order_by="name",
 		)
@@ -480,10 +480,10 @@ def get_create_pos_profile(*args, **kwargs):
 		return data
 
 	except Exception as e:
-		frappe.throw(_("Error getting create POS profile: {0}").format(str(e)))
+		dypos.throw(_("Error getting create POS profile: {0}").format(str(e)))
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def create_pos_profile(*arg, **parameters):
 	"""
 	Create a new POS Profile
@@ -526,16 +526,16 @@ def create_pos_profile(*arg, **parameters):
 	user_company = user_company_data.get("company")
 
 	if not user_company:
-		frappe.throw(_("User must have a company assigned"))
+		dypos.throw(_("User must have a company assigned"))
 
-	pos_profile = frappe.new_doc("POS Profile")
+	pos_profile = dypos.new_doc("POS Profile")
 	pos_profile.company = user_company
 
 	pos_profile.update(parameters)
 
 	# Child tables
 	if not payments or len(payments) == 0:
-		frappe.throw(_("At least one payment method is required"))
+		dypos.throw(_("At least one payment method is required"))
 
 	for payment in payments:
 		if isinstance(payment, dict):
@@ -585,7 +585,7 @@ def create_pos_profile(*arg, **parameters):
 	return pos_profile
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def update_pos_profile(*args, **parameters):
 	"""
 	Update an existing POS Profile
@@ -608,7 +608,7 @@ def update_pos_profile(*args, **parameters):
 	customer_groups = _parse_list_parameter(customer_groups, "customer_groups")
 	brands = _parse_list_parameter(brands, "brands")
 
-	pos_profile = frappe.get_doc("POS Profile", pos_profile_name)
+	pos_profile = dypos.get_doc("POS Profile", pos_profile_name)
 
 	# Update main fields
 	if parameters:
@@ -676,19 +676,19 @@ def update_pos_profile(*args, **parameters):
 
 	# Invalidate cached POS filters so changes are reflected immediately in POS UI
 	try:
-		cache = frappe.cache()
+		cache = dypos.cache()
 		# Brands cache (used by DyPOS.api.items.get_brands)
 		cache.delete_value(f"pos_brands:{pos_profile.name}")
 		# Item groups cache (used by DyPOS.api.items.get_item_groups)
 		cache.delete_value(f"pos_item_groups:{pos_profile.name}")
 	except Exception:
 		# Cache invalidation issues should not block updating the POS Profile
-		frappe.log_error(frappe.get_traceback(), "POS Profile Cache Invalidation Error")
+		dypos.log_error(dypos.get_traceback(), "POS Profile Cache Invalidation Error")
 
 	return pos_profile
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def delete_pos_profile(pos_profile):
 	"""
 	Delete a POS Profile
@@ -696,5 +696,5 @@ def delete_pos_profile(pos_profile):
 	Args:
 		pos_profile: POS Profile name
 	"""
-	pos_profile = frappe.get_doc("POS Profile", pos_profile)
+	pos_profile = dypos.get_doc("POS Profile", pos_profile)
 	pos_profile.delete()

@@ -139,16 +139,16 @@ npx biome check ../e2e ../playwright.config.js
 
 ## Known gaps — blocking the UI e2e
 
-The POS frontend authenticates through the **Frappe ERPNext contract**, while
+The POS frontend authenticates through the **DyPOS method-router contract**, while
 the Node backend implements **REST JWT auth**. Grep-verified: the backend has
 **no** `/api/method/*` routes today. Endpoints the UI calls (from source):
 
 | Needed by | Path the SPA requests | Node backend today |
 |---|---|---|
-| Login (`stores/session.js` → frappe-ui resource `login`) | `POST /api/method/login` | `POST /api/auth/login` (REST) |
+| Login (`stores/session.js` → dypos-ui resource `login`) | `POST /api/method/login` | `POST /api/auth/login` (REST) |
 | CSRF readiness (`utils/csrf.js`) | `GET /api/method/DyPOS.api.utilities.get_csrf_token` | — |
 | Shift pre-check (`useShift.js`) | `POST /api/method/DyPOS.api.shifts.check_opening_shift` | `POST /api/shifts` (REST) |
-| Registration (`pages/Register.vue`) | Frappe register method | `POST /api/auth/register` (REST) |
+| Registration (`pages/Register.vue`) | registration method | `POST /api/auth/register` (REST) |
 
 Once the backend (orchestrator/server team) exposes these `/api/method/*`
 endpoints (thin adapters onto the existing REST handlers are sufficient),

@@ -7,7 +7,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from "vue"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 import { useHotkeys, POS_SHORTCUT_DEFAULTS } from "@/composables/useHotkeys"
 
 const showHelp = ref(false)

@@ -76,17 +76,17 @@
 6. Self-checkout on the same core (separate UX, shared services).
 7. Attendant/assistance console (local-first).
 8. Sync engine over `sync_queue`/`sync_metadata` (idempotent, ordered, observable).
-9. Delete compatibility shims (`adapters/frappe`, legacy `/api/method/*` paths)
+9. Delete compatibility shims (`adapters/dypos`, legacy `/api/method/*` paths)
    once no importer remains.
 
 ## Compatibility boundary (temporary)
 
 ```
-Legacy callers (frappe-ui call/createResource, /api/method/*)
+Legacy callers (dypos-ui call/createResource, /api/method/*)
   → apiEndpoints map + worker-api.js legacy paths
   → local application services
 ```
 
-Goal: zero Frappe runtime imports. UI-only `frappe-ui` component imports
+Goal: zero runtime framework imports. UI-only `dypos-ui` component imports
 (FeatherIcon etc.) are presentation-only and allowed until the design-system
 migration replaces them.

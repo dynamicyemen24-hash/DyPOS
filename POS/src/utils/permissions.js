@@ -1,7 +1,7 @@
 /**
  * POS operation permission registry.
  *
- * Maps high-level POS operations to Frappe doctype checks so the UI and the
+ * Maps high-level POS operations to doc-type checks so the UI and the
  * session bootstrap can reason about capabilities without hard-coding
  * doctypes everywhere. Pure module — no runtime dependencies.
  */

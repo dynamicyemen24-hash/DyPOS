@@ -53,7 +53,7 @@
 | **اختبارات الواجهة الأمامية** | 552/552 ✅ | Vitest + jsdom + Vue Test Utils |
 | **اختبارات الخادم** | 362/362 ✅ | Node.js test runner + SQLite |
 | **التدقيق الأمني (Biome)** | 0 تحذيرات ✅ | Frontend + Backend |
-| **فحص التبعيات (npm audit)** | High+ ✅ | CI gate مفعل — ثغرتان متوسطتان في `echarts` المتداخلة بـ `frappe-ui` مقبولتان رسميًا: غير موجودتين في حزمة الإنتاج (tree-shaken، مثبت بالبناء) وإصلاحهما يتطلب كسرًا رئيسيًا |
+| **فحص التبعيات (npm audit)** | High+ ✅ | CI gate مفعل — ثغرتان متوسطتان في `echarts` المتداخلة بـ `dypos-ui` مقبولتان رسميًا: غير موجودتين في حزمة الإنتاج (tree-shaken، مثبت بالبناء) وإصلاحهما يتطلب كسرًا رئيسيًا |
 | **Content Security Policy** | Strict ✅ | بدون `unsafe-inline`، Hash-based |
 | **Request Tracing** | مفعل ✅ | `X-Request-Id` عبر السلسلة الكاملة |
 | **Multi-Tenant Isolation** | Row-level ✅ | 404 على الوصول عبر المستأجرين |
@@ -278,7 +278,7 @@ DyPOS **نظام مستقل ولا يفرض نظامًا خارجيًا محدد
 
 | الطبقة | التقنيات |
 |--------|----------|
-| **Frontend** | Vue 3, Pinia, Vite, TypeScript, TailwindCSS, frappe-ui |
+| **Frontend** | Vue 3, Pinia, Vite, TypeScript, TailwindCSS, dypos-ui |
 | **PWA** | Workbox, Service Worker, IndexedDB (Dexie) |
 | **Backend** | Node.js 22+, Express, SQLite / Postgres, Zod |
 | **Auth** | JWT + HttpOnly Cookies + CSRF |
@@ -335,11 +335,11 @@ curl https://dypos.smartportssoft.com/assets/DyPOS/pos/version.json
 
 ## 🏢 الشركة المطورة
 
-**شركة المنافذ الذكية للبرمجيات**  
+**شركة المنافذ الذكية للبرمجيات**
 **Smart Ports Software**
 
 * **الموقع الرسمي:** https://smartportssoft.com/
-* **منصة Dycos:** https://dycos.smartportssoft.com/
-* **DyPOS Live:** https://dypos.smartportssoft.com/
+* **نظام التشغيل التجاري Dycos:** https://dycos.smartportssoft.com/
+* **DyPOS نظام نقاط البيع الذكي:** https://dypos.smartportssoft.com/
 
 © 2026 Smart Ports Software. All Rights Reserved.

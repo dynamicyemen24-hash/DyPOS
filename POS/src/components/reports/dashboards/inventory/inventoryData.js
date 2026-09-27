@@ -2,7 +2,8 @@
  * Inventory dashboard data layer.
  *
  * Fetches inventory/stock data and builds chart models for the
- * inventory dashboard. Uses standard ERPNext Stock doctypes.
+ * inventory dashboard, through the shared method-router client
+ * (`@/utils/methodClient`) so the same code path works standalone/offline.
  */
 import {
 	changePercent,
@@ -10,35 +11,10 @@ import {
 	trendOf,
 } from "../../core/formatters/reportFormatters"
 import { toISODate } from "../core/dashboardUtils"
+import { methodGetList } from "@/utils/methodClient"
 
-function frappeClient() {
-	if (
-		typeof window === "undefined" ||
-		!window.frappe ||
-		typeof window.frappe.call !== "function"
-	) {
-		throw new Error("Frappe API not available")
-	}
-	return window.frappe
-}
-
-async function getList(
-	doctype,
-	{ fields, filters = [], orderBy = null, limit = 0 } = {},
-) {
-	const frappe = frappeClient()
-	const response = await frappe.call({
-		method: "frappe.client.get_list",
-		args: {
-			doctype,
-			fields,
-			filters,
-			order_by: orderBy,
-			limit_page_length: limit,
-			limit_start: 0,
-		},
-	})
-	return response?.message || response || []
+async function getList(doctype, options = {}) {
+	return methodGetList(doctype, options)
 }
 
 function buildPeriodFilters(filter, dateField) {

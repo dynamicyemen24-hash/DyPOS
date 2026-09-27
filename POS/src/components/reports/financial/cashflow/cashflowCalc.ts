@@ -15,16 +15,18 @@ import type {
  * Internal transfers are excluded from both sides.
  */
 
-export function buildCashflowModel(payments): CashflowReportModel {
+export function buildCashflowModel(
+	payments: PaymentEntryFact[] = [],
+): CashflowReportModel {
 	const rows = payments || []
 	const inflowRows = rows.filter((row) => row.payment_type === "Receive")
 	const outflowRows = rows.filter((row) => row.payment_type === "Pay")
 
-	const inflow = inflowRows.reduce(
+	const inflow = inflowRows.reduce<number>(
 		(total, row) => total + (Number(row.received_amount) || 0),
 		0,
 	)
-	const outflow = outflowRows.reduce(
+	const outflow = outflowRows.reduce<number>(
 		(total, row) => total + (Number(row.paid_amount) || 0),
 		0,
 	)
@@ -54,9 +56,19 @@ export function buildCashflowModel(payments): CashflowReportModel {
 	}
 }
 
-function buildDailyRows(inflowRows, outflowRows): CashflowDailyRow[] {
-	const byDate = new Map()
-	const touch = (date) => {
+interface ModeBucket {
+	mode: string
+	inflow: number
+	outflow: number
+	net: number
+}
+
+function buildDailyRows(
+	inflowRows: PaymentEntryFact[],
+	outflowRows: PaymentEntryFact[],
+): CashflowDailyRow[] {
+	const byDate = new Map<string, CashflowDailyRow>()
+	const touch = (date: string | undefined | null): CashflowDailyRow | null => {
 		const key = String(date || "").slice(0, 10)
 		if (!key) return null
 		let bucket = byDate.get(key)
@@ -86,9 +98,13 @@ function buildDailyRows(inflowRows, outflowRows): CashflowDailyRow[] {
 	return daily
 }
 
-function buildModeRows(inflowRows, outflowRows, inflow): CashflowModeRow[] {
-	const byMode = new Map()
-	const touch = (mode) => {
+function buildModeRows(
+	inflowRows: PaymentEntryFact[],
+	outflowRows: PaymentEntryFact[],
+	inflow: number,
+): CashflowModeRow[] {
+	const byMode = new Map<string, ModeBucket>()
+	const touch = (mode: string | undefined | null): ModeBucket => {
 		const key = String(mode || "-")
 		let bucket = byMode.get(key)
 		if (!bucket) {

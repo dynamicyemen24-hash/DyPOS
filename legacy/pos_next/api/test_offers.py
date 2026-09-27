@@ -9,9 +9,9 @@ from DyPOS.api.offers import validate_coupon
 
 class TestValidateCoupon(unittest.TestCase):
 	# new_callable=MagicMock: some environments have unittest.mock auto-detect
-	# frappe.db as async and substitute an AsyncMock, which returns coroutines
+	# dypos.db as async and substitute an AsyncMock, which returns coroutines
 	# instead of the configured values. Force a plain MagicMock explicitly.
-	@patch("DyPOS.api.offers.frappe.db", new_callable=MagicMock)
+	@patch("DyPOS.api.offers.dypos.db", new_callable=MagicMock)
 	def test_coupons_not_enabled_takes_precedence_over_missing_customer(self, mock_db):
 		"""Table-existence must be checked before the customer requirement, so a
 		site without POS Coupon set up reports the accurate reason even when no
@@ -27,7 +27,7 @@ class TestValidateCoupon(unittest.TestCase):
 		for call in mock_db.get_value.call_args_list:
 			self.assertNotEqual(call.args[0] if call.args else None, "POS Coupon")
 
-	@patch("DyPOS.api.offers.frappe.db", new_callable=MagicMock)
+	@patch("DyPOS.api.offers.dypos.db", new_callable=MagicMock)
 	def test_missing_customer_is_rejected_with_friendly_message(self, mock_db):
 		"""No customer selected must return a clean message, not crash on the
 		coupon lookup (regression test for PN-77)."""
@@ -40,7 +40,7 @@ class TestValidateCoupon(unittest.TestCase):
 		for call in mock_db.get_value.call_args_list:
 			self.assertNotEqual(call.args[0] if call.args else None, "POS Coupon")
 
-	@patch("DyPOS.api.offers.frappe.db", new_callable=MagicMock)
+	@patch("DyPOS.api.offers.dypos.db", new_callable=MagicMock)
 	def test_empty_string_customer_is_also_rejected(self, mock_db):
 		"""The frontend sends '' rather than omitting the param — must be treated
 		the same as no customer at all."""
@@ -51,7 +51,7 @@ class TestValidateCoupon(unittest.TestCase):
 		self.assertFalse(result["valid"])
 		self.assertEqual(result["message"], "Please choose a customer")
 
-	@patch("DyPOS.api.offers.frappe.db", new_callable=MagicMock)
+	@patch("DyPOS.api.offers.dypos.db", new_callable=MagicMock)
 	def test_valid_customer_proceeds_to_coupon_lookup(self, mock_db):
 		mock_db.table_exists.return_value = True
 		mock_db.get_value.return_value = None  # coupon not found

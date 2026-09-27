@@ -28,7 +28,7 @@ export function usePermissions() {
 			}
 
 			// Call backend to check permission
-			const result = await call("frappe.client.has_permission", {
+			const result = await call("dypos.client.has_permission", {
 				doctype: doctype,
 				docname: docname || "",
 				perm_type: permType,

@@ -4,12 +4,12 @@
 
 import json
 
-import frappe
-from frappe import _
-from frappe.utils import cint
+import dypos
+from dyposimport _
+from dypos.utils import cint
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_csrf_token():
 	"""
 	Get CSRF token for the current session.
@@ -20,21 +20,21 @@ def get_csrf_token():
 	- Session must be valid
 	- User must be enabled
 	"""
-	if frappe.session.user == "Guest":
-		frappe.throw(_("Authentication required"), frappe.AuthenticationError)
+	if dypos.session.user == "Guest":
+		dypos.throw(_("Authentication required"), dypos.AuthenticationError)
 
-	if not frappe.db.get_value("User", frappe.session.user, "enabled"):
-		frappe.throw(_("User is disabled"), frappe.AuthenticationError)
+	if not dypos.db.get_value("User", dypos.session.user, "enabled"):
+		dypos.throw(_("User is disabled"), dypos.AuthenticationError)
 
-	if not frappe.session.sid or frappe.session.sid == "Guest":
-		frappe.throw(_("Invalid session"), frappe.AuthenticationError)
+	if not dypos.session.sid or dypos.session.sid == "Guest":
+		dypos.throw(_("Invalid session"), dypos.AuthenticationError)
 
-	csrf_token = frappe.sessions.get_csrf_token()
+	csrf_token = dypos.sessions.get_csrf_token()
 
 	if not csrf_token:
-		frappe.throw(_("Failed to generate CSRF token"), frappe.ValidationError)
+		dypos.throw(_("Failed to generate CSRF token"), dypos.ValidationError)
 
-	return {"csrf_token": csrf_token, "session_id": frappe.session.sid}
+	return {"csrf_token": csrf_token, "session_id": dypos.session.sid}
 
 
 def _parse_list_parameter(value, param_name="parameter"):
@@ -53,7 +53,7 @@ def _parse_list_parameter(value, param_name="parameter"):
 			value = value.strip()
 			return json.loads(value) if value else []
 		except json.JSONDecodeError as e:
-			frappe.throw(_("Could not parse '{0}' as JSON: {1}").format(param_name, str(e)))
+			dypos.throw(_("Could not parse '{0}' as JSON: {1}").format(param_name, str(e)))
 
 	if not isinstance(value, list):
 		return []
@@ -63,14 +63,14 @@ def _parse_list_parameter(value, param_name="parameter"):
 
 def check_user_company():
 	"""Check if the authenticated user has a company linked to them."""
-	user = frappe.session.user
+	user = dypos.session.user
 
-	permission = frappe.db.get_value(
+	permission = dypos.db.get_value(
 		"User Permission", {"user": user, "allow": "Company"}, ["for_value"], as_dict=True
 	)
 
 	if permission:
-		company_name = frappe.db.get_value("Company", permission.for_value, "company_name")
+		company_name = dypos.db.get_value("Company", permission.for_value, "company_name")
 		return {"has_company": True, "company": company_name or ""}
 
 	return {"has_company": False, "company": ""}
@@ -83,7 +83,7 @@ def get_wallet_payment_modes():
 	Returns:
 		list: List of Mode of Payment names with is_wallet_payment=1
 	"""
-	return frappe.get_all("Mode of Payment", filters={"is_wallet_payment": 1}, pluck="name")
+	return dypos.get_all("Mode of Payment", filters={"is_wallet_payment": 1}, pluck="name")
 
 
 def is_wallet_payment_mode(mode_of_payment):
@@ -99,4 +99,4 @@ def is_wallet_payment_mode(mode_of_payment):
 	if not mode_of_payment:
 		return False
 
-	return cint(frappe.get_cached_value("Mode of Payment", mode_of_payment, "is_wallet_payment"))
+	return cint(dypos.get_cached_value("Mode of Payment", mode_of_payment, "is_wallet_payment"))

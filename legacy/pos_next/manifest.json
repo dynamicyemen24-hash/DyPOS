@@ -21,7 +21,7 @@
   "exclude": [
     "DyPOS/tests/*"
   ],
-  "docs_app": "frappe",
+  "docs_app": "dypos",
   "sync_on_migrate": 1,
   "setup_wizard": "DyPOS.setup.setup_wizard",
   "after_install": "DyPOS.hooks.after_install",
@@ -31,7 +31,7 @@
   "webhooks": [],
   "ignored_apps": [],
   "required_apps": [
-    "frappe>=15.0.0",
+    "dypos>=15.0.0",
     "DyPOS>=15.0.0"
   ],
   "jinja": {

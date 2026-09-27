@@ -13,9 +13,9 @@ from DyPOS.api.customers import (
 
 
 class TestCustomersAPI(unittest.TestCase):
-	@patch("DyPOS.api.customers.frappe.logger")
-	@patch("DyPOS.api.customers.frappe.get_all")
-	@patch("DyPOS.api.customers.frappe.db")
+	@patch("DyPOS.api.customers.dypos.logger")
+	@patch("DyPOS.api.customers.dypos.get_all")
+	@patch("DyPOS.api.customers.dypos.db")
 	def test_get_customers_applies_search_term_filters(self, mock_db, mock_get_all, mock_logger):
 		mock_logger.return_value = Mock()
 		mock_get_all.return_value = []
@@ -35,7 +35,7 @@ class TestCustomersAPI(unittest.TestCase):
 			],
 		)
 
-	@patch("DyPOS.api.customers.frappe.db")
+	@patch("DyPOS.api.customers.dypos.db")
 	def test_get_default_loyalty_program_from_settings_uses_explicit_pos_profile(self, mock_db):
 		mock_db.get_value.return_value = "LOYALTY-A"
 
@@ -48,8 +48,8 @@ class TestCustomersAPI(unittest.TestCase):
 			"default_loyalty_program",
 		)
 
-	@patch("DyPOS.api.customers.frappe.get_cached_value")
-	@patch("DyPOS.api.customers.frappe.get_all")
+	@patch("DyPOS.api.customers.dypos.get_cached_value")
+	@patch("DyPOS.api.customers.dypos.get_all")
 	def test_get_default_loyalty_program_from_settings_skips_ambiguous_company_context(
 		self,
 		mock_get_all,
@@ -66,11 +66,11 @@ class TestCustomersAPI(unittest.TestCase):
 		self.assertIsNone(result)
 
 	@patch(
-		"DyPOS.api.customers.frappe.local",
+		"DyPOS.api.customers.dypos.local",
 		new=Mock(form_dict={"company": "Company A", "pos_profile": "POS-A"}),
 	)
 	@patch(
-		"DyPOS.api.customers.frappe.flags",
+		"DyPOS.api.customers.dypos.flags",
 		new=Mock(DyPOS_customer_company=None, DyPOS_customer_pos_profile=None),
 	)
 	def test_get_customer_assignment_context_uses_request_context(self):
@@ -80,12 +80,12 @@ class TestCustomersAPI(unittest.TestCase):
 		self.assertEqual(pos_profile, "POS-A")
 
 	@patch(
-		"DyPOS.api.customers.frappe.flags",
+		"DyPOS.api.customers.dypos.flags",
 		new=Mock(DyPOS_customer_company=None, DyPOS_customer_pos_profile=None),
 	)
-	@patch("DyPOS.api.customers.frappe.get_doc")
+	@patch("DyPOS.api.customers.dypos.get_doc")
 	@patch("DyPOS.api.customers.get_default_loyalty_program_from_settings")
-	@patch("DyPOS.api.customers.frappe.has_permission")
+	@patch("DyPOS.api.customers.dypos.has_permission")
 	def test_create_customer_uses_pos_profile_for_loyalty_assignment(
 		self,
 		mock_has_permission,

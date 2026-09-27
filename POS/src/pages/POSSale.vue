@@ -37,7 +37,7 @@ New Sale
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { useRouter } from "vue-router"
 
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 
 import POSHeader from "@/components/pos/POSHeader.vue"
 import SmartCashierDock from "@/components/pos/SmartCashierDock.vue"

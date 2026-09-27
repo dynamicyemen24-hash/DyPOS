@@ -1,9 +1,9 @@
 # Copyright (c) 2026, BrainWise and contributors
 # For license information, please see license.txt
 
-import frappe
-from frappe import _
-from frappe.utils import flt, get_datetime, time_diff_in_hours
+import dypos
+from dyposimport _
+from dypos.utils import flt, get_datetime, time_diff_in_hours
 
 
 def execute(filters=None):
@@ -85,7 +85,7 @@ def get_data(filters):
 			ois.synced_at DESC
 	"""
 
-	data = frappe.db.sql(query, filters, as_dict=1)
+	data = dypos.db.sql(query, filters, as_dict=1)
 
 	# Calculate metrics for each record
 	for row in data:
@@ -101,7 +101,7 @@ def get_data(filters):
 		if row.status == "Failed":
 			row.health_status = "🔴 Failed"
 			# Try to get error from error log
-			error_log = frappe.db.get_value(
+			error_log = dypos.db.get_value(
 				"Error Log",
 				{"reference_doctype": "Offline Invoice Sync", "reference_name": row.offline_id},
 				"error",

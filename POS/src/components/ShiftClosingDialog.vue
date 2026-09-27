@@ -1048,7 +1048,7 @@
 </template>
 
 <script setup>
-import { Button, Dialog, FeatherIcon, Input } from "frappe-ui"
+import { Button, Dialog, FeatherIcon, Input } from "dypos-ui"
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue"
 import { storeToRefs } from "pinia"
 import { useShift, shiftState } from "../composables/useShift"

@@ -82,7 +82,7 @@ npm run e2e:royal       # 14-check proof: login→shift→sale→pay→stock→v
 ## Version Info (حالي)
 - **Version:** `1.37.0` (single source: root `package.json`)
 - **Date:** September 24, 2026
-- **Framework:** Vue 3 + Chart.js + frappe-ui
+- **Framework:** Vue 3 + Chart.js + dypos-ui
 - **PWA:** Yes (SW root scope via Worker assets)
 - **Deploy:** push to `main` → GitHub Actions → `wrangler deploy` → live verify
 - **Live:** `https://dypos.smartportssoft.com/` serves Worker `dypos-pos`

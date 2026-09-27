@@ -148,7 +148,7 @@
 
 <script setup>
 import { ref, watch, nextTick } from "vue"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 import { useSessionLock } from "@/composables/useSessionLock"
 import { useOfflineStatus } from "@/composables/useOfflineStatus"
 import { session as piniaSession } from "@/stores/session"

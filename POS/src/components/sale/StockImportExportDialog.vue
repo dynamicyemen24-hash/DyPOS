@@ -99,7 +99,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from "vue"
-import { Badge, Button, FeatherIcon, LoadingIndicator } from "frappe-ui"
+import { Badge, Button, FeatherIcon, LoadingIndicator } from "dypos-ui"
 import { useToast } from "@/composables/useToast"
 import { apiGet, apiPost, apiPostRaw, apiDownload } from "@/utils/restApi"
 import { logger } from "@/utils/logger"

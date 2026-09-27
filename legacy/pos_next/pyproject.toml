@@ -7,7 +7,7 @@ license = {text = "AGPL-3.0"}
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "frappe>=15.0.0",
+    "dypos>=15.0.0",
     "DyPOS>=15.0.0",
 ]
 

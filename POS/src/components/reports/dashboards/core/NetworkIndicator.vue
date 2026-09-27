@@ -7,7 +7,7 @@
 
 <script setup>
 import { useNetworkIndicator } from "@/composables/useNetworkIndicator"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 
 const { quality, isOnline, latency, config } = useNetworkIndicator()
 </script>

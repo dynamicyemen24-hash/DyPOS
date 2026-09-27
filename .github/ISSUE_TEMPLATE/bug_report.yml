@@ -157,9 +157,9 @@ body:
       required: false
 
   - type: input
-    id: frappe-version
+    id: dypos-version
     attributes:
-      label: Frappe Framework Version
+      label: DyPOS Version
       description: |
         Run `bench version` in your terminal to get this.
       placeholder: "e.g., 15.0.0"
@@ -227,11 +227,11 @@ body:
     id: deployment
     attributes:
       label: Deployment Type
-      description: How is your Frappe/DyPOS instance deployed?
+      description: How is your DyPOS instance deployed?
       options:
         - Self-hosted (Production)
         - Self-hosted (Development)
-        - Frappe Cloud
+        - Cloud
         - Docker
         - Other Cloud Provider
     validations:
@@ -286,7 +286,7 @@ body:
       description: |
         If this is a server-side error, please include relevant logs from:
         - `bench --site [sitename] console`
-        - `tail -f logs/frappe.log`
+        - `tail -f logs/dypos.log`
         - `tail -f logs/web.error.log`
       placeholder: |
         ```

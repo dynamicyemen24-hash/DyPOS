@@ -732,8 +732,8 @@ import {
 	FormControl,
 	LoadingIndicator,
 	createResource,
-} from "frappe-ui"
-import { FeatherIcon } from "frappe-ui"
+} from "dypos-ui"
+import { FeatherIcon } from "dypos-ui"
 import { storeToRefs } from "pinia"
 import { computed, onMounted, ref, watch } from "vue"
 import TranslatedHTML from "../common/TranslatedHTML.vue"
@@ -881,7 +881,7 @@ const couponDetailsResource = createResource({
 })
 
 const campaignsResource = createResource({
-	url: "frappe.client.get_list",
+	url: "dypos.client.get_list",
 	makeParams() {
 		return {
 			doctype: "Campaign",

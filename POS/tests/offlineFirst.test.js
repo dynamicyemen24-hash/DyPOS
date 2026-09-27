@@ -2,7 +2,7 @@
  * Offline-first regression gate.
  *
  * Locks in the v1.37.0 upgrade campaign guarantees:
- * 1. apiEndpoints: canonical /api/* paths (never /api/method/* Frappe paths).
+ * 1. apiEndpoints: canonical /api/* paths (never /api/method/* paths).
  * 2. useSessionTimeout: no auto-start on mount — the session-expiry popup
  *    must never appear on guest pages (Login/Register/Forgot/Reset).
  * 3. translate(): Arabic source-string fallback with zero network.
@@ -11,7 +11,7 @@ import { createPinia, setActivePinia } from "pinia"
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest"
 
 // Isolate the composable from the session store chain (which pulls the
-// Frappe UI package — unrelated to session-timeout logic under test).
+// DyPOS UI package — unrelated to session-timeout logic under test).
 vi.mock("@/stores/session", () => ({
 	session: { isLoggedIn: false },
 }))
@@ -21,7 +21,7 @@ import { useSessionTimeout } from "@/composables/useSessionTimeout"
 import { translate } from "@/utils/translation"
 
 describe("apiEndpoints (canonical offline-first map)", () => {
-	it("uses /api/* paths, never Frappe /api/method/* paths", () => {
+	it("uses /api/* paths, never dypos/api/method/* paths", () => {
 		const seen = []
 		const walk = (node) => {
 			if (typeof node === "string") {

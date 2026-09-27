@@ -1,4 +1,4 @@
-import { call as frappeCall } from "frappe-ui"
+import { call as apiCall } from "dypos-ui"
 
 import { forceRefreshCSRFToken, isCSRFApiError } from "./csrf"
 import {
@@ -99,9 +99,9 @@ export async function call(method, params, opts = {}) {
 		dedupeInFlight(idempotencyKey || "", async () => {
 			if (isDefinitelyOffline()) throw offlineError(method)
 			try {
-				// Pass request ID via headers option to frappeCall
+				// Pass request ID via headers option to apiCall
 				const result = await withTimeout(
-					frappeCall(method, params, {
+					apiCall(method, params, {
 						headers: {
 							"X-Request-Id": requestId,
 						},
@@ -120,7 +120,7 @@ export async function call(method, params, opts = {}) {
 					if (refreshed) {
 						log.debug("Retrying call after CSRF refresh", { method, requestId })
 						return await withTimeout(
-							frappeCall(method, params, {
+							apiCall(method, params, {
 								headers: {
 									"X-Request-Id": requestId,
 								},

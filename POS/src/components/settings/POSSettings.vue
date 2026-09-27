@@ -1534,7 +1534,7 @@ import CheckboxField from "@/components/settings/CheckboxField.vue"
 import NumberField from "@/components/settings/NumberField.vue"
 import SelectField from "@/components/settings/SelectField.vue"
 import { useToast } from "@/composables/useToast"
-import { Button, call, createResource } from "frappe-ui"
+import { Button, call, createResource } from "dypos-ui"
 import { computed, onMounted, onUnmounted, ref, watch } from "vue"
 import {
 	getSectionHeaderClasses,
@@ -1827,7 +1827,7 @@ async function loadSettings() {
 			pos_profile: props.posProfile,
 		})
 
-		// Handle frappe-ui call response format { message: [...] }
+		// Handle dypos-ui call response format { message: [...] }
 		warehousesList.value = warehousesData?.message || warehousesData || []
 
 		// Load settings

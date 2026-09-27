@@ -18,7 +18,7 @@ const log = logger.create("Socket")
  * - Expose connection state without coupling business logic.
  * - Prevent duplicate initialization/listeners.
  * - Work safely during SSR/build/test environments.
- * - Preserve Frappe/Bench compatibility.
+ * - Preserve desk-compat behaviour for embedded hosts.
  *
  * This module intentionally does NOT contain business events.
  *
@@ -106,13 +106,13 @@ function isDevelopment() {
 /* Safe runtime access                                                        */
 /* -------------------------------------------------------------------------- */
 
-function getFrappeBoot() {
+function getRuntimeBoot() {
 	if (!isBrowser()) {
 		return null
 	}
 
 	try {
-		return window.frappe?.boot || null
+		return window.dypos?.boot || null
 	} catch {
 		return null
 	}
@@ -127,7 +127,7 @@ function getRuntimeSiteName(siteNameOverride) {
 		return null
 	}
 
-	const boot = getFrappeBoot()
+	const boot = getRuntimeBoot()
 
 	return (
 		window.site_name ||
@@ -145,7 +145,7 @@ function getConfiguredPort() {
 		return envPort
 	}
 
-	const bootPort = Number(getFrappeBoot()?.socketio_port)
+	const bootPort = Number(getRuntimeBoot()?.socketio_port)
 
 	if (Number.isInteger(bootPort) && bootPort > 0 && bootPort <= 65535) {
 		return bootPort
@@ -180,10 +180,10 @@ function resolveSocketUrl(siteNameOverride) {
 	const siteName = getRuntimeSiteName(siteNameOverride)
 
 	if (!siteName) {
-		throw new Error("Unable to determine Frappe site name for Socket.IO")
+		throw new Error("Unable to determine the site name for Socket.IO")
 	}
 
-	const boot = getFrappeBoot()
+	const boot = getRuntimeBoot()
 
 	const configuredUrl =
 		import.meta.env?.VITE_SOCKETIO_URL ||

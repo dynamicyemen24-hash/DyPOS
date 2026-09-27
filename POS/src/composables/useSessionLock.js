@@ -102,7 +102,7 @@ async function hashPassword(password, existingSalt = null) {
 }
 
 function getCurrentUserId() {
-	return userData.userId || window.frappe?.session?.user || null
+	return userData.userId || window.dypos?.session?.user || null
 }
 
 function cachePasswordHash(user, hash, salt) {
@@ -391,7 +391,7 @@ async function unlock(password) {
 	} catch (error) {
 		const httpStatus = error?.status
 
-		// Session expired — 401 or 403 from Frappe's session middleware
+		// Session expired — 401 or 403 from the session middleware
 		if (httpStatus === 401 || httpStatus === 403) {
 			isVerifying.value = false
 			return { sessionExpired: true }

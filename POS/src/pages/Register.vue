@@ -7,7 +7,7 @@
   المسؤوليات:
   - Subscriber registration UI
   - Form validation (Arabic)
-  - API registration via Frappe
+  - API registration via the method router
   - Success/error feedback
   - Navigation back to login
 
@@ -18,7 +18,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from "vue"
 
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 
 import DyPOSLogo from "@/assets/DyPOSLogo.png"
 import smartPortsBg from "@/assets/smart-ports-og.jpg"

@@ -33,7 +33,7 @@ updates:
         patterns:
           - "vue*"
           - "pinia*"
-          - "frappe-ui*"
+          - "vue-router*"
           - "dexie*"
           - "chart*"
           - "socket.io*"

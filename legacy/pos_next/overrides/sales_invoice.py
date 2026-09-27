@@ -7,10 +7,10 @@ Handles wallet payments that require party information for Receivable accounts.
 
 """
 
-import frappe
+import dypos
 from DyPOS.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
 from DyPOS.accounts.utils import get_account_currency
-from frappe.utils import cint, flt
+from dypos.utils import cint, flt
 
 
 def _find_paid_bundle_row_for_free(si_doc, free_row):
@@ -67,16 +67,16 @@ def _get_post_change_gl_entries_setting():
 		int: 1 if post_change_gl_entries is enabled, 0 otherwise (default: 0)
 	"""
 	# Check if field exists in Accounts Settings schema (v15)
-	meta = frappe.get_meta("Accounts Settings")
+	meta = dypos.get_meta("Accounts Settings")
 	if meta.has_field("post_change_gl_entries"):
-		value = frappe.db.get_single_value("Accounts Settings", "post_change_gl_entries")
+		value = dypos.db.get_single_value("Accounts Settings", "post_change_gl_entries")
 		return cint(value) if value is not None else 0
 
 	# For v16, read directly from Singles table using Query Builder to avoid ORM issues
 	# DyPOS's POS Settings is a singleton, data stored in Singles table
-	Singles = frappe.qb.DocType("Singles")
+	Singles = dypos.qb.DocType("Singles")
 	result = (
-		frappe.qb.from_(Singles)
+		dypos.qb.from_(Singles)
 		.select(Singles.value)
 		.where(Singles.doctype == "POS Settings")
 		.where(Singles.field == "post_change_gl_entries")
@@ -201,7 +201,7 @@ class CustomSalesInvoice(SalesInvoice):
 		returns Customer as party_type and the invoice customer as party.
 		For regular payments, returns empty strings.
 		"""
-		is_wallet_mode_of_payment = frappe.db.get_value(
+		is_wallet_mode_of_payment = dypos.db.get_value(
 			"Mode of Payment", mode_of_payment, "is_wallet_payment"
 		)
 
@@ -231,7 +231,7 @@ class CustomSalesInvoice(SalesInvoice):
 		for pi in self.get("packed_items"):
 			if pi.get("serial_and_batch_bundle"):
 				continue
-			tracking = frappe.get_cached_value(
+			tracking = dypos.get_cached_value(
 				"Item",
 				pi.item_code,
 				["has_batch_no", "has_serial_no"],

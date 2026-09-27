@@ -222,7 +222,7 @@
 
 <script setup>
 import { useCustomerSearchStore } from "@/stores/customerSearch"
-import { Button, Dialog } from "frappe-ui"
+import { Button, Dialog } from "dypos-ui"
 import { storeToRefs } from "pinia"
 import { computed, nextTick, onMounted, ref, watch } from "vue"
 import CreateCustomerDialog from "./CreateCustomerDialog.vue"

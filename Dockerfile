@@ -7,7 +7,7 @@ COPY POS/package*.json ./
 RUN npm ci 2>/dev/null || npm install --no-audit --no-fund
 
 COPY POS/ ./
-# Build output goes to /app/DyPOS/public/pos (see POS/vite.config.js outDir)
+# Build output goes to /app/pos-src/dist/pos (see POS/vite.config.js OUT_DIR)
 RUN npm run build
 
 # ── Production stage (backend) ──
@@ -17,7 +17,7 @@ WORKDIR /app
 # tini = proper PID1 (reaps zombies, forwards SIGTERM for graceful shutdown)
 RUN apk add --no-cache tini \
  && addgroup -S dypos && adduser -S -G dypos dypos \
- && mkdir -p /app/data /app/DyPOS/public/pos && chown -R dypos:dypos /app
+ && mkdir -p /app/data /app/POS/dist/pos && chown -R dypos:dypos /app
 
 # Copy backend (server/package.json pins engines: node>=22.5 for node:sqlite)
 COPY server/package*.json ./server/
@@ -28,8 +28,8 @@ WORKDIR /app
 COPY server/ ./server/
 
 # Copy built frontend from builder stage
-COPY --from=frontend-builder /app/DyPOS/public/pos/ ./DyPOS/public/pos/
-RUN chown -R dypos:dypos /app/DyPOS
+COPY --from=frontend-builder /app/pos-src/dist/pos/ ./POS/dist/pos/
+RUN chown -R dypos:dypos /app/POS
 
 # Production defaults (override via environment / compose)
 ENV NODE_ENV=production

@@ -22,7 +22,7 @@
 
 <script setup>
 import { computed } from "vue"
-import { FeatherIcon } from "frappe-ui"
+import { FeatherIcon } from "dypos-ui"
 import DyCard from "@/components/ui/DyCard.vue"
 
 const props = defineProps({

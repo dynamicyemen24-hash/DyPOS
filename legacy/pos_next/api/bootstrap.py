@@ -24,15 +24,15 @@ Data Returned:
 Performance: ~300-500ms faster than multiple API calls
 """
 
-import frappe
-from frappe import _
-from frappe.query_builder import DocType
-from frappe.query_builder.functions import Coalesce
+import dypos
+from dyposimport _
+from dypos.query_builder import DocType
+from dypos.query_builder.functions import Coalesce
 
 from DyPOS.api.constants import DEFAULT_POS_SETTINGS, POS_SETTINGS_FIELDS
 
 
-@frappe.whitelist()
+@dypos.whitelist()
 def get_initial_data():
 	"""
 	Fetch all initial data needed for POS application startup.
@@ -56,15 +56,15 @@ def get_initial_data():
 	Raises:
 		AuthenticationError: If user is not logged in (Guest)
 	"""
-	if frappe.session.user == "Guest":
-		frappe.throw(_("Authentication required"), frappe.AuthenticationError)
+	if dypos.session.user == "Guest":
+		dypos.throw(_("Authentication required"), dypos.AuthenticationError)
 
 	result = {
 		"success": True,
-		"site_name": frappe.local.site,
+		"site_name": dypos.local.site,
 		"locale": _get_user_language(),
 		"precision": _get_precision_settings(),
-		"can_switch_to_desk": "Nexus POS Manager" in frappe.get_roles(),
+		"can_switch_to_desk": "Nexus POS Manager" in dypos.get_roles(),
 		"shift": None,
 		"pos_profile": None,
 		"pos_settings": None,
@@ -120,7 +120,7 @@ def _get_user_language():
 	Returns:
 		str: Language code in lowercase (e.g., "en", "ar", "de")
 	"""
-	lang = frappe.db.get_value("User", frappe.session.user, "language")
+	lang = dypos.db.get_value("User", dypos.session.user, "language")
 	return (lang or "en").lower()
 
 
@@ -139,7 +139,7 @@ def _get_precision_settings():
 			number_format: str - Number format pattern (e.g., "#,###.##")
 		}
 	"""
-	settings = frappe.db.get_value(
+	settings = dypos.db.get_value(
 		"System Settings",
 		"System Settings",
 		["currency_precision", "float_precision", "rounding_method", "number_format"],
@@ -171,10 +171,10 @@ def _get_open_shift():
 				pos_profile_doc: Document
 			}
 	"""
-	shift = frappe.db.get_value(
+	shift = dypos.db.get_value(
 		"POS Opening Shift",
 		{
-			"user": frappe.session.user,
+			"user": dypos.session.user,
 			"pos_closing_shift": ["is", "not set"],
 			"docstatus": 1,
 			"status": "Open",
@@ -188,7 +188,7 @@ def _get_open_shift():
 		return None
 
 	# Fetch POS Profile once, reuse throughout bootstrap
-	shift["pos_profile_doc"] = frappe.get_doc("POS Profile", shift["pos_profile"])
+	shift["pos_profile_doc"] = dypos.get_doc("POS Profile", shift["pos_profile"])
 	return shift
 
 
@@ -208,7 +208,7 @@ def _get_pos_settings(pos_profile_doc):
 	"""
 	try:
 		settings = (
-			frappe.db.get_value(
+			dypos.db.get_value(
 				"POS Settings",
 				{"pos_profile": pos_profile_doc.name, "enabled": 1},
 				POS_SETTINGS_FIELDS,
@@ -225,7 +225,7 @@ def _get_pos_settings(pos_profile_doc):
 
 		return settings
 	except Exception:
-		frappe.log_error(frappe.get_traceback(), "Get POS Settings Error")
+		dypos.log_error(dypos.get_traceback(), "Get POS Settings Error")
 		return DEFAULT_POS_SETTINGS.copy()
 
 
@@ -251,7 +251,7 @@ def _get_payment_methods(pos_profile_name):
 		ModeOfPayment = DocType("Mode of Payment")
 
 		return (
-			frappe.qb.from_(POSPaymentMethod)
+			dypos.qb.from_(POSPaymentMethod)
 			.left_join(ModeOfPayment)
 			.on(POSPaymentMethod.mode_of_payment == ModeOfPayment.name)
 			.select(
@@ -265,5 +265,5 @@ def _get_payment_methods(pos_profile_name):
 			.run(as_dict=True)
 		)
 	except Exception:
-		frappe.log_error(frappe.get_traceback(), "Get Payment Methods Error")
+		dypos.log_error(dypos.get_traceback(), "Get Payment Methods Error")
 		return []

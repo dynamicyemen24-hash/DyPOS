@@ -43,7 +43,7 @@ Feature: EOD shift report print on closing shift
 
 - Update `DyPOS/DyPOS/doctype/pos_closing_shift/pos_closing_shift.js`
   - on submitted docs add custom button `Print EOD Report` under `Print`
-  - call `frappe.utils.print` using `DyPOS EOD Report`
+  - call `dypos.utils.print` using `DyPOS EOD Report`
 
 ### 6) POS Frontend Auto-Print + Retry
 

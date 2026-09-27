@@ -1,6 +1,6 @@
 # POS Next Pro - Reports Documentation
 
-This directory contains the reporting modules for POS Next Pro. All reports are implemented as Frappe Script Reports and are accessible from the Frappe Desk.
+This directory contains the reporting modules for POS Next Pro. All reports are implemented as dyposScript Reports and are accessible from the dyposDesk.
 
 ## Available Reports
 
@@ -217,7 +217,7 @@ Each report follows this structure:
 ```
 report_name/
 ├── __init__.py                  # Module initialization
-├── report_name.json            # Report metadata (Frappe DocType)
+├── report_name.json            # Report metadata (dyposDocType)
 ├── report_name.py              # Python backend logic
 └── report_name.js              # Frontend filters and formatting
 ```
@@ -243,7 +243,7 @@ Each JS file configures:
 ### Database Access
 
 Reports use:
-- **Frappe ORM**: For simple queries
+- **dyposORM**: For simple queries
 - **SQL queries**: For complex joins and aggregations
 - **Query Builder**: For type-safe query construction
 
@@ -271,7 +271,7 @@ All reports are accessible to users with the following roles:
 
 ### Accessing Reports
 
-1. Navigate to **Frappe Desk**
+1. Navigate to **dyposDesk**
 2. Go to **Reports** in the sidebar
 3. Select the desired report from the list
 4. Apply filters as needed
@@ -338,7 +338,7 @@ for row in data:
 ### Reports Not Appearing
 
 ```bash
-cd /home/ubuntu/frappe-bench
+cd /home/ubuntu/dypos-bench
 bench --site [site-name] clear-cache
 bench build --app DyPOS
 ```

@@ -4,7 +4,7 @@ Uninstallation hooks for POS Next
 
 import logging
 
-import frappe
+import dypos
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -28,14 +28,14 @@ def before_uninstall():
 		reset_pos_profiles()
 
 		# Commit all changes
-		frappe.db.commit()
+		dypos.db.commit()
 
 		log_message("POS Next uninstalled successfully", level="success")
 		log_message("All custom fields and configurations have been removed", level="info")
 
 	except Exception as e:
-		frappe.db.rollback()
-		frappe.log_error(title="POS Next Uninstallation Error", message=frappe.get_traceback())
+		dypos.db.rollback()
+		dypos.log_error(title="POS Next Uninstallation Error", message=dypos.get_traceback())
 		log_message(f"Error during POS Next uninstallation: {e!s}", level="error")
 		raise
 
@@ -58,8 +58,8 @@ def remove_custom_fields():
 
 		for field_name in custom_fields:
 			try:
-				if frappe.db.exists("Custom Field", field_name):
-					frappe.delete_doc("Custom Field", field_name, force=True, ignore_permissions=True)
+				if dypos.db.exists("Custom Field", field_name):
+					dypos.delete_doc("Custom Field", field_name, force=True, ignore_permissions=True)
 					log_message(f"Removed Custom Field: {field_name}", level="info", indent=1)
 					removed_count += 1
 				else:
@@ -75,7 +75,7 @@ def remove_custom_fields():
 
 	except Exception as e:
 		log_message(f"Error removing custom fields: {e!s}", level="error")
-		frappe.log_error(title="Custom Fields Removal Error", message=frappe.get_traceback())
+		dypos.log_error(title="Custom Fields Removal Error", message=dypos.get_traceback())
 
 
 def remove_print_formats():
@@ -96,9 +96,9 @@ def remove_print_formats():
 
 		for format_name in print_formats:
 			try:
-				if frappe.db.exists("Print Format", format_name):
+				if dypos.db.exists("Print Format", format_name):
 					# Check if it's being used by any POS Profile
-					pos_profiles_using = frappe.get_all(
+					pos_profiles_using = dypos.get_all(
 						"POS Profile", filters={"print_format": format_name}, fields=["name"]
 					)
 
@@ -106,7 +106,7 @@ def remove_print_formats():
 						# Reset those POS Profiles first
 						for profile in pos_profiles_using:
 							try:
-								doc = frappe.get_doc("POS Profile", profile.name)
+								doc = dypos.get_doc("POS Profile", profile.name)
 								doc.print_format = ""
 								doc.flags.ignore_permissions = True
 								doc.save()
@@ -123,7 +123,7 @@ def remove_print_formats():
 								)
 
 					# Now delete the print format
-					frappe.delete_doc("Print Format", format_name, force=True, ignore_permissions=True)
+					dypos.delete_doc("Print Format", format_name, force=True, ignore_permissions=True)
 					log_message(f"Removed Print Format: {format_name}", level="info", indent=1)
 					removed_count += 1
 				else:
@@ -139,7 +139,7 @@ def remove_print_formats():
 
 	except Exception as e:
 		log_message(f"Error removing print formats: {e!s}", level="error")
-		frappe.log_error(title="Print Formats Removal Error", message=frappe.get_traceback())
+		dypos.log_error(title="Print Formats Removal Error", message=dypos.get_traceback())
 
 
 def reset_pos_profiles():
@@ -150,7 +150,7 @@ def reset_pos_profiles():
 		log_message("Resetting POS Profile configurations", level="info")
 
 		# Find POS Profiles using POS Next print format
-		pos_profiles = frappe.get_all(
+		pos_profiles = dypos.get_all(
 			"POS Profile", filters={"print_format": "POS Next Receipt"}, fields=["name"]
 		)
 
@@ -161,7 +161,7 @@ def reset_pos_profiles():
 		reset_count = 0
 		for profile in pos_profiles:
 			try:
-				doc = frappe.get_doc("POS Profile", profile.name)
+				doc = dypos.get_doc("POS Profile", profile.name)
 				doc.print_format = ""
 				doc.flags.ignore_permissions = True
 				doc.flags.ignore_mandatory = True
@@ -176,7 +176,7 @@ def reset_pos_profiles():
 
 	except Exception as e:
 		log_message(f"Error resetting POS Profiles: {e!s}", level="error")
-		frappe.log_error(title="POS Profile Reset Error", message=frappe.get_traceback())
+		dypos.log_error(title="POS Profile Reset Error", message=dypos.get_traceback())
 
 
 def log_message(message, level="info", indent=0):
@@ -204,7 +204,7 @@ def log_message(message, level="info", indent=0):
 	# Print to console
 	print(formatted_message)
 
-	# Also log to frappe logger with appropriate level
+	# Also log to dyposlogger with appropriate level
 	if level == "error":
 		logger.error(message)
 	elif level == "warning":

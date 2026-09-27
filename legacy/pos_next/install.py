@@ -13,7 +13,7 @@ This module handles post-fixture tasks like setting defaults and clearing cache.
 
 import logging
 
-import frappe
+import dypos
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -28,13 +28,13 @@ def after_install():
 		setup_default_print_format()
 
 		# Clear cache to ensure changes take effect
-		frappe.clear_cache()
-		frappe.db.commit()
+		dypos.clear_cache()
+		dypos.db.commit()
 
 		log_message("POS Next: Installation completed successfully", level="success")
 	except Exception as e:
-		frappe.db.rollback()
-		frappe.log_error(title="POS Next Installation Error", message=frappe.get_traceback())
+		dypos.db.rollback()
+		dypos.log_error(title="POS Next Installation Error", message=dypos.get_traceback())
 		log_message(f"POS Next: Installation error - {e!s}", level="error")
 		raise
 
@@ -52,13 +52,13 @@ def after_migrate():
 		setup_default_print_format(quiet=True)
 
 		# Clear cache
-		frappe.clear_cache()
-		frappe.db.commit()
+		dypos.clear_cache()
+		dypos.db.commit()
 
 		log_message("POS Next: Migration completed successfully", level="success")
 	except Exception as e:
-		frappe.db.rollback()
-		frappe.log_error(title="POS Next Migration Error", message=frappe.get_traceback())
+		dypos.db.rollback()
+		dypos.log_error(title="POS Next Migration Error", message=dypos.get_traceback())
 		log_message(f"POS Next: Migration error - {str(e)}", level="error")
 		raise
 
@@ -72,7 +72,7 @@ def setup_default_print_format(quiet=False):
 	"""
 	try:
 		# Check if the print format exists
-		if not frappe.db.exists("Print Format", "POS Next Receipt"):
+		if not dypos.db.exists("Print Format", "POS Next Receipt"):
 			if not quiet:
 				log_message(
 					"POS Next Receipt print format not found, skipping default setup", level="warning"
@@ -80,7 +80,7 @@ def setup_default_print_format(quiet=False):
 			return
 
 		# Get all POS Profiles without a print format
-		pos_profiles = frappe.get_all(
+		pos_profiles = dypos.get_all(
 			"POS Profile", filters={"print_format": ["in", ["", None]]}, fields=["name"]
 		)
 
@@ -88,7 +88,7 @@ def setup_default_print_format(quiet=False):
 			updated_count = 0
 			for profile in pos_profiles:
 				try:
-					frappe.db.set_value(
+					dypos.db.set_value(
 						"POS Profile", profile.name, "print_format", "POS Next Receipt", update_modified=False
 					)
 					if not quiet:
@@ -106,7 +106,7 @@ def setup_default_print_format(quiet=False):
 
 	except Exception as e:
 		log_message(f"Error setting up default print format: {str(e)}", level="error")
-		frappe.log_error(title="Default Print Format Setup Error", message=frappe.get_traceback())
+		dypos.log_error(title="Default Print Format Setup Error", message=dypos.get_traceback())
 
 
 def log_message(message, level="info", indent=0):
@@ -133,7 +133,7 @@ def log_message(message, level="info", indent=0):
 	# Print to console
 	print(formatted_message)
 
-	# Also log to frappe logger
+	# Also log to dyposlogger
 	if level == "error":
 		logger.error(message)
 	elif level == "warning":
@@ -157,12 +157,12 @@ def reclaim_pos_settings_doctype(quiet=False):
 	belongs to POS Next (module == 'POS Next' and not Single), exits
 	without touching anything.
 	"""
-	if not frappe.db.exists("DocType", "POS Settings"):
+	if not dypos.db.exists("DocType", "POS Settings"):
 		if not quiet:
 			log_message("POS Settings DocType missing, skipping reclaim", level="warning")
 		return
 
-	row = frappe.db.get_value("DocType", "POS Settings", ["module", "issingle"], as_dict=True)
+	row = dypos.db.get_value("DocType", "POS Settings", ["module", "issingle"], as_dict=True)
 	if row and row.module == "POS Next" and not row.issingle:
 		if not quiet:
 			log_message("POS Settings already owned by POS Next, nothing to reclaim", level="info")
@@ -178,37 +178,37 @@ def reclaim_pos_settings_doctype(quiet=False):
 	try:
 		# Commit any open transaction first — DROP TABLE is DDL and would
 		# otherwise trigger ImplicitCommitError under Frappe's safety check.
-		frappe.db.commit()
-		frappe.db.sql("DROP TABLE IF EXISTS `tabPOS Settings`")
-		frappe.db.commit()
-		frappe.db.sql("DELETE FROM `tabSingles` WHERE doctype = 'POS Settings'")
-		frappe.db.sql("DELETE FROM `tabDocField` WHERE parent = 'POS Settings'")
-		frappe.db.sql("DELETE FROM `tabDocPerm` WHERE parent = 'POS Settings'")
-		frappe.db.sql("DELETE FROM `tabDocType` WHERE name = 'POS Settings'")
-		frappe.db.commit()
+		dypos.db.commit()
+		dypos.db.sql("DROP TABLE IF EXISTS `tabPOS Settings`")
+		dypos.db.commit()
+		dypos.db.sql("DELETE FROM `tabSingles` WHERE doctype = 'POS Settings'")
+		dypos.db.sql("DELETE FROM `tabDocField` WHERE parent = 'POS Settings'")
+		dypos.db.sql("DELETE FROM `tabDocPerm` WHERE parent = 'POS Settings'")
+		dypos.db.sql("DELETE FROM `tabDocType` WHERE name = 'POS Settings'")
+		dypos.db.commit()
 		log_message("Dropped legacy POS Settings meta + table", level="info", indent=1)
 	except Exception:
-		frappe.log_error(
+		dypos.log_error(
 			title="POS Settings Reclaim Error",
-			message="Failed to drop legacy POS Settings\n\n" + frappe.get_traceback(),
+			message="Failed to drop legacy POS Settings\n\n" + dypos.get_traceback(),
 		)
 		raise
 
 	try:
-		frappe.reload_doc("DyPOS", "doctype", "pos_settings", force=True)
-		frappe.reload_doc("DyPOS", "doctype", "pos_barcode_rules", force=True)
-		frappe.reload_doc("DyPOS", "doctype", "pos_allowed_locale", force=True)
-		frappe.db.commit()
+		dypos.reload_doc("DyPOS", "doctype", "pos_settings", force=True)
+		dypos.reload_doc("DyPOS", "doctype", "pos_barcode_rules", force=True)
+		dypos.reload_doc("DyPOS", "doctype", "pos_allowed_locale", force=True)
+		dypos.db.commit()
 	except Exception:
-		frappe.log_error(
+		dypos.log_error(
 			title="POS Settings Reclaim Error",
-			message="Failed to reload DyPOS doctypes\n\n" + frappe.get_traceback(),
+			message="Failed to reload DyPOS doctypes\n\n" + dypos.get_traceback(),
 		)
 		raise
 
-	after = frappe.db.get_value("DocType", "POS Settings", ["module", "issingle"], as_dict=True)
+	after = dypos.db.get_value("DocType", "POS Settings", ["module", "issingle"], as_dict=True)
 	if not after or after.module != "POS Next" or after.issingle:
-		frappe.log_error(
+		dypos.log_error(
 			title="POS Settings Reclaim Error",
 			message=(
 				f"Reclaim ran but doctype still wrong: {after}. "
