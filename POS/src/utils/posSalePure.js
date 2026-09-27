@@ -14,6 +14,8 @@
  * Pure + framework-free. Fully unit-tested in `tests/posSalePure.test.js`.
  */
 
+import { formatNumberSafe } from "@/utils/currency"
+
 /** Historical screen rounding: EPSILON float, 2 decimals. FROZEN. */
 export function roundMoney(value) {
 	const number = Number(value)
@@ -23,11 +25,16 @@ export function roundMoney(value) {
 	return Math.round((number + Number.EPSILON) * 100) / 100
 }
 
-/** Arabic number display (ar-SA, max 2 fraction digits). FROZEN. */
+/**
+ * Number display for the sale screen.
+ *
+ * Delegates to the canonical numeric core: LATIN digits in every UI language
+ * (Arabic/Urdu included — accounting figures stay machine-parseable) and the
+ * configured currency precision. Was a local `Intl("ar-SA")` call, which is
+ * exactly how a screen ends up printing ١٢٣٬٤٥ while the receipt prints 123.45.
+ */
 export function formatNumber(value) {
-	return new Intl.NumberFormat("ar-SA", {
-		maximumFractionDigits: 2,
-	}).format(Number(value || 0))
+	return formatNumberSafe(value)
 }
 
 /** Money display with explicit currency (caller binds `props.currency`). */

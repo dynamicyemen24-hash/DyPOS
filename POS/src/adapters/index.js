@@ -5,14 +5,27 @@
  */
 const backend = import.meta.env.VITE_DYPOS_BACKEND || "rest"
 
-async function loadModule(modulePath) {
+/**
+ * Both loaders are written as static `import()` calls on purpose.
+ *
+ * The previous shape passed the path as a *variable* (`loadModule("../adapters/
+ * method/api.js")`), which Rollup cannot resolve: it emits neither chunk, so
+ * `dist/pos/assets` shipped no adapter at all and the lazy import from
+ * `composables/useRecentInvoices.js` 404'd in production while dev worked
+ * fine. A literal specifier is bundled, code-split and precacheable — the same
+ * reason the cache-busting retry keeps a literal (`?v=` on a literal is still
+ * a literal to the bundler).
+ */
+const loadRest = () => import("../adapters/rest/api.js")
+const loadMethod = () => import("../adapters/method/api.js")
+
+/** One retry: a chunk can fail once (flaky network, memory pressure). */
+async function loadModule(loader) {
 	try {
-		const mod = await import(modulePath)
-		return mod
+		return await loader()
 	} catch (firstError) {
-		// chunk قد يفشل تحميله مرة (شبكة/ذاكرة) — إعادة المحاولة قبل الاستسلام
 		try {
-			return await import(`${modulePath}?v=${Date.now()}`)
+			return await loader()
 		} catch {
 			throw firstError
 		}
@@ -24,14 +37,14 @@ let adapter
 // now talks to DyPOS' own /api/method contract (same verbs, same envelope).
 if (backend === "method" || backend === "frappe") {
 	try {
-		adapter = await loadModule("../adapters/method/api.js")
+		adapter = await loadModule(loadMethod)
 	} catch {
 		// fail-safe: fallback إلى REST بدل إفشال إقلاع التطبيق كاملاً.
 		// REST والوسيلة يتشاركان نفس العقد التعاقدي.
-		adapter = await loadModule("../adapters/rest/api.js")
+		adapter = await loadModule(loadRest)
 	}
 } else {
-	adapter = await loadModule("../adapters/rest/api.js")
+	adapter = await loadModule(loadRest)
 }
 
 export const {

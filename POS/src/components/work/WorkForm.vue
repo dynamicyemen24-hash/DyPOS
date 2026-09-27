@@ -75,9 +75,14 @@
       </template>
 
       <!-- Field Array Sections -->
+      <!--
+        The key lives on the <template v-for> (Vue 3 rule). Repeating it on the
+        child is a compile error — "key should be placed on the <template> tag" —
+        which is why this file never compiled: it was unreachable, so no build
+        ever reached it.
+      -->
       <template v-for="arrayDef in fieldArrays" :key="arrayDef.key">
         <FieldArraySection
-          :key="arrayDef.key"
           :definition="arrayDef"
           :model="getModelValue(arrayDef.key)"
           :disabled="disabled || submitting"

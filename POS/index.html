@@ -45,44 +45,68 @@
 		<meta name="apple-mobile-web-app-status-bar-style" content="default" />
 		<meta name="apple-mobile-web-app-title" content="DyPOS" />
 
-		<!-- Brand favicons -->
-		<link rel="icon" href="/assets/DyPOS/pos/favicon.ico" sizes="any" />
+		<!-- Brand favicons — root-relative on purpose: the same files then resolve
+		     in `vite dev` (base "/"), in the embedded build (base /assets/DyPOS/pos/)
+		     and in the Pages build, because Vite prefixes `base` on the way out.
+		     Every path here is asserted against public/ by tests/brandingIdentity. -->
+		<link rel="icon" href="/favicon.ico" sizes="any" />
 		<link
 			rel="icon"
 			type="image/png"
 			sizes="16x16"
-			href="/assets/DyPOS/pos/favicon-16x16.png"
+			href="/favicon-16x16.png"
 		/>
 		<link
 			rel="icon"
 			type="image/png"
 			sizes="32x32"
-			href="/assets/DyPOS/pos/favicon-32x32.png"
+			href="/favicon-32x32.png"
 		/>
-		<link rel="apple-touch-icon" href="/assets/DyPOS/pos/apple-touch-icon.png" />
-		<link rel="manifest" href="/assets/DyPOS/pos/manifest.webmanifest" />
+		<link
+			rel="apple-touch-icon"
+			sizes="180x180"
+			href="/apple-touch-icon.png"
+		/>
+		<link rel="manifest" href="/manifest.webmanifest" />
 		<!-- Cairo/Inter load locally via @fontsource — no Google Fonts round-trip,
 		     and no flag CDN: flags are platform emoji (src/utils/flags.js).
 		     Nothing in this shell may reach a third-party host: the PWA is
 		     offline-first (AGENTS.md invariant 8). -->
 
-		<!-- Company / Open Graph identity -->
+		<!-- Company / Open Graph identity — the Smart Ports Software card
+		     (public/smart-ports-og.jpg, 1200×630). Dimensions and type are declared
+		     because crawlers size the card from them, and build-pages.mjs turns the
+		     relative paths into absolute production URLs: Open Graph readers ignore
+		     relative og:image, which is how a shared link lost its card. -->
 		<meta property="og:type" content="website" />
-		<meta property="og:site_name" content="DyPOS" />
-		<meta property="og:title" content="DyPOS" />
+		<meta property="og:site_name" content="Smart Ports Software" />
+		<meta property="og:title" content="DyPOS — نظام نقاط بيع ذكي" />
 		<meta
 			property="og:description"
 			content="DyPOS — نظام نقاط بيع سمارت بورتس: فواتير ومخزون لحظي، تشغيل دون اتصال، مستخدمون متعددون، وربط مباشر بنظام ERP"
 		/>
-		<meta property="og:image" content="/assets/DyPOS/pos/smart-ports-og.jpg" />
-		<meta property="og:image:alt" content="DyPOS — نقاط بيع سمارت بورتس" />
+		<meta property="og:url" content="/" />
+		<meta property="og:locale" content="ar_SA" />
+		<meta property="og:direction" content="rtl" />
+		<meta property="og:image" content="/smart-ports-og.jpg" />
+		<meta property="og:image:type" content="image/jpeg" />
+		<meta property="og:image:width" content="1200" />
+		<meta property="og:image:height" content="630" />
+		<meta
+			property="og:image:alt"
+			content="شركة المنافذ الذكية للبرمجيات — DyPOS لنقاط البيع"
+		/>
 		<meta name="twitter:card" content="summary_large_image" />
 		<meta name="twitter:title" content="DyPOS — نقاط بيع" />
 		<meta
 			name="twitter:description"
 			content="DyPOS — نظام نقاط بيع سمارت بورتس: فواتير ومخزون لحظي، تشغيل دون اتصال، مستخدمون متعددون، وربط مباشر بنظام ERP"
 		/>
-		<meta name="twitter:image" content="/assets/DyPOS/pos/smart-ports-og.jpg" />
+		<meta name="twitter:image" content="/smart-ports-og.jpg" />
+		<meta
+			name="twitter:image:alt"
+			content="شركة المنافذ الذكية للبرمجيات — DyPOS لنقاط البيع"
+		/>
 
 		<title>DyPOS — نقاط بيع</title>
 	</head>

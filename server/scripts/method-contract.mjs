@@ -34,10 +34,21 @@ import { join } from 'node:path';
 export const SCAN_ROOTS = ['POS/src', 'POS/packages'];
 
 /**
- * Non-vacuity floor. Today the scan finds ~110 distinct verbs; a drop below this
- * means the collector stopped understanding the code, not that the code shrank.
+ * Non-vacuity floor.
+ *
+ * The scan found 107 distinct verbs while POS/src still carried ~60k lines of
+ * unreachable UI (PaymentDialog, the whole work/ and reports/ surfaces, the
+ * print spool, the retired adapters) — none of which any entry point reached.
+ * Deleting that dead code took the real surface to 53 verbs / 76 call sites,
+ * every one of them covered by a handler, so the floor is re-based on the
+ * measurement instead of on code that never shipped.
+ *
+ * 45 is deliberately well under 53: the floor's only job is to catch a
+ * collector that stopped parsing the call sites (which yields single digits),
+ * not to police how many screens the product has. It only ever moves DOWN, and
+ * only with a measurement in the same commit.
  */
-export const MIN_VERB_FLOOR = 90;
+export const MIN_VERB_FLOOR = 45;
 
 const METHOD_PREFIX = '/api/method/';
 const NAMESPACE = /^(?:DyPOS|dypos)\.[\w.]+$/;

@@ -73,7 +73,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted } from "vue"
+import { ref, computed, onMounted, onUnmounted } from "vue"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
 

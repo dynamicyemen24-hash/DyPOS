@@ -207,11 +207,11 @@
                 :row="row"
                 :columns="mainColumns"
                 :row-index="rIndex"
+                :row-key="getRowKey(row, rIndex)"
                 :selectable="selectable"
                 :selected="isRowSelected(row)"
                 :expanded="expandedRows.has(getRowKey(row))"
-                :editing="editingCell?.rowKey === getRowKey(row) && mainColumns.some(c => c.key === editingCell.colKey)"
-                :edit-mode="editingCell"
+                :editing="editingCell"
                 @select="toggleRowSelection(row)"
                 @click="handleRowClick(row, $event)"
                 @dblclick="startInlineEdit(row, $event.target.closest('td')?.dataset?.colKey)"
@@ -236,11 +236,11 @@
                   :row="row"
                   :columns="mainColumns"
                   :row-index="rIndex"
+                  :row-key="getRowKey(row, rIndex)"
                   :selectable="selectable"
                   :selected="isRowSelected(row)"
                   :expanded="expandedRows.has(getRowKey(row))"
-                  :editing="editingCell?.rowKey === getRowKey(row) && mainColumns.some(c => c.key === editingCell.colKey)"
-                  :edit-mode="editingCell"
+                  :editing="editingCell"
                   @select="toggleRowSelection(row)"
                   @click="handleRowClick(row, $event)"
                   @dblclick="startInlineEdit(row, $event.target.closest('td')?.dataset?.colKey)"
@@ -414,6 +414,7 @@ import {
 	onMounted,
 	onUnmounted,
 	shallowRef,
+	inject,
 } from "vue"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"

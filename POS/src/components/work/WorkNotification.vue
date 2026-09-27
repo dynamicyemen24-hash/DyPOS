@@ -90,17 +90,28 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive } from "vue"
+/**
+ * WorkNotification — presentational only.
+ *
+ * The queue, the timers and the `notify*` API live in `./workNotifications.js`:
+ * `<script setup>` cannot contain ES module exports, and the barrel
+ * (`@/components/work`) re-exports those helpers. The file never compiled
+ * until the kit was wired to a route — the split is the supported shape.
+ */
+import { computed } from "vue"
 import { useLocale } from "@/composables/useLocale"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
 import DyButton from "@/components/ui/DyButton.vue"
+import {
+	executeAction,
+	notifications,
+	pause,
+	remove,
+	resume,
+} from "./workNotifications.js"
 
 const { direction } = useLocale()
-
-const notifications = ref([])
-const timers = reactive({})
-const progressTimers = reactive({})
 
 const position = computed(() =>
 	direction.value === "rtl" ? "top-start" : "top-end",
@@ -134,159 +145,6 @@ function progressStyle(id) {
 	const elapsed = notif._elapsed || 0
 	const progress = Math.max(0, 100 - (elapsed / notif.duration) * 100)
 	return { width: `${progress}%` }
-}
-
-function generateId() {
-	return `notif-${Date.now()}-${Math.random().toString(36).slice(2)}`
-}
-
-/**
- * Show a notification
- * @param {Object} options
- * @param {string} options.type - success|error|warning|info
- * @param {string} options.title - Title key
- * @param {string} options.message - Message key
- * @param {number} options.duration - Auto-dismiss ms (0 = no auto-dismiss)
- * @param {Object} options.action - { label, variant, handler }
- * @param {boolean} options.closable - Show close button (default true)
- * @returns {string} Notification ID
- */
-export function notify(options) {
-	const id = generateId()
-	const duration = options.duration ?? 5000
-
-	const notif = {
-		id,
-		type: options.type || "info",
-		title: options.title || "",
-		message: options.message || "",
-		duration,
-		action: options.action || null,
-		closable: options.closable !== false,
-		_start: Date.now(),
-		_elapsed: 0,
-		_paused: false,
-	}
-
-	notifications.value.push(notif)
-
-	if (duration > 0) {
-		startTimer(id, duration)
-		startProgress(id, duration)
-	}
-
-	return id
-}
-
-function startTimer(id, duration) {
-	clearTimer(id)
-	timers[id] = setTimeout(() => {
-		remove(id)
-	}, duration)
-}
-
-function startProgress(id, duration) {
-	clearProgress(id)
-	const notif = notifications.value.find((n) => n.id === id)
-	if (!notif) return
-
-	const start = Date.now()
-	notif._start = start
-
-	const tick = () => {
-		if (notif._paused) {
-			requestAnimationFrame(tick)
-			return
-		}
-		const elapsed = Date.now() - start + (notif._elapsed || 0)
-		notif._elapsed = elapsed
-		if (elapsed < duration) {
-			progressTimers[id] = requestAnimationFrame(tick)
-		}
-	}
-	requestAnimationFrame(tick)
-}
-
-function clearTimer(id) {
-	if (timers[id]) {
-		clearTimeout(timers[id])
-		delete timers[id]
-	}
-}
-
-function clearProgress(id) {
-	if (progressTimers[id]) {
-		cancelAnimationFrame(progressTimers[id])
-		delete progressTimers[id]
-	}
-}
-
-function pause(id) {
-	const notif = notifications.value.find((n) => n.id === id)
-	if (notif) {
-		notif._paused = true
-		clearTimer(id)
-	}
-}
-
-function resume(id) {
-	const notif = notifications.value.find((n) => n.id === id)
-	if (notif && notif.duration > 0) {
-		notif._paused = false
-		notif._start = Date.now()
-		startTimer(id, notif.duration - (notif._elapsed || 0))
-		startProgress(id, notif.duration)
-	}
-}
-
-function remove(id) {
-	clearTimer(id)
-	clearProgress(id)
-	const idx = notifications.value.findIndex((n) => n.id === id)
-	if (idx >= 0) notifications.value.splice(idx, 1)
-}
-
-function executeAction(notification) {
-	notification.action?.handler?.()
-	if (notification.action?.dismiss !== false) {
-		remove(notification.id)
-	}
-}
-
-// Convenience methods
-export function notifySuccess(title, message, options = {}) {
-	return notify({ type: "success", title, message, ...options })
-}
-
-export function notifyError(title, message, options = {}) {
-	return notify({ type: "error", title, message, duration: 0, ...options })
-}
-
-export function notifyWarning(title, message, options = {}) {
-	return notify({ type: "warning", title, message, ...options })
-}
-
-export function notifyInfo(title, message, options = {}) {
-	return notify({ type: "info", title, message, ...options })
-}
-
-export function dismissAll() {
-	for (const id of Object.keys(timers)) clearTimer(id)
-	for (const id of Object.keys(progressTimers)) clearProgress(id)
-	notifications.value = []
-}
-
-// Export for composable use
-const api = {
-	notify,
-	notifySuccess,
-	notifyError,
-	notifyWarning,
-	notifyInfo,
-	dismissAll,
-	remove,
-	pause,
-	resume,
 }
 </script>
 

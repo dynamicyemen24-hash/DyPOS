@@ -10,6 +10,7 @@ RTL-first / تعمل بالكامل دون اتصال / إضافة بنقرة و
 import { computed, ref } from "vue"
 
 import { FeatherIcon } from "dypos-ui"
+import { formatCurrencySafe } from "@/utils/currency"
 
 const props = defineProps({
 	/** [{ product, score, reason }] — اقتراحات البيع المتقاطع. */
@@ -126,9 +127,8 @@ const healthState = computed(() => {
 })
 
 function formatMoney(value) {
-	return `${new Intl.NumberFormat("ar-SA", {
-		maximumFractionDigits: 2,
-	}).format(Number(value || 0))} ${props.currency}`
+	// Canonical core: Latin digits + system precision + configured symbol.
+	return formatCurrencySafe(value, props.currency || undefined)
 }
 
 function productPrice(entry) {

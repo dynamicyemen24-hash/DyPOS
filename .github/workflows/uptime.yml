@@ -1,11 +1,28 @@
-# Uptime Monitor — lightweight production heartbeat
+# Uptime Monitor — the production heartbeat.
+#
+# Every 15 minutes this asks the ONE question a customer would ask: "does the
+# live domain serve the build this repo calls released?" The probe itself lives
+# in `scripts/verify-live.mjs` — the same script the deploy workflow and a human
+# release check run, so the heartbeat cannot drift from what "live" means:
+#   /version.json must equal the root package.json version (single source),
+#   the shell must reference a hashed bundle that actually 200s, /sw.js and
+#   /manifest.webmanifest must be served (offline-first + installable), a deep
+#   link must render the SPA shell, and /api/ping must answer on this origin.
+#
+# Paths matter: the old probes (`/assets/DyPOS/pos/version.json`, a `?v=`-pinned
+# bundle) belonged to the retired Worker layout, so the heartbeat failed every
+# run on a perfectly healthy site. A monitor that lies is worse than none.
 name: Uptime Monitor
 
-# عالميًا: فحص خفيف كل 15 دقيقة أن العملاء يرون build صالحًا على النطاق الحي.
 on:
   schedule:
     - cron: '*/15 * * * *'
   workflow_dispatch:
+    inputs:
+      site:
+        description: 'Origin to probe (default: production custom domain)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -18,27 +35,16 @@ jobs:
   probe:
     name: Probe live site
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
 
     steps:
-      - name: Probe version.json (valid JSON + version field)
-        run: |
-          set -e
-          SITE="https://dypos.smartportssoft.com"
-          LIVE_JSON=$(curl -fsS --max-time 20 "$SITE/assets/DyPOS/pos/version.json")
-          echo "version.json → $LIVE_JSON"
-          echo "$LIVE_JSON" | grep -Eq '"version"[[:space:]]*:[[:space:]]*"[0-9]+\.[0-9]+\.[0-9]+"' || {
-            echo "::error::version.json missing or has no semver version field"
-            exit 1
-          }
+      - name: Clone
+        uses: actions/checkout@v4
 
-      - name: Probe homepage (200 + version-pinned bundle)
-        run: |
-          set -e
-          SITE="https://dypos.smartportssoft.com"
-          HTML=$(curl -fsS --max-time 20 "$SITE/")
-          echo "$HTML" | grep -Eq 'assets/index-[A-Za-z0-9_-]+\.js\?v=[0-9]+\.[0-9]+\.[0-9]+' || {
-            echo "::error::homepage does not reference a version-pinned bundle"
-            exit 1
-          }
-          echo "homepage OK — serves a version-pinned bundle"
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify the live domain serves this release
+        run: node scripts/verify-live.mjs --site="${{ github.event.inputs.site || 'https://dypos.smartportssoft.com' }}"

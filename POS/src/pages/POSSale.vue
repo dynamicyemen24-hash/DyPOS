@@ -39,6 +39,15 @@ import { useRouter } from "vue-router"
 
 import { FeatherIcon } from "dypos-ui"
 
+import {
+	goToLogin,
+	goToSettings,
+	goToStockManagement,
+	goToWorkScreens,
+} from "@/router"
+import { terminateSession } from "@/utils/auth"
+import { createOverlayCloser } from "@/composables/useOverlayCloser"
+import { gridNextIndex, readDirectionRTL } from "@/utils/gridNavigation"
 import POSHeader from "@/components/pos/POSHeader.vue"
 import SmartCashierDock from "@/components/pos/SmartCashierDock.vue"
 import SyncStatusIndicator from "@/components/pos/SyncStatusIndicator.vue"
@@ -1293,11 +1302,6 @@ async function printLastInvoice() {
 	await handlePrintInvoice(invoiceId)
 }
 
-/** Navigate to Stock Management page. */
-function goToStockManagement() {
-	router.push({ name: "StockManagement" })
-}
-
 /* ============================================================================
  * Returns
  * ========================================================================== */
@@ -1314,23 +1318,54 @@ function openReturns() {
  * Header Actions
  * ========================================================================== */
 
-function handleHeaderAction(action) {
-	switch (action) {
-		case "held":
-			showHeldSalesPanel.value = true
-			break
+/**
+ * تسجيل الخروج: ينهي الجلسة (تسجيل + وردية) ثم يعود لشاشة الدخول.
+ *
+ * كان الزر موجودًا في POSHeader (emit ‎close-clicked‎) بلا أي مستمع، و
+ * ‎terminateSession‎ في utils/auth.js بلا مستدعٍ — أي أن المستخدمين لم
+ * يستطيعوا إنهاء الجلسة إطلاقًا، مع أن جدول الاختصارات في الإعدادات يَعِد
+ * بـ Shift+Esc. لذلك الربط هنا: الزر + الاختصار + عنصر التنقل.
+ */
+async function handleLogout() {
+	await terminateSession()
+	goToLogin()
+}
 
-		case "returns":
-			openReturns()
-			break
-
-		case "customer":
-			showCustomerPanel.value = true
-			break
-
-		default:
-			break
+/** يغلق علمًا منطقيًا — يمنع `noAssignInExpressions` ويقرأ أوضح. */
+function setFalse(flag) {
+	return () => {
+		flag.value = false
 	}
+}
+
+/**
+ * أولوية الإغلاق بمفتاح Escape — الترتيب هنا هو ترتيب الأولوية
+ * (لوحة الاختصارات أولًا لأنها أصغر طبقة، ثم محرّر الكمية، فالدفع…).
+ */
+const overlays = createOverlayCloser([
+	[showShortcutsPanel, setFalse(showShortcutsPanel)],
+	[() => Boolean(quantityEditor.value), closeQuantityEditor],
+	[showPaymentPanel, closePayment],
+	[showDiscountPanel, setFalse(showDiscountPanel)],
+	[showCustomerPanel, setFalse(showCustomerPanel)],
+	[showHeldSalesPanel, setFalse(showHeldSalesPanel)],
+])
+
+/** إجراءات الترويسة — خريطة بدالة switch أطول. */
+const headerActions = {
+	held: () => {
+		showHeldSalesPanel.value = true
+	},
+	returns: () => openReturns(),
+	customer: () => {
+		showCustomerPanel.value = true
+	},
+	// زر القائمة كان يُطلق menu-clicked بلا حالة مطابقة = زر ميت.
+	menu: () => goToWorkScreens(),
+}
+
+function handleHeaderAction(action) {
+	headerActions[action]?.()
 }
 
 /* ============================================================================
@@ -1377,44 +1412,22 @@ function handleKeydown(event) {
 	}
 
 	/*
-	 * Escape — إغلاق overlay
+	 * Shift + Esc — تسجيل الخروج (مُعلن في جدول الاختصارات بالإعدادات).
+	 * يسبق فرع Escape العادي: كلاهما key === "Escape"، ولو جاء بعده ما نُفِّذ.
+	 */
+	if (event.key === "Escape" && event.shiftKey) {
+		event.preventDefault()
+
+		handleLogout()
+
+		return
+	}
+
+	/*
+	 * Escape — إغلاق overlay (الأولوية في useOverlayCloser، مسجّلة أدناه)
 	 */
 	if (event.key === "Escape") {
-		if (showShortcutsPanel.value) {
-			showShortcutsPanel.value = false
-
-			return
-		}
-
-		if (quantityEditor.value) {
-			closeQuantityEditor()
-
-			return
-		}
-
-		if (showPaymentPanel.value) {
-			closePayment()
-
-			return
-		}
-
-		if (showDiscountPanel.value) {
-			showDiscountPanel.value = false
-
-			return
-		}
-
-		if (showCustomerPanel.value) {
-			showCustomerPanel.value = false
-
-			return
-		}
-
-		if (showHeldSalesPanel.value) {
-			showHeldSalesPanel.value = false
-
-			return
-		}
+		overlays.closeFirstOpen()
 
 		return
 	}
@@ -1471,6 +1484,9 @@ function handleOffline() {
  * Product Keyboard Navigation
  * ========================================================================== */
 
+/** أعمدة شبكة المنتجات — تُستخدم في تنقّل الأسهم لا في التصميم. */
+const GRID_COLUMNS = 4
+
 function handleProductGridKeydown(event) {
 	const items = filteredProducts.value
 
@@ -1478,65 +1494,29 @@ function handleProductGridKeydown(event) {
 		return
 	}
 
-	const columns = 4
+	if (event.key === "Enter") {
+		event.preventDefault()
 
-	// RTL-aware horizontal navigation: in RTL the visual "right" is the
-	// previous item. Read once per keypress (cheap) so mixed-dir sessions stay correct.
-	const isRTL =
-		typeof document !== "undefined" &&
-		(document.documentElement?.getAttribute?.("dir") || "rtl") === "rtl"
+		const product = items[activeProductIndex.value]
 
-	switch (event.key) {
-		case "ArrowRight":
-			event.preventDefault()
-
-			activeProductIndex.value = isRTL
-				? Math.max(0, activeProductIndex.value - 1)
-				: Math.min(items.length - 1, activeProductIndex.value + 1)
-
-			break
-
-		case "ArrowLeft":
-			event.preventDefault()
-
-			activeProductIndex.value = isRTL
-				? Math.min(items.length - 1, activeProductIndex.value + 1)
-				: Math.max(0, activeProductIndex.value - 1)
-
-			break
-
-		case "ArrowDown":
-			event.preventDefault()
-
-			activeProductIndex.value = Math.min(
-				items.length - 1,
-				activeProductIndex.value + columns,
-			)
-
-			break
-
-		case "ArrowUp":
-			event.preventDefault()
-
-			activeProductIndex.value = Math.max(0, activeProductIndex.value - columns)
-
-			break
-
-		case "Enter": {
-			event.preventDefault()
-
-			const product = items[activeProductIndex.value]
-
-			if (product) {
-				addProduct(product)
-			}
-
-			break
+		if (product) {
+			addProduct(product)
 		}
 
-		default:
-			break
+		return
 	}
+
+	const next = gridNextIndex(
+		event.key,
+		activeProductIndex.value,
+		items.length,
+		{ columns: GRID_COLUMNS, rtl: readDirectionRTL() },
+	)
+
+	if (next === null) return
+
+	event.preventDefault()
+	activeProductIndex.value = next
 }
 
 /* ============================================================================
@@ -1630,6 +1610,8 @@ watch(
             @held-sales-clicked="
                 showHeldSalesPanel = true
             "
+            @settings-clicked="goToSettings"
+            @close-clicked="handleLogout"
             @menu-clicked="
                 handleHeaderAction('menu')
             "

@@ -5,7 +5,8 @@
  *   #dypos-login-email | #dypos-login-password | #dypos-login-error (role=alert)
  *   #dypos-register-name | -email | -password | -confirm
  * Register success banner: "تم إنشاء الحساب بنجاح!"
- * Logout lives in UserMenu.vue ("Logout" item).
+ * Logout lives in the POS header ("إنهاء الجلسة", log-out icon) and on
+ * Shift+Esc (both wired to terminateSession() + /account/login).
  *
  * DEFERRED by default: requires Frappe-compat login (see e2e/support/env.js).
  */
@@ -78,9 +79,11 @@ ui("DyPOS UI auth", () => {
 			.click()
 		await expect(page).not.toHaveURL(/account\/login/, { timeout: 20000 })
 
-		// Header user menu → "Logout".
-		await page.locator("header").getByRole("button").first().click()
-		await page.getByText("Logout").click()
+		// Header session button ("إنهاء الجلسة") → back to the login screen.
+		await page
+			.locator("header")
+			.getByRole("button", { name: /إنهاء الجلسة/ })
+			.click()
 
 		await expect(page).toHaveURL(/account\/login/)
 	})

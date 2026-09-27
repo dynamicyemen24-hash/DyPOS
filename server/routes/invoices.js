@@ -17,7 +17,8 @@ import { idempotency } from '../lib/idempotency.js';
 import { emit } from '../lib/webhooks.js';
 import { emit as emitRealtime } from '../lib/realtime.js';
 import { ensureOpenFiscalYear, yearOf } from './fiscal.js';
-import { invoicePrefix, getSetting, defaultTaxRate } from '../lib/settings.js';
+import { invoicePrefix, getSetting, defaultTaxRate, stockControlMode, stockWarningThreshold } from '../lib/settings.js';
+import { decrementStock } from '../lib/stockPolicy.js';
 
 const cryptoId = () => crypto.randomUUID();
 
@@ -155,24 +156,18 @@ router.post('/', validate(invoiceSchema), (req, res) => {
 
   const insertItem = db.prepare(`INSERT INTO invoice_items (id,invoice_id,product_id,product_name,name_ar,barcode,qty,unit_price,discount,tax_rate,tax_amount,total,uom,warehouse_id,free_qty,is_free_item) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   const insertPayment = db.prepare(`INSERT INTO payments (id,invoice_id,method,amount,reference) VALUES (?,?,?,?,?)`);
-  // Guarded stock decrement. Unlike the old blind UPSERT (which let qty go
-  // negative on undersized stock), this enforces available = qty - reserved_qty
-  // INSIDE the same SQLite write transaction, so no concurrent writer can
-  // interleave between the check and the decrement (single-writer: the whole
-  // sale, including this, is atomic). Policy on a stock_levels row that does
-  // NOT exist yet is governed by DYPOS_STOCK_GUARD:
-  //   - "legacy" (default): missing row = untracked walk-in → unlimited
-  //     (backward compatible; keeps the walk-in/offline POS working with zero
-  //      setup and keeps legacy catalog exports working).
-  //   - "strict": missing row = 0 available → 409. Use once every sellable
-  //     SKU is known to carry a stock_levels row (recommended on the origin).
-  // Guarded UPSERT: refuses the decrement (changes=0) if it would drive
-  // qty below reserved_qty (i.e. below available), keeping stock never negative
-  // for tracked items while leaving the row present.
-  const stockGuardMode = String(process.env.DYPOS_STOCK_GUARD || 'legacy').trim().toLowerCase().slice(0, 12) === 'strict' ? 'strict' : 'legacy';
+  // Stock decrement policy — ONE implementation for both sale paths
+  // (lib/stockPolicy.js), driven by the business setting (strict | warn | off)
+  // with `DYPOS_STOCK_GUARD=strict` as an operator hard floor. In warn mode the
+  // sale ALWAYS completes: the cashier gets an Arabic warning and the ledger
+  // keeps the truthful remainder instead of pretending stock never went short.
+  const stockPolicy = { mode: stockControlMode(), threshold: stockWarningThreshold() };
   const selectStockRow = db.prepare(`SELECT qty, reserved_qty FROM stock_levels WHERE product_id=? AND warehouse_id=?`);
+  // Guarded UPSERT: refuses the decrement (changes=0) if it would drive qty below
+  // reserved_qty (available) — the authority for tracked rows in strict mode.
   const guardedDecr = db.prepare(`UPDATE stock_levels SET qty=qty+?,updated_at=datetime('now') WHERE product_id=? AND warehouse_id=? AND qty+?>=reserved_qty`);
   const upsertStock = db.prepare(`INSERT INTO stock_levels (product_id,warehouse_id,qty,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(product_id,warehouse_id) DO UPDATE SET qty=qty+excluded.qty,updated_at=datetime('now')`);
+  const stockWarnings = [];
 
   const transaction = db.transaction(() => {
     const defaultWh = String(b.warehouseId || 'W-01').trim().slice(0, 32);
@@ -279,25 +274,15 @@ router.post('/', validate(invoiceSchema), (req, res) => {
       //        and legacy catalog exports working untouched.
       //       "strict" → missing = 0 available → 409. Use once every sellable
       //        SKU carries a stock_levels row (recommended on the origin).
-      const tracked = selectStockRow.get(product.id, wh);
-      const trackedQty = tracked ? Number(tracked.qty) : null;
-      if (tracked && trackedQty >= 0) {
-        // Tracked stock at zero or above: guarded decrement refuses any sale
-        // that would drive qty below reserved_qty (available). 409, no write.
-        const ch = guardedDecr.run(-qty, product.id, wh, -qty);
-        if (ch.changes === 0) {
-          throw Object.assign(new Error(`الكمية المتوفرة غير كافية لصنف ${product.id} في المستودع ${wh} (المتاح ${Math.max(0, trackedQty - Number(tracked.reserved_qty))})`), { statusCode: 409 });
-        }
-      } else if (stockGuardMode === 'strict') {
-        // strict: missing row OR legacy-artifact negative row = 0 available.
-        // Strict mode never creates or extends negative stock → 409.
-        throw Object.assign(new Error(`الكمية المتوفرة غير كافية لصنف ${product.id} في المستودع ${wh} (غير مدرج في المخزون — DYPOS_STOCK_GUARD=strict)`), { statusCode: 409 });
-      } else {
-        // legacy: missing row (untracked walk-in → unlimited, row created on
-        // first sale) or pre-existing negative row (legacy artifact → keep the
-        // exact old blind-UPSERT behaviour so repeat walk-in sales succeed).
-        upsertStock.run(product.id, wh, -qty);
-      }
+      // Availability decision (see lib/stockPolicy.js): strict → 409 here;
+      // warn (default) → the sale completes, warning recorded, real remainder
+      // written; off → blind decrement.
+      decrementStock(
+        { selectStockRow, guardedDecr, upsertStock },
+        { productId: product.id, warehouseId: wh, qty, label: product.name || product.id },
+        stockPolicy,
+        stockWarnings,
+      );
     }
 
     const grossMinor = subtotalMinor + taxTotalMinor;
@@ -403,7 +388,13 @@ router.post('/', validate(invoiceSchema), (req, res) => {
     const result = transaction();
     if (!result.deduped) {
       try { invoicesCounter.inc(); } catch { /* metrics optional */ }
-      req.audit?.('invoice.create', { invoiceId: result.invoiceId, total: result.total });
+      req.audit?.('invoice.create', { invoiceId: result.invoiceId, total: result.total, stockWarnings: stockWarnings.length });
+      if (stockWarnings.length) {
+        // Money is final; the shortage is recorded where an operator will look
+        // (audit trail + webhook), and returned to the client for the cashier.
+        try { recordTrail(req, { entity: 'INVOICE', entityId: result.invoiceId, action: 'STOCK_SHORTAGE', after: { warnings: stockWarnings } }); } catch { /* trail never breaks a sale */ }
+        result.warnings = stockWarnings;
+      }
       recordTrail(req, { entity: 'INVOICE', entityId: result.invoiceId, action: 'CREATE', after: { number: result.number, total: result.total, status: result.status } });
       emit('invoice.created', 'INVOICE', result.invoiceId, { number: result.number, total: result.total, status: result.status });
       emitRealtime('invoice.created', { tenantId: scope.tenantId || req.user?.tenantId || null, id: result.invoiceId, number: result.number, total: result.total, status: result.status });

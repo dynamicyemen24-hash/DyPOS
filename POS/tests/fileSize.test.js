@@ -25,13 +25,14 @@ const ROOT = resolve(HERE, "..")
 
 /** [file, maxLines] — measured, not aspirational. Lower the number when you split. */
 const CAPS = [
-	["src/pages/POSSale.vue", 6374],
-	["src/components/sale/PaymentDialog.vue", 3655],
+	// 6374 → 6359: تسجيل الخروج + اختصار Shift+Esc زاد~30 سطرًا، فاستُخرج
+	// مسار لوحة المفاتيح إلى utils/gridNavigation.js (مع اختبارات) وسلسلة
+	// الإغلاق إلى composables/useOverlayCloser.js. الاتجاه downward فقط.
+	["src/pages/POSSale.vue", 6359],
+	["src/components/settings/POSSettings.vue", 2092],
 	["src/pages/Login.vue", 3406],
 	["src/stores/itemSearch.js", 2620],
-	["src/components/sale/ReturnInvoiceDialog.vue", 2339],
-	["src/components/sale/InvoiceCart.vue", 2284],
-	["src/components/settings/POSSettings.vue", 2091],
+	["src/components/work/WorkDataGrid.vue", 1188],
 ]
 
 const countLines = (relPath) => {

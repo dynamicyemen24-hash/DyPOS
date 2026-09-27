@@ -113,7 +113,14 @@ describe('method-contract: the live POS tree', () => {
       liveResult.missing.map((m) => `${m.verb} (${m.sites[0].file}:${m.sites[0].line})`),
       [],
     );
-    assert.ok(liveResult.verbCount > 100, `expected 100+ verbs, found ${liveResult.verbCount}`);
+    // The scan found 107 verbs while POS/src still carried ~60k lines of
+    // unreachable UI; pruning it took the live surface to 53, all covered.
+    // The guard now sits above the shared MIN_VERB_FLOOR (45) rather than on a
+    // number inflated by code that never shipped.
+    assert.ok(
+      liveResult.verbCount > MIN_VERB_FLOOR,
+      `expected more than ${MIN_VERB_FLOOR} verbs, found ${liveResult.verbCount}`,
+    );
   });
 
   it('covers the literal-path form the old gate silently dropped', () => {
@@ -122,16 +129,32 @@ describe('method-contract: the live POS tree', () => {
       .filter((s) => s.form === 'literal-path')
       .map((s) => s.verb);
     assert.ok(literals.includes('DyPOS.api.ping'));
-    assert.ok(literals.includes('upload_file'));
+    // The literal-path form must stay *collected*, whatever verbs happen to use
+    // it: naming a specific verb here used to mean the check passed vacuously
+    // once that one call site moved (upload_file went with the deleted print
+    // spool). The real contract is that no literal-path verb is unregistered.
+    assert.deepEqual(
+      literals.filter((verb) => !handlers.has(verb)),
+      [],
+      'every literal-path verb must be registered by the server',
+    );
   });
 
   it('every health probe in offline detection resolves (regression)', () => {
     // `/api/method/dypos.ping` was never registered: the probe burned a
-    // round-trip on a 404 and flapped the online signal.
-    const verbs = verbsIn('POS/src/utils/offline/detection.js');
-    assert.ok(verbs.length >= 2, 'the probe list must still declare its endpoints');
-    for (const verb of verbs) {
-      assert.ok(handlers.has(verb), `health probe ${verb} is not registered by the server`);
+    // round-trip on a 404 and flapped the online signal. The probes live in
+    // POS/src/utils/offline/{offlineState,sync}.js now — the old
+    // utils/offline/detection.js was unreachable from any entry point and was
+    // deleted as dead code, so the guard follows the surviving surface.
+    for (const relPath of [
+      'POS/src/utils/offline/offlineState.js',
+      'POS/src/utils/offline/sync.js',
+    ]) {
+      const verbs = verbsIn(relPath);
+      assert.ok(verbs.length >= 1, `${relPath} must still declare its endpoints`);
+      for (const verb of verbs) {
+        assert.ok(handlers.has(verb), `health probe ${verb} is not registered by the server`);
+      }
     }
   });
 

@@ -5,19 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.37.0] - 2026-09-25 — حملة الكفاءة والجودة: Offline-First ناضج، PWA مخفّضة، وإنتاج عالمي
-### Added
-- Offline-First: إزالة الاعتمادات التشغيلية (الجلسة، الترجمة، اللغة، CSRF، المستخدم) واستبدالها بطبقة محلية؛ بدء التشغيل لا ينتظر أي شبكة.
-- منبّه انتهاء الجلسة أُزيل من شاشات الضيوف (Login/Register/Forgot/Reset)؛ `useSessionTimeout` صريح `start()` فقط.
-- PWA مزدوجة البناء (`build` للتضمين + `build:pages` للجذر)؛ النطاق يتبع القاعدة — خطأ الـ scope مستحيل.
-- تقليم مخرجات البناء الحتمي (`prune-pages-output.mjs`): precache من 729 مدخلًا/29MB إلى ~98 مدخلًا/4MB.
-- حزم ترجمة محلية (`public/locales/ar|en.json`) وخريطة endpoints مركزية (`apiEndpoints.js`).
-- Worker API موسّع (canonical `/api/*` + توافق legacy) على `dypos.smartportssoft.com/api/*` مع D1.
-- اختبارات انحدار جديدة (`offlineFirst.test.js`: endpoints/session-timeout/ترجمة).
-### Verified
-- واجهة 603/603 · خادم 365/365 · biome نظيف · parity `ok:true` · عقد 105/105 · ميزانية الحزمة 831KB ≤ 900KB.
+## [1.38.0] - 2026-09-27 — سياسة مخزون واحدة، أرقام عالمية، ونشر يقيس نفسه
+## [1.39.0] - 2026-09-27 — هوية العلامة، شاشات العمل، وسجل نوافذ ميت
 
-## [Unreleased]
+### Added — اعتماد وربط شاشات العمل كاملة بما فيها الإعدادات العامة
+- **مسار `/work` (شاشات العمل)**: `POS/src/pages/WorkScreens.vue` يجمع حزمة `components/work` (WorkShell + WorkDataGrid + حالات الخطأ/الصلاحية/الفراغ) في سطح واحد بأربع شاشات: الفواتير، الأصناف، العملاء، تنبيه المخزون. السجل التصريحي `POS/src/data/workScreens.js` يجعل الشاشة = أعمدة + صلاحية + محمّل، وكل محمّل يرجع `{rows, source}` من `methodGetListWithSource` فيسار مع شريط مصدر (السيرفر/محلي/غير متاح) — **قائمة فارغة ليست قياسًا**؛ شاشة المخزون موثّقة `localOnly` لأن حدّ إعادة الطلب يحتاج الكميات المحلية.
+- **مسار `/settings` (الإعدادات العامة)**: `POSSettings` كان طبقة تغطية عائمة بلا مدخل يُفتحها، والترس في الترويسة كان يُطلق `settings-clicked` **بلا مستمع** — أي أن إعدادات المتجر كانت غير قابلة للوصول إطلاقًا. الآن `/settings` (مع `goToSettings`/`goToWorkScreens` في `@/router`)، وزر الترس يعمل، وعنصر «الإعدادات العامة» في تنقل `workNav`.
+- **تسجيل الخروج موصول فعليًا**: زر «إنهاء الجلسة» في `POSHeader` كان يُطلق `close-clicked` بلا مستمع و`terminateSession()` بلا مستدعٍ — أي أن المستخدم لم يكن يستطيع إنهاء الجلسة؛ الآن الزر + الاختصار `Shift+Esc` (المُعلن أصلًا في جدول اختصارات الإعدادات) ينهيان الجلسة ويعودان إلى `/account/login`. زر القائمة أيضًا كان ميتًا (`menu` بلا حالة مطابقة) وهو الآن يفتح شاشات العمل.
+- **الصلاحية على شاشات العمل**: `providePermissions()` مشتقّة من دور الجلسة بمنع افتراضي (كاشير = قراءة فقط)؛ إخفاء العنصر وحده لا يُعتمد، والسيرفر يبقى fail-closed.
+
+### Fixed — أخطاء حقيقية كانت مخفية لأن الحزمة لم تكن تُبنى أبدًا
+- `WorkForm.vue`: markup تالف (base64/JSX) يمنع الترجمة أصلًا.
+- `WorkFormField.vue`: `<div>` لم يُغلق (فرع multiselect)، و`<WorkSelect>` لم يكن موجودًا في المستودع إطلاقًا — أُنشئ `WorkSelect.vue` يربطه بـ `SelectInput` الحيّ.
+- `WorkWizard.vue`: `id={\`…\`}` بدل `:id="\`…\`"` (سمة غير مقتبسة).
+- `WorkNotification.vue`: تصدير ES داخل `<script setup>` = رفض من المُجمِّع؛ فُصلت الحالة والـ API إلى `workNotifications.js` (الوحدة الوحيدة التي تُصدّر).
+- `WorkToolbar.vue` / `WorkDataGrid.vue`: `onMounted` و`inject` مستخدمة بلا استيراد (ReferenceError وقت التشغيل).
+- `WorkDataGrid` ↔ `DataRow`/`HeaderRow`: `rowKey` كان يُمرَّر كـ `key` (فلا يصل كـ prop)، و`editing` كمنطقي بدل كائن، و`tabindex="expr"` بلا `:` (السمة حرفية)، و`min-width: undefinedpx` لكل عمود بلا أبعاد.
+- التنقّل: `navItems` كان يُمرَّر كأقسام مجمّعة بدل القائمة المسطّحة، فكانت كل الأيقونات `undefined`.
+
+### Removed — ديون تقنية مقيسة
+- **١١ وحدة سيرفر ميتة**: `lib/{telemetry,audit,deployment,feature-flags,structuredLog,api-versioning,migration-guard}.js`، `lib/integrations/mappers.js`، `routes/localization.js` (الميزة حيّة في `routes/method.js` و`worker-api.js`)، و`db/migrations/23_audit_ledger.js` (لا محمّل له ويخالف مبدأ «مصدر DDL واحد»).
+- **مخزن النوافذ الشبح `stores/posUI.js` + `composables/useDialogState.js`**: ١٧ مفتاح `useDialog(...)` لم يقرأه أي مكوّن (حُذفت حواراتها)، والاستدعاء الوحيد كان `resetAllDialogs()` داخل تنظيف الجلسة — أي حالة يُصفّرها لا أحد يقرأها (~٣٧٠ سطرًا).
+- `POS/components.d.ts` ملف مُولَّد مهجور (لا يدخل `tsconfig.include` ولا يولّده شيء الآن) وكان يعلن ~٦٠ مكوّنًا محذوفًا؛ أُضيف إلى `.gitignore`.
+- تعليقات ميتة تصف بنية غير موجودة (`fuzzy.js`/`search.js`، `useRealtimeStock.js`، `useItems.js`، `UserMenu.vue`) وخطوات e2e تستهدف واجهة محذوفة.
+
+### Added — بوابات تمنع عودة الديون
+- `POS/tests/deadCode.test.js` و`server/tests/deadCode.test.js`: مسح وصولية BFS من نقاط الدخول (الخادم، العمّال، الاختبارات، السكربتات، مسارات `npm run`) — لا وحدة تُشحن بلا مستورد، مع حدّ يمنع الانdegeneration الفارغ.
+- `POS/tests/workScreens.test.js`: كل هدف تنقّل يُطابق مسارًا مُعرَّفًا ومحميًا + **تركيب فعلي للصفحة** يمرّر صفًا ويؤكد وصوله للشبكة (البوابات التي لا تركّب لا تكشف أخطاء وقت التشغيل).
+- `POS/tests/gridNavigation.test.js` و`POS/tests/overlayCloser.test.js`: تغطية لوكيلَي استُخرجا من `POSSale.vue` (سقف 6374 → **6359**، اتجاه نزول فقط).
+
+### Changed
+- الحزمة مقسّمة إلى قطع lazy مستقلة (`WorkScreens-*.js` ≈43KB) — حزمة البيع لم تتضخم، وال precache 89 → 99 مدخلًا.
+
+
+### Added — سياسة المخزون عند البيع: قرار واحد ومصدر واحد
+- **تطبيقان لقاعدة مخزون واحدة صار تطبيقًا واحدًا**: مسار البيع عبر REST (`routes/invoices.js`) ومسار method-router كان كلٌّ منهما يحمل نسخته من سياسة الخصم، والانحراف بينهما لا يظهر إلا حين يُسمح بتجاوز على مسار ويُرفض على الآخر. الآن الاثنان يناديان `server/lib/stockPolicy.js#decrementStock`.
+- **السياسة إعداد لا ثابت** (`stock_control_mode`): `warn` (الافتراضي) يُتمّ البيع ويُعيد تحذيرًا عربيًا للكاشير ويسجّل الفرق → يُصحَّح بمخزون لا بقصٍّ صامت؛ `strict` يوقف البيع (409) والمخزون لا يصير سالبًا أبدًا؛ `off` بلا فحص. و`DYPOS_STOCK_GUARD=strict` يبقى أرضيةً صلبة للمشغّل فوقها.
+- **عتبة تحذير المخزون المنخفض** (`stock_warning_threshold`) تُنبّه قبل النفاد لا عنده فقط، والنقص يُكتب في سجل التدقيق (`STOCK_SHORTAGE`) بدل أن يمرّ صامتًا.
+- **الواجهة تعرض القيم الفعلية من الخادم** (بعد تطبيق أرضية البيئة) فلا يمكن للـPOS أن يمنع بيعًا سيتيحه الخادم أو العكس؛ وحقول السياسة انتقلت إلى `POS/src/components/settings/StockPolicyFields.vue` فينزل سقف حجم `POSSettings` معها.
+- **الاختبارات تقيس العقد لا ثابتًا قديمًا**: `stock-guard.test.js` يقلب السياسة عبر `PUT /api/settings` الحقيقي (كما يفعل المشغّل) ويثبت الحالات الثلاث + التزامن + `reserved_qty`؛ وسويت strict المفعّل بالبيئة بقي ملفًا منفصلًا يعمل تحت `npm run test:stock-strict`.
+
+### Added — الأرقام والمال: إعدادات لا ثوابت
+- **أرقام لاتينية افتراضيًا في كل لغة واجهة** (`number_system: latn`، و`arab` اختيار صريح): كانت شاشة البيع تطبع `١٢٣٬٤٥` بينما تطبع الفاتورة والتقارير `123.45` — رقمان لنفس المبلغ. الآن `formatNumber`/`formatQuantity`/`formatPercentage` تمرّ عبر نواة واحدة (`POS/src/utils/currency.js`).
+- **دقة العملة (0–6) والكميات (0–9) وطريقة التقريب ونمط العرض صارت إعدادات** (`business_settings`) تُنشر للعميل في bootstrap و`pos_settings` عبر `precisionSettings()` وتظهر في `admin.html`.
+- **لا ثابت مبثوث**: `useFormatters` و`posSalePure` و`stockValidator` ينادون نفس الدوال (لا مكوّن يخترع دقته أو أرقامه).
+
+### Fixed — مراقبات إنتاج كانت حمراء على موقع سليم
+- **نبض الإنتاج كان يفشل كل 15 دقيقة بلا عطل**: كان يستطلع `/assets/DyPOS/pos/version.json` (تخطيط Worker المتقاعد) ويطلب حزمة موقّعة بـ`?v=`، وكلاهما غير موجود بعد الانتقال إلى Pages. الفحص الآن `scripts/verify-live.mjs` — ‏6 فحوص حقيقية: طابع الإصدار = إصدار المستودع، الحزمة المُشار إليها تُخدَم فعلًا، `sw.js`، `manifest.webmanifest`، رابط عميق SPA، `/api/ping` — وهو نفسه ما يشغّله سير النشر وما بمكن للمنفّذ تشغيله بيده.
+- **اختبار الحمل الليلي لم يكن يقيس شيئًا**: `k6` لم يكن منصّبًا (الـaction يبني صورة Docker فقط)، والهدف `staging.…` نطاق غير موجود، ومخرج `--out json=` صيغة NDJSON لا تُقرأ بـ`JSON.parse` ⇒ ثلاثة أسباب مستقلة تجعل نجاحه مستحيلًا. الآن: k6 منصّب، والخادم يُقلع من نفس الالتزام بقاعدة SQLite مؤقتة، والحدود في السكربت نفسه، والتقرير يكتبه `handleSummary()` بلا راية مهجورة، وخطوة التقرير ترفض المرور إن لم تجد قياسًا.
+
+### Changed — رقم الإصدار يجعل «التحقق الحي» ذا معنى
+- ‏`1.38.0` في المصادر الأربعة (+ قفل الجذر و`POS` وحزمة الواجهة و`worker-api`). بدون زيادة رقم الإصدار كان التحقق الحي يمرّ فوق نشر فاشل، لأن النطاق يقدّم الإصدار السابق سلفًا.
+
+### Verified — أرقام مقاسة (لا تقديرات)
+- خادم **446/446** (142 مجموعة) · واجهة **763/763** (59 ملفًا) · biome نظيف في الطرفين · `npm run parity` `ok:true` · عقد method **107/107** · بناء PWA ناجح (precache 87 مدخلًا / 3.37MB) مع `version.json = 1.38.0`.
+- `scripts/verify-live.mjs` يعطي 6/6 على النطاق الحي **قبل** النشر (الإصدار 1.37.0)، و1/6 مفشل بعده — أي أن البوابة تكشف تأخّر النطاق بدل أن تصمت.
+- **حاجز معلوم للمالك**: نشر Cloudflare معطّل منذ 2026-09-25 — التوكن يجتاز الفحص لكنه لا يملك `Cloudflare Pages:Edit` (خطأ 10000). الخطوة الواحدة في `DEPLOYMENT_GUIDE.md`؛ كل بوابات ما قبل النشر خضراء.
+
 ### Fixed — تشغيل النظام وبوابات الجودة
 - **`POS/node_modules` كان فارغًا** ⇒ لا بناء ولا اختبارات ولا تنصيب ممكن: `npm ci` (597 حزمة).
 - **`dompurify` غير معلَن في `POS/package.json`** ⇒ `TranslatedHTML.vue` (منقّي HTML) لا يُحلّ: اختبار إقلاع الواجهة يفشل والبناء ينكسر.
@@ -75,8 +119,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - موجة FUNC (35 معالج method جديدًا، العقد 105/105): المرتجعات end-to-end عبر `submit_invoice` بنفس `applyInvoiceReturn`، فحص مزامنة `offline_id`، ائتمان/محفظة/حسابات/أعلام، كوبونات وعروض CRUD، إدارة الأصناف، التوفر بالمستودعات، batch-serial، استردادات لمرة واحدة، تحديث الإعدادات والمستودع، شهادة QZ + توقيع SHA-512، المتغيرات، أنواع `POS Coupon/Shifts`، ودعم `order_by` في `get_list`.
 - عمليات: `npm run contract` + بوابته في سير النشر، DDL مرجعي لأجهزة/نمو (`schema.js`)، إصلاح `seed` (أنواع الكوبونات، مخزون يتيم، كلمات مرور عند إعادة التشغيل).
 ### Verified
-- خادم **443/443** (140 مجموعة) عبر `npm test` (المُشغِّل الجديد) · واجهة **763/763** (59 ملفًا) · `vue-tsc` نظيف · biome نظيف في الطرفين · `npm run parity` `ok:true` · عقد method **107/107** · عقد doctype/حقل مُنفَّذ · بناء PWA ناجح (precache 87 مدخلًا / 3.37MB) · ميزانية الحزمة 573KB ≤ 900KB.
+- خادم **446/446** (142 مجموعة) عبر `npm test` (المُشغِّل الجديد) · واجهة **763/763** (59 ملفًا) · `vue-tsc` نظيف · biome نظيف في الطرفين · `npm run parity` `ok:true` · عقد method **107/107** · عقد doctype/حقل مُنفَّذ · بناء PWA ناجح (precache 87 مدخلًا / 3.37MB) · ميزانية الحزمة 575KB ≤ 900KB.
 - سابقة هذه الجولة (قبل الإصلاح) كانت: خلفية 362/362 · واجهة 552/552 — أرقام لم تكن تُشغَّل فعليًا في CI لأن أمر الخادم لا يوسّع النمط.
+
+## [1.37.0] - 2026-09-25 — حملة الكفاءة والجودة: Offline-First ناضج، PWA مخفّضة، وإنتاج عالمي
+### Added
+- Offline-First: إزالة الاعتمادات التشغيلية (الجلسة، الترجمة، اللغة، CSRF، المستخدم) واستبدالها بطبقة محلية؛ بدء التشغيل لا ينتظر أي شبكة.
+- منبّه انتهاء الجلسة أُزيل من شاشات الضيوف (Login/Register/Forgot/Reset)؛ `useSessionTimeout` صريح `start()` فقط.
+- PWA مزدوجة البناء (`build` للتضمين + `build:pages` للجذر)؛ النطاق يتبع القاعدة — خطأ الـ scope مستحيل.
+- تقليم مخرجات البناء الحتمي (`prune-pages-output.mjs`): precache من 729 مدخلًا/29MB إلى ~98 مدخلًا/4MB.
+- حزم ترجمة محلية (`public/locales/ar|en.json`) وخريطة endpoints مركزية (`apiEndpoints.js`).
+- Worker API موسّع (canonical `/api/*` + توافق legacy) على `dypos.smartportssoft.com/api/*` مع D1.
+- اختبارات انحدار جديدة (`offlineFirst.test.js`: endpoints/session-timeout/ترجمة).
+### Verified
+- واجهة 603/603 · خادم 365/365 · biome نظيف · parity `ok:true` · عقد 105/105 · ميزانية الحزمة 831KB ≤ 900KB.
 
 ## [1.36.0] - 2026-09-22 — حملة الترقية النهائية: Real-time، تحصين أمني، Observability، وخروج أُحادي
 ### Added

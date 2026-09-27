@@ -121,7 +121,7 @@ import KpiCard from "@/components/reports/ui/cards/KpiCard.vue"
 import { useToast } from "@/composables/useToast"
 import { apiGet } from "@/utils/restApi"
 import { logger } from "@/utils/logger"
-import { formatCurrency as formatCurrencyUtil } from "@/utils/currency"
+import { formatCurrencySafe } from "@/utils/currency"
 
 const log = logger.create("ReorderManagementDialog")
 
@@ -190,7 +190,7 @@ const totalPages = computed(() =>
 )
 
 function formatCurrency(amount) {
-	return formatCurrencyUtil(Number.parseFloat(amount || 0))
+	return formatCurrencySafe(amount)
 }
 
 async function loadReorderData() {

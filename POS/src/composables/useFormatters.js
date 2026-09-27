@@ -4,7 +4,11 @@
  * Currency formatting delegates to the canonical utils/currency.js so the
  * whole app shares one precision/locale source of truth.
  */
-import { formatCurrencyNumber } from "@/utils/currency"
+import {
+	formatCurrencyNumber,
+	formatPercentSafe,
+	formatQuantitySafe,
+} from "@/utils/currency"
 
 /**
  * Format currency values using system currency precision + locale
@@ -16,17 +20,14 @@ function formatCurrency(amount) {
 }
 
 /**
- * Format quantity values with smart decimal handling
- * Rounds to 4 decimal places and removes trailing zeros
- * @param {number} quantity - The quantity to format
+ * Format quantity values with smart decimal handling.
+ * Delegates to the canonical numeric core: system float precision, LATIN digits
+ * (in every UI language), trailing zeros removed, never empty for bad input.
+ * @param {number|string} quantity - The quantity to format
  * @returns {string} Formatted quantity
  */
 function formatQuantity(quantity) {
-	if (quantity === null || quantity === undefined) return "0"
-	const num = Number.parseFloat(quantity)
-	if (Number.isNaN(num)) return "0"
-	// Round to 4 decimal places and remove trailing zeros
-	return num.toFixed(4).replace(/\.?0+$/, "")
+	return formatQuantitySafe(quantity)
 }
 
 /**
@@ -101,10 +102,7 @@ function formatDate(date) {
  * @returns {string} Formatted percentage
  */
 function formatPercentage(value, decimals = 2) {
-	if (value === null || value === undefined) return "0%"
-	return `${Number.parseFloat(value)
-		.toFixed(decimals)
-		.replace(/\.?0+$/, "")}%`
+	return formatPercentSafe(value, decimals)
 }
 
 /**

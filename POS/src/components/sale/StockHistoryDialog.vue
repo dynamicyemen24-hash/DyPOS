@@ -160,7 +160,7 @@ import Pagination from "@/components/ui/Pagination.vue"
 import { useToast } from "@/composables/useToast"
 import { apiGet } from "@/utils/restApi"
 import { logger } from "@/utils/logger"
-import { formatCurrency as formatCurrencyUtil } from "@/utils/currency"
+import { formatCurrencySafe } from "@/utils/currency"
 
 const log = logger.create("StockHistoryDialog")
 
@@ -222,7 +222,7 @@ const movementColumns = [
 const productSearchDebounce = ref(null)
 
 function formatCurrency(amount) {
-	return formatCurrencyUtil(Number.parseFloat(amount || 0))
+	return formatCurrencySafe(amount)
 }
 
 function formatDateTime(iso) {

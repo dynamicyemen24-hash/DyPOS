@@ -1,0 +1,130 @@
+/**
+ * شاشات العمل — السجل Declarative.
+ *
+ * كل شاشة تُعرَّف ببيانات فقط (أعمدة + مصدر + صلاحية)؛ الصفحة `WorkScreens.vue`
+ * تبني الشبكة والأدوات والحالات من هذا السجل. السبب: حين تُعرَّف الشاشة مرتين
+ * (صفحة + سجل) تنحرف الأعمدة عن المصدر بصمت، والتعديل يحتاج مكانًا واحدًا.
+ *
+ * مصادر البيانات تحترم عقد الإقامة-أوّلًا (AGENTS.md invariant 9): القائمة
+ * تُقرأ من السيرفر عبر `methodGetListWithSource`، وإن تعذّر فترجع للمرآة المحلية
+ * مع `source = local`، وإلا `unavailable` — لا "قائمة فارغة" تُقدَّم كقياس.
+ * الشاشة `stock` استثناء موثّق: مصدره مستودع المخزون المحلي (Dexie) لأن
+ * حدّ إعادة الطلب يعتمد على التوفر المحسوب محليًا.
+ */
+import { methodGetListWithSource } from "@/utils/methodClient"
+import { productRepository } from "@/repositories/productRepository"
+
+const money = (row) => Number(row?.grand_total ?? row?.total ?? 0)
+
+/** @type {ReadonlyArray<{id:string,label:string,icon:string,doctype:string,permission:string,orderBy:string,columns:Array<object>,load:Function}>} */
+export const WORK_SCREENS = Object.freeze([
+	{
+		id: "invoices",
+		label: "الفواتير",
+		icon: "file-text",
+		doctype: "Sales Invoice",
+		permission: "work.invoices",
+		orderBy: "creation desc",
+		columns: [
+			{ key: "name", label: "رقم الفاتورة", frozen: "right", sortable: true },
+			{ key: "customer_name", label: "العميل", sortable: true },
+			{
+				key: "posting_date",
+				label: "التاريخ",
+				sortable: true,
+				format: (row) => String(row?.posting_date ?? "—").slice(0, 10),
+			},
+			{
+				key: "grand_total",
+				label: "الإجمالي",
+				align: "end",
+				sortable: true,
+				aggregate: "sum",
+				format: (row) => money(row).toFixed(2),
+			},
+			{ key: "status", label: "الحالة", filterable: true },
+		],
+		load: (limit) =>
+			methodGetListWithSource("Sales Invoice", {
+				fields: [
+					"name",
+					"customer_name",
+					"posting_date",
+					"grand_total",
+					"status",
+				],
+				orderBy: "creation desc",
+				limit,
+			}),
+	},
+	{
+		id: "items",
+		label: "الأصناف",
+		icon: "package",
+		doctype: "Item",
+		permission: "work.items",
+		orderBy: "modified desc",
+		columns: [
+			{ key: "item_code", label: "الكود", frozen: "right", sortable: true },
+			{
+				key: "item_name",
+				label: "اسم الصنف",
+				sortable: true,
+				filterable: true,
+			},
+			{ key: "stock_uom", label: "الوحدة" },
+			{ key: "disabled", label: "متوقف", filterable: true },
+		],
+		load: (limit) =>
+			methodGetListWithSource("Item", {
+				fields: ["item_code", "item_name", "stock_uom", "disabled"],
+				orderBy: "modified desc",
+				limit,
+			}),
+	},
+	{
+		id: "customers",
+		label: "العملاء",
+		icon: "users",
+		doctype: "Customer",
+		permission: "work.customers",
+		orderBy: "modified desc",
+		columns: [
+			{ key: "name", label: "العميل", frozen: "right", sortable: true },
+			{ key: "customer_name", label: "الاسم", filterable: true },
+			{ key: "mobile_no", label: "الجوال" },
+			{ key: "email_id", label: "البريد" },
+		],
+		load: (limit) =>
+			methodGetListWithSource("Customer", {
+				fields: ["name", "customer_name", "mobile_no", "email_id"],
+				orderBy: "modified desc",
+				limit,
+			}),
+	},
+	{
+		id: "stock",
+		label: "تنبيه المخزون",
+		icon: "alert-triangle",
+		doctype: "Item",
+		permission: "work.stock",
+		orderBy: "",
+		/** Local-first by design: the threshold comparison needs local quantities. */
+		localOnly: true,
+		columns: [
+			{ key: "item_code", label: "الكود", frozen: "right" },
+			{ key: "item_name", label: "الصنف" },
+			{ key: "available", label: "المتاح", align: "end" },
+			{ key: "reorder_level", label: "حد إعادة الطلب", align: "end" },
+		],
+		load: async (limit) => {
+			const rows = await productRepository.lowStock(limit)
+			return { rows, source: "local", error: null }
+		},
+	},
+])
+
+/** Finds a screen by id, falling back to the first one (never `undefined`). */
+export function workScreenById(id) {
+	return WORK_SCREENS.find((screen) => screen.id === id) ?? WORK_SCREENS[0]
+}

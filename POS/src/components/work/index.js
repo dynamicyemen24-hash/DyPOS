@@ -35,15 +35,22 @@ export { default as WorkLoadingSkeleton } from "./WorkLoadingSkeleton.vue"
 export { default as WorkErrorState } from "./WorkErrorState.vue"
 export { default as WorkPermissionState } from "./WorkPermissionState.vue"
 export { default as WorkEmptyState } from "./WorkEmptyState.vue"
+export { default as WorkNotification } from "./WorkNotification.vue"
+// The imperative API lives in a plain module: `<script setup>` cannot hold ES
+// exports, and re-exporting `notify` from the SFC is a compile error — which is
+// why this file only ever "worked" while nothing compiled it.
 export {
-	default as WorkNotification,
 	notify,
 	notifySuccess,
 	notifyError,
 	notifyWarning,
 	notifyInfo,
 	dismissAll,
-} from "./WorkNotification.vue"
+	remove,
+	pause,
+	resume,
+	workNotifications,
+} from "./workNotifications.js"
 
 // Overlays
 export { default as WorkDialog } from "./WorkDialog.vue"

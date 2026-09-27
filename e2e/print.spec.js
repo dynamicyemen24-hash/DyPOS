@@ -48,7 +48,8 @@ ui("DyPOS UI print spool", () => {
 		await expect(reprint).toBeVisible()
 		await reprint.click()
 
-		// Open Print Monitor from the settings gear (POSSettings.openPrintMonitor).
+		// Print Monitor lives in the general settings route (/settings →
+		// SettingsPage → POSSettings → PrintMonitor).
 		await page.goto("/settings")
 		await page
 			.getByRole("button", { name: /مراقب الطباعة|Print Monitor/ })

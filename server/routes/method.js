@@ -20,7 +20,8 @@ import {
   extractToken, verifyToken, tokenHash, generateToken,
   verifyPasswordAsync, hashPasswordAsync, hashPassword, revokeToken, isProduction,
 } from '../middleware/auth.js';
-import { getSetting, allSettings, setSetting, invoicePrefix, defaultTaxRate } from '../lib/settings.js';
+import { getSetting, allSettings, setSetting, invoicePrefix, defaultTaxRate, stockControlMode, stockWarningThreshold, precisionSettings } from '../lib/settings.js';
+import { decrementStock } from '../lib/stockPolicy.js';
 import { toMinor, toMajor, pctOf, clampMinor } from '../lib/money.js';
 import { computeCouponDiscount } from './offers.js';
 import { appendChain } from '../lib/chain.js';
@@ -634,7 +635,7 @@ def('DyPOS.api.localization.get_locale_names', (_p, _r, res) =>
 def('get_locale_names', (_p, _r, res) => res.json({ message: LOCALE_NAMES }));
 
 // ── Ping / health ────────────────────────────────────────────────────────
-const pingPayload = () => ({ message: { pong: true, time: Date.now(), version: process.env.npm_package_version || '1.37.0' } });
+const pingPayload = () => ({ message: { pong: true, time: Date.now(), version: process.env.npm_package_version || '1.38.0' } });
 def('DyPOS.api.ping', (_p, _r, res) => res.json(pingPayload()));
 def('DyPOS.api.utilities.ping', (_p, _r, res) => res.json(pingPayload()));
 def('DyPOS.api.health', (_p, _r, res) => res.json({ message: { status: 'ok' } }));
@@ -1121,12 +1122,11 @@ def('DyPOS.api.bootstrap.get_initial_data', (_p, req, res) => {
       success: true,
       site_name: 'DyPOS',
       locale,
-      precision: {
-        currency: Number(settings.currency_precision || 2),
-        float: 3,
-        rounding_method: "Banker's Rounding",
-        number_format: '#,###.##',
-      },
+      // One formatting contract for the whole client (settings-driven, never
+      // hardcoded): money/quantity precision, rounding method, display digits.
+      precision: precisionSettings(),
+      stock_control_mode: stockControlMode(),
+      stock_warning_threshold: stockWarningThreshold(),
       can_switch_to_desk: req.user.role === 'ADMIN',
       shift,
       pos_profile: {
@@ -1551,18 +1551,9 @@ def('DyPOS.api.pos_profile.get_default_customer', (_p, req, res) => {
 
 def('DyPOS.DyPOS.doctype.pos_settings.pos_settings.get_pos_settings', (_p, req, res) => {
   if (!requireUser(req, res)) return;
-  const s = allSettings();
-  return res.json({
-    message: {
-      allow_negative_stock: s.allow_negative_stock === '1',
-      tax_inclusive: s.tax_inclusive === '1',
-      require_customer_on_sale: s.require_customer_on_sale === '1',
-      tax_rate_default: Number(s.tax_rate_default || 15),
-      default_payment_method: s.default_payment_method || '',
-      autosave_interval_seconds: Number(s.autosave_interval_seconds || 5),
-      pos_profile: 'POS',
-    },
-  });
+  // Same view the writer returns: one shape, so the settings screen cannot
+  // render a policy that differs from the one the sale path enforces.
+  return res.json({ message: posSettingsView() });
 });
 
 // ── Shifts ───────────────────────────────────────────────────────────────
@@ -1899,10 +1890,11 @@ function createOrFinalizeSale(req, payload) {
 
   const insertItem = db.prepare(`INSERT INTO invoice_items (id,invoice_id,product_id,product_name,name_ar,barcode,qty,unit_price,discount,tax_rate,tax_amount,total,uom,warehouse_id,free_qty,is_free_item) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   const insertPayment = db.prepare(`INSERT INTO payments (id,invoice_id,method,amount,reference) VALUES (?,?,?,?,?)`);
-  const stockGuardMode = String(process.env.DYPOS_STOCK_GUARD || 'legacy').trim().toLowerCase() === 'strict' ? 'strict' : 'legacy';
+  const stockPolicy = { mode: stockControlMode(), threshold: stockWarningThreshold() };
   const selectStockRow = db.prepare('SELECT qty, reserved_qty FROM stock_levels WHERE product_id=? AND warehouse_id=?');
   const guardedDecr = db.prepare('UPDATE stock_levels SET qty=qty+?,updated_at=datetime(\'now\') WHERE product_id=? AND warehouse_id=? AND qty+?>=reserved_qty');
   const upsertStock = db.prepare('INSERT INTO stock_levels (product_id,warehouse_id,qty,updated_at) VALUES (?,?,?,datetime(\'now\')) ON CONFLICT(product_id,warehouse_id) DO UPDATE SET qty=qty+excluded.qty,updated_at=datetime(\'now\')');
+  const stockWarnings = [];
   const ensureWh = db.prepare('INSERT OR IGNORE INTO warehouses (id,name) VALUES (?,?)');
   const taxInclusive = getSetting('tax_inclusive', '0') === '1';
 
@@ -1985,18 +1977,12 @@ function createOrFinalizeSale(req, payload) {
         qty, price, toMajor(discountMinor), taxRate, toMajor(lineTaxMinor), toMajor(lineNetMinor + lineTaxMinor),
         String(it.uom || 'Unit').slice(0, 20), wh, freeQty, isFree,
       );
-      const tracked = selectStockRow.get(product.id, wh);
-      const trackedQty = tracked ? Number(tracked.qty) : null;
-      if (tracked && trackedQty >= 0) {
-        const ch = guardedDecr.run(-qty, product.id, wh, -qty);
-        if (ch.changes === 0) {
-          throw Object.assign(new Error(`الكمية المتوفرة غير كافية لصنف ${product.id} في المستودع ${wh} (المتاح ${Math.max(0, trackedQty - Number(tracked.reserved_qty || 0))})`), { statusCode: 409 });
-        }
-      } else if (stockGuardMode === 'strict') {
-        throw Object.assign(new Error(`الكمية المتوفرة غير كافية لصنف ${product.id} (DYPOS_STOCK_GUARD=strict)`), { statusCode: 409 });
-      } else {
-        upsertStock.run(product.id, wh, -qty);
-      }
+      decrementStock(
+        { selectStockRow, guardedDecr, upsertStock },
+        { productId: product.id, warehouseId: wh, qty, label: product.name || product.id },
+        stockPolicy,
+        stockWarnings,
+      );
     }
 
     const grossMinor = subtotalMinor + taxTotalMinor;
@@ -2078,6 +2064,8 @@ function createOrFinalizeSale(req, payload) {
       total,
       status,
       success: true,
+      // Cashier-visible stock notes (warn mode). Absent when nothing was short.
+      ...(stockWarnings.length ? { warnings: stockWarnings } : {}),
     };
   })();
 
@@ -4101,6 +4089,9 @@ def('DyPOS.api.offers.get_customer_one_time_redemptions', (params, req, res) => 
 const POS_SETTINGS_WRITABLE = new Set([
   'allow_negative_stock', 'tax_inclusive', 'require_customer_on_sale',
   'tax_rate_default', 'default_payment_method', 'autosave_interval_seconds',
+  // Global formatting + stock policy (user-configurable, not constants).
+  'number_system', 'currency_precision', 'float_precision', 'rounding_method',
+  'stock_control_mode', 'stock_warning_threshold',
 ]);
 
 function posSettingsView() {
@@ -4112,6 +4103,11 @@ function posSettingsView() {
     tax_rate_default: Number(s.tax_rate_default || 15),
     default_payment_method: s.default_payment_method || '',
     autosave_interval_seconds: Number(s.autosave_interval_seconds || 5),
+    // Effective (env-floor aware) values, so the client can never disagree with
+    // the server about whether a short sale is blocked or merely warned.
+    stock_control_mode: stockControlMode(),
+    stock_warning_threshold: stockWarningThreshold(),
+    ...precisionSettings(),
     pos_profile: 'POS',
   };
 }

@@ -3,7 +3,7 @@ import { createResource } from "dypos-ui"
 import { defineStore } from "pinia"
 import { computed, ref } from "vue"
 import { useBootstrapStore } from "./bootstrap"
-import { configureCurrency } from "@/utils/currency"
+import { configureCurrency, initPrecision } from "@/utils/currency"
 
 // =============================================================================
 // OPERATIONAL MODULE REGISTRY
@@ -493,6 +493,7 @@ const NUMERIC_LOCALES = {
 	en: "en",
 	id: "id-ID",
 	"pt-br": "pt-BR",
+	ur: "ur-PK",
 }
 
 // =============================================================================
@@ -526,7 +527,12 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		allow_submissions_in_background_job: 0,
 
 		// ---- Module: Inventory & Stock ----
+		// allow_negative_stock is the per-item escape hatch; stock_control_mode is
+		// the shop-wide policy that decides whether a short sale is refused
+		// (strict) or completed with an Arabic warning (warn, default).
 		allow_negative_stock: 0,
+		stock_control_mode: "warn", // strict | warn | off
+		stock_warning_threshold: 0, // remaining qty at/below which a warning fires
 		allow_user_to_edit_rate: 0,
 		input_qty: 0,
 		show_variants_as_items: 0,
@@ -588,6 +594,12 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		currency: "", // "" = system default currency
 		date_format: "yyyy-mm-dd",
 		number_format: "#,###.##",
+		// Display digits are LATIN by default in EVERY UI language; "arab" is an
+		// explicit operator choice (see utils/currency.js).
+		number_system: "latn",
+		currency_precision: 2, // money decimals (halala = 2)
+		float_precision: 3, // quantity decimals
+		rounding_method: "Banker's Rounding",
 		rtl_support: 0,
 		currency_symbol_position: "left",
 
@@ -842,6 +854,48 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 	// Computed — Localization (country-agnostic)
 	// ================================================================
 	const locale = computed(() => settings.value.locale || "")
+	const numberSystem = computed(() =>
+		String(settings.value.number_system || "latn").toLowerCase() === "arab"
+			? "arab"
+			: "latn",
+	)
+	const currencyPrecision = computed(
+		() => Number.parseInt(settings.value.currency_precision) || 0,
+	)
+	const floatPrecision = computed(
+		() => Number.parseInt(settings.value.float_precision) || 0,
+	)
+	const roundingMethod = computed(
+		() => settings.value.rounding_method || "Banker's Rounding",
+	)
+
+	// ================================================================
+	// Computed — Stock policy (smart, configurable, never a dead end)
+	// ================================================================
+	/**
+	 * Effective stock policy. Mirrors the server's precedence EXACTLY
+	 * (`server/lib/stockPolicy.js` + the `DYPOS_STOCK_GUARD=strict` hard floor),
+	 * so the POS can never block (or allow) a sale the server would decide
+	 * differently.
+	 */
+	const stockControlMode = computed(() => {
+		const v = String(settings.value.stock_control_mode || "warn").toLowerCase()
+		return v === "strict" || v === "off" ? v : "warn"
+	})
+	const stockWarningThreshold = computed(
+		() => Number(settings.value.stock_warning_threshold) || 0,
+	)
+	/** true only when a short sale must be refused (strict). */
+	const shouldBlockShortStock = computed(
+		() =>
+			stockControlMode.value === "strict" &&
+			!settings.value.allow_negative_stock,
+	)
+	/** true when a shortage completes the sale but must be announced. */
+	const shouldWarnOnShortStock = computed(
+		() =>
+			stockControlMode.value === "warn" && !settings.value.allow_negative_stock,
+	)
 	const timezone = computed(
 		() => settings.value.timezone || getBrowserTimezone(),
 	)
@@ -972,13 +1026,36 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 	// Runtime sync: keep formatting + locale caches aligned with settings
 	// ================================================================
 	function applyToRuntime() {
-		const { currency: cur, locale: loc } = settings.value
+		const {
+			currency: cur,
+			locale: loc,
+			number_system: ns,
+			currency_precision: currencyPrecisionValue,
+			float_precision: floatPrecisionValue,
+			rounding_method: roundingMethodValue,
+			number_format: numberFormatValue,
+		} = settings.value
 
 		// Keep currency.js defaults in sync with the configured locale.
 		const numericLocale = loc ? NUMERIC_LOCALES[loc] || loc : undefined
-		if (cur || numericLocale) {
-			configureCurrency({ currency: cur || undefined, locale: numericLocale })
+		if (cur || numericLocale || ns) {
+			configureCurrency({
+				currency: cur || undefined,
+				locale: numericLocale,
+				numberSystem: ns || undefined,
+			})
 		}
+
+		// Formatting contract (digits, money/quantity precision, rounding) is a
+		// SETTING: push it into the canonical numeric core the moment it loads, so
+		// every screen, receipt and report formats from the same numbers.
+		initPrecision({
+			currency: Number.parseInt(currencyPrecisionValue) || 0,
+			float: Number.parseInt(floatPrecisionValue) || 0,
+			rounding_method: roundingMethodValue || "Banker's Rounding",
+			number_format: numberFormatValue || "#,###.##",
+			number_system: ns || "latn",
+		})
 
 		// Cache the effective locale so useLocale() can honor it when offline.
 		try {
@@ -1068,6 +1145,8 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 
 			// ---- Module: Inventory & Stock ----
 			allow_negative_stock: 0,
+			stock_control_mode: "warn",
+			stock_warning_threshold: 0,
 			allow_user_to_edit_rate: 0,
 			input_qty: 0,
 			show_variants_as_items: 0,
@@ -1129,6 +1208,10 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 			currency: "",
 			date_format: "yyyy-mm-dd",
 			number_format: "#,###.##",
+			number_system: "latn",
+			currency_precision: 2,
+			float_precision: 3,
+			rounding_method: "Banker's Rounding",
 			rtl_support: 0,
 			currency_symbol_position: "left",
 
@@ -1202,11 +1285,24 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 	}
 
 	/**
-	 * Check if stock validation should be enforced
-	 * @returns {boolean} - True if stock validation should prevent negative stock
+	 * Whether a short sale must be BLOCKED (strict policy only).
+	 *
+	 * Semantics changed in v1.38 with the stock-policy setting: `warn` (the
+	 * default) never blocks — it announces. Callers that must not lose the sale
+	 * should ask `evaluateStock()` instead of this boolean; it stays for the
+	 * call sites that only render "would this be refused?".
+	 * @returns {boolean}
 	 */
 	function shouldEnforceStockValidation() {
-		return isEnabled.value && !settings.value.allow_negative_stock
+		return isEnabled.value && shouldBlockShortStock.value
+	}
+
+	/**
+	 * Whether a shortage must be ANNOUNCED while the sale continues (warn mode).
+	 * @returns {boolean}
+	 */
+	function shouldWarnOnStockShortage() {
+		return isEnabled.value && shouldWarnOnShortStock.value
 	}
 
 	/**
@@ -1371,8 +1467,18 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		currency,
 		dateFormat,
 		numberFormat,
+		numberSystem,
+		currencyPrecision,
+		floatPrecision,
+		roundingMethod,
 		rtlSupport,
 		currencySymbolPosition,
+
+		// Computed — Stock Policy
+		stockControlMode,
+		stockWarningThreshold,
+		shouldBlockShortStock,
+		shouldWarnOnShortStock,
 
 		// Computed — Offline & Sync
 		allowDeleteOfflineInvoice,
@@ -1433,6 +1539,7 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		validateDiscount,
 		isNegativeStockAllowed,
 		shouldEnforceStockValidation,
+		shouldWarnOnStockShortage,
 		validateMinimumDiscount,
 		validateMaximumDiscount,
 		getDiscountRange,

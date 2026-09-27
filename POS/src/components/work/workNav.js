@@ -48,6 +48,12 @@ export const WORK_NAV_SECTIONS = Object.freeze([
 				to: { name: "WorkScreens" },
 				icon: "layout",
 			},
+			{
+				id: "settings",
+				label: "الإعدادات العامة",
+				to: { name: "Settings" },
+				icon: "settings",
+			},
 		],
 	},
 ])

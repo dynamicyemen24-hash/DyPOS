@@ -124,6 +124,12 @@ async function vSettings() {
     <tr><td>اسم النشاط</td><td>${txt('business_name', 300)}</td></tr>
     <tr><td>الدولة (ISO-3166)</td><td>${txt('country_code', 90)}</td></tr>
     <tr><td>العملة (ISO-4217 نشطة)</td><td>${txt('currency', 90)}</td></tr>
+    <tr><td>نظام أرقام العرض <small class="en">latn|arab</small></td><td>${txt('number_system', 90)}</td></tr>
+    <tr><td>دقة العملة (0-6)</td><td>${num('currency_precision')}</td></tr>
+    <tr><td>دقة الكميات (0-9)</td><td>${num('float_precision')}</td></tr>
+    <tr><td>طريقة التقريب <small class="en">Banker|Commercial</small></td><td>${txt('rounding_method', 200)}</td></tr>
+    <tr><td>سياسة المخزون عند البيع <small class="en">strict|warn|off</small></td><td>${txt('stock_control_mode', 90)}</td></tr>
+    <tr><td>عتبة تحذير المخزون (0 = عند النفاد فقط)</td><td>${num('stock_warning_threshold')}</td></tr>
     <tr><td>الضريبة الافتراضية %</td><td>${num('tax_rate_default')}</td></tr>
     <tr><td>الأسعار شاملة الضريبة</td><td><select data-k="tax_inclusive"><option value="0"${s.tax_inclusive === '1' ? '' : ' selected'}>لا (0)</option><option value="1"${s.tax_inclusive === '1' ? ' selected' : ''}>نعم (1)</option></select></td></tr>
     <tr><td>بادئة الفواتير</td><td>${txt('invoice_prefix', 120)}</td></tr>

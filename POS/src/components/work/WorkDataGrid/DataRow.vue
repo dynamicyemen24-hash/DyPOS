@@ -19,7 +19,7 @@
     @click="rowClickable && $emit('click', row, $event)"
     @dblclick="rowClickable && $emit('dblclick', row, $event)"
     @keydown="handleKeydown"
-    tabindex="rowClickable ? 0 : -1"
+    :tabindex="rowClickable ? 0 : -1"
   >
     <td
       v-if="selectable"
@@ -44,8 +44,8 @@
         column.frozen ? 'work-data-grid__td--frozen' : '',
       ]"
       :style="{
-        width: column.width + 'px',
-        minWidth: column.minWidth + 'px',
+        width: column.width ? column.width + 'px' : undefined,
+        minWidth: column.minWidth ? column.minWidth + 'px' : undefined,
       }"
       :role="selectable ? 'gridcell' : undefined"
       :data-col-key="column.key"
@@ -127,7 +127,7 @@ const props = defineProps({
 	row: { type: Object, required: true },
 	columns: { type: Array, required: true },
 	rowIndex: { type: Number, required: true },
-	rowKey: { type: String, required: true },
+	rowKey: { type: [String, Number], required: true },
 	selectable: { type: Boolean, default: false },
 	selected: { type: Boolean, default: false },
 	expanded: { type: Boolean, default: false },

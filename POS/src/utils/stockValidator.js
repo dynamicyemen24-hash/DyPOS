@@ -1,6 +1,7 @@
 import { call } from "dypos-ui"
 
 import { logger } from "@/utils/logger"
+import { formatQuantitySafe } from "@/utils/currency"
 
 const log = logger.create("StockValidation")
 
@@ -461,15 +462,120 @@ export function formatStockError(itemName, requested, available, warehouse) {
 /* -------------------------------------------------------------------------- */
 
 export function formatQuantity(value) {
-	const quantity = typeof value === "number" ? value : Number(value)
+	// Canonical numeric core: LATIN digits in every UI language + system float
+	// precision, so a shortage message can never disagree with the cart column.
+	return formatQuantitySafe(value)
+}
 
-	if (!Number.isFinite(quantity)) {
-		return "0"
+/* -------------------------------------------------------------------------- */
+/* Flexible policy evaluation (smart, never a dead end)                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Evaluate a requested quantity against a mode — the pure decision the cart,
+ * the item grid and the settings screen all share.
+ *
+ * @param {Object} item - catalog/cart item
+ * @param {number} requestedQty
+ * @param {Object} [opts] - { mode?: 'strict'|'warn'|'off', warehouse?, threshold? }
+ * @returns {{
+ *   status: 'skipped'|'ok'|'low'|'short'|'unverified',
+ *   available: boolean,  // false only when the sale must be refused
+ *   actualQty: number, shortageQty: number, remaining: number|null,
+ *   mode: string, message: string|null
+ * }}
+ */
+export function evaluateStock(item, requestedQty, opts = {}) {
+	const mode =
+		opts.mode === "strict" || opts.mode === "off" ? opts.mode : "warn"
+	const threshold = Number.isFinite(Number(opts.threshold))
+		? Number(opts.threshold)
+		: 0
+	const skippable = {
+		status: "skipped",
+		available: true,
+		actualQty: 0,
+		shortageQty: 0,
+		remaining: null,
+		mode,
+		message: null,
 	}
+	if (mode === "off" || !shouldValidateItemStock(item)) return skippable
 
-	return new Intl.NumberFormat("ar", {
-		maximumFractionDigits: 6,
-	}).format(quantity)
+	const check = checkStockAvailability(item, requestedQty, opts.warehouse)
+	const remaining = check.actualQty - check.requestedQty
+	if (check.available) {
+		const low = remaining <= threshold
+		return {
+			status: low ? "low" : "ok",
+			available: true,
+			actualQty: check.actualQty,
+			shortageQty: 0,
+			remaining,
+			mode,
+			message: low
+				? formatStockWarning(
+						item,
+						check.actualQty,
+						remaining,
+						check.warehouse,
+						threshold,
+					)
+				: null,
+		}
+	}
+	return {
+		status: "short",
+		// The whole point of `warn`: the sale completes with a warning.
+		available: mode !== "strict",
+		actualQty: check.actualQty,
+		shortageQty: check.shortageQty,
+		remaining,
+		mode,
+		message: formatStockShortage(
+			item,
+			check.requestedQty,
+			check.actualQty,
+			check.warehouse,
+			mode,
+		),
+	}
+}
+
+/** Arabic warning for a shortage that is ALLOWED to complete (warn mode). */
+export function formatStockShortage(
+	item,
+	requested,
+	available,
+	warehouse,
+	mode = "warn",
+) {
+	const name = String(
+		item?.item_name || item?.name || item?.item_code || "الصنف",
+	).trim()
+	const wh = String(warehouse || "المستودع المحدد").trim()
+	const head = `نفاد الكمية: «${name}» — المطلوب ${formatQuantity(requested)}، المتاح ${formatQuantity(available)} في «${wh}».`
+	return mode === "strict"
+		? `${head} البيع موقوف حسب سياسة المخزون (strict).`
+		: `${head} تم إتمام البيع وسُجّل الفرق لتصحيح المخزون.`
+}
+
+/** Arabic warning for low (but sufficient) stock, driven by the setting threshold. */
+export function formatStockWarning(
+	item,
+	available,
+	remaining,
+	warehouse,
+	threshold = 0,
+) {
+	const name = String(
+		item?.item_name || item?.name || item?.item_code || "الصنف",
+	).trim()
+	const wh = String(warehouse || "المستودع المحدد").trim()
+	const base = `تنبيه مخزون منخفض: «${name}» — المتاح ${formatQuantity(available)}، المتبقي بعد البيع ${formatQuantity(remaining)} في «${wh}».`
+	return threshold > 0
+		? `${base} (حد التنبيه ${formatQuantity(threshold)})`
+		: base
 }
 
 /* -------------------------------------------------------------------------- */

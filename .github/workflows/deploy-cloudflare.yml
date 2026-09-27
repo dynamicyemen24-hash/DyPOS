@@ -164,39 +164,17 @@ jobs:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ZONE: ${{ secrets.CF_ZONE_ID }}
 
-      # ── Live verification: customers must see the NEW build. Rejects the
-      # known-stale pre-1.36 bundle and any live HTML without a ?v= pin. ──
+      # ── Live verification: customers must see the NEW build. One implementation
+      # (`scripts/verify-live.mjs`) — the exact script the uptime heartbeat and a
+      # human release check run, so the three can never disagree about what
+      # "live" means. The version asserted here is the release version this
+      # deploy built (`steps.ver`), which is why a release MUST bump the version:
+      # otherwise a stale-but-valid 200 would pass a failed deploy. ──
       - name: Live verify (customers must see the new build)
         if: steps.cf.outputs.available == 'true'
         continue-on-error: true
         run: |
-          SITE="https://dypos.smartportssoft.com"
-          VERSION="${{ steps.ver.outputs.version }}"
+          # Pages serves fresh deployments immediately, but the custom domain can
+          # trail the edge by a few seconds.
           sleep 20
-          echo "Expected version: $VERSION"
-          # build:pages ينشر version.json و index bundle في جذر النطاق، لا تحت
-          # /assets/DyPOS/pos/ — المسار القديم كان يفشل بصمت لأنه يخص بناء Worker.
-          LIVE_JSON=$(curl -fsS "$SITE/version.json" || true)
-          echo "version.json → $LIVE_JSON"
-          LIVE_HTML=$(curl -fsS "$SITE/" || true)
-          BUNDLE=$(echo "$LIVE_HTML" | grep -o '/assets/index-[A-Za-z0-9_-]*\.js' | head -1 || true)
-          echo "index bundle → ${BUNDLE:-MISSING}"
-          {
-            echo "## Live verification"
-            echo "- expected: $VERSION"
-            echo "- version.json: ${LIVE_JSON:-NOT FOUND (404)}"
-            echo "- index bundle: ${BUNDLE:-NOT FOUND}"
-          } >> "$GITHUB_STEP_SUMMARY"
-          if echo "$LIVE_JSON" | grep -q "$VERSION" && [ -n "$BUNDLE" ]; then
-            # SPA fallback لازم: رابط عميق يجب أن يُرجع index.html لا 404،
-            # وإلا حدّث العميل عبر Ctrl+F5 ينكسر.
-            DEEP=$(curl -fsS -o /dev/null -w '%{http_code}' "$SITE/pos/deep-link-probe" || true)
-            echo "deep-link probe → $DEEP"
-            if [ "$DEEP" = "200" ]; then
-              echo "✅ LIVE $VERSION VERIFIED — customers are on the new build."
-            else
-              echo "::warning::Version is live but SPA deep links return $DEEP instead of 200 — check the Pages project redirect rules for the custom domain."
-            fi
-          else
-            echo "::warning::Live site does NOT serve the fresh $VERSION build yet. Pages deploy finished; the custom domain may point at another origin, or edge propagation may still be in flight."
-          fi
+          node scripts/verify-live.mjs --version="${{ steps.ver.outputs.version }}"

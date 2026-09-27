@@ -1,7 +1,6 @@
 import { clearAllDrafts } from "@/utils/draftManager"
 import { clearAllOfflineReceiptPayloads } from "@/utils/offline/offlineReceiptCache"
 import { usePOSCartStore } from "@/stores/posCart"
-import { usePOSUIStore } from "@/stores/posUI"
 import { useSessionLock } from "@/composables/useSessionLock"
 import { shiftState } from "@/composables/useShift"
 import { logger } from "@/utils/logger"
@@ -307,16 +306,16 @@ function resetPiniaStores() {
 
 	/**
 	 * UI
+	 *
+	 * كان هنا `usePOSUIStore().resetAllDialogs()`، لكن المخزن كان ميتًا بالكامل:
+	 * 17 مفتاح `useDialog(...)` لا يقرأه أي مكوّن (حُذفت حواراتها)، والاستدعاء
+	 * الوحيد كان THIS — أي حالة يُصفّرها لا أحد يقرأها. حُذف المخزن و
+	 * `useDialogState.js` معًا.
+	 *
+	 * لوحات نقطة البيع (الدفع/العميل/الخصم/المعلّقة) حالة محلية داخل
+	 * `pages/POSSale.vue`، وتموت مع المكوّن عند مغادرة المسار — فلا حاجة
+	 * لمخزن عام لبقائها بعد الخروج.
 	 */
-	try {
-		const uiStore = usePOSUIStore()
-
-		uiStore.resetAllDialogs()
-	} catch (error) {
-		errors.push(error)
-
-		log.error?.("POS UI cleanup failed", error)
-	}
 
 	return createSectionResult(errors.length === 0, { errors })
 }

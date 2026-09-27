@@ -1,6 +1,6 @@
 {
 	"name": "@dypos/ui",
-	"version": "1.37.0",
+	"version": "1.38.0",
 	"private": true,
 	"type": "module",
 	"description": "DyPOS UI Kit — first-party Vue 3 component + data layer for the offline-first POS. No third-party UI runtime.",

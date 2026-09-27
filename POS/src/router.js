@@ -42,6 +42,9 @@ const ROUTE_NAMES = Object.freeze({
 	RESET_PASSWORD: "ResetPassword",
 	NOT_FOUND: "NotFound",
 	STOCK_MANAGEMENT: "StockManagement",
+	REPORTS: "Reports",
+	WORK_SCREENS: "WorkScreens",
+	SETTINGS: "Settings",
 })
 
 const ROUTE_TITLES = Object.freeze({
@@ -50,8 +53,10 @@ const ROUTE_TITLES = Object.freeze({
 	[ROUTE_NAMES.REGISTER]: "حساب جديد",
 	[ROUTE_NAMES.FORGOT_PASSWORD]: "استعادة كلمة المرور",
 	[ROUTE_NAMES.RESET_PASSWORD]: "تعيين كلمة مرور جديدة",
-	Reports: "التقارير",
+	[ROUTE_NAMES.REPORTS]: "التقارير",
 	[ROUTE_NAMES.STOCK_MANAGEMENT]: "إدارة المخزون",
+	[ROUTE_NAMES.WORK_SCREENS]: "شاشات العمل",
+	[ROUTE_NAMES.SETTINGS]: "الإعدادات العامة",
 	landing: "DyPOS",
 	[ROUTE_NAMES.NOT_FOUND]: "صفحة غير موجودة",
 })
@@ -178,7 +183,7 @@ const routes = [
 
 	{
 		path: "/reports",
-		name: "Reports",
+		name: ROUTE_NAMES.REPORTS,
 		component: () => import("@/components/reports/DashboardPage.vue"),
 		meta: {
 			[ROUTE_META.requiresAuth]: true,
@@ -189,6 +194,35 @@ const routes = [
 		path: "/stock",
 		name: ROUTE_NAMES.STOCK_MANAGEMENT,
 		component: () => import("@/components/reports/StockManagement.vue"),
+		meta: {
+			[ROUTE_META.requiresAuth]: true,
+		},
+	},
+
+	/**
+	 * شاشات العمل — WorkShell + WorkDataGrid فوق مصادر معلنة المصدر.
+	 * تحتاج تسجيل دخول فقط (لا وردية مفتوحة): الإدارة تُراجع الفواتير
+	 * والأصناف حتى بعد إغلاق الوردية، وربطها بـ requiresOpenShift كان
+	 * سيمنعها.
+	 */
+	{
+		path: "/work",
+		name: ROUTE_NAMES.WORK_SCREENS,
+		component: () => import("@/pages/WorkScreens.vue"),
+		meta: {
+			[ROUTE_META.requiresAuth]: true,
+		},
+	},
+
+	/**
+	 * الإعدادات العامة — كانت أيقونة ترس بلا مستمع (settings-clicked بلا
+	 * handler) أي أن الشاشة غير قابلة للوصول؛ الآن لها مسار قابل للربط
+	 * العميق وزر الرجوع يعمل.
+	 */
+	{
+		path: "/settings",
+		name: ROUTE_NAMES.SETTINGS,
+		component: () => import("@/pages/SettingsPage.vue"),
 		meta: {
 			[ROUTE_META.requiresAuth]: true,
 		},
@@ -678,6 +712,38 @@ export function goToLogin(redirect = null) {
 export function goToForgotPassword() {
 	return router.push({
 		name: ROUTE_NAMES.FORGOT_PASSWORD,
+	})
+}
+
+/**
+ * Navigate to the stock management screen.
+ * @returns {Promise}
+ */
+export function goToStockManagement() {
+	return router.push({
+		name: ROUTE_NAMES.STOCK_MANAGEMENT,
+	})
+}
+
+/**
+ * Navigate to the general settings screen (POS gear / deep link).
+ * @returns {Promise}
+ */
+export function goToSettings() {
+	return router.push({
+		name: ROUTE_NAMES.SETTINGS,
+	})
+}
+
+/**
+ * Navigate to the work screens (فواتير/أصناف/عملاء/مخزون).
+ * @param {string} [screen] optional screen id, e.g. "invoices"
+ * @returns {Promise}
+ */
+export function goToWorkScreens(screen = null) {
+	return router.push({
+		name: ROUTE_NAMES.WORK_SCREENS,
+		query: screen ? { screen } : undefined,
 	})
 }
 

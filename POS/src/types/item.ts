@@ -6,9 +6,9 @@
  * typed against a missing file. The shapes below mirror what the runtime
  * actually produces:
  *
- *   - `useItems.js`      -> { ...item, actual_qty, stock_qty, original_stock }
- *   - `stockManagementData.js` -> stock rows of { qty, reserved_qty }
- *     with `available = qty - reserved_qty`
+ *   - `stores/itemSearch.js`  -> { ...item, stock_qty: displayStock }
+ *   - `reports/dashboards/inventory/stockManagementData.js` -> stock rows of
+ *     { qty, reserved_qty } with `available = qty - reserved_qty`
  *
  * Fields are optional where the sources are inconsistent about them (Frappe
  * rows, locally-created cart lines and offline sync payloads all differ), so

@@ -6,6 +6,14 @@ import { defineConfig } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
 import { viteStaticCopy } from "vite-plugin-static-copy"
 
+import {
+	APP_NAME,
+	APP_TAGLINE,
+	BRAND_BACKGROUND_COLOR,
+	BRAND_THEME_COLOR,
+	COMPANY_NAME_AR,
+} from "./src/utils/brand.js"
+
 // ── DyPOS UI Kit (first-party) ──────────────────────────────────────────────
 // The kit lives in the repo (POS/packages/dypos-ui) and is aliased in, not
 // installed from a registry. It replaced a third-party component+data library
@@ -276,14 +284,21 @@ export default defineConfig({
 				"smart-ports-og.jpg",
 			],
 			manifest: {
-				name: "DyPOS",
-				short_name: "DyPOS",
-				description:
-					"Point of Sale system with real-time billing, stock management, and offline support",
-				theme_color: "#1E40AF",
-				background_color: "#ffffff",
+				// الهوية تأتي من src/utils/brand.js — نفس المصدر الذي يغذّي
+				// ترويسة index.html وتذييل الدخول، فلا يختلف اسم المنتج ولا
+				// لون العلامة بين مثبّت التطبيق وصفحة الدخول.
+				id: pwaStartUrl,
+				name: `${APP_NAME} — ${APP_TAGLINE}`,
+				short_name: APP_NAME,
+				description: `${APP_NAME} — ${APP_TAGLINE} من ${COMPANY_NAME_AR}: فواتير ومخزون لحظي، تشغيل دون اتصال، مستخدمون متعددون، وربط مباشر بنظام ERP`,
+				theme_color: BRAND_THEME_COLOR,
+				background_color: BRAND_BACKGROUND_COLOR,
 				display: "standalone",
+				orientation: "any",
 				lang: "ar",
+				dir: "rtl",
+				categories: ["business", "productivity", "shopping"],
+				prefer_related_applications: false,
 				scope: pwaScope,
 				start_url: pwaStartUrl,
 				icons: [

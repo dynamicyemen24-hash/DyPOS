@@ -1,7 +1,7 @@
 # AGENTS.md — Repo conventions for AI coding agents
 
 > This repo is Arabic-first (UI, messages, commit bodies) with English code.
-> Production: https://dypos.smartportssoft.com/ · Version single source: `1.37.0`
+> Production: https://dypos.smartportssoft.com/ · Version single source: `1.39.0`
 > (root `package.json` + `POS/package.json` + `server/package.json` + `server/lib/version.js`).
 
 ## Shell (Windows PowerShell 5.1 — win32)
@@ -13,18 +13,20 @@
 ## Verify before you claim done (all must be green)
 
 ```powershell
-# server/ — 443 tests / 140 suites
+# server/ — 448 tests / 143 suites
 npm test                              # = node scripts/run-tests.mjs
 npx @biomejs/biome check .
 npm run parity
 npm run contract
-# POS/ — 763 tests
+# POS/ — 805 tests / 64 files
 npm run test:run
 npx biome check src/<touched-file>
+# production, from the repo root (after a deploy)
+npm run verify:live                   # = node scripts/verify-live.mjs
 ```
 
 Test counts are *measured* by the runners, never estimated: server
-`443 tests / 140 suites`, POS `763 tests / 59 files`.
+`448 tests / 143 suites`, POS `805 tests / 64 files`.
 
 `POS/node_modules` is disposable — if a command hangs on `npx … Ok to proceed?`,
 the install is missing: `npm ci` in `POS/` (and add the package to
@@ -103,6 +105,21 @@ manifest breaks both the build and any test that compiles CSS).
   enumerates the same files `npm test` does (the old `tests/*.test.js` glob ran
   nothing on Windows).
 - Express 4.22, no `cookie-parser`/`multer` — `upload_file` is JSON-base64.
+- **Two dead-code gates judge "delete or wire", and they are not optional:**
+  `POS/tests/deadCode.test.js` (from `main.js` + routes + test/script roots) and
+  `server/tests/deadCode.test.js` (from `server.js`, workers, tests, scripts and
+  every path named in `server/package.json` scripts). Only *literal*
+  import/require specifiers count — `require(variable)` is invisible to both, so
+  a module loaded only that way is a hole in the gate, not an exemption. Restoring
+  a file is not a fix: it must be reachable **and** compile **and** mount, or it is
+  back to dead. That is how `WorkForm.vue` (unbalanced markup), `WorkWizard.vue`
+  (unquoted attribute) and `WorkNotification.vue` (ES exports in `<script setup>`)
+  stayed broken for months while every suite was green.
+- A `useDialog("key")` / `emit("x-clicked")` / `to: { name }` with no consumer is
+  a **dead contract**: a button that renders and does nothing, or a nav entry
+  that navigates nowhere. Wire the consumer or delete the contract — never leave
+  it "for later"; that is how settings and logout became unreachable while their
+  code sat fully written.
 - `users` has no `preferred_locale` — locale defaults to `'ar'`.
 - **`/api/health` returns 503 whenever *any* registered check degrades** (memory
   and disk thresholds included), so it is environment-dependent under a parallel
@@ -110,3 +127,17 @@ manifest breaks both the build and any test that compiles CSS).
   hard `200`; `/api/ready` is the container probe path.
 - Frontend adapter: `dypos-ui call()` POSTs `/api/method/<path>`, unwraps
   `{ message }`; `login` returns the full payload (short-circuit path).
+- **A release MUST bump the version** (`package.json` + `POS/package.json` +
+  `server/package.json` + `server/lib/version.js`). The deploy workflow asserts
+  the live `/version.json` against that number; shipping code without a bump
+  makes that gate pass over a **failed** deploy, because the domain already
+  serves the old number.
+- **Cloudflare deploys need `Cloudflare Pages:Edit` on the token.** Without it
+  `wrangler pages deploy` answers `Authentication error [code: 10000]` while the
+  token still passes `/user/tokens/verify` — valid but under-scoped. Fix once in
+  the dashboard (no IP allowlist), then `gh secret set CLOUDFLARE_API_TOKEN`.
+- **Live probes live in `scripts/verify-live.mjs`** (`npm run verify:live`), used
+  by the deploy workflow and the 15-minute heartbeat. When production moves,
+  change that one file — never reintroduce per-workflow inline `curl` probes with
+  paths only the deployed layout knows (that is how the heartbeat stayed red on a
+  healthy site).

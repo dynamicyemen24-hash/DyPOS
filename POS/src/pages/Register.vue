@@ -24,6 +24,7 @@ import DyPOSLogo from "@/assets/DyPOSLogo.png"
 import smartPortsBg from "@/assets/smart-ports-og.jpg"
 
 import DyButton from "@/components/ui/DyButton.vue"
+import CompanyFooter from "@/components/common/CompanyFooter.vue"
 import PasswordStrengthBar from "@/components/reports/dashboards/core/PasswordStrengthBar.vue"
 
 import { goToLogin } from "@/router"
@@ -988,19 +989,9 @@ onUnmounted(() => {
 					</DyButton>
 				</form>
 
-				<!-- Footer -->
+				<!-- Footer — اسم الشركة + رابط موقعها الرسمي -->
 
-				<footer class="dy-register__footer">
-					<span>DyPOS</span>
-
-					<span>
-						© {{ new Date().getFullYear() }}
-					</span>
-
-					<span>
-						جميع الحقوق محفوظة
-					</span>
-				</footer>
+				<CompanyFooter class="dy-register__footer" />
 			</div>
 		</section>
 	</main>

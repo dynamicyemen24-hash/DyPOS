@@ -32,6 +32,7 @@ import DyPOSLogo from "@/assets/DyPOSLogo.png"
 import smartPortsBg from "@/assets/smart-ports-og.jpg"
 
 import ShiftOpeningDialog from "@/components/ShiftOpeningDialog.vue"
+import CompanyFooter from "@/components/common/CompanyFooter.vue"
 import DyButton from "@/components/ui/DyButton.vue"
 import PasswordStrengthBar from "@/components/reports/dashboards/core/PasswordStrengthBar.vue"
 
@@ -1814,21 +1815,9 @@ function goToRegister() {
                     </div>
                 </Transition>
 
-                <!-- Footer -->
+                <!-- Footer — اسم الشركة + رابط موقعها الرسمي -->
 
-                <footer class="dy-login__footer">
-                    <span>
-                        DyPOS
-                    </span>
-
-                    <span>
-                        © {{ new Date().getFullYear() }}
-                    </span>
-
-                    <span>
-                        جميع الحقوق محفوظة
-                    </span>
-                </footer>
+                <CompanyFooter class="dy-login__footer" />
             </div>
         </section>
 

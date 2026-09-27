@@ -1,6 +1,6 @@
 {
   "name": "dypos-server",
-  "version": "1.37.0",
+  "version": "1.39.0",
   "description": "DyPOS SaaS backend - REST API + JWT Auth + SQLite (node:sqlite, zero native deps)",
   "main": "server.js",
   "type": "module",
@@ -33,16 +33,20 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.14"
   },
+  "comment": [
+    "lib/telemetry.js hand-rolls the collector wiring with @opentelemetry/api,",
+    "resources, semantic-conventions, instrumentation-express/http and the",
+    "Prometheus exporter. The SDK, the auto-instrumentation bundle, both OTLP",
+    "exporters and pino-http were declared but imported nowhere: an OTLP",
+    "deployment that configured an exporter got an unconfigured collector.",
+    "Add them back the moment a code path really exports traces or OTLP metrics."
+  ],
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/auto-instrumentations-node": "^0.80.0",
-    "@opentelemetry/exporter-metrics-otlp-http": "^0.222.0",
     "@opentelemetry/exporter-prometheus": "^0.222.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.222.0",
     "@opentelemetry/instrumentation-express": "^0.70.0",
     "@opentelemetry/instrumentation-http": "^0.222.0",
     "@opentelemetry/resources": "^2.11.0",
-    "@opentelemetry/sdk-node": "^0.222.0",
     "@opentelemetry/semantic-conventions": "^1.43.0",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^13.0.3",
@@ -55,7 +59,6 @@
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.13.0",
     "pino": "^10.3.1",
-    "pino-http": "^11.0.0",
     "prom-client": "^15.1.3",
     "qrcode": "^1.5.4",
     "uuid": "^14.0.2",

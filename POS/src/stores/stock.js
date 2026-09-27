@@ -6,10 +6,10 @@
  * This store is a LOCAL CACHE, not the source of truth.
  * The server database is the source. This cache stays synchronized via:
  *
- * 1. Realtime Updates (Socket.IO):
- *    - Other terminals submit invoices → realtime_events.py emits pos_stock_update
- *    - useRealtimeStock.js batches events → POSSale.vue filters by warehouse
- *    - Calls update() → Pinia reactivity triggers UI updates (100-800ms)
+ * 1. Offline worker updates (workers/offline.worker.js):
+ *    - Sync lands bulk stock deltas → updateStockQuantities() normalizes them
+ *      → stores/itemSearch.js#applyStockUpdates → update() below
+ *    - Pinia reactivity triggers the UI updates
  *
  * 2. Direct Refresh (API):
  *    - Own invoice submission → calls refresh() with sold items

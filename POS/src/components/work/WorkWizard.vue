@@ -75,7 +75,7 @@
           :aria-labelledby="`wizard-step-${currentStep.id}`"
         >
           <h2
-            id={`wizard-step-${currentStep.id}`}
+            :id="`wizard-step-${currentStep.id}`"
             class="work-wizard__step-title"
           >
             {{ t(currentStep.title) }}

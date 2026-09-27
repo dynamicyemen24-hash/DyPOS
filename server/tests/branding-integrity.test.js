@@ -156,6 +156,10 @@ describe('brand integrity guard', () => {
     const facade = readFileSync(join(REPO_ROOT, 'POS/src/adapters/index.js'), 'utf8');
     assert.match(facade, /adapters\/method\/api\.js/);
     assert.doesNotMatch(facade, /adapters\/frappe\/api\.js/);
+    // A path passed as a *variable* to import() is invisible to Rollup: the
+    // chunk never reaches dist/ and the lazy import 404s in production while
+    // dev keeps working. Both adapters must therefore be static specifiers.
+    assert.doesNotMatch(facade, /import\(\s*[A-Za-z_$]/);
   });
 });
 

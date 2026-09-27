@@ -1,12 +1,11 @@
 /**
- * Arabic-aware fuzzy searching — BOOLEAN matcher role.
+ * Arabic-aware fuzzy matching — BOOLEAN matcher (this file is the whole
+ * matching surface now).
  *
- * Role split (canonical, no overlap):
- * - `utils/fuzzy.js`      → RANKING engine: fuzzyScore/fuzzyMatch(query, candidates[]) + suggestCorrections.
- * - `utils/fuzzyMatch.js` → BOOLEAN engine (this file): fuzzyMatch(query, candidate) + bestFuzzyMatch.
- * - `utils/levenshtein.js`→ single distance implementation both import.
- * - `utils/fuzzyPolicy.js`→ single edit-budget policy.
- * - `utils/search.js`     → unified facade re-exporting both roles.
+ * The old role split is gone: `utils/fuzzy.js` (ranking) and `utils/search.js`
+ * (facade) were deleted as unreachable, so fuzzyMatch.js is the only matcher
+ * left: `fuzzyMatch(query, candidate)` for a single boolean decision and
+ * `bestFuzzyMatch(query, candidates[])` to pick the best candidate from a list.
  *
  * Pure + fully unit-tested. No DOM, no I/O.
  */

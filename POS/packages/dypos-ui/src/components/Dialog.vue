@@ -81,6 +81,14 @@
               </div>
             </slot>
 
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+</template>
+
+
 <script setup>
 /**
  * DyPOS Dialog — modal built on native primitives.
@@ -249,6 +257,7 @@ watch(
 onBeforeUnmount(() => lockScroll(false))
 </script>
 
+
 <style>
 .dy-dialog-enter-active,
 .dy-dialog-leave-active {
@@ -283,9 +292,3 @@ onBeforeUnmount(() => lockScroll(false))
 }
 </style>
 
-          </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
-</template>

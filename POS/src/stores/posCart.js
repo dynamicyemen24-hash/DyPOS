@@ -8,6 +8,8 @@ import { toMinor, toMajor, pctOf, clampMinor } from "@/utils/money"
 import { clearLiveSnapshot } from "@/utils/liveCartAutosave"
 import { offlineState } from "@/utils/offline/offlineState"
 import { useToast } from "@/composables/useToast"
+import { evaluateStock } from "@/utils/stockValidator"
+import { toNumber } from "@/utils/currency"
 import { defineStore } from "pinia"
 import { computed, nextTick, ref, toRaw, watch } from "vue"
 import { logger } from "@/utils/logger"
@@ -180,13 +182,43 @@ export const usePOSCartStore = defineStore("posCart", () => {
 	const isEmpty = computed(() => invoiceItems.value.length === 0)
 	const hasCustomer = computed(() => !!customer.value)
 
+	// ================================================================
+	// Stock policy — the cart NEVER decides on its own
+	// ================================================================
+	//
+	// `evaluateStock()` (utils/stockValidator.js) is the single client-side
+	// decision, and it is driven by the SAME `stock_control_mode` /
+	// `stock_warning_threshold` settings the server applies in
+	// `lib/stockPolicy.js`. The server already sends the EFFECTIVE mode down
+	// (env-floor applied), so a `warn` shop is never told "refused" and a
+	// `strict` shop is never told "go ahead".
+	//
+	//   strict → the line is refused (the server would answer 409 anyway)
+	//   warn   → the sale goes through with an Arabic warning; the shortage is
+	//            recorded in the ledger for a stock adjustment
+	//   off    → no availability check at all
+	//
+	// Returns the decision so each call site can pick how to react (throw vs
+	// toast), and `null` when the policy does not apply to this item at all.
+	function stockDecision(item, requestedQty, warehouse) {
+		if (!settingsStore.isEnabled) return null
+		return evaluateStock(item, requestedQty, {
+			mode: settingsStore.stockControlMode,
+			threshold: settingsStore.stockWarningThreshold,
+			warehouse,
+		})
+	}
+
+	/** Announce a warn-mode shortage (no-op for the silent statuses). */
+	function announceStockWarning(decision) {
+		if (decision?.message) {
+			showWarning(decision.message)
+		}
+	}
+
 	// Actions
 	function addItem(item, qty = 1, _autoAdd = false, currentProfile = null) {
-		if (
-			currentProfile &&
-			settingsStore.shouldEnforceStockValidation() &&
-			shouldValidateItemStock(item)
-		) {
+		if (currentProfile) {
 			// Account for quantity already in the cart for this item
 			const itemUom = item.uom || item.stock_uom
 			const existing = invoiceItems.value.find(
@@ -195,10 +227,11 @@ export const usePOSCartStore = defineStore("posCart", () => {
 			const totalQty = (existing ? existing.quantity : 0) + qty
 			const warehouse = item.warehouse || currentProfile.warehouse
 
-			const check = checkStockAvailability(item, totalQty, warehouse)
-			if (!check.available) {
-				throw new Error(check.error)
+			const decision = stockDecision(item, totalQty, warehouse)
+			if (decision && !decision.available) {
+				throw new Error(decision.message)
 			}
+			announceStockWarning(decision)
 		}
 
 		addItemToInvoice(item, qty)
@@ -218,19 +251,17 @@ export const usePOSCartStore = defineStore("posCart", () => {
 
 		if (!item) return baseUpdateItemQuantity(itemCode, quantity, uom)
 
-		const newQty = Number.parseFloat(quantity) || 1
+		// Multi-script input: "٢٫٥" and "2,5" are the same quantity as "2.5".
+		const newQty = toNumber(quantity, 1) || 1
 
 		// Only validate when quantity is increasing
-		if (
-			newQty > item.quantity &&
-			settingsStore.shouldEnforceStockValidation() &&
-			shouldValidateItemStock(item)
-		) {
-			const check = checkStockAvailability(item, newQty)
-			if (!check.available) {
-				showWarning(check.error)
+		if (newQty > item.quantity) {
+			const decision = stockDecision(item, newQty, item.warehouse)
+			if (decision && !decision.available) {
+				showWarning(decision.message)
 				return
 			}
+			announceStockWarning(decision)
 		}
 
 		baseUpdateItemQuantity(itemCode, quantity, uom)
@@ -306,6 +337,17 @@ export const usePOSCartStore = defineStore("posCart", () => {
 			// The open invoice is now a real invoice: drop the autosaved
 			// live snapshot so the next boot shows nothing to recover.
 			void clearLiveSnapshot()
+			// Server-side stock policy (lib/stockPolicy.js) is the authority: in
+			// `warn` mode it completes the sale and returns the shortages as
+			// Arabic notes. They are the cashier's only chance to hear it — the
+			// cart is already cleared by now — so they must be announced, not
+			// swallowed. Absent when nothing was short.
+			const serverWarnings = Array.isArray(result.warnings)
+				? result.warnings
+				: []
+			for (const note of serverWarnings) {
+				if (note) showWarning(String(note))
+			}
 		}
 		return result
 	}
@@ -1425,14 +1467,17 @@ export const usePOSCartStore = defineStore("posCart", () => {
 			// Validate stock if quantity is being increased
 			if (
 				updates.quantity !== undefined &&
-				updates.quantity > cartItem.quantity &&
-				settingsStore.shouldEnforceStockValidation() &&
-				shouldValidateItemStock(cartItem)
+				updates.quantity > cartItem.quantity
 			) {
-				const check = checkStockAvailability(cartItem, updates.quantity)
-				if (!check.available) {
-					throw new Error(check.error)
+				const decision = stockDecision(
+					cartItem,
+					updates.quantity,
+					cartItem.warehouse,
+				)
+				if (decision && !decision.available) {
+					throw new Error(decision.message)
 				}
+				announceStockWarning(decision)
 			}
 
 			// Apply other updates

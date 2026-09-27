@@ -35,9 +35,12 @@ describe("roundMoney (frozen EPSILON-float policy)", () => {
 })
 
 describe("formatNumber/formatMoneyValue", () => {
-	it("formats Arabic numerals with max 2 decimals", () => {
-		expect(formatNumber(0)).toBe("٠")
-		expect(formatNumber(1234.5)).toContain("١٬٢٣٤")
+	it("formats canonical Latin digits at the configured precision", () => {
+		// v1.38 contract: LATIN digits in every UI language (machine-parseable
+		// accounting figures) + the configured currency precision — the old
+		// `Intl("ar-SA")` Arabic-Indic output diverged from receipts/reports.
+		expect(formatNumber(0)).toBe("0.00")
+		expect(formatNumber(1234.5)).toContain("1,234")
 	})
 	it("appends the caller-bound currency", () => {
 		expect(formatMoneyValue(10, "ر.س")).toBe(`${formatNumber(10)} ر.س`)

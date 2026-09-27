@@ -92,6 +92,11 @@
       </select>
 
       <!-- Multi Select -->
+      <!--
+        The wrapper needs its own </div>: it was never closed, which is the
+        "Element is missing end tag" the compiler reported at the root element.
+        Invisible while the file was unreachable — no build ever compiled it.
+      -->
       <div v-else-if="type === 'multiselect'" class="work-form-field__multiselect">
         <WorkSelect
           :model-value="localValue"
@@ -103,6 +108,7 @@
           @update:modelValue="handleChange"
           @blur="handleBlur"
         />
+      </div>
 
       <!-- Date / DateTime / Time -->
       <input
@@ -319,6 +325,7 @@ import { ref, computed, watch, nextTick } from "vue"
 import { t } from "@/utils/translation"
 import { FeatherIcon } from "dypos-ui"
 import WorkSearch from "./WorkSearch.vue"
+import WorkSelect from "./WorkSelect.vue"
 
 const props = defineProps({
 	field: {

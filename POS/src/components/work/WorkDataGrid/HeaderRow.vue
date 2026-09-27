@@ -30,14 +30,14 @@
       ]"
       scope="col"
       :style="{
-        width: column.width + 'px',
-        minWidth: column.minWidth + 'px',
-        maxWidth: column.maxWidth + 'px',
+        width: column.width ? column.width + 'px' : undefined,
+        minWidth: column.minWidth ? column.minWidth + 'px' : undefined,
+        maxWidth: column.maxWidth ? column.maxWidth + 'px' : undefined,
       }"
       @click="column.sortable && $emit('sort', column.key)"
       @keydown.enter="column.sortable && $emit('sort', column.key)"
       @keydown.space.prevent="column.sortable && $emit('sort', column.key)"
-      tabindex="column.sortable ? 0 : -1"
+      :tabindex="column.sortable ? 0 : -1"
       aria-sort="getSortAria(column.key)"
     >
       <div class="work-data-grid__th-content">
