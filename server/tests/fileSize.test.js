@@ -17,7 +17,13 @@ const SERVER = resolve(import.meta.dirname, '..');
 
 /** [file, maxLines] — measured. */
 const CAPS = [
-  ['routes/method.js', 4145],
+  // Raised ONCE, with the reason recorded: this release added a real capability
+  // (the `dypos.client.get_count` denominator + the financial facts the report
+  // layer actually sums), not accretion. The ratchet bites again from here — the
+  // next addition must be paid for by extracting a module. The doctype specs
+  // (`DOCTYPES` + `resolveDoctype`) are the scheduled split, tracked in
+  // docs/TECH_DEBT_PAYDOWN.md.
+  ['routes/method.js', 4223],
   ['db/schema.js', 1092],
   ['routes/invoices.js', 886],
   ['server.js', 639],

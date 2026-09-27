@@ -194,24 +194,40 @@ export const cacheItemsFromServer = async (posProfile) => {
 }
 
 // Load customers from server (returns data for worker to cache)
+//
+// The method verb caps a page at 500 and reads `limit: 0` as 100, so a single
+// "get all" call silently cached only the FIRST HUNDRED customers — an offline
+// directory that looks complete and is not. Walk the pages up to an explicit
+// bound and report what was skipped.
+const CUSTOMER_PAGE = 500
+const CUSTOMER_MAX = 20000
+
 export const cacheCustomersFromServer = async (posProfile) => {
 	try {
 		log.debug("Fetching customers from server...")
 
-		const response = await call("DyPOS.api.customers.get_customers", {
-			pos_profile: posProfile,
-			start: 0,
-			limit: 0, // Get all customers
-		})
-
-		if (response.message && Array.isArray(response.message)) {
-			const customers = response.message
-
-			log.debug(`Fetched ${customers.length} customers from server`)
-			return { customers }
+		const customers = []
+		for (let start = 0; start < CUSTOMER_MAX; start += CUSTOMER_PAGE) {
+			const response = await call("DyPOS.api.customers.get_customers", {
+				pos_profile: posProfile,
+				start,
+				limit: CUSTOMER_PAGE,
+			})
+			const page = response?.message
+			if (!Array.isArray(page) || page.length === 0) break
+			customers.push(...page)
+			if (page.length < CUSTOMER_PAGE) break
+		}
+		const truncated = customers.length >= CUSTOMER_MAX
+		if (truncated) {
+			log.warn("customer cache stopped at the client bound", {
+				loaded: customers.length,
+				bound: CUSTOMER_MAX,
+			})
 		}
 
-		return { customers: [] }
+		log.debug(`Fetched ${customers.length} customers from server`)
+		return { customers, truncated }
 	} catch (error) {
 		log.error("Error fetching customers from server:", error)
 		throw error

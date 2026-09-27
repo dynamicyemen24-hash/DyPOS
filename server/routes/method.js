@@ -226,8 +226,15 @@ function clearAuthCookies(res) {
   res.append('Set-Cookie', `dypos_token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secure}`);
 }
 
-// ── Doctype → table map for dypos.client.get_list / get_value / get ──
-const DOCTYPES = {
+/**
+ * Doctype → table map for dypos.client.get_list / get_value / get.
+ *
+ * Exported for the doctype/field contract gate (`tests/doctype-contract.test.js`),
+ * which proves every doctype the report layer asks for resolves to a REAL table
+ * and produces the fields it reads. An entry that exists but maps to nothing is
+ * the failure mode that made dashboards render confident zeros.
+ */
+export const DOCTYPES = {
   Item: {
     table: 'products',
     idCol: 'id',
@@ -276,14 +283,48 @@ const DOCTYPES = {
     table: 'invoices',
     idCol: 'id',
     fields: {
-      name: 'id', customer: 'customer_id', grand_total: 'total',
-      status: 'status', posting_date: 'created_at', company: 'tenant_id',
+      name: 'id', number: 'number', customer: 'customer_id',
+      customer_name: 'customer_name', shift_id: 'shift_id', terminal_id: 'terminal_id',
+      grand_total: 'total', status: 'status', posting_date: 'created_at',
+      company: 'tenant_id',
+      // Financial facts the report layer sums. Every one of these used to be
+      // MISSING from this projection, so `sumBy(invoices, "base_net_total")`
+      // summed `undefined` and "Total Revenue" rendered a confident 0.00
+      // against a perfectly healthy server.
+      base_net_total: 'subtotal',
+      base_grand_total: 'total',
+      base_total_taxes_and_charges: 'tax_amount',
+      base_discount_amount: 'discount_amount',
+      base_paid_amount: 'paid_amount',
+      outstanding_amount: 'remaining_amount',
     },
     mapRow(r) {
       return {
-        name: r.id, customer: r.customer_id, grand_total: r.total ?? 0,
-        outstanding_amount: r.outstanding_amount ?? 0, status: r.status || 'PAID',
-        posting_date: r.created_at, company: r.tenant_id || '',
+        name: r.id, number: r.number || r.id, customer: r.customer_id,
+        customer_name: r.customer_name || '',
+        // The SQLite invoices table has no due_date column; emitting a derived
+        // date would make every receivable look overdue, so it stays null and
+        // the aging calculator buckets it as "not yet due".
+        due_date: null,
+        shift_id: r.shift_id || null,
+        terminal_id: r.terminal_id || null,
+        grand_total: r.total ?? 0,
+        base_net_total: r.subtotal ?? 0,
+        base_grand_total: r.total ?? 0,
+        base_total_taxes_and_charges: r.tax_amount ?? 0,
+        base_discount_amount: r.discount_amount ?? 0,
+        base_paid_amount: r.paid_amount ?? 0,
+        // `outstanding_amount` never existed on this row shape, so receivables
+        // were always empty. `remaining_amount` is the real unpaid balance.
+        outstanding_amount: r.remaining_amount ?? 0,
+        status: r.status || 'PAID',
+        posting_date: r.created_at,
+        company: r.tenant_id || '',
+        // A return is not a separate row: `applyInvoiceReturn` rewrites the
+        // original invoice (status RETURNED, totals recomputed, negative REFUND
+        // payment). So the truthful flag is the status, and the amounts the
+        // reports sum are already net — the field simply never existed before.
+        is_return: r.status === 'RETURNED' ? 1 : 0,
         docstatus: r.status === 'PAID' ? 1 : 0,
       };
     },
@@ -350,7 +391,7 @@ const DOCTYPES = {
   },
 };
 
-function resolveDoctype(doctype) {
+export function resolveDoctype(doctype) {
   const key = String(doctype || '').trim();
   if (DOCTYPES[key]) return DOCTYPES[key];
   // Common aliases
@@ -865,7 +906,28 @@ def('dypos.client.has_permission', (params, req, res) => {
   return res.json({ message: { has_permission: allowed } });
 });
 
-// ── dypos.client.get_list / get_value / get / set_value ────────────────
+/**
+ * Build the WHERE clause + bound params for a doctype query.
+ *
+ * One implementation, three callers (`get_list`, `get_value`, `get_count`): a
+ * count that filtered differently from the list it counts is a report that
+ * claims "1 of 1" while showing 50 rows.
+ *
+ * @returns {{where: string, sqlParams: Array}|null} null = fail-closed (403 sent)
+ */
+function buildWhereFor(spec, params, req, res) {
+  const whereParts = [];
+  const sqlParams = [];
+  if (spec.defaultWhere) whereParts.push(spec.defaultWhere);
+  applyFilters(spec, whereParts, sqlParams, normalizeFilters(params.filters));
+  if (!pushTenantScope(spec, req, res, whereParts, sqlParams)) return null;
+  return {
+    where: whereParts.length ? ` WHERE ${whereParts.join(' AND ')}` : '',
+    sqlParams,
+  };
+}
+
+// ── dypos.client.get_list / get_value / get / get_count ─────────────────
 def('dypos.client.get_list', (params, req, res) => {
   if (!requireUser(req, res)) return;
   const spec = resolveDoctype(params.doctype);
@@ -875,17 +937,13 @@ def('dypos.client.get_list', (params, req, res) => {
     : null;
   const limit = Math.min(Math.max(Number(params.limit_page_length || params.limit) || 50, 1), 500);
   const start = Math.max(Number(params.limit_start || params.start) || 0, 0);
-  const whereParts = [];
-  const sqlParams = [];
-  if (spec.defaultWhere) whereParts.push(spec.defaultWhere);
-  applyFilters(spec, whereParts, sqlParams, normalizeFilters(params.filters));
-  if (!pushTenantScope(spec, req, res, whereParts, sqlParams)) return;
-  const where = whereParts.length ? ` WHERE ${whereParts.join(' AND ')}` : '';
+  const built = buildWhereFor(spec, params, req, res);
+  if (!built) return;
   const select = buildFieldSelect(spec, fields);
   const orderClause = parseOrderBy(params.order_by || params.orderBy, spec);
   try {
-    const rows = db.prepare(`${select} FROM ${spec.table}${where}${orderClause} LIMIT ? OFFSET ?`)
-      .all(...sqlParams, limit, start);
+    const rows = db.prepare(`${select} FROM ${spec.table}${built.where}${orderClause} LIMIT ? OFFSET ?`)
+      .all(...built.sqlParams, limit, start);
     if (spec.mapRow) {
       return res.json({ message: rows.map((r) => redactRow(spec, spec.mapRow(r))) });
     }
@@ -896,19 +954,39 @@ def('dypos.client.get_list', (params, req, res) => {
   }
 });
 
+/**
+ * COUNT for the same query `get_list` would answer.
+ *
+ * `get_list` caps a page at 500 rows (and reads `limit: 0` as 50), so any client
+ * that walks pages needs the real denominator to know whether it saw
+ * everything. Without it the only honest options are "download everything" or
+ * "present a partial sum as a total" — the second is what the dashboards did.
+ */
+def('dypos.client.get_count', (params, req, res) => {
+  if (!requireUser(req, res)) return;
+  const spec = resolveDoctype(params.doctype);
+  // Unknown doctype → 0, matching get_list's empty list.
+  if (!spec) return res.json({ message: 0 });
+  const built = buildWhereFor(spec, params, req, res);
+  if (!built) return;
+  try {
+    const row = db.prepare(`SELECT COUNT(*) AS c FROM ${spec.table}${built.where}`)
+      .get(...built.sqlParams);
+    return res.json({ message: Number(row?.c || 0) });
+  } catch {
+    return res.json({ message: 0 });
+  }
+});
+
 def('dypos.client.get_value', (params, req, res) => {
   if (!requireUser(req, res)) return;
   const spec = resolveDoctype(params.doctype);
   if (!spec) return res.json({ message: null });
-  const filters = normalizeFilters(params.filters);
-  const whereParts = [];
-  const sqlParams = [];
-  if (spec.defaultWhere) whereParts.push(spec.defaultWhere);
-  applyFilters(spec, whereParts, sqlParams, filters);
-  if (!pushTenantScope(spec, req, res, whereParts, sqlParams)) return;
-  const where = whereParts.length ? ` WHERE ${whereParts.join(' AND ')}` : '';
+  const built = buildWhereFor(spec, params, req, res);
+  if (!built) return;
+  const { where } = built;
   try {
-    const row = db.prepare(`SELECT * FROM ${spec.table}${where} LIMIT 1`).get(...sqlParams);
+    const row = db.prepare(`SELECT * FROM ${spec.table}${where} LIMIT 1`).get(...built.sqlParams);
     if (!row) return res.json({ message: null });
     const mapped = spec.mapRow ? spec.mapRow(row) : redactRow(spec, row);
     // Secret columns are never readable by name, even when explicitly asked.

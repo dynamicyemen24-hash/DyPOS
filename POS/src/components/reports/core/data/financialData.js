@@ -20,6 +20,7 @@ import {
 	NO_DYPOS_API,
 } from "@/utils/methodClient"
 import { weakestSource } from "@/utils/offline/localMirror"
+import { pagedList } from "./pagedQuery"
 
 const INVOICE_CHUNK = 100
 
@@ -29,7 +30,7 @@ const SOURCE_WARNING = {
 		"تعذّر جلب البيانات المالية (لا خادم ولا ذاكرة محلية)",
 }
 
-/** Provenance-aware fetch — the loaders must know where rows came from. */
+/** Provenance-aware fetch for the per-doctype child queries. */
 async function collect(doctype, options = {}) {
 	return methodGetListWithSource(doctype, options)
 }
@@ -52,7 +53,9 @@ function buildPeriodFilters(filter, dateField) {
 	if (filter?.from) filters.push([dateField, ">=", toISODate(filter.from)])
 	if (filter?.to) filters.push([dateField, "<=", toISODate(filter.to)])
 	if (filter?.company) filters.push(["company", "=", filter.company])
-	if (filter?.posProfile) filters.push(["pos_profile", "=", filter.posProfile])
+	// `pos_profile` is deliberately NOT sent: the invoices table has no
+	// POS-profile column, and the router drops an unmappable filter SILENTLY —
+	// a "filtered" report would then show every invoice in the period.
 	return filters
 }
 
@@ -60,12 +63,13 @@ async function chunkedChildQuery(doctype, fields, parentField, parentNames) {
 	const rows = []
 	for (let i = 0; i < parentNames.length; i += INVOICE_CHUNK) {
 		const chunk = parentNames.slice(i, i + INVOICE_CHUNK)
-		const part = await getList(doctype, {
+		// Paged, not `limit: 0`: a 100-parent chunk can still exceed one server
+		// page, and an unbounded ask silently becomes a 50-row page.
+		const part = await pagedList(doctype, {
 			fields,
 			filters: [[parentField, "in", chunk]],
-			limit: 0,
 		})
-		rows.push(...part)
+		rows.push(...part.rows)
 	}
 	return rows
 }
@@ -81,7 +85,6 @@ const SALES_INVOICE_FIELDS = [
 	"customer",
 	"customer_name",
 	"company",
-	"pos_profile",
 	"status",
 	"is_return",
 	"base_grand_total",
@@ -100,7 +103,6 @@ const salesInvoiceQuery = (filter) => ({
 	fields: SALES_INVOICE_FIELDS,
 	filters: buildPeriodFilters(filter, "posting_date"),
 	orderBy: "posting_date asc",
-	limit: 0,
 })
 
 export async function fetchSalesInvoices(filter) {
@@ -174,7 +176,6 @@ const paymentEntryQuery = (filter) => ({
 	],
 	filters: buildPeriodFilters(filter, "posting_date"),
 	orderBy: "posting_date asc",
-	limit: 0,
 })
 
 export async function fetchPaymentEntries(filter) {
@@ -198,7 +199,6 @@ const receivableQuery = (filter) => {
 		],
 		filters,
 		orderBy: "due_date asc",
-		limit: 0,
 	}
 }
 
@@ -224,7 +224,6 @@ const payableQuery = (filter) => {
 		],
 		filters,
 		orderBy: "due_date asc",
-		limit: 0,
 	}
 }
 
@@ -245,10 +244,10 @@ export async function fetchPayables(filter) {
 export async function loadFinancialData(filter) {
 	const [invoicesRes, paymentsRes, receivablesRes, payablesRes] =
 		await Promise.all([
-			collect("Sales Invoice", salesInvoiceQuery(filter)),
-			collect("Payment Entry", paymentEntryQuery(filter)),
-			collect("Sales Invoice", receivableQuery(filter)),
-			collect("Purchase Invoice", payableQuery(filter)),
+			pagedList("Sales Invoice", salesInvoiceQuery(filter)),
+			pagedList("Payment Entry", paymentEntryQuery(filter)),
+			pagedList("Sales Invoice", receivableQuery(filter)),
+			pagedList("Purchase Invoice", payableQuery(filter)),
 		])
 
 	const invoices = invoicesRes.rows
@@ -258,15 +257,29 @@ export async function loadFinancialData(filter) {
 		fetchSalesTaxLines(invoiceNames),
 	])
 
-	const source = weakestSource([
-		invoicesRes.source,
-		paymentsRes.source,
-		receivablesRes.source,
-		payablesRes.source,
-	])
+	const parts = [invoicesRes, paymentsRes, receivablesRes, payablesRes]
+	// Revenue, transactions and receivables all come from Sales Invoice — the
+	// fact set the headline KPIs are computed from, so it decides availability.
+	// Payments and payables are sub-metrics: unreadable means "named", not
+	// "hide a perfectly good revenue report behind a red banner".
+	const essential = [invoicesRes, receivablesRes]
+	const source = weakestSource(essential.map((p) => p.source))
 
 	const warnings = []
+	// Per-part honesty: a doctype the router cannot map must be NAMED, not
+	// rendered as a zero. "Payables 0.00" is a claim; "payables unavailable" is
+	// a fact the manager can act on.
+	for (const part of parts) {
+		if (part.reason && !warnings.includes(part.reason))
+			warnings.push(part.reason)
+	}
 	if (source !== DATA_SOURCE.SERVER) warnings.push(SOURCE_WARNING[source])
+	const truncated = parts.find((p) => p.truncated)
+	if (truncated) {
+		warnings.push(
+			`تم تحميل جزء من البيانات (${truncated.rows.length} من ${truncated.total ?? "غير معروف"})`,
+		)
+	}
 	if (invoiceNames.length > 0 && items.length === 0) {
 		warnings.push("items_unavailable")
 	}

@@ -20,6 +20,7 @@ import {
 import { toISODate } from "../core/dashboardUtils"
 import { methodGetListWithSource, DATA_SOURCE } from "@/utils/methodClient"
 import { weakestSource } from "@/utils/offline/localMirror"
+import { pagedList } from "@/components/reports/core/data/pagedQuery"
 
 const SOURCE_WARNING = {
 	[DATA_SOURCE.LOCAL]: "البيانات معروضة من ذاكرة الجهاز وقد لا تكون محدَّثة",
@@ -35,8 +36,8 @@ function buildPeriodFilters(filter, dateField) {
 }
 
 export async function loadInventoryData(filter) {
-	const [stockRes, itemsRes] = await Promise.all([
-		methodGetListWithSource("Stock Ledger Entry", {
+	const [stockRes, itemsRes, binRes] = await Promise.all([
+		pagedList("Stock Ledger Entry", {
 			fields: [
 				"name",
 				"posting_date",
@@ -50,9 +51,8 @@ export async function loadInventoryData(filter) {
 			],
 			filters: buildPeriodFilters(filter, "posting_date"),
 			orderBy: "posting_date asc",
-			limit: 0,
 		}),
-		methodGetListWithSource("Item", {
+		pagedList("Item", {
 			fields: [
 				"name",
 				"item_name",
@@ -63,21 +63,33 @@ export async function loadInventoryData(filter) {
 				"disabled",
 			],
 			filters: [["is_stock_item", "=", 1]],
-			limit: 0,
+		}),
+		pagedList("Bin", {
+			fields: ["item_code", "warehouse", "actual_qty", "valuation_rate"],
 		}),
 	])
 
-	const binRes = await methodGetListWithSource("Bin", {
-		fields: ["item_code", "warehouse", "actual_qty", "valuation_rate"],
-		limit: 0,
-	})
-
-	const source = weakestSource([
-		stockRes.source,
-		itemsRes.source,
-		binRes.source,
-	])
-	const warnings = source === DATA_SOURCE.SERVER ? [] : [SOURCE_WARNING[source]]
+	const parts = [stockRes, itemsRes, binRes]
+	// Which parts the KPIs are COMPUTED FROM. `Stock Ledger Entry` only feeds the
+	// movement trend, so it can be missing without making "Stock Value" a lie.
+	// `Bin` and `Item` build the headline KPIs, so if either is unavailable the
+	// dashboard is unavailable — that is the entire point of the change.
+	const essential = [itemsRes, binRes]
+	const source = weakestSource(essential.map((p) => p.source))
+	const warnings = []
+	// Named gaps beat silent zeros: "Bin unavailable" tells a manager that the
+	// stock value on screen is not a measurement.
+	for (const part of parts) {
+		if (part.reason && !warnings.includes(part.reason))
+			warnings.push(part.reason)
+	}
+	if (source !== DATA_SOURCE.SERVER) warnings.push(SOURCE_WARNING[source])
+	const truncated = parts.find((p) => p.truncated)
+	if (truncated) {
+		warnings.push(
+			`تم تحميل جزء من البيانات (${truncated.rows.length} من ${truncated.total ?? "غير معروف"})`,
+		)
+	}
 
 	return {
 		stockEntries: stockRes.rows,
@@ -85,6 +97,8 @@ export async function loadInventoryData(filter) {
 		binData: binRes.rows,
 		source,
 		warnings,
+		truncated: parts.some((p) => p.truncated),
+		total: binRes.total,
 	}
 }
 

@@ -164,26 +164,91 @@ describe("localMirror — cache reads", () => {
 })
 
 // ── The data layers, with the transport mocked ────────────────────────────
+/** responder({ doctype, offset, limit, count }) → what the server would answer */
 let responder = () => ({ rows: [], source: DATA_SOURCE.SERVER, error: null })
 
 vi.mock("@/utils/methodClient", async () => {
 	const actual = await vi.importActual("@/utils/methodClient")
 	return {
 		...actual,
-		methodGetListWithSource: vi.fn(async () => responder()),
+		methodGetListWithSource: vi.fn(async (doctype, options = {}) =>
+			responder({ doctype, ...options }),
+		),
+		// `dypos.client.get_count` is the denominator; it must agree with the list.
+		methodCall: vi.fn(async (method, args = {}) =>
+			method === "dypos.client.get_count"
+				? {
+						message:
+							responder({ doctype: args.doctype, count: true }).total ?? 0,
+					}
+				: { message: [] },
+		),
 	}
 })
 
 import { methodGetListWithSource } from "@/utils/methodClient"
 import { loadInventoryData } from "@/components/reports/dashboards/inventory/inventoryData"
 import { loadFinancialData } from "@/components/reports/core/data/financialData"
+import { pagedList, MAX_ROWS } from "@/components/reports/core/data/pagedQuery"
 
 beforeEach(() => {
 	responder = () => ({ rows: [], source: DATA_SOURCE.SERVER, error: null })
 })
 
+describe("paged report queries", () => {
+	/** A server that serves `total` rows in 500-row pages. */
+	const pagedServer =
+		(total) =>
+		({ doctype, offset = 0, count } = {}) => {
+			if (count) return { total }
+			return {
+				rows: Array.from(
+					{ length: Math.max(0, Math.min(500, total - offset)) },
+					(_, i) => ({
+						name: `INV-${offset + i}`,
+						base_net_total: 10,
+						doctype,
+					}),
+				),
+				source: DATA_SOURCE.SERVER,
+				error: null,
+			}
+		}
+
+	it("walks every page so a period total is not just the first page", async () => {
+		// 1,200 invoices at the server's 500-row cap is three pages. The old single
+		// call summarised the first 50 and labelled it "Total Revenue".
+		responder = pagedServer(1200)
+		const result = await pagedList("Sales Invoice", { fields: ["name"] })
+		expect(result.rows).toHaveLength(1200)
+		expect(result.total).toBe(1200)
+		expect(result.truncated).toBe(false)
+	})
+
+	it("stops at the safety bound and says so", async () => {
+		responder = pagedServer(45000)
+		const result = await pagedList("Sales Invoice", { fields: ["name"] })
+		expect(result.rows).toHaveLength(MAX_ROWS)
+		expect(result.truncated).toBe(true)
+		expect(result.total).toBe(45000)
+	})
+
+	it("never calls the network for a doctype the router cannot map", async () => {
+		// Spending a round-trip to learn what we already know is the waste the
+		// SERVER_UNAVAILABLE_DOCTYPES list exists to prevent.
+		responder = pagedServer(5)
+		const bin = await pagedList("Bin", { fields: ["item_code"] })
+		expect(bin.source).toBe(DATA_SOURCE.UNAVAILABLE)
+		expect(bin.reason).toMatch(/Bin/)
+		expect(bin.rows).toEqual([])
+	})
+})
+
 describe("report data layers — provenance contract", () => {
-	it("reports `server` when the server answered (no warning, no false alarm)", async () => {
+	it("refuses to present an unanswerable dashboard as a measurement", async () => {
+		// `Bin` is not mapped in the method router, so "Stock Value" cannot be
+		// computed at all. The old code rendered 0.00 with a confident label; the
+		// dashboard must now report itself unavailable and NAME the gap.
 		responder = () => ({
 			rows: [{ item_code: "A", actual_qty: 3, valuation_rate: 10 }],
 			source: DATA_SOURCE.SERVER,
@@ -193,42 +258,45 @@ describe("report data layers — provenance contract", () => {
 			from: "2026-09-01",
 			to: "2026-09-30",
 		})
-		expect(data.source).toBe(DATA_SOURCE.SERVER)
-		expect(data.warnings).toEqual([])
-		expect(data.binData).toHaveLength(1)
+		expect(data.source).toBe(DATA_SOURCE.UNAVAILABLE)
+		expect(data.binData).toEqual([])
+		const named = data.warnings.join(" ")
+		expect(named).toMatch(/Bin/)
+		expect(named).toMatch(/Stock Ledger Entry/)
+	})
+
+	it("keeps real revenue and NAMES the sub-metrics it cannot read", async () => {
+		// Payments/payables are unmapped, but revenue is a true number now — so
+		// the report stays usable and says exactly what is missing.
+		responder = () => ({
+			rows: [{ name: "INV-1", base_net_total: 180, outstanding_amount: 50 }],
+			source: DATA_SOURCE.SERVER,
+			error: null,
+			total: 1,
+		})
+		const result = await loadFinancialData({})
+		expect(result.source).toBe(DATA_SOURCE.SERVER)
+		expect(result.facts.invoices).toHaveLength(1)
+		const named = result.warnings.join(" ")
+		expect(named).toMatch(/Payment Entry/)
+		expect(named).toMatch(/Purchase Invoice/)
 	})
 
 	it("serves the device's own rows offline and SAYS so", async () => {
 		responder = () => ({
-			rows: [{ item_code: "A", actual_qty: 3, valuation_rate: 10 }],
+			rows: [{ name: "INV-1", base_net_total: 180 }],
 			source: DATA_SOURCE.LOCAL,
 			error: new Error("network down"),
 		})
-		const data = await loadInventoryData({})
-		expect(data.source).toBe(DATA_SOURCE.LOCAL)
-		expect(data.binData).toHaveLength(1)
-		expect(data.warnings).toHaveLength(1)
-		expect(data.warnings[0]).toMatch(/ذاكرة الجهاز/)
+		const result = await loadFinancialData({})
+		expect(result.source).toBe(DATA_SOURCE.LOCAL)
+		expect(result.facts.invoices).toHaveLength(1)
+		expect(result.warnings.some((w) => /ذاكرة الجهاز/.test(w))).toBe(true)
 	})
 
-	it("refuses to present an empty answer as a measurement", async () => {
+	it("never presents an empty answer as a measurement", async () => {
 		// The old behaviour: every fetch swallowed, rows were [], and the KPI
 		// builder happily produced "Stock Value 0.00" as if it were measured.
-		responder = () => ({
-			rows: [],
-			source: DATA_SOURCE.UNAVAILABLE,
-			error: new Error("down"),
-		})
-		const data = await loadInventoryData({})
-		expect(data.source).toBe(DATA_SOURCE.UNAVAILABLE)
-		expect(data.stockEntries).toEqual([])
-		expect(data.items).toEqual([])
-		expect(data.binData).toEqual([])
-		expect(data.warnings).toHaveLength(1)
-		expect(data.warnings[0]).toMatch(/تعذّر/)
-	})
-
-	it("financial loader carries the same provenance", async () => {
 		responder = () => ({
 			rows: [],
 			source: DATA_SOURCE.UNAVAILABLE,
@@ -241,8 +309,8 @@ describe("report data layers — provenance contract", () => {
 	})
 
 	it("methodGetListWithSource stays the single transport entry point", () => {
-		// The array helper delegates to it, so no caller can skip the
-		// provenance decision.
+		// The array helper delegates to it, so no caller can skip the provenance
+		// decision.
 		expect(typeof methodGetListWithSource).toBe("function")
 	})
 })
