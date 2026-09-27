@@ -22,8 +22,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`POS/node_modules` كان فارغًا** ⇒ لا بناء ولا اختبارات ولا تنصيب ممكن: `npm ci` (597 حزمة).
 - **`dompurify` غير معلَن في `POS/package.json`** ⇒ `TranslatedHTML.vue` (منقّي HTML) لا يُحلّ: اختبار إقلاع الواجهة يفشل والبناء ينكسر.
 - **`@tailwindcss/forms` غير معلَن** ⇒ `packages/dypos-ui/tailwind` يرمي `Cannot find module` عند أي ترجمة CSS (اختبار + بناء PWA). أُضيفت الحزمتان إلى البيان والقفل.
-- **بوابة الخادم كانت تُشغّل صفر اختبار**: النمط `tests/**/*.test.js` لا يوسّعه Node، فيُخرَج بـ 0 رغم وجود 40 ملف اختبار — بما فيها خطوة «API regression» في CI. أُضيف `server/scripts/run-tests.mjs` يعدّ الملفات بنفسه **ويرفض الإبلاغ بالأخضر إن لم يجد شيئًا**؛ `npm test` = 484 اختبارًا.
+- **بوابة الخادم كانت تُشغّل صفر اختبار**: النمط `tests/**/*.test.js` لا يوسّعه Node، فيُخرَج بـ 0 رغم وجود 40 ملف اختبار — بما فيها خطوة «API regression» في CI. أُضيف `server/scripts/run-tests.mjs` يعدّ الملفات بنفسه **ويرفض الإبلاغ بالأخضر إن لم يجد شيئًا**؛ و`npm run test:watch` صار يمرّ عبره (النمط القديم لم يعمل على Windows).
+
+### Fixed — بوابة العقد والبناء: من «لا أعرف» إلى «أعرف بالقياس»
+- **بوابة عقد method-router كانت تُسقط 17 استدعاءً بصمت** (نصوص مثل `"/api/method/DyPOS.api.ping"` و`methodCall(...)` لم تكن تُمسح أصلًا) ⇒ عجزت عن كشف عيبين حقيقيين: **`DyPOS.api.auth.register` غير مُسجَّل على خادم Express** (صفحة التسجيل ترجع 404 بينما تعمل على Cloudflare) و**`dypos.ping` غير مُسجَّل** (فحص اتصال يستهلك رحلة شبكة على 404). أُعيد بناء المحرك في `server/scripts/method-contract.mjs` (106 فعلًا / 169 موضع نداء / 422 ملفًا) مع **حدّ أدنى للأصالة**: فحص رقيق ⇒ فشل صريح بدل «0 استدعاء، كل شيء مغطى».
+- **العطب نفسه عند مستوى البوابة**: `check-method-coverage` بلا اختبار ولا حدّ، فأي كسر مستقبلي في المجمِّع كان سيُبلّغ بالأخضر. `server/tests/method-coverage.test.js` (14 اختبارًا) يثبت **مساري الفشل**: فعل غير مُسجَّل مع موقعه، والفحص الرقيق.
+- **`DyPOS.api.auth.register`** صار اسمًا حقيقيًا بتطبيق واحد واسمين (`dypos.auth.register` محفوظ فلا يفقد عميلٌ مُنشر فعلًا)، مع اختبارَي طلب حقيقي: إنشاء المستخدم ثم دخوله بكلمته — «الاسم مُسجَّل» لا تكفي.
+- **فحص الاتصال في `offline/detection.js`** توقّف عن احتضار 404: استُبدل المسار الميت بـ `DyPOS.api.health` المُسجَّل فعلًا.
+- **إعدادات البناء كانت تشير إلى حزمة محذوفة**: `optimizeDeps.include` طلب `highlight.js` و`interactjs` (غير مُعلَنين أصلًا ⇒ `vite dev` لا يستطيع تحضيرهما)، و`tailwind.content` كان يمسح `node_modules/dypos-ui` بعد أن أصبحت الحزمة أولى ⇒ **تنقية CSS كانت تحذف أصناف مكتبة الواجهة بصمت**، وخطوة CI كانت تمسح حزمة لم تعد موجودة (بوابة لا تفشل أبدًا). `POS/tests/buildConfig.test.js` (5 اختبارات) يمنع تكرار الصنف.
+- **سباق في خط البناء كان يُسقط بناءً صحيحًا**: Rollup يشغّل خطافات `writeBundle` **بالتوازي**، فكان `prune-stale-assets` يحذف ملف CSS قبل أن يقرأه `strip-font-fallbacks` (ENOENT ⇒ فشل بناء). الخطافات الآن `sequential: true` بترتيبها، مع تحمّل ENOENT بتحذير بدل إسقاط البناء.
+- **نظافة الاختبارات**: `scale4` كان يثبّت `/api/health` على 200 بينما ترجع 503 شرعًا حين يتدهور فحص ذاكرة/قرص تحت الحمل المتوازي؛ صار يثبت **العقد** (شكل الحمولة + توافق الحالة مع aggregates) ويتحقق أن حكم الـ503 يسمّي الفحص المتعثّر.
 - **حارس التسمية**: `server/tests/branding-integrity.test.js` (6 اختبارات) يمنع تكرار تلف الاستبدال.
+
+### Added — ديون مُقاسة بدل مُؤجَّلة
+- **رافعة حجم الملفات**: `POS/tests/fileSize.test.js` + `server/tests/fileSize.test.js` — السقوف = الأرقام المقاسة اليوم (`POSSale` 6374، `PaymentDialog` 3655، `Login` 3406، `itemSearch` 2620، `routes/method.js` 4145…) ولا تنزل إلا مع التقسيم. بند «قسّم هذا يومًا» صار مُنفَّذًا آليًا.
+- **قياس CSP نهاية-لنهاية**: `security-headers.test.js` يثبت أن المسار الحيّ يقدّم `style-src 'self' 'nonce-…'` بلا `unsafe-inline` وأن ترويسة الـnonce تطابق السياسة — فبند «تضييق CSP المؤجَّل» صار مُثبَتًا بدل المُفترَض.
+- **دليل على الدليل**: `docs/TECH_DEBT_PAYDOWN.md` و`SECURITY.md` حُدِّثا بأرقام مقاسة (لا تقديرات) وبقرار صريح لكل بند: مسدَّد / مسدَّد جزئيًا / مقبول موثّق.
+
+### Changed
+- **الجذر بـ npm وحده**: حُذف `postinstall: cd POS && yarn install` (يطفو الإصدارات ويعطّل آلات بلا yarn)، وحلّت محلّه أوامر `npm --prefix POS …` مع `install:pos`/`test:pos`/`verify:pos`.
+- **`manualChunks` تبع الكود لا مكانه القديم**: مكتبة الواجهة (أولى الآن في `POS/packages/dypos-ui`) لها حزمة `vendor-dypos` خاصة (كود مستقر ⇒ تخزين مؤقت طويل)، والفرع الميت الذي كان ينتظر `node_modules/dypos-ui` حُذف.
+
 ### Changed — استبدال التسمية بمكوّنات حديثة تعمل بلا إنترنت
 - **طبقة عميل method-router واحدة** (`POS/src/utils/methodClient.js`): لوحات التقارير والمخزون ومتجر SaaS كانت تستطلع `window.<desk>` غير الموجود أصلًا ⇒ تفشل صامتة «API not available» حتى مع خادم يعمل. الآن تمرّ عبر `@/utils/methodClient` مع تدهور صريح (قائمة فارغة بدل انفجار)، وتصدير/حذف بيانات المستخدم ينجز محليًا حتى لو مات الخادم.
 - تسمية موحّدة بلا تغيير سلوكي: `NO_FRAPPE` ⇒ `NO_DYPOS_API` (ورسالة عربية)، `adapters/frappe/` ⇒ `adapters/method/` (ويبقى `VITE_DYPOS_BACKEND=frappe` مقبولًا)، `frappeError` ⇒ `methodError`، `frappeOrigin` ⇒ `deskOrigin` (مع `DYPOS_DESK_ORIGIN` الجديد والقديم `DYPOS_FRAPPE_ORIGIN` كبديل)، `getFrappeBoot` ⇒ `getRuntimeBoot`، `X-Frappe-CSRF-Token` ⇒ `X-DyPOS-CSRF-Token`، وحذف `frappeRequest` من حزمة الواجهة.
@@ -33,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - موجة FUNC (35 معالج method جديدًا، العقد 105/105): المرتجعات end-to-end عبر `submit_invoice` بنفس `applyInvoiceReturn`، فحص مزامنة `offline_id`، ائتمان/محفظة/حسابات/أعلام، كوبونات وعروض CRUD، إدارة الأصناف، التوفر بالمستودعات، batch-serial، استردادات لمرة واحدة، تحديث الإعدادات والمستودع، شهادة QZ + توقيع SHA-512، المتغيرات، أنواع `POS Coupon/Shifts`، ودعم `order_by` في `get_list`.
 - عمليات: `npm run contract` + بوابته في سير النشر، DDL مرجعي لأجهزة/نمو (`schema.js`)، إصلاح `seed` (أنواع الكوبونات، مخزون يتيم، كلمات مرور عند إعادة التشغيل).
 ### Verified
-- خادم **484/484** عبر `npm test` (المُشغِّل الجديد) · واجهة **732/732** · `vue-tsc` نظيف · biome نظيف في الطرفين · `npm run parity` `ok:true` · عقد method 97/97 · بناء PWA ناجح (precache 89 مدخلًا / 3.3MB) · ميزانية الحزمة 569KB ≤ 900KB.
+- خادم **432/432** (136 مجموعة) عبر `npm test` (المُشغِّل الجديد) · واجهة **745/745** (58 ملفًا) · `vue-tsc` نظيف · biome نظيف في الطرفين · `npm run parity` `ok:true` · عقد method **106/106** · بناء PWA ناجح (precache 89 مدخلًا / 3.36MB) · ميزانية الحزمة 570KB ≤ 900KB.
 - سابقة هذه الجولة (قبل الإصلاح) كانت: خلفية 362/362 · واجهة 552/552 — أرقام لم تكن تُشغَّل فعليًا في CI لأن أمر الخادم لا يوسّع النمط.
 
 ## [1.36.0] - 2026-09-22 — حملة الترقية النهائية: Real-time، تحصين أمني، Observability، وخروج أُحادي

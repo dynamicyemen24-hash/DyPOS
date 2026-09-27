@@ -19,10 +19,12 @@ const log = logger.create("OfflineDetection")
 // ============================================================================
 
 const CONFIG = {
-	// Health check endpoints (try in order)
+	// Health check endpoints (try in order). Every entry must be a verb the
+	// server actually registers — a 404 here is a wasted round-trip that also
+	// makes the "online" signal flap. `npm run contract` proves the list.
 	HEALTH_ENDPOINTS: [
 		"/api/method/DyPOS.api.ping",
-		"/api/method/dypos.ping",
+		"/api/method/DyPOS.api.health",
 		"/api/device",
 	],
 

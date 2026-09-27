@@ -141,6 +141,35 @@ describe('/api/method — auth (login / get_logged_user / has_permission)', () =
     assert.ok(reg.body.message?.id || reg.body.id);
   });
 
+  it('POST DyPOS.api.auth.register (the spelling the POS/worker use) → 200', async () => {
+    // Regression: the shipped Register page (and the Cloudflare worker) call the
+    // capitalised verb. Only the lowercase name existed on this server, so a
+    // real subscriber hit 404 here while the same flow worked on Pages — a
+    // deployment split-brain. A "name is registered" assertion is not enough:
+    // this proves the handler actually creates the user.
+    const username = `m_cap_${Date.now()}`;
+    const res = await call('POST', '/api/method/DyPOS.api.auth.register', {
+      body: { username, password: 'StrongP@55!', fullName: 'Capitalised', role: 'CASHIER' },
+    });
+    assert.strictEqual(res.status, 200);
+    const created = res.body.message || res.body;
+    assert.ok(created?.id, 'register must return the new user id');
+
+    // …and the created credentials work on the login path.
+    const login = await call('POST', '/api/method/login', {
+      body: { usr: username, pwd: 'StrongP@55!' },
+    });
+    assert.strictEqual(login.status, 200);
+  });
+
+  it('POST DyPOS.api.auth.register rejects a weak password (400)', async () => {
+    const res = await call('POST', '/api/method/DyPOS.api.auth.register', {
+      body: { username: `m_weak_${Date.now()}`, password: 'short' },
+    });
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.exc_type, 'ValidationError');
+  });
+
   it('POST login (usr/pwd) returns full payload + sets dypos_token cookie', async () => {
     const res = await call('POST', '/api/method/login', {
       body: { usr: user.username, pwd: user.password },

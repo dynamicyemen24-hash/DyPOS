@@ -13,7 +13,7 @@
  * the enumeration comes up empty. A gate that cannot report "nothing ran" is
  * the only kind worth having.
  *
- * Usage: node scripts/run-tests.mjs [--reporter dot|spec|tap] [file …]
+ * Usage: node scripts/run-tests.mjs [--reporter dot|spec|tap] [--watch] [file …]
  */
 import { spawn } from 'node:child_process';
 import { readdirSync } from 'node:fs';
@@ -23,11 +23,14 @@ const TESTS_DIR = resolve(import.meta.dirname, '..', 'tests');
 const SETUP = './tests/setup.js';
 
 const argv = process.argv.slice(2);
-const reporterIndex = argv.indexOf('--reporter');
-const reporter = reporterIndex === -1 ? 'spec' : argv[reporterIndex + 1];
-const explicit = argv.filter(
-  (a, i) => a !== '--reporter' && i !== reporterIndex + 1 && !a.startsWith('--'),
-);
+const flag = (name, fallback) => {
+  const i = argv.indexOf(name);
+  return i === -1 ? fallback : argv[i + 1];
+};
+const reporter = flag('--reporter', 'spec');
+const watch = argv.includes('--watch');
+const consumed = new Set(['--reporter', reporter, '--watch']);
+const explicit = argv.filter((a) => !consumed.has(a) && !a.startsWith('--'));
 
 const files = explicit.length
   ? explicit.map((f) => resolve(process.cwd(), f))
@@ -41,11 +44,11 @@ if (files.length === 0) {
   process.exit(1);
 }
 
-const child = spawn(
-  process.execPath,
-  ['--test', '--import', SETUP, `--test-reporter=${reporter}`, ...files],
-  { stdio: 'inherit', cwd: resolve(import.meta.dirname, '..') },
-);
+const args = ['--import', SETUP, ...(watch ? ['--watch'] : []), '--test', `--test-reporter=${reporter}`, ...files];
+const child = spawn(process.execPath, args, {
+  stdio: 'inherit',
+  cwd: resolve(import.meta.dirname, '..'),
+});
 child.on('exit', (code, signal) => {
   if (signal) {
     console.error(`[DyPOS] test run killed by ${signal}`);

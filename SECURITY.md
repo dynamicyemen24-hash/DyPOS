@@ -62,8 +62,8 @@ private advisory draft.
 
 | Risk | Why accepted | Revisit |
 | ---- | ------------ | ------- |
-| `echarts` moderate XSS nested in `dypos-ui` | **Not shipped**: absent from the production bundle (tree-shaken — verified by grepping built assets, 2026-09-24). Fix requires a breaking `dypos-ui` downgrade. | Each `dypos-ui` bump |
-| CSP `style-src 'unsafe-inline'` | Vue build constraint (see `server.js` TODO); compensated by strict rest of policy + no user HTML sinks (escaped highlights). | Hash/nonce migration |
+| CSP `style-src 'unsafe-inline'` **on the no-nonce fallback only** | The live Express path serves `style-src 'self' 'nonce-…'` — verified end to end by `tests/security-headers.test.js` (nonce present, `unsafe-inline` absent, header/policy nonces equal). The `unsafe-inline` string survives only in `securityHeaders`' fallback branch, which runs when no CSP was set upstream (e.g. the edge/worker deployment, or a middleware-order regression). | When the edge deployment carries nonces, delete the fallback branch instead of keeping it as a safety net |
+| `echarts` moderate XSS, formerly nested in the `dypos-ui` package | **Risk vector removed**: the UI kit is first-party (`POS/packages/dypos-ui`) and the registry package — with its nested `echarts` — is no longer installed or present in `POS/package-lock.json` (`POS/tests/buildConfig.test.js` asserts it can never come back silently). | If a chart engine is ever re-added to the POS, audit it before it ships |
 | Live-verify step is `continue-on-error` | Avoids blocking good deploys on edge-propagation delay; failures still alert as warnings. | If flakiness budget exceeded |
 
 ## Out of Scope

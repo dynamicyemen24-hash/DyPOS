@@ -736,7 +736,16 @@ def('dypos.auth.get_logged_user', (_p, req, res) => {
   return res.json({ message: username });
 });
 
-def('dypos.auth.register', async (params, req, res) => {
+// One implementation, two names. Both are registered explicitly (not left to
+// the `DyPOS.*` → `dypos.*` alias loop, which would only produce
+// `dypos.api.auth.register`):
+//   - `DyPOS.api.auth.register` — what the shipped POS (pages/Register.vue) and
+//     the Cloudflare worker call. It did not exist here, so subscribing 404'd
+//     on the Express API while working on Pages: a deployment split-brain the
+//     method-coverage gate now prevents.
+//   - `dypos.auth.register` — the pre-existing lowercase name; kept so no
+//     deployed client loses a verb.
+const doRegister = async (params, req, res) => {
   const username = String(params.username || params.usr || '').trim();
   const password = String(params.password || params.pwd || '');
   const fullName = String(params.full_name || params.fullName || username).trim();
@@ -761,7 +770,9 @@ def('dypos.auth.register', async (params, req, res) => {
     .run(id, username, hash, fullName, finalRole);
   req.audit?.('auth.register', { newUser: username, role: finalRole });
   return res.json({ message: { id, username, fullName, role: finalRole } });
-});
+};
+def('DyPOS.api.auth.register', doRegister);
+def('dypos.auth.register', doRegister);
 
 // ── Password reset (maps to /api/auth/forgot + /reset) ──────────────────
 def('DyPOS.api.auth.send_password_reset', (params, _req, res) => {

@@ -96,7 +96,11 @@ export default {
 	content: [
 		"./index.html",
 		"./src/**/*.{vue,js,ts,jsx,tsx}",
-		"./node_modules/dypos-ui/src/components/**/*.{vue,js,ts,jsx,tsx}",
+		// The UI kit is first-party now: it lives in the repo, not in
+		// node_modules. Tailwind only keeps the utilities it can see, so a stale
+		// node_modules path here silently purges the kit's classes from the
+		// production CSS (a visual regression no unit test would catch).
+		"./packages/dypos-ui/src/**/*.{vue,js,ts,jsx,tsx}",
 	],
 	theme: {
 		extend: {

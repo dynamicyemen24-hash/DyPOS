@@ -25,6 +25,10 @@ const UI_KIT = path.resolve(import.meta.dirname, "packages", "dypos-ui")
  */
 const OUT_DIR = path.resolve(import.meta.dirname, "dist", "pos")
 
+// Rollup hands `manualChunks` platform-native paths; building the first-party
+// kit matcher from path.sep keeps it correct on Windows and POSIX alike.
+const sep = path.sep
+
 // Get build version from environment or use timestamp
 import { createRequire } from "node:module"
 
@@ -59,62 +63,86 @@ function stripDeadFontFallbacks() {
 	return {
 		name: "pos-next-strip-font-fallbacks",
 		apply: "build",
-		async writeBundle() {
-			const assetsDir = path.join(OUT_DIR, "assets")
+		// `sequential` matters: Rollup runs writeBundle hooks in PARALLEL by
+		// default, and the prune hook deletes stale hashed files from the same
+		// directory. They used to race, so this hook could read a CSS file that
+		// prune had already unlinked — an ENOENT that failed an otherwise good
+		// build. Sequential + declaration order (strip, then prune) makes the
+		// pipeline deterministic.
+		writeBundle: {
+			order: "post",
+			sequential: true,
+			async handler() {
+				const assetsDir = path.join(OUT_DIR, "assets")
 
-			// 1) Delete the variable-font asset files (unreferenced after CSS strip).
-			let removedVar = 0
-			for (const file of await fs.readdir(assetsDir)) {
-				if (
-					file.startsWith("Inter.var-") ||
-					file.startsWith("Inter-Italic.var-")
-				) {
-					await fs.unlink(path.join(assetsDir, file))
-					removedVar += 1
+				// 1) Delete the variable-font asset files (unreferenced after CSS strip).
+				let removedVar = 0
+				for (const file of await fs.readdir(assetsDir)) {
+					if (
+						file.startsWith("Inter.var-") ||
+						file.startsWith("Inter-Italic.var-")
+					) {
+						await fs.unlink(path.join(assetsDir, file))
+						removedVar += 1
+					}
 				}
-			}
 
-			// 2) Drop every @font-face block whose src references the variable fonts,
-			//    and strip legacy .woff fallbacks from every emitted CSS file.
-			const varPattern =
-				/@font-face\{[^{}]*(?:Inter\.var|Inter-Italic\.var)[^{}]*\}/g
-			let cssFilesStripped = 0
-			let removedWoff = 0
-			const woffRefsRemaining = new Set()
-			for (const file of await fs.readdir(assetsDir)) {
-				if (!file.endsWith(".css")) continue
-				const cssPath = path.join(assetsDir, file)
-				let css = await fs.readFile(cssPath, "utf8")
-				const next = css.replace(varPattern, "").replace(WOFF_REF, "")
-				if (next !== css) {
-					await fs.writeFile(cssPath, next, "utf8")
-					cssFilesStripped += 1
+				// 2) Drop every @font-face block whose src references the variable fonts,
+				//    and strip legacy .woff fallbacks from every emitted CSS file.
+				const varPattern =
+					/@font-face\{[^{}]*(?:Inter\.var|Inter-Italic\.var)[^{}]*\}/g
+				let cssFilesStripped = 0
+				let removedWoff = 0
+				const woffRefsRemaining = new Set()
+				for (const file of await fs.readdir(assetsDir)) {
+					if (!file.endsWith(".css")) continue
+					const cssPath = path.join(assetsDir, file)
+					let css
+					try {
+						css = await fs.readFile(cssPath, "utf8")
+					} catch (error) {
+						// A concurrent build step may have removed the file between
+						// readdir and readFile. Losing one strip is recoverable;
+						// failing the whole build is not.
+						if (error?.code === "ENOENT") {
+							console.warn(
+								`[strip-font-fallbacks] skipped ${file} (removed concurrently)`,
+							)
+							continue
+						}
+						throw error
+					}
+					const next = css.replace(varPattern, "").replace(WOFF_REF, "")
+					if (next !== css) {
+						await fs.writeFile(cssPath, next, "utf8")
+						cssFilesStripped += 1
+					}
+					// Track any .woff references that are still legitimately used.
+					css = next
+					const refRe = /url\(([^)]*\.woff)\)/g
+					for (let m = refRe.exec(css); m !== null; m = refRe.exec(css)) {
+						woffRefsRemaining.add(path.basename(m[1]))
+					}
 				}
-				// Track any .woff references that are still legitimately used.
-				css = next
-				const refRe = /url\(([^)]*\.woff)\)/g
-				for (let m = refRe.exec(css); m !== null; m = refRe.exec(css)) {
-					woffRefsRemaining.add(path.basename(m[1]))
-				}
-			}
 
-			// 3) Delete orphaned .woff asset files (no longer referenced). woff2 kept.
-			for (const file of await fs.readdir(assetsDir)) {
-				if (
-					file.endsWith(".woff") &&
-					!file.endsWith(".woff2") &&
-					!woffRefsRemaining.has(file)
-				) {
-					await fs.unlink(path.join(assetsDir, file))
-					removedWoff += 1
+				// 3) Delete orphaned .woff asset files (no longer referenced). woff2 kept.
+				for (const file of await fs.readdir(assetsDir)) {
+					if (
+						file.endsWith(".woff") &&
+						!file.endsWith(".woff2") &&
+						!woffRefsRemaining.has(file)
+					) {
+						await fs.unlink(path.join(assetsDir, file))
+						removedWoff += 1
+					}
 				}
-			}
 
-			if (removedVar > 0 || cssFilesStripped > 0 || removedWoff > 0) {
-				console.log(
-					`\n[strip-font-fallbacks] removed ${removedVar} var font(s), ${removedWoff} legacy .woff, stripped ${cssFilesStripped} css file(s)`,
-				)
-			}
+				if (removedVar > 0 || cssFilesStripped > 0 || removedWoff > 0) {
+					console.log(
+						`\n[strip-font-fallbacks] removed ${removedVar} var font(s), ${removedWoff} legacy .woff, stripped ${cssFilesStripped} css file(s)`,
+					)
+				}
+			},
 		},
 	}
 }
@@ -143,36 +171,44 @@ function pruneStaleAssetsPlugin() {
 	return {
 		name: "pos-next-prune-stale-assets",
 		apply: "build",
-		async writeBundle(_options, bundle) {
-			const assetsDir = path.join(OUT_DIR, "assets")
-			if (!existsSync(assetsDir)) return
+		// Sequential and after the font-strip hook (see the note there): the two
+		// mutate the same directory, and parallel hooks raced on it.
+		writeBundle: {
+			order: "post",
+			sequential: true,
+			async handler(_options, bundle) {
+				const assetsDir = path.join(OUT_DIR, "assets")
+				if (!existsSync(assetsDir)) return
 
-			const emitted = new Set(Object.keys(bundle))
-			let removed = 0
-			for (const file of await fs.readdir(assetsDir, { withFileTypes: true })) {
-				const rel = `assets/${file.name}`
-				if (file.isDirectory()) {
-					// Keep a subdirectory only if the bundle wrote into it.
-					const prefix = `${rel}/`
-					const stillUsed = [...emitted].some((f) => f.startsWith(prefix))
-					if (!stillUsed) {
-						await fs.rm(path.join(assetsDir, file.name), {
-							recursive: true,
-							force: true,
-						})
-						removed += 1
+				const emitted = new Set(Object.keys(bundle))
+				let removed = 0
+				for (const file of await fs.readdir(assetsDir, {
+					withFileTypes: true,
+				})) {
+					const rel = `assets/${file.name}`
+					if (file.isDirectory()) {
+						// Keep a subdirectory only if the bundle wrote into it.
+						const prefix = `${rel}/`
+						const stillUsed = [...emitted].some((f) => f.startsWith(prefix))
+						if (!stillUsed) {
+							await fs.rm(path.join(assetsDir, file.name), {
+								recursive: true,
+								force: true,
+							})
+							removed += 1
+						}
+						continue
 					}
-					continue
+					if (emitted.has(rel)) continue
+					await fs.unlink(path.join(assetsDir, file.name))
+					removed += 1
 				}
-				if (emitted.has(rel)) continue
-				await fs.unlink(path.join(assetsDir, file.name))
-				removed += 1
-			}
-			if (removed > 0) {
-				console.log(
-					`\n[prune-stale-assets] removed ${removed} orphaned file(s) from assets/`,
-				)
-			}
+				if (removed > 0) {
+					console.log(
+						`\n[prune-stale-assets] removed ${removed} orphaned file(s) from assets/`,
+					)
+				}
+			},
 		},
 	}
 }
@@ -371,6 +407,10 @@ export default defineConfig({
 				// its own long-cacheable chunks so app-code deploys don't invalidate everything.
 				// Budgets: vendor-vue ~180KB, vendor-charts lazy, vendor-print lazy, vendor-realtime lazy.
 				manualChunks(id) {
+					// The UI kit is first-party (POS/packages/dypos-ui) but behaves like
+					// vendor code: it changes rarely, so it earns its own cacheable chunk.
+					if (id.includes(`${sep}packages${sep}dypos-ui${sep}`))
+						return "vendor-dypos"
 					if (!id.includes("node_modules")) return undefined
 					if (
 						/[\\/]node_modules[\\/](vue|@vue|vue-router|pinia)[\\/]/.test(id)
@@ -382,9 +422,6 @@ export default defineConfig({
 					}
 					if (/[\\/]node_modules[\\/](dexie|idb|@vertexvis)[\\/]/.test(id)) {
 						return "vendor-offline"
-					}
-					if (/[\\/]node_modules[\\/](dypos-ui)[\\/]/.test(id)) {
-						return "vendor-dypos"
 					}
 					if (/[\\/]node_modules[\\/](chart\.js|vue-chartjs)[\\/]/.test(id)) {
 						return "vendor-charts"
@@ -442,15 +479,11 @@ export default defineConfig({
 		__BUILD_VERSION__: JSON.stringify(buildVersion),
 	},
 	optimizeDeps: {
-		// Note: these mirror the exact modules the app imports (see src/utils/qzTray.js,
-		// components that pull feather-icons via dypos-ui, highlight.js/interactjs from
-		// dependency trees). `showdown` was removed — it is not used anywhere.
-		include: [
-			"feather-icons",
-			"highlight.js/lib/core",
-			"interactjs",
-			"qz-tray",
-		],
+		// Every entry MUST be a declared dependency: the optimizer pre-bundles
+		// them eagerly and vite dev fails on an unresolvable one. `feather-icons`
+		// backs the kit's icon component, `qz-tray` the print bridge.
+		// `tests/buildConfig.test.js` keeps this list honest.
+		include: ["feather-icons", "qz-tray"],
 	},
 	server: {
 		allowedHosts: true,

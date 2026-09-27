@@ -13,7 +13,7 @@
     "dev": "node --watch server.js",
     "test": "node scripts/run-tests.mjs",
     "test:dot": "node scripts/run-tests.mjs --reporter dot",
-    "test:watch": "node --watch --import ./tests/setup.js tests/*.test.js",
+    "test:watch": "node scripts/run-tests.mjs --watch",
     "test:stock-strict": "node --test --import ./tests/setup-strict.js --import ./tests/setup.js tests/stock-guard-strict.test.js",
     "doctor": "node scripts/doctor.mjs",
     "migrate": "node db/migrate.js",

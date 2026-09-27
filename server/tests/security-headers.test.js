@@ -200,10 +200,39 @@ describe('cspNonceMiddleware', () => {
   });
 });
 
+describe('CSP over HTTP (end-to-end, real middleware order)', () => {
+  it('serves a nonce-based policy — no style-src unsafe-inline on live requests', () => {
+    // The debt log listed "CSP style-src 'unsafe-inline'" as deferred work. The
+    // nonce path is the one that actually runs, but nothing asserted it end to
+    // end, so a middleware-order change could have silently reopened
+    // unsafe-inline. This is the assertion that makes the claim checkable.
+    return get('/api/ping').then(({ headers }) => {
+      const csp = headers.get('content-security-policy') || '';
+      assert.ok(csp, 'every response must carry a CSP');
+      const styleSrc = csp.split(';').map((d) => d.trim()).find((d) => d.startsWith('style-src'));
+      assert.ok(styleSrc, `no style-src directive in: ${csp}`);
+      assert.match(styleSrc, /'nonce-[^']+'/, `style-src must carry the per-request nonce: ${styleSrc}`);
+      assert.ok(
+        !csp.includes('unsafe-inline'),
+        `live policy must not fall back to unsafe-inline: ${csp}`,
+      );
+    });
+  });
+
+  it('the nonce in the header matches the nonce in the policy', () => {
+    return get('/api/ping').then(({ headers }) => {
+      const nonce = headers.get('x-csp-nonce');
+      const csp = headers.get('content-security-policy') || '';
+      assert.ok(nonce, 'X-CSP-Nonce must be present');
+      assert.ok(csp.includes(`'nonce-${nonce}'`), 'policy and header nonce must agree');
+    });
+  });
+});
+
 describe('securityHeaders middleware', () => {
   it('sets COOP, Permissions-Policy, Referrer-Policy and nosniff', () => {
     // deskOrigin: '' is explicit because this file sets
-    // DYPOS_FRAPPE_ORIGIN, and COOP is intentionally suppressed when a Frappe
+    // DYPOS_FRAPPE_ORIGIN, and COOP is intentionally suppressed when a desk
     // origin exists (see the next test).
     const { headers } = runMiddleware(securityHeaders({ deskOrigin: '' }));
     assert.strictEqual(headers.get('cross-origin-opener-policy'), 'same-origin');
@@ -218,9 +247,9 @@ describe('securityHeaders middleware', () => {
     assert.strictEqual(headers.get('cache-control'), 'no-store');
   });
 
-  it('suppresses COOP when a dyposorigin is configured', () => {
+  it('suppresses COOP when a desk origin is configured', () => {
     const { headers } = runMiddleware(securityHeaders({ deskOrigin: 'https://erp.example.com' }));
-    assert.ok(!headers.get('cross-origin-opener-policy'), 'COOP must be suppressed with Frappe');
+    assert.ok(!headers.get('cross-origin-opener-policy'), 'COOP must be suppressed with a desk origin');
   });
 
   it('does not clobber a CSP that was already set', () => {

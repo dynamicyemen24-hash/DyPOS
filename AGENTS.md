@@ -13,15 +13,18 @@
 ## Verify before you claim done (all must be green)
 
 ```powershell
-# server/ — 484 tests
+# server/ — 432 tests / 136 suites
 npm test                              # = node scripts/run-tests.mjs
 npx @biomejs/biome check .
 npm run parity
 npm run contract
-# POS/ — 732 tests
+# POS/ — 745 tests
 npm run test:run
 npx biome check src/<touched-file>
 ```
+
+Test counts are *measured* by the runners, never estimated: server
+`432 tests / 136 suites`, POS `745 tests / 58 files`.
 
 `POS/node_modules` is disposable — if a command hangs on `npx … Ok to proceed?`,
 the install is missing: `npm ci` in `POS/` (and add the package to
@@ -65,6 +68,14 @@ manifest breaks both the build and any test that compiles CSS).
    - Renaming a third-party name is **not** a licence to `find/replace` it:
      `server/tests/branding-integrity.test.js` fails on glued brand tokens
      (`dyposerror`), dead globals and resurrected legacy identifiers.
+10. **Config must follow the code**: every path a build config names must exist
+    and every eagerly pre-bundled module must be a declared dependency
+    (`POS/tests/buildConfig.test.js`). The UI kit is **aliased**
+    (`POS/packages/dypos-ui`), never installed from a registry.
+11. **Measure, don't wish**: oversized files are capped by
+    `POS/tests/fileSize.test.js` + `server/tests/fileSize.test.js`. Caps only
+    move **down** — extract a composable/module, then lower the number in the
+    same commit. A backlog item nobody measures is a wish.
 
 ## Gotchas
 
@@ -75,8 +86,21 @@ manifest breaks both the build and any test that compiles CSS).
 
 - `off += takeLen()`-style compound assignment with mutating RHS reads the
   LHS **before** the call — split into two statements (bit us in QZ DER code).
+- **Rollup runs `writeBundle` hooks in parallel** unless the hook object sets
+  `sequential: true`. Two first-party plugins mutating `dist/pos/assets` used to
+  race (prune unlinked a CSS file the font-strip hook was about to read → ENOENT
+  failing a good build). Keep such hooks sequential, and in array order.
+- **npm only, at the root**: root scripts call `npm --prefix POS …`. An earlier
+  `postinstall: cd POS && yarn install` floated versions and broke on machines
+  without yarn — `npm ci` per package is the reproducibility contract.
+- `npm run test:watch` (server) now goes through `run-tests.mjs --watch`, so it
+  enumerates the same files `npm test` does (the old `tests/*.test.js` glob ran
+  nothing on Windows).
 - Express 4.22, no `cookie-parser`/`multer` — `upload_file` is JSON-base64.
 - `users` has no `preferred_locale` — locale defaults to `'ar'`.
-- `scale7.test.js` is occasionally flaky — rerun before blaming your change.
+- **`/api/health` returns 503 whenever *any* registered check degrades** (memory
+  and disk thresholds included), so it is environment-dependent under a parallel
+  suite. Assert the contract (payload shape + status/`status` agreement), never a
+  hard `200`; `/api/ready` is the container probe path.
 - Frontend adapter: `dypos-ui call()` POSTs `/api/method/<path>`, unwraps
   `{ message }`; `login` returns the full payload (short-circuit path).
