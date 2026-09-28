@@ -108,9 +108,9 @@ npm run e2e:royal       # 14-check proof: login→shift→sale→pay→stock→v
 - **Framework:** Vue 3 + Chart.js + dypos-ui
 - **PWA:** Yes (SW root scope، `build:pages` → `POS/dist/pos`)
 - **Deploy:** push to `main` → GitHub Actions → `wrangler pages deploy` → `npm run verify:live`
-- **Live:** `https://dypos.smartportssoft.com/` — يقدّم `1.37.0` حتى ينجح أول نشر
-  بعد إصلاح صلاحية التوكن (`Cloudflare Pages:Edit`)
-- **Tests:** server 448/448 (143 مجموعة) · POS 805/805 (64 ملفًا) · method contract
+- **Live:** `https://dypos.smartportssoft.com/` — يقدّم `1.37.0` حتى يُمنح التوكن
+  صلاحية `Cloudflare Pages:Edit` (هذا هو العائق الوحيد المُثبَت أعلاه).
+- **Tests:** server 454/454 (145 مجموعة) · POS 805/805 (64 ملفًا) · method contract
   64 فعلًا / 64 مغطّى · biome 0 errors · pg parity OK · بوابة وصولية بلا كود ميت
   (`POS/tests/deadCode.test.js` + `server/tests/deadCode.test.js`)
 

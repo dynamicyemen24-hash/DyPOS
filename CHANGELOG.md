@@ -143,7 +143,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed (dead): سبع حزم بلا مرجع — ستّ OpenTelemetry سقطت مع `lib/telemetry.js`،
   و`baseline-browser-mapping` في POS بلا أي إعداد `browserslist`.
 - Fixed (docs): `DEPLOYMENT_GUIDE.md` كان يعلن 1.38.0 و763 اختبارًا؛ الأرقام الآن
-  المُقاسة (1.39.0 · 448 خادم · 805 واجهة · عقد 64/64)، ورأس `1.38.0` اليتيم
+  المُقاسة على مُشغّل نظيف (CI، لا محليًا): 1.39.0 · 454 خادم · 805 واجهة · عقد 64/64، ورأس `1.38.0` اليتيم
   زال من `CHANGELOG.md`.
 
 ## [1.38.0] - 2026-09-27 — سياسة مخزون واحدة، أرقام عالمية، ونشر يقيس نفسه
