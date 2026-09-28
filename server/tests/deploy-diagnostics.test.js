@@ -27,6 +27,18 @@ const workflow = readFileSync(
 const preflight = readFileSync(join(REPO, 'scripts', 'pages-preflight.mjs'), 'utf8');
 
 describe('Cloudflare Pages preflight', () => {
+  it('no step name contains a bare colon (it silently kills the whole file)', () => {
+    // Measured, not theoretical: an UNQUOTED YAML scalar cannot contain ": ".
+    // `name: Preflight: Pages project reachable` makes GitHub reject the entire
+    // workflow — the run is reported as "likely failed because of a workflow
+    // file issue", the workflow loses its `workflow_dispatch` trigger, and not
+    // one step ever runs. It cost two deploy attempts here.
+    const offenders = [...workflow.matchAll(/^\s*- name: (.+)$/gm)]
+      .map((m) => m[1].trim())
+      .filter((value) => value.includes(': '));
+    assert.deepStrictEqual(offenders, [], `quote or reword: ${offenders.join(' | ')}`);
+  });
+
   it('the workflow runs the preflight script before deploying', () => {
     const scriptIndex = workflow.indexOf('node scripts/pages-preflight.mjs');
     const deployIndex = workflow.indexOf('command: pages deploy');

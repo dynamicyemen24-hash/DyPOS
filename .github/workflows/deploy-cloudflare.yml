@@ -132,7 +132,7 @@ jobs:
       # tells the two apart, creates the project when it is simply missing, and
       # is runnable by hand with the same result. The logic lives in a script, not
       # in shell inside YAML: it can be unit-tested and re-run without CI. ──
-      - name: Preflight: Pages project reachable (create if missing)
+      - name: Preflight for Cloudflare Pages (create the project if missing)
         if: steps.cf.outputs.available == 'true'
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
