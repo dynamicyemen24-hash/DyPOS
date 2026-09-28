@@ -124,6 +124,40 @@ jobs:
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
+      # ── Pages preflight: a VALID token is not a sufficient condition for the
+      # deploy. Wrangler's first call is a project GET, and Cloudflare answers
+      # `Authentication error [code: 10000]` for BOTH "token lacks
+      # Pages:Edit" and "project does not exist" — which is why a dozen deploys
+      # (2026-09-25 → 27) failed with one ambiguous error. This step tells the
+      # two apart from the inside, and creates the project when it is simply
+      # missing, so that case heals instead of repeating.
+      - name: Preflight: Pages project reachable (create if missing)
+        if: steps.cf.outputs.available == 'true'
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          RESP=$(curl -sS -w '\n%{http_code}' \
+            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/pages/projects" \
+            -H "Authorization: Bearer $CF_TOKEN")
+          CODE=$(printf '%s' "$RESP" | tail -n1)
+          BODY=$(printf '%s' "$RESP" | sed '$d')
+          echo "Pages projects API → HTTP $CODE"
+
+          if [ "$CODE" = "200" ] && printf '%s' "$BODY" | grep -q '"success"[[:space:]]*:[[:space:]]*true'; then
+            if printf '%s' "$BODY" | grep -q '"name"[[:space:]]*:[[:space:]]*"dypos-pos"'; then
+              echo "Project dypos-pos exists and is readable."
+            else
+              echo "::warning::Project dypos-pos does NOT exist in this account — creating it now (production branch: main). This is the silent half of code 10000."
+              npx --yes wrangler@3.90.0 pages project create dypos-pos --production-branch=main
+            fi
+          else
+            echo "::error::The token is valid (preflight above passed) but Cloudflare refuses the Pages API for this account: HTTP $CODE. Response: $BODY"
+            echo "::error::Diagnosis: the token lacks 'Cloudflare Pages:Edit' for account ${CF_ACCOUNT}. Fix: Cloudflare → My Profile → API Tokens → Create Token (permissions: Account → Cloudflare Pages → Edit, resources: this account, NO IP restriction — GitHub runners are never on an IP allowlist) → gh secret set CLOUDFLARE_API_TOKEN → re-run. If Cloudflare replies 'Contact account super admin', the account itself must grant the scope."
+            exit 1
+          fi
+
       # ── Deploy: Cloudflare Pages project (dypos-pos). This is the origin the
       # custom domain dypos.smartportssoft.com is bound to; the upload replaces
       # the deployment wholesale, so no stale chunk can survive (Pages keeps the
@@ -141,7 +175,7 @@ jobs:
       - name: Deploy failed → actionable secret error
         if: failure() && steps.deploy.outcome == 'failure'
         run: |
-          echo "::error::Cloudflare Pages deploy FAILED with 'Authentication error [code: 10000]' on /accounts/***/pages/projects/dypos-pos). المؤكّد بالاختبار: the token PASSES the token-verify preflight, so it is NOT invalid or expired — it simply lacks the Cloudflare Pages:Edit permission for this account. Fix: Cloudflare dashboard → My Profile → API Tokens → Create Token (account scope, permission 'Cloudflare Pages:Edit', NO IP address restriction — GitHub runners are never on an IP allowlist), then run: gh secret set CLOUDFLARE_API_TOKEN. CLOUDFLARE_ACCOUNT_ID already exists and is correct. Re-run this workflow. If the account itself refuses the scope, a super admin must grant it (Cloudflare replies 'Contact account super admin')."
+          echo "::error::Cloudflare Pages deploy FAILED. The step above ('Preflight: Pages project reachable') already proved whether the token may use the Pages API and whether the project exists — read ITS output first: it distinguishes 'no permission' from 'project missing' and prints the exact fix for the case it found. If the preflight passed and the deploy still failed, the token can read the project but cannot upload a deployment (an edited, older token): re-issue it with Cloudflare Pages:Edit, gh secret set CLOUDFLARE_API_TOKEN, re-run. All build gates before this step are green, so nothing about the code is in question."
 
       # ── لا خطوة لضبط أصل الواجهة الخلفية هنا.
       # `/api/*` يخدمه Worker مستقل اسمه `dypos-api` (wrangler.api.toml) عبر
