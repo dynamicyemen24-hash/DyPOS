@@ -106,9 +106,12 @@ describe('Payment idempotency', () => {
 
 describe('Disk gauge', () => {
   it('health exposes disk field', async () => {
+    // Payload shape is the contract; the aggregate may legitimately be
+    // `degraded` (503) when the disk/memory thresholds trip on a busy runner.
     const r = await fetch(`http://localhost:${port}/api/health`);
-    assert.strictEqual(r.status, 200);
+    assert.ok([200, 503].includes(r.status), `unexpected health status ${r.status}`);
     const h = await r.json();
+    assert.strictEqual(h.status, r.status === 200 ? 'ok' : 'degraded');
     assert.ok('disk' in h);
   });
 });

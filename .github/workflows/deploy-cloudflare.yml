@@ -128,35 +128,16 @@ jobs:
       # deploy. Wrangler's first call is a project GET, and Cloudflare answers
       # `Authentication error [code: 10000]` for BOTH "token lacks
       # Pages:Edit" and "project does not exist" — which is why a dozen deploys
-      # (2026-09-25 → 27) failed with one ambiguous error. This step tells the
-      # two apart from the inside, and creates the project when it is simply
-      # missing, so that case heals instead of repeating.
+      # (2026-09-25 → 27) failed with one ambiguous error. `scripts/pages-preflight.mjs`
+      # tells the two apart, creates the project when it is simply missing, and
+      # is runnable by hand with the same result. The logic lives in a script, not
+      # in shell inside YAML: it can be unit-tested and re-run without CI. ──
       - name: Preflight: Pages project reachable (create if missing)
         if: steps.cf.outputs.available == 'true'
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          set -euo pipefail
-          RESP=$(curl -sS -w '\n%{http_code}' \
-            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/pages/projects" \
-            -H "Authorization: Bearer $CF_TOKEN")
-          CODE=$(printf '%s' "$RESP" | tail -n1)
-          BODY=$(printf '%s' "$RESP" | sed '$d')
-          echo "Pages projects API → HTTP $CODE"
-
-          if [ "$CODE" = "200" ] && printf '%s' "$BODY" | grep -q '"success"[[:space:]]*:[[:space:]]*true'; then
-            if printf '%s' "$BODY" | grep -q '"name"[[:space:]]*:[[:space:]]*"dypos-pos"'; then
-              echo "Project dypos-pos exists and is readable."
-            else
-              echo "::warning::Project dypos-pos does NOT exist in this account — creating it now (production branch: main). This is the silent half of code 10000."
-              npx --yes wrangler@3.90.0 pages project create dypos-pos --production-branch=main
-            fi
-          else
-            echo "::error::The token is valid (preflight above passed) but Cloudflare refuses the Pages API for this account: HTTP $CODE. Response: $BODY"
-            echo "::error::Diagnosis: the token lacks 'Cloudflare Pages:Edit' for account ${CF_ACCOUNT}. Fix: Cloudflare → My Profile → API Tokens → Create Token (permissions: Account → Cloudflare Pages → Edit, resources: this account, NO IP restriction — GitHub runners are never on an IP allowlist) → gh secret set CLOUDFLARE_API_TOKEN → re-run. If Cloudflare replies 'Contact account super admin', the account itself must grant the scope."
-            exit 1
-          fi
+        run: node scripts/pages-preflight.mjs
 
       # ── Deploy: Cloudflare Pages project (dypos-pos). This is the origin the
       # custom domain dypos.smartportssoft.com is bound to; the upload replaces

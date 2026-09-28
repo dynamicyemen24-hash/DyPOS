@@ -47,8 +47,13 @@ describe('Version single source (C3)', () => {
   });
 
   it('GET /api/health reports the single-source version', async () => {
+    // Contract, not environment: /api/health answers 503 when ANY registered
+    // check degrades (disk/memory thresholds included), so a hard `200` is
+    // environment-dependent under a parallel suite. The version stamp is the
+    // subject here, and the status must agree with the aggregate it reports.
     const r = await req('GET', '/api/health');
-    assert.strictEqual(r.status, 200);
+    assert.ok([200, 503].includes(r.status), `unexpected health status ${r.status}`);
+    assert.strictEqual(r.body.status, r.status === 200 ? 'ok' : 'degraded');
     assert.strictEqual(r.body.version, VERSION);
   });
 

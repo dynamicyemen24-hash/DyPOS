@@ -164,9 +164,12 @@ describe('Observability contract', () => {
     assert.ok(spec.paths['/invoices/{id}/return']);
   });
   it('GET /api/health includes cache + outbox + memory', async () => {
+    // Same contract as scale4: the aggregate may be `degraded` on a loaded
+    // runner (disk/memory thresholds), the payload shape may not vary.
     const r = await fetch(`http://localhost:${port}/api/health`);
-    assert.strictEqual(r.status, 200);
+    assert.ok([200, 503].includes(r.status), `unexpected health status ${r.status}`);
     const h = await r.json();
+    assert.strictEqual(h.status, r.status === 200 ? 'ok' : 'degraded');
     assert.ok(h.cache);
     assert.ok(h.memory);
     assert.ok('pending' in (h.outbox || {}));

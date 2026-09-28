@@ -33,10 +33,13 @@ async function req(method, path, body, token) {
 }
 
 describe('Health Check', () => {
-  it('GET /api/health returns 200 with status ok', async () => {
+  it('GET /api/health returns an ok-or-degraded aggregate with a healthy database', async () => {
     const res = await req('GET', '/api/health');
-    assert.strictEqual(res.status, 200);
-    assert.strictEqual(res.body.status, 'ok');
+    // The database check is the subject; the HTTP aggregate also folds in
+    // disk/memory thresholds, which trip legitimately under a parallel suite
+    // (AGENTS.md: never assert a hard 200 on /api/health).
+    assert.ok([200, 503].includes(res.status), `unexpected health status ${res.status}`);
+    assert.strictEqual(res.body.status, res.status === 200 ? 'ok' : 'degraded');
     assert.ok(res.body.database.healthy);
   });
 });

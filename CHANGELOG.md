@@ -5,7 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.38.0] - 2026-09-27 — سياسة مخزون واحدة، أرقام عالمية، ونشر يقيس نفسه
 ## [1.39.0] - 2026-09-27 — هوية العلامة، شاشات العمل، وسجل نوافذ ميت
 
 ### Added — اعتماد وربط شاشات العمل كاملة بما فيها الإعدادات العامة
@@ -36,7 +35,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - الحزمة مقسّمة إلى قطع lazy مستقلة (`WorkScreens-*.js` ≈43KB) — حزمة البيع لم تتضخم، وال precache 89 → 99 مدخلًا.
-
 
 ### Added — سياسة المخزون عند البيع: قرار واحد ومصدر واحد
 - **تطبيقان لقاعدة مخزون واحدة صار تطبيقًا واحدًا**: مسار البيع عبر REST (`routes/invoices.js`) ومسار method-router كان كلٌّ منهما يحمل نسخته من سياسة الخصم، والانحراف بينهما لا يظهر إلا حين يُسمح بتجاوز على مسار ويُرفض على الآخر. الآن الاثنان يناديان `server/lib/stockPolicy.js#decrementStock`.
@@ -122,6 +120,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - خادم **446/446** (142 مجموعة) عبر `npm test` (المُشغِّل الجديد) · واجهة **763/763** (59 ملفًا) · `vue-tsc` نظيف · biome نظيف في الطرفين · `npm run parity` `ok:true` · عقد method **107/107** · عقد doctype/حقل مُنفَّذ · بناء PWA ناجح (precache 87 مدخلًا / 3.37MB) · ميزانية الحزمة 575KB ≤ 900KB.
 - سابقة هذه الجولة (قبل الإصلاح) كانت: خلفية 362/362 · واجهة 552/552 — أرقام لم تكن تُشغَّل فعليًا في CI لأن أمر الخادم لا يوسّع النمط.
 
+### Fixed — فحوص `/api/health` كانت تقيس البيئة لا العقد (أربعة اختبارات)
+- `auth`, `version`, `scale`, `scale8` كانت تفرض `200` صريحًا على `/api/health`،
+  وهو يجيب `503` متى تدهور أي فحص مسجَّل (حدّا الذاكرة والقرص) — أي أنها كانت
+  سليمة على جهازك ومراءة على مُشغّل CI. صارت تفحص **العقد**: شكل الحمولة +
+  اتفاق `status` مع رمز HTTP، تمامًا كما يفعل `scale4`. هذا ما كان يُسقط
+  «API regression tests» في CI رغم أن الكود سليم.
+- **تشخيص Cloudflare قبل الرفع**: `Authentication error [code: 10000]` على
+  استعلام مشروع Pages يغطّي سببين لا يمكن تمييزهما من الخارج (توكن بلا صلاحية
+  Pages / المشروع غير موجود). `scripts/pages-preflight.mjs` — نصّ واحد يشخّص
+  الاثنين ويُنشئ المشروع إن كان غائبًا، و`server/tests/deploy-diagnostics.test.js`
+  يثبت أن خطّ النشر يستدعيه (لا `curl` مضمّنًا في YAML) وأن السببين مذكوران.
+- Removed (dead): سبع حزم بلا مرجع — ستّ OpenTelemetry سقطت مع `lib/telemetry.js`،
+  و`baseline-browser-mapping` في POS بلا أي إعداد `browserslist`.
+- Fixed (docs): `DEPLOYMENT_GUIDE.md` كان يعلن 1.38.0 و763 اختبارًا؛ الأرقام الآن
+  المُقاسة (1.39.0 · 448 خادم · 805 واجهة · عقد 64/64)، ورأس `1.38.0` اليتيم
+  زال من `CHANGELOG.md`.
+
+## [1.38.0] - 2026-09-27 — سياسة مخزون واحدة، أرقام عالمية، ونشر يقيس نفسه
 ## [1.37.0] - 2026-09-25 — حملة الكفاءة والجودة: Offline-First ناضج، PWA مخفّضة، وإنتاج عالمي
 ### Added
 - Offline-First: إزالة الاعتمادات التشغيلية (الجلسة، الترجمة، اللغة، CSRF، المستخدم) واستبدالها بطبقة محلية؛ بدء التشغيل لا ينتظر أي شبكة.
@@ -477,7 +493,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   كسر كاش `?v=1.26.0`، تسجيل SW بنطاق الجذر. النشر على خادم الأصل عبر
   `ORIGIN-DEPLOY.bat` كمسؤول ثم تنقية كاش Cloudflare
   (pos.html + assets/DyPOS/pos/* + sw.js).
-
 
 ## [1.25.2] - 2026-09-18 — Self-healing + alerting backbone
 

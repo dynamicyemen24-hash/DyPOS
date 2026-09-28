@@ -124,7 +124,16 @@ manifest breaks both the build and any test that compiles CSS).
 - **`/api/health` returns 503 whenever *any* registered check degrades** (memory
   and disk thresholds included), so it is environment-dependent under a parallel
   suite. Assert the contract (payload shape + status/`status` agreement), never a
-  hard `200`; `/api/ready` is the container probe path.
+  hard `200`; `/api/ready` is the container probe path. Four tests still did
+  (auth/version/scale/scale8) and failed on the CI runner while passing locally.
+- **`npm ci` in `server/` can leave you unable to run the suite.** `better-sqlite3@13.0.3`
+  ships no prebuilt binary for Node 24 on Windows, so the install falls back to
+  `node-gyp`, which needs Python; without it the install dies halfway and the
+  native binding is gone (dozens of tests fail on the missing module, not on any
+  code change). CI runs Node 22 and installs the same lockfile cleanly. Before
+  running `npm ci` here know the escape hatch: install Python, use Node 22, or let
+  the `CI` workflow be the gate. Never call a code regression from a local
+  failure without reading the error — this one literally names `gyp` and Python.
 - Frontend adapter: `dypos-ui call()` POSTs `/api/method/<path>`, unwraps
   `{ message }`; `login` returns the full payload (short-circuit path).
 - **A release MUST bump the version** (`package.json` + `POS/package.json` +
