@@ -141,10 +141,16 @@ manifest breaks both the build and any test that compiles CSS).
   the live `/version.json` against that number; shipping code without a bump
   makes that gate pass over a **failed** deploy, because the domain already
   serves the old number.
-- **Cloudflare deploys need `Cloudflare Pages:Edit` on the token.** Without it
-  `wrangler pages deploy` answers `Authentication error [code: 10000]` while the
-  token still passes `/user/tokens/verify` — valid but under-scoped. Fix once in
-  the dashboard (no IP allowlist), then `gh secret set CLOUDFLARE_API_TOKEN`.
+- **Cloudflare deploys need `Cloudflare Pages:Edit` on the token.** Proven, not
+  guessed: `scripts/pages-preflight.mjs` gets `403` + `code 10000` on
+  `GET /accounts/{id}/pages/projects` *after* `/user/tokens/verify` passes, so
+  the project exists and the token is valid — only the scope is missing. Fix once
+  in the dashboard (no IP allowlist), then `gh secret set CLOUDFLARE_API_TOKEN`.
+- **An unquoted YAML scalar cannot contain `": "`.** A step named
+  `Preflight: Pages project…` made GitHub reject the ENTIRE workflow: the run
+  reports "likely failed because of a workflow file issue", `workflow_dispatch`
+  disappears, and not one step executes. `server/tests/deploy-diagnostics.test.js`
+  fails the build on that colon now.
 - **Live probes live in `scripts/verify-live.mjs`** (`npm run verify:live`), used
   by the deploy workflow and the 15-minute heartbeat. When production moves,
   change that one file — never reintroduce per-workflow inline `curl` probes with

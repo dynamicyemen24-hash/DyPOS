@@ -125,12 +125,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   وهو يجيب `503` متى تدهور أي فحص مسجَّل (حدّا الذاكرة والقرص) — أي أنها كانت
   سليمة على جهازك ومراءة على مُشغّل CI. صارت تفحص **العقد**: شكل الحمولة +
   اتفاق `status` مع رمز HTTP، تمامًا كما يفعل `scale4`. هذا ما كان يُسقط
-  «API regression tests» في CI رغم أن الكود سليم.
+  «API regression tests» في CI رغم أن الكود سليم. والخامس كان في
+  `security-headers.test.js` (`expected a non-5xx`) — هبط بعد إصلاح الأربعة.
+  `server/tests/health-contract.test.js` بوابة دائمة: تفشل عند ظهور الحالة
+  السادسة، وتفحص كل `it` يطلب `/api/health` تحديدًا لا كل `status === 200`.
 - **تشخيص Cloudflare قبل الرفع**: `Authentication error [code: 10000]` على
   استعلام مشروع Pages يغطّي سببين لا يمكن تمييزهما من الخارج (توكن بلا صلاحية
   Pages / المشروع غير موجود). `scripts/pages-preflight.mjs` — نصّ واحد يشخّص
   الاثنين ويُنشئ المشروع إن كان غائبًا، و`server/tests/deploy-diagnostics.test.js`
   يثبت أن خطّ النشر يستدعيه (لا `curl` مضمّنًا في YAML) وأن السببين مذكوران.
+  **النتيجة المُقاسة**: الرمز صالح (`/user/tokens/verify` ✓) و`pages/projects`
+  يردّ `403/10000` → الصلاحية غائبة، والمشروع موجود. سبب 12 محاولة سابقة صار
+  مُثبَتًا لا مُخَمَّنًا.
+- **اسم خطوة فيه `": "` كان يُسقط سير العمل كله**: قيمة YAML غير مقتبسة لا
+  تقبل `": "`، فرفض GitHub الملفَ بأكمله («workflow file issue») ولم يعمل أي
+  خطوة. البوابة الآن ترصد النقطتين.
 - Removed (dead): سبع حزم بلا مرجع — ستّ OpenTelemetry سقطت مع `lib/telemetry.js`،
   و`baseline-browser-mapping` في POS بلا أي إعداد `browserslist`.
 - Fixed (docs): `DEPLOYMENT_GUIDE.md` كان يعلن 1.38.0 و763 اختبارًا؛ الأرقام الآن

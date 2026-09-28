@@ -271,7 +271,11 @@ describe('live server (DYPOS_FRAPPE_ORIGIN set — the config that used to 500)'
   it('serves requests instead of throwing ReferenceError', async () => {
     const res = await get('/health');
     assert.notStrictEqual(res.status, 500, `server threw: ${res.status} ${res.body.slice(0, 200)}`);
-    assert.ok(res.status < 500, `expected a non-5xx, got ${res.status}`);
+    // The regression under guard is "the server answered at all". A 503 from
+    // the health aggregate is a well-formed answer (some registered check
+    // degraded), not a crash — asserting "non-5xx" here measured the runner's
+    // disk/memory headroom instead of the middleware (AGENTS.md gotcha).
+    assert.ok([200, 503].includes(res.status), `unexpected health status ${res.status}`);
   });
 
   it('emits a CSP header on a live response', async () => {
