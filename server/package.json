@@ -34,20 +34,16 @@
     "@biomejs/biome": "^2.5.14"
   },
   "comment": [
-    "lib/telemetry.js hand-rolls the collector wiring with @opentelemetry/api,",
-    "resources, semantic-conventions, instrumentation-express/http and the",
-    "Prometheus exporter. The SDK, the auto-instrumentation bundle, both OTLP",
-    "exporters and pino-http were declared but imported nowhere: an OTLP",
-    "deployment that configured an exporter got an unconfigured collector.",
-    "Add them back the moment a code path really exports traces or OTLP metrics."
+    "Every dependency here is imported by shipped code, a config, a CSS @import",
+    "or an npm script. The OpenTelemetry packages went with lib/telemetry.js:",
+    "that module was unreachable from any entry point, so the collector wiring it",
+    "declared (api, resources, semantic-conventions, instrumentation-express/http,",
+    "Prometheus exporter) had no importer either. An SDK plus an exporter that",
+    "nothing configures is worse than none — a deployment that enabled OTLP got an",
+    "unconfigured collector. Add a package back the moment a code path really",
+    "exports traces or OTLP metrics, and wire it in the same commit."
   ],
   "dependencies": {
-    "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/exporter-prometheus": "^0.222.0",
-    "@opentelemetry/instrumentation-express": "^0.70.0",
-    "@opentelemetry/instrumentation-http": "^0.222.0",
-    "@opentelemetry/resources": "^2.11.0",
-    "@opentelemetry/semantic-conventions": "^1.43.0",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^13.0.3",
     "compression": "^1.7.4",

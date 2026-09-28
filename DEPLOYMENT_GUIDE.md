@@ -8,7 +8,7 @@
   فيرد Cloudflare بـ `Authentication error [code: 10000]` عند الرفع.
 - كل بوابات ما قبل النشر خضراء (اختبارات + lint + parity + عقد + ميزانية البناء)،
   و`npm run verify:live` يعطي 6/6 على الموقع الحالي ويفشل بسبب واحد فقط:
-  `version.json = 1.37.0` بينما المستودع على `1.38.0` — أي أن البوابة تصف
+  `version.json = 1.37.0` بينما المستودع على `1.39.0` — أي أن البوابة تصف
   العطل بدقة بدل أن تصمت.
 
 ### الخطوة الواحدة المطلوبة (للمالك فقط — لا تُكتب قيمة التوكن في المستودع أبدًا)
@@ -99,14 +99,16 @@ npm run e2e:royal       # 14-check proof: login→shift→sale→pay→stock→v
 - سكربت E2E يلغّي فاتورته ويغلق ورديته — قاعدة الإنتاج تبقى نظيفة.
 
 ## Version Info (حالي)
-- **Version:** `1.38.0` (single source: root `package.json`)
+- **Version:** `1.39.0` (single source: root `package.json`)
 - **Date:** September 27, 2026
 - **Framework:** Vue 3 + Chart.js + dypos-ui
 - **PWA:** Yes (SW root scope، `build:pages` → `POS/dist/pos`)
 - **Deploy:** push to `main` → GitHub Actions → `wrangler pages deploy` → `npm run verify:live`
 - **Live:** `https://dypos.smartportssoft.com/` — يقدّم `1.37.0` حتى ينجح أول نشر
   بعد إصلاح صلاحية التوكن (`Cloudflare Pages:Edit`)
-- **Tests:** server 446/446 (142 مجموعة) · POS 763/763 (59 ملفًا) · method contract 107/107 · biome 0 errors · pg parity OK · bundle 575KB ≤ 900KB
+- **Tests:** server 448/448 (143 مجموعة) · POS 805/805 (64 ملفًا) · method contract
+  64 فعلًا / 64 مغطّى · biome 0 errors · pg parity OK · بوابة وصولية بلا كود ميت
+  (`POS/tests/deadCode.test.js` + `server/tests/deadCode.test.js`)
 
 ## Backend topology (why `/api` needs an origin)
 - The Worker serves the frontend + proxies same-origin `/api/*` → `DYPOS_BACKEND_URL`

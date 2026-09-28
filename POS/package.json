@@ -42,7 +42,6 @@
 		"@vitejs/plugin-vue": "^5.1.4",
 		"@vitest/coverage-v8": "^2.1.8",
 		"autoprefixer": "^10.6.1",
-		"baseline-browser-mapping": "^2.11.25",
 		"jsdom": "^25.0.1",
 		"postcss": "^8.4.5",
 		"tailwindcss": "^3.4.15",
@@ -63,8 +62,11 @@
 		"core-js-compat + @babel/helper-compilation-targets (leftovers of a",
 		"manual target computation — Vite computes its own), and browserslist",
 		"(Vite depends on it; declaring it only froze a version by accident).",
-		"The old \"resolutions\" block was yarn-only config in an npm-only repo,",
-		"so it never applied, and it pinned baseline-browser-mapping *below* the",
-		"version the devDependency already asks for. Dropped on purpose."
+		"The old \"resolutions\" block was yarn-only config in an npm-only repo, so",
+		"it never applied. baseline-browser-mapping went with it: there is no",
+		"browserslist config in this package (no key, no .browserslistrc), so the",
+		"devDependency installed ~20 packages to influence nothing. If a browserslist",
+		"target ever becomes a requirement, declare the config and the package in the",
+		"same commit."
 	]
 }
