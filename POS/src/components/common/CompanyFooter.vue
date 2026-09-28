@@ -77,11 +77,15 @@ const year = computed(() => new Date().getFullYear())
 	color: inherit;
 	text-decoration: underline;
 	text-underline-offset: 2px;
-	opacity: 0.85;
+	/*
+	 * لا `opacity` هنا. كان 0.85 فوق `--dy-text-muted`، فيُركّب التعتيم مرتين:
+	 * القياس في المتصفح لرابط الموقع كان 3.56:1 بدل 4.76:1. اللون يرث من
+	 * تذييل الصفحة، و:hover يزيد التشديد باللون لا بالعتيم.
+	 */
 }
 
 .dy-company__link:hover {
-	opacity: 1;
+	color: var(--dy-text);
 }
 
 .dy-company__link:focus-visible {

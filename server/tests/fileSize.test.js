@@ -17,15 +17,14 @@ const SERVER = resolve(import.meta.dirname, '..');
 
 /** [file, maxLines] — measured. */
 const CAPS = [
-  // Raised ONCE, with the reason recorded: this release added a real capability
-  // (the `dypos.client.get_count` denominator + the financial facts the report
-  // layer actually sums), not accretion. The ratchet bites again from here — the
-  // next addition must be paid for by extracting a module. The doctype specs
-  // (`DOCTYPES` + `resolveDoctype`) are the scheduled split, tracked in
-  // docs/TECH_DEBT_PAYDOWN.md.
-  ['routes/method.js', 4223],
-  ['db/schema.js', 1092],
-  ['routes/invoices.js', 886],
+  // Extracted this release: routes/doctypes.js took the doctype specs +
+  // coupon projection out of the router; db/migrations-tenancy.js took the v8
+  // tenancy migration out of the schema; lib/money.js#computeLineMinor took
+  // the duplicated VAT split out of five call sites. Caps are the measured
+  // sizes after each extraction — the ratchet bites again from here.
+  ['routes/method.js', 4001],
+  ['db/schema.js', 1039],
+  ['routes/invoices.js', 881],
   ['server.js', 639],
 ];
 

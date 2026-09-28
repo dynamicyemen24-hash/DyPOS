@@ -68,7 +68,7 @@ export function buildProfitabilityModel(
 
 	return {
 		kpis,
-		items: buildItemRows(itemRows, netSales, costDataAvailable),
+		items: buildItemRows(itemRows, costDataAvailable),
 		costDataAvailable,
 	}
 }
@@ -83,7 +83,6 @@ interface ProfitabilityBucket {
 
 function buildItemRows(
 	itemRows: SalesInvoiceItemFact[],
-	netSales: number,
 	costDataAvailable: boolean,
 ): ProfitabilityItemRow[] {
 	const byItem = new Map<string, ProfitabilityBucket>()

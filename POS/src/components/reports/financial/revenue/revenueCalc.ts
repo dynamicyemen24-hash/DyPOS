@@ -43,7 +43,6 @@ export function buildRevenueModel(
 	const discount = sumBy(rows, "base_discount_amount")
 	const collected = sumBy(rows, "base_paid_amount")
 	const transactions = rows.filter((row) => !row.is_return).length
-	const returns = rows.filter((row) => row.is_return).length
 	const averageTicket = transactions > 0 ? netSales / transactions : 0
 
 	const previousNetSales = sumBy(previous, "base_net_total")

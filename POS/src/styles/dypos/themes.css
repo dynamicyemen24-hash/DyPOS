@@ -65,6 +65,13 @@
 	/* النص الأقل أهمية */
 	--dy-text-muted: var(--dy-ink-500);
 
+	/*
+	 * لون نص الرابط على السطح — رمز واحد للثيمين حتى لا يختار كل مكوّن
+	 * درجته بنفسه. في الفاتح يكفي `--dy-accent` (5.25:1 على الأبيض)،
+	 * وفي الداكن يحتاج درجة أفتح (انظر كتلة [data-theme="dark"]).
+	 */
+	--dy-text-link: var(--dy-accent);
+
 	/* النص فوق اللون الأساسي */
 	--dy-text-on-brand: #ffffff;
 
@@ -193,6 +200,14 @@
 	/* معطل */
 	--dy-disabled: var(--dy-ink-400);
 	--dy-disabled-soft: var(--dy-ink-100);
+	/*
+	 * `--dy-ink-700` on `--dy-ink-100` ≈ 6.9:1 — comfortably past the 4.5:1
+	 * that WCAG 2.2 SC 1.4.3 asks of body text. `--dy-ink-400` would be the
+	 * obvious "disabled grey", but against a pale fill it lands near 2:1 and
+	 * the label stops being readable; disabled is a *state*, not a licence to
+	 * be unreadable.
+	 */
+	--dy-text-disabled: var(--dy-ink-700);
 
 	/* -------------------------------------------------------------------------
 	   الظلال
@@ -291,7 +306,19 @@
 
 	--dy-text-secondary: var(--dy-ink-400);
 
-	--dy-text-muted: var(--dy-ink-500);
+	/*
+	 * `--dy-ink-500` هنا كان 3.75:1 على سطح `--dy-ink-900` — أي أن كل نص ثانوي
+	 * في الوضع الداكن (تفاصيل الدخول، الروابط الخفيفة) كان تحت حد 4.5:1،
+	 * والقياس في المتصفح أعطى 3.07:1. ink-400 يعطي 6.96:1 على نفس السطح.
+	 */
+	--dy-text-muted: var(--dy-ink-400);
+
+	/*
+	 * في الداكن يجب أن يصعد الرابط درجة: `--dy-primary` (brand-600 #3b62e4)
+	 * على خلفية ink-950 يقيس 3.84:1 — قياس المتصفح لـ«نسيت كلمة المرور؟»
+	 * و«تسجيل الدخول» في الوضع الداكن. brand-400 يعطي 7.96:1 على نفس الخلفية.
+	 */
+	--dy-text-link: var(--dy-accent-400);
 
 	--dy-text-on-brand: #ffffff;
 
@@ -411,6 +438,8 @@
 
 	--dy-disabled: var(--dy-ink-500);
 	--dy-disabled-soft: var(--dy-ink-800);
+	/* Dark: a light step on a dark fill — the same pair, inverted. */
+	--dy-text-disabled: var(--dy-ink-300);
 
 	/* -------------------------------------------------------------------------
 	   الظلال
@@ -505,7 +534,8 @@
 		--dy-text-strong: #ffffff;
 		--dy-text: var(--dy-ink-100);
 		--dy-text-secondary: var(--dy-ink-400);
-		--dy-text-muted: var(--dy-ink-500);
+		--dy-text-muted: var(--dy-ink-400);
+		--dy-text-link: var(--dy-accent-400);
 
 		--dy-border: var(--dy-ink-800);
 		--dy-border-soft: var(--dy-ink-900);
@@ -555,7 +585,52 @@
 }
 
 /* =============================================================================
-   04. REDUCED MOTION
+   04. INCREASED CONTRAST — prefers-contrast
+   =============================================================================
+   لم يكن هذا في الشجرة إطلاقًا قبل هذا الالتزام (0 ورود)، رغم أن WCAG 2.2
+   وSAP Fiori وMicrosoft Fluent تعامله كمتطلب لا كنِعمة: نظام التشغيل يعلم أن
+   المستخدم يحتاج تباينًا أعلى ويرفع الطلب، ثم النظام يرفضه بصمت.
+
+   القاعدة: **لا قيمة لون جديدة هنا**. كل رمز يعيد التصريح برمز موجود من
+   السلم نفسه، بدرجة أغمق أو أفتح. هكذا يبقى عقد «الطبقات لا تخترع ألوانًا»
+   — الذي يفرضه semantic.css — ساريًا، ويصبح التباين العالي نتيجةً طبيعية
+   لقرارات النظام نفسها لا استثناءً موازيًا عليها.
+   ============================================================================= */
+
+@media (prefers-contrast: more) {
+	:root,
+	[data-theme="light"],
+	[data-theme="system"] {
+		/* الفاتح: النص يدكن والحدود تثقل */
+		--dy-text: var(--dy-ink-950);
+		--dy-text-secondary: var(--dy-ink-800);
+		--dy-text-muted: var(--dy-ink-700);
+		--dy-text-strong: var(--dy-ink-950);
+
+		--dy-border: var(--dy-ink-400);
+		--dy-border-soft: var(--dy-ink-300);
+		--dy-border-strong: var(--dy-ink-500);
+
+		--dy-ring: var(--dy-accent-700);
+	}
+
+	[data-theme="dark"] {
+		/* الداكن: القاعدة نفسها بالمقلوب — النص يفتّح والحدود تثقل */
+		--dy-text: var(--dy-ink-50);
+		--dy-text-secondary: var(--dy-ink-200);
+		--dy-text-muted: var(--dy-ink-300);
+		--dy-text-strong: #ffffff;
+
+		--dy-border: var(--dy-ink-600);
+		--dy-border-soft: var(--dy-ink-700);
+		--dy-border-strong: var(--dy-ink-500);
+
+		--dy-ring: var(--dy-accent-400);
+	}
+}
+
+/* =============================================================================
+   05. REDUCED MOTION
    ============================================================================= */
 
 @media (prefers-reduced-motion: reduce) {

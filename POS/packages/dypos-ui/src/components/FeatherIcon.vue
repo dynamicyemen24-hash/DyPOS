@@ -57,9 +57,15 @@ export default {
 						"stroke-linecap": "round",
 						"stroke-linejoin": "round",
 						"stroke-width": props.strokeWidth,
-						width: null,
-						height: null,
-						class: [icon.value.attrs.class, "shrink-0"],
+						// Size belongs to the caller (a `w-5 h-5` utility, or a rule
+						// like `.dy-login__input-icon`). The width/height attributes
+						// are dropped so nothing here competes with that, and
+						// `.dy-icon` in the base layer supplies the floor. Without
+						// the floor the replaced-element default of `width: 100%`
+						// stretched every icon to fill its container: the login page
+						// drew a 382px envelope straight across the email and
+						// password fields, over the top of the form.
+						class: [icon.value.attrs.class, "shrink-0 dy-icon"],
 						innerHTML: icon.value.contents,
 					},
 					attrs,

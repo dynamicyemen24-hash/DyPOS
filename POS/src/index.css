@@ -81,8 +81,8 @@ body {
 	min-width: 320px;
 	min-height: 100%;
 	font-family: var(--dy-font-ui);
-	background-color: var(--surface, #ffffff);
-	color: var(--text-primary, #0f172a);
+	background-color: var(--dy-bg);
+	color: var(--dy-text);
 }
 
 button,
@@ -178,10 +178,8 @@ input[type="reset"] {
 }
 
 :focus-visible {
-	outline: var(--dy-focus-ring-width, 2px) solid
-		var(--dy-focus-ring-color, var(--dy-accent, var(--accent, #3f63d9)));
-
-	outline-offset: var(--dy-focus-ring-offset, 2px);
+	outline: var(--dy-focus-ring-width) solid var(--dy-focus-ring-color);
+	outline-offset: var(--dy-focus-ring-offset);
 }
 
 button:focus-visible,
@@ -193,14 +191,12 @@ summary:focus-visible,
 [role="button"]:focus-visible,
 [role="link"]:focus-visible,
 [tabindex]:focus-visible {
-	outline: var(--dy-focus-ring-width, 2px) solid
-		var(--dy-focus-ring-color, var(--dy-accent, var(--accent, #3f63d9)));
-
-	outline-offset: var(--dy-focus-ring-offset, 2px);
+	outline: var(--dy-focus-ring-width) solid var(--dy-focus-ring-color);
+	outline-offset: var(--dy-focus-ring-offset);
 }
 
 [aria-invalid="true"]:focus-visible {
-	outline-color: var(--dy-danger, var(--danger, #dc2626));
+	outline-color: var(--dy-danger);
 }
 
 /* =============================================================================
@@ -306,51 +302,53 @@ button.active\:scale-95:active:not(:disabled),
 }
 
 /* =============================================================================
-   11. Theme Compatibility
+   11. Theme Compatibility — legacy utility remapping
    =============================================================================
-   themes.css remains the source of truth.
-   These rules only map legacy third-party utility classes.
+   themes.css remains the source of truth. These rules only re-point the
+   third-party utility classes (`bg-white`, `text-gray-900`, …) that survive in
+   the tree onto DyPOS tokens.
+
+   They used to read `--surface`, `--surface-alt`, `--text-primary`,
+   `--text-secondary`, `--text-muted`, `--border-subtle` — names defined
+   NOWHERE in this repo — so every one of them silently fell through to its
+   inline hex. The visible result was a dark theme that flipped the page
+   background while leaving text on hard-coded light-mode greys.
+
+   The mapping is now token-to-token: same intent, one vocabulary, and it
+   follows both `data-theme` and `data-accent` automatically.
    ============================================================================= */
 
-[data-theme="light"] body {
-	background-color: var(--surface, #ffffff);
-	color: var(--text-primary, #0f172a);
+body {
+	background-color: var(--dy-bg);
+	color: var(--dy-text);
 }
 
-[data-theme="dark"] body {
-	background-color: var(--surface-alt, #0f172a);
-	color: var(--text-primary, #f8fafc);
-}
-
-[data-theme="dark"] .bg-gray-50 {
-	background-color: var(--surface-alt, #111827);
-}
-
+[data-theme="dark"] .bg-gray-50,
 [data-theme="dark"] .bg-white {
-	background-color: var(--surface, #1e293b);
+	background-color: var(--dy-surface-hover);
 }
 
 [data-theme="dark"] .text-gray-900,
 [data-theme="dark"] .text-gray-800,
 [data-theme="dark"] .text-gray-700 {
-	color: var(--text-primary, #f8fafc);
+	color: var(--dy-text);
 }
 
 [data-theme="dark"] .text-gray-600,
 [data-theme="dark"] .text-gray-500 {
-	color: var(--text-secondary, #cbd5e1);
+	color: var(--dy-text-secondary);
 }
 
 [data-theme="dark"] .text-gray-400 {
-	color: var(--text-muted, #94a3b8);
+	color: var(--dy-text-muted);
 }
 
 [data-theme="dark"] .border-gray-200 {
-	border-color: var(--border-subtle, rgba(148, 163, 184, 0.18));
+	border-color: var(--dy-border-soft);
 }
 
 [data-theme="dark"] .border-gray-300 {
-	border-color: var(--border-strong, rgba(148, 163, 184, 0.32));
+	border-color: var(--dy-border);
 }
 
 /* =============================================================================

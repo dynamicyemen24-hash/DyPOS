@@ -73,6 +73,33 @@
 	 * Foreground intended for accent surfaces.
 	 */
 	--dy-accent-foreground: #ffffff;
+
+	/*
+	 * Numeric accent scale.
+	 *
+	 * `tailwind.config.js` maps its `accent` scale (accent-50 … accent-950) onto
+	 * these names, and Tailwind emits a declaration for any class it finds in
+	 * the source. Those eleven names were previously declared ONLY in the legacy
+	 * brand layer, which meant the whole accent scale silently resolved to
+	 * nothing — every `bg-accent-600` and `text-accent-500` in the app was an
+	 * invalid value that the browser dropped, leaving the element unstyled.
+	 *
+	 * They are declared here, as aliases of the brand scale, so they follow
+	 * `[data-accent]` automatically: a second numeric scale would drift from the
+	 * first the moment someone edits a colour, and a second *literal* scale is
+	 * exactly the defect this file's own header describes.
+	 */
+	--dy-accent-50: var(--dy-brand-50);
+	--dy-accent-100: var(--dy-brand-100);
+	--dy-accent-200: var(--dy-brand-200);
+	--dy-accent-300: var(--dy-brand-300);
+	--dy-accent-400: var(--dy-brand-400);
+	--dy-accent-500: var(--dy-brand-500);
+	--dy-accent-600: var(--dy-brand-600);
+	--dy-accent-700: var(--dy-brand-700);
+	--dy-accent-800: var(--dy-brand-800);
+	--dy-accent-900: var(--dy-brand-900);
+	--dy-accent-950: var(--dy-brand-950);
 }
 
 /* ============================================================================

@@ -74,6 +74,7 @@ import { registerSseRoutes } from './lib/realtime.js';
 import { registerAuditRoutes } from './routes/audit.js';
 import { registerFeatures } from './routes/features.js';
 import { registerErrorTracker } from './lib/errorTracker.js';
+import { registerPublicEndpoints } from './lib/publicEndpoints.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.DYPOS_PORT) || 3001;
@@ -397,14 +398,9 @@ const deepHealthHandler = ah(async (_req, res) => {
 });
 app.get('/health', deepHealthHandler);
 app.get('/api/health', deepHealthHandler);
-// Fleet version visibility: every API response carries the running build
-// so any terminal can detect drift without a separate version call.
-app.use('/api', (_req, res, next) => {
-  try {
-    res.setHeader('X-DyPOS-Version', VERSION);
-  } catch { /* headers best-effort */ }
-  next();
-});
+
+// Register public endpoints (ping, version header)
+registerPublicEndpoints(app);
 // Public contract (no auth — describes auth itself)
 app.use('/api', openapiRoutes);
 // Device intelligence (no auth — the login shell adapts before sign-in)

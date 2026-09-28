@@ -13,12 +13,12 @@
 ## Verify before you claim done (all must be green)
 
 ```powershell
-# server/ — 454 tests / 145 suites
+# server/ — 463 tests / 147 suites
 npm test                              # = node scripts/run-tests.mjs
 npx @biomejs/biome check .
 npm run parity
 npm run contract
-# POS/ — 805 tests / 64 files
+# POS/ — 1006 tests / 68 files
 npm run test:run
 npx biome check src/<touched-file>
 # production, from the repo root (after a deploy)
@@ -26,7 +26,7 @@ npm run verify:live                   # = node scripts/verify-live.mjs
 ```
 
 Test counts are *measured* by the runners, never estimated: server
-`454 tests / 145 suites`, POS `805 tests / 64 files`.
+`463 tests / 147 suites`, POS `1006 tests / 68 files`.
 
 `POS/node_modules` is disposable — if a command hangs on `npx … Ok to proceed?`,
 the install is missing: `npm ci` in `POS/` (and add the package to
@@ -39,11 +39,17 @@ manifest breaks both the build and any test that compiles CSS).
    invalid/spoofed tenant → 403, foreign row → 404. Never degrade to unscoped.
 2. **No credential leaks**: `password_hash`/tokens never selectable
    (`safeColumns` + `forbidden` + `redactRow` in `server/routes/method.js`).
-3. **One money implementation**: invoice math lives in `routes/invoices.js`
-   (`createOrFinalizeSale`, `applyInvoiceReturn`) — the method router reuses
-   it, never duplicates it. Amounts via `lib/money.js` (minor units).
+3. **One money implementation**: the line rule (discount clamp → gross →
+   exclusive/inclusive net-tax split) lives in `lib/money.js
+   #computeLineMinor` and is called by REST create + partial return
+   (`routes/invoices.js`), the method router (`routes/method.js`, incl. the
+   draft writer) and `services/invoice-totals.js` — never re-implemented.
+   `server/tests/money-line.test.js` fails the build if any other runtime file
+   contains the VAT split. Returns go through `applyInvoiceReturn`
+   (`routes/invoices.js`), which the method router *imports*.
 4. **Method coverage**: any new POS `call("DyPOS…")` needs a handler in
-   `routes/method.js` — `npm run contract` must stay 105+/105+.
+   `routes/method.js` — `npm run contract` must stay green (every call site
+   resolves to a registered handler).
 5. **DDL single source**: `server/db/schema.js` (+ `schema-postgres.sql` in
    lockstep — `npm run parity` must stay `ok:true`). Lib ensure-functions are
    backstops, not sources.

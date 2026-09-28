@@ -47,6 +47,7 @@ import {
 } from "@/router"
 import { terminateSession } from "@/utils/auth"
 import { createOverlayCloser } from "@/composables/useOverlayCloser"
+import { createSaleNotification } from "@/composables/useSaleNotification"
 import { gridNextIndex, readDirectionRTL } from "@/utils/gridNavigation"
 import POSHeader from "@/components/pos/POSHeader.vue"
 import SmartCashierDock from "@/components/pos/SmartCashierDock.vue"
@@ -257,7 +258,9 @@ const allowPrintLastInvoice = computed(() =>
 	Boolean(usePOSSettingsStore().allowPrintLastInvoice),
 )
 
-const notification = ref(null)
+// Toast واحد بمهلة إغلاق تلقائية — المالك الوحيد للمؤقّت هو الـ composable.
+const saleNotification = createSaleNotification()
+const { notification, showNotification } = saleNotification
 
 const busy = ref(false)
 
@@ -524,20 +527,6 @@ function formatMoney(value) {
 	return formatMoneyValue(value, activeCurrency.value)
 }
 
-function showNotification(message, type = "info") {
-	notification.value = {
-		id: Date.now(),
-		message,
-		type,
-	}
-
-	window.clearTimeout(showNotification.timeout)
-
-	showNotification.timeout = window.setTimeout(() => {
-		notification.value = null
-	}, 3500)
-}
-
 /* ============================================================================
  * Product Search
  * ========================================================================== */
@@ -608,6 +597,8 @@ function handleScanSubmit() {
  * Cart Operations
  * ========================================================================== */
 
+let cartIdCounter = 0
+
 function addProduct(product) {
 	const normalized = normalizeProduct(product)
 
@@ -628,8 +619,9 @@ function addProduct(product) {
 		return
 	}
 
+	cartIdCounter += 1
 	cart.value.push({
-		id: `${normalized.id}-${Date.now()}`,
+		id: `${normalized.id}-${Date.now()}-${cartIdCounter}`,
 
 		productId: normalized.id,
 
@@ -778,11 +770,16 @@ function removeDiscount() {
  * ========================================================================== */
 
 function selectCustomer(selectedValue) {
+	if (!selectedValue) {
+		customer.value = null
+		showCustomerPanel.value = false
+		return
+	}
 	const match = customerOptions.value.find(
 		(option) => option.value === selectedValue,
 	)
 
-	customer.value = selectedValue
+	customer.value = match
 		? {
 				id: match?.id ?? selectedValue,
 				name: match?.name ?? match?.label ?? selectedValue,
@@ -877,6 +874,21 @@ async function holdSale() {
 	} finally {
 		busy.value = false
 	}
+}
+
+function resetSaleState() {
+	discountValue.value = 0
+	discountType.value = "amount"
+	paymentAmount.value = ""
+	paymentMethod.value = "cash"
+	paymentProcessing.value = false
+	paymentError.value = ""
+	showPaymentPanel.value = false
+	showDiscountPanel.value = false
+	showCustomerPanel.value = false
+	showHeldSalesPanel.value = false
+	notification.value = null
+	busy.value = false
 }
 
 /* ============================================================================
@@ -1024,7 +1036,7 @@ async function confirmPayment() {
 		}
 	} catch (error) {
 		syncState.value = "error"
-
+		paymentProcessing.value = false
 		paymentError.value = normalizePaymentError(error)
 
 		logger?.error?.("DyPOS checkout failed", {
@@ -1036,16 +1048,12 @@ async function confirmPayment() {
 }
 
 async function submitSale(payload) {
-	/*
-	 * إذا كان session store يحتوي API مركزي للبيع
-	 * يتم استخدامه.
-	 */
-
 	if (typeof session.submitSale === "function") {
 		return await session.submitSale(payload)
 	}
-
-	throw new Error("جلسة البيع غير مهيأة (session.submitSale غير متوفر)")
+	throw new Error(
+		"جلسة البيع غير مهيأة (session.submitSale غير متوفر) — تأكد من تسجيل الدخول وفتح الجلسة",
+	)
 }
 
 function normalizePaymentError(error) {
@@ -1058,25 +1066,16 @@ function normalizePaymentError(error) {
 
 function startNewSale() {
 	completedSale.value = null
-
 	receiptVisible.value = false
-
 	cart.value = []
-
+	cartIdCounter = 0
 	customer.value = props.initialCustomer || null
-
 	discountValue.value = 0
-
 	discountType.value = "amount"
-
 	paymentAmount.value = ""
-
 	paymentMethod.value = "cash"
-
 	searchQuery.value = ""
-
 	saleSequence.value = `SALE-${Date.now()}`
-
 	syncState.value = "ready"
 
 	focusSearch()
@@ -1549,7 +1548,7 @@ onBeforeUnmount(() => {
 	// لقطة سلة أخيرة قبل مغادرة الصفحة (الكتابة محمية بالثروتل الموقوت).
 	captureCrashDraft()
 
-	window.clearTimeout(showNotification.timeout)
+	saleNotification.dispose()
 })
 
 /* ============================================================================

@@ -86,8 +86,18 @@ function clearPin() {
 /**
  * حفظ PIN مرتبط بحساب المستخدم الحالي.
  * يتم تشفيره محليًا ولا يُخزَّن بصيغة النص الواضح.
+ *
+ * @param {string} pinCode  كود PIN
+ * @param {string} email    الحساب المرتبط
+ * @param {number} [expiryMs] مدة الصلاحية (افتراضياً ساعة)
+ * @returns {Promise<boolean>} هل نجح الحفظ؟ (لا يرمي — الفشل = false)
  */
-async function savePin(pinCode, email) {
+async function savePin(pinCode, email, expiryMs = PIN_DEFAULT_EXPIRY_MS) {
+	if (!pinCode || !email) {
+		logger.warn("[PinAuth] savePin requires both pinCode and email")
+		return false
+	}
+
 	try {
 		const hash = await window.crypto.subtle
 			.importKey("raw", new TextEncoder().encode(pinCode), "PBKDF2", false, [
@@ -114,7 +124,7 @@ async function savePin(pinCode, email) {
 		const payload = {
 			hash,
 			email,
-			expiry: Date.now() + PIN_DEFAULT_EXPIRY_MS,
+			expiry: Date.now() + expiryMs,
 			created: Date.now(),
 		}
 

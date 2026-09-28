@@ -58,7 +58,6 @@ const SECURITY_EVENT_TYPES = Object.freeze({
  * importing the whole default surface.
  */
 export { SECURITY_EVENT_TYPES }
-
 // ---------------------------------------------------------------------------
 // Security Event Storage
 // ---------------------------------------------------------------------------
@@ -150,6 +149,17 @@ function sanitizeForInput(value) {
 
 	return sanitized
 }
+
+/**
+ * Named exports.
+ *
+ * These two existed only on the default export, so `import { sanitizeForInput }
+ * from "@/utils/securityHardening"` bound to `undefined` instead of failing
+ * loudly at the import site. That is the worst shape of bug: the login form
+ * called `sanitizeForInput(...)` and got `undefined is not a function` at
+ * runtime — on exactly the path every online cashier takes.
+ */
+export { sanitizeForDisplay, sanitizeForInput }
 
 // ---------------------------------------------------------------------------
 // Session Security

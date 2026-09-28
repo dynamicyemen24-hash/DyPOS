@@ -282,6 +282,8 @@
 	--dy-space-4: 16px;
 	--dy-space-5: 20px;
 	--dy-space-6: 24px;
+	/* الدرجة 7 = منتصف 6 و8 على شبكة 4pt (استُخدمت في شاشات الدخول) */
+	--dy-space-7: 28px;
 	--dy-space-8: 32px;
 	--dy-space-10: 40px;
 	--dy-space-12: 48px;

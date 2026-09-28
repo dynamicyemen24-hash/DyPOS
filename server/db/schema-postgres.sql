@@ -360,6 +360,10 @@ INSERT INTO schema_version (version, description) VALUES (4, 'Webhooks + outbox'
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS voided_at timestamptz;
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS voided_by TEXT;
+-- Return state is NOT the void state: applyInvoiceReturn rewrites the original
+-- invoice and stamps returned_at/returned_by. Lockstep with SQLite (migration 24).
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS returned_at timestamptz;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS returned_by TEXT;
 CREATE INDEX IF NOT EXISTS idx_customers_active ON customers(is_active);
 INSERT INTO schema_version (version, description) VALUES (5, 'Customers is_active + void') ON CONFLICT DO NOTHING;
 

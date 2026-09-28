@@ -7,7 +7,7 @@ import { invoicesCounter } from '../middleware/metrics.js';
 import { recalcTier } from '../lib/loyalty.js';
 import { computeCouponDiscount } from './offers.js';
 import { appendChain } from '../lib/chain.js';
-import { toMinor, toMajor, pctOf, clampMinor } from '../lib/money.js';
+import { toMinor, toMajor, clampMinor, computeLineMinor } from '../lib/money.js';
 import { dayRange } from '../lib/dates.js';
 import { assertTenantScope, resolveTenantFilter, assertRecordTenant } from '../lib/tenant.js';
 import { assertCurrency, assertUom } from '../lib/fx.js';
@@ -34,12 +34,19 @@ const router = Router();
 // this validation forever. The table probe is cached (tables never vanish at
 // runtime; migrate only adds).
 let payMethodsTable = null;
+let payMethodsCheckFailed = false;
 function payMethodsAvailable() {
-  if (payMethodsTable !== null) return payMethodsTable;
+  if (payMethodsTable === true) return true;
+  if (payMethodsCheckFailed) {
+    // Table was missing before but migration may have added it since.
+    // Re-check to allow post-migration validation to kick in.
+    payMethodsCheckFailed = false;
+  }
   try {
     db.prepare('SELECT 1 FROM payment_methods LIMIT 1').get();
     payMethodsTable = true;
   } catch {
+    payMethodsCheckFailed = true;
     payMethodsTable = false;
   }
   return payMethodsTable;
@@ -131,12 +138,12 @@ router.post('/', validate(invoiceSchema), (req, res) => {
     return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 200) });
   }
 
-  const idemKey = String(b.idempotencyKey || '').trim() || null;
-  if (idemKey) {
-    // Indexed lookup — O(log n), no full-table LIKE scan.
-    const existing = db.prepare('SELECT id FROM invoices WHERE id=? OR idempotency_key=? LIMIT 1').get(idemKey, idemKey);
-    if (existing) return res.json({ deduped: true, invoiceId: existing.id });
-  }
+   const idemKey = String(b.idempotencyKey || '').trim() || null;
+   if (idemKey) {
+     // Dedup by idempotency_key only: id is always a fresh UUID.
+     const existing = db.prepare('SELECT id FROM invoices WHERE idempotency_key=? LIMIT 1').get(idemKey);
+     if (existing) return res.json({ deduped: true, invoiceId: existing.id });
+   }
 
   const invoiceId = uuid();
   // Halala-integer accumulators (see lib/money.js): exact at any scale,
@@ -238,19 +245,17 @@ router.post('/', validate(invoiceSchema), (req, res) => {
       if (!(Number.isFinite(price) && price >= 0)) {
         throw new Error(`سعر غير صالح للصنف ${product.id}`);
       }
-      const discountMinor = clampMinor(toMinor(it.discount), toMinor(qty * price));
-      const taxRate = it.taxRate != null ? Math.max(0, Math.min(toNum(it.taxRate), 100)) : toNum(product.tax_rate, defaultTaxRate());
-      const lineGrossMinor = toMinor(qty * price) - discountMinor;
-      let lineNetMinor = lineGrossMinor;
-      let lineTaxMinor = pctOf(lineGrossMinor, taxRate);
-      if (taxInclusive && taxRate > 0) {
-        // Tax-inclusive shelf price (business_settings.tax_inclusive=1): back
-        // the tax out so net+tax still equal the charged gross EXACTLY in
-        // minor units — no IEEE drift, no halala leakage either direction.
-        lineNetMinor = Math.round((lineGrossMinor * 100) / (100 + taxRate));
-        lineTaxMinor = lineGrossMinor - lineNetMinor;
-      }
-      const lineTotalMinor = lineNetMinor + lineTaxMinor;
+      // ONE line rule (lib/money.js#computeLineMinor) — shared with the
+      // method router, so a draft and a finalized sale cannot disagree.
+      const requestedRate = it.taxRate != null ? toNum(it.taxRate) : toNum(product.tax_rate, defaultTaxRate());
+      const amounts = computeLineMinor({
+        qty, price, discount: it.discount, taxRate: requestedRate, taxInclusive,
+      });
+      const discountMinor = amounts.discountMinor;
+      const lineNetMinor = amounts.netMinor;
+      const lineTaxMinor = amounts.taxMinor;
+      const lineTotalMinor = amounts.totalMinor;
+      const taxRate = amounts.taxRate;
       subtotalMinor += lineNetMinor;
       taxTotalMinor += lineTaxMinor;
       const wh = String(it.warehouseId || defaultWh).trim().slice(0, 32) || 'W-01';
@@ -754,16 +759,15 @@ export function applyInvoiceReturn(req, id, input) {
           if (ret > 0 && Number(l.qty) > 0) {
             const newQty = Math.max(0, Number(l.qty) - ret);
             const discMinor = Math.round(toMinor(l.discount) * newQty / Number(l.qty));
-            const grossMinor = toMinor(newQty * Number(l.unit_price)) - discMinor;
-            const rate = Math.max(0, Math.min(Number(l.tax_rate) || 0, 100));
-            let netMinor = grossMinor, taxMinor = pctOf(grossMinor, rate);
-            if (taxInclusive && rate > 0) {
-              netMinor = Math.round((grossMinor * 100) / (100 + rate));
-              taxMinor = grossMinor - netMinor;
-            }
-            newSubMinor += netMinor;
-            newTaxMinor += taxMinor;
-            updateLine.run(newQty, toMajor(discMinor), toMajor(taxMinor), toMajor(netMinor + taxMinor), Number(l.returned_qty || 0) + ret, l.id);
+            // Same line rule as create/pay: the pro-rated discount above is
+            // already inside the helper's clamp, so rounding matches the sale.
+            const line = computeLineMinor({
+              qty: newQty, price: l.unit_price, discount: toMajor(discMinor),
+              taxRate: l.tax_rate, taxInclusive,
+            });
+            newSubMinor += line.netMinor;
+            newTaxMinor += line.taxMinor;
+            updateLine.run(newQty, toMajor(discMinor), toMajor(line.taxMinor), toMajor(line.totalMinor), Number(l.returned_qty || 0) + ret, l.id);
             upsertStock.run(l.product_id, String(l.warehouse_id || 'W-01').slice(0, 32), ret, ret);
           } else {
             newSubMinor += toMinor(l.total) - toMinor(l.tax_amount);
@@ -852,7 +856,7 @@ export function applyInvoiceReturn(req, id, input) {
           if (cashOwed > 0) refundWallet(inv.customer_id, cashOwed, id, req.user?.username);
         }
       }
-      db.prepare(`UPDATE invoices SET status='RETURNED',voided_at=datetime('now'),voided_by=?,notes=COALESCE(notes,'') || ? WHERE id=?`).run(req.user?.username || 'system', ` | إرجاع: ${reason}`, id);
+      db.prepare(`UPDATE invoices SET status='RETURNED',returned_at=datetime('now'),returned_by=?,notes=COALESCE(notes,'') || ? WHERE id=?`).run(req.user?.username || 'system', ` | إرجاع: ${reason}`, id);
       db.prepare(`INSERT INTO sync_log (entity_type,entity_id,action,payload,status) VALUES (?,?,?,?,?)`).run('INVOICE', id, 'RETURN', JSON.stringify({ id, reason }), 'PENDING');
       try { appendChain(id, { number: inv.number, total: inv.total, status: 'RETURNED', action: 'RETURN' }); } catch { /* ignore */ }
       return { invoiceId: id, status: 'RETURNED' };

@@ -39,4 +39,47 @@ export function clampMinor(minor, capMinor) {
   return Math.max(0, Math.min(m, cap));
 }
 
-export default { toMinor, toMajor, r2, pctOf, clampMinor };
+/**
+ * ONE sale-line rule: discount clamp → gross → net/tax split (minor units).
+ *
+ * This body used to be copy-pasted in FIVE places — services/invoice-totals.js,
+ * routes/invoices.js (REST create) and routes/method.js three times (method
+ * sale, draft header, draft items). Two of those skipped the rate clamp, so a
+ * DRAFT could total differently from the sale that finalized it. Same failure
+ * mode lib/stockPolicy.js was extracted for: a rule that drifts between paths
+ * is a bug you cannot see until a customer's receipt disagrees with the ledger.
+ *
+ * Semantics are the canonical ones (services/invoice-totals.js):
+ *   - discount is clamped into [0, qty×price] (a discount never flips a line),
+ *   - taxRate is clamped into [0,100] and returned so callers store the rate
+ *     that was ACTUALLY applied,
+ *   - exclusive: tax = pctOf(gross, rate), net = gross,
+ *   - inclusive (tax_inclusive=1): tax is backed OUT of the gross so
+ *     net + tax === gross exactly — no halala leaks either direction.
+ *
+ * @param {{qty?:number, price?:number, discount?:number, taxRate?:number, taxInclusive?:boolean}} line
+ * @returns {{discountMinor:number, grossMinor:number, netMinor:number, taxMinor:number, totalMinor:number, taxRate:number}}
+ */
+export function computeLineMinor(line = {}) {
+  const qty = Number(line.qty);
+  const price = Number(line.price);
+  const discountMinor = clampMinor(toMinor(line.discount), toMinor(qty * price));
+  const rate = Math.max(0, Math.min(Number(line.taxRate) || 0, 100));
+  const grossMinor = toMinor(qty * price) - discountMinor;
+  let netMinor = grossMinor;
+  let taxMinor = pctOf(grossMinor, rate);
+  if (line.taxInclusive && rate > 0) {
+    netMinor = Math.round((grossMinor * 100) / (100 + rate));
+    taxMinor = grossMinor - netMinor;
+  }
+  return {
+    discountMinor,
+    grossMinor,
+    netMinor,
+    taxMinor,
+    totalMinor: netMinor + taxMinor,
+    taxRate: rate,
+  };
+}
+
+export default { toMinor, toMajor, r2, pctOf, clampMinor, computeLineMinor };

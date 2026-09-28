@@ -1,0 +1,304 @@
+/* =============================================================================
+   DyPOS Design System v2.0
+   طبقة الجسر الدلالي — Semantic Bridge
+
+   المسؤولية:
+   - إغلاق الفجوة بين الرموز الخام (tokens.css) والأسماء الدلالية التي
+     تستخدمها المكوّنات فعليًا في src/ وpackages/dypos-ui.
+   - لا تُنشئ قيمة تصميم جديدة: كل رمز هنا **اسم بديل** لرمز قائم، أو قيمة
+     مقيسة من مصدر قائم (design-tokens.js) بلا تغيير بصري.
+
+   لماذا هذه الطبقة موجودة؟
+   كانت أسماء من نوع --dy-color و --dy-border-width و --dy-motion و
+   --dy-zIndex تُستخدم في المكوّنات دون أي تعريف في الشجرة، فكانت تتحلّل
+   إلى «قيمة غير صحيحة» ويأخذ المتصفح قيمة fallback المكتوبة في المكان أو
+   القيمة الافتراضية للمتصفح (مثال مقيس: --dy-border-width-thin كان يعطي
+   عرض حدّ medium = 3px بدل 1px). القيمة الاحتياطية ليست نظام تصميم.
+
+   تحذير محرّر (سبب عطل بناء مقيس):
+   لا تُنشئ رمزًا نمطيًا ينتهي بشرطة مائلة ونجمة داخل تعليق CSS، فذلك
+   يُغلق التعليق في منتصفه، فيتحوّل باقي prosa إلى CSS ويرفضه postcss
+   بـ `Unknown word`. اذكر أسماء الرموز بالنص دون لاحقة النجمة.
+
+   القاعدة:
+   - كل ما هو دلالي (semantic) يُشتق من رمز خام أو من طبقة themes/accents.
+   - كل ما هو تركيبي (component sizing) يُشتق من --dy-control-h-* و
+     --dy-space-* حتى تعمل طبقة density تلقائيًا.
+
+   ملاحظة صريحة عن z-index:
+   درجات --dy-zIndex-* و--dy-z-dialog/--dy-z-drawer محفوظة رقميًا بقيمها
+   الفعلية اليوم (100/350/400/500/700) **عن قصد**؛ لأن مواضع fixed في
+   الشجرة تعتمد أرقامًا مكتوبة (200 في لوحة تفاصيل WorkDataGrid، و1000 في
+   شبح السحب) فتغييرها إلى سلم --dy-z-* (0…160) يعيد ترتيب التكديس في
+   نقطة البيع. الهجرة إلى --dy-z-* تتطلب نقل تلك الأرقام في نفس الالتزام.
+   ============================================================================= */
+
+:root {
+	/* =========================================================================
+	   01. اللون — سلم الهوية
+	   بدائل مباشرة لسلم --dy-brand-* (يتبع accent المختار من accents.css)
+	   ========================================================================= */
+
+	--dy-color-brand-50: var(--dy-brand-50);
+	--dy-color-brand-100: var(--dy-brand-100);
+	--dy-color-brand-200: var(--dy-brand-200);
+	--dy-color-brand-300: var(--dy-brand-300);
+	--dy-color-brand-400: var(--dy-brand-400);
+	--dy-color-brand-500: var(--dy-brand-500);
+	--dy-color-brand-600: var(--dy-brand-600);
+	--dy-color-brand-700: var(--dy-brand-700);
+	--dy-color-brand-800: var(--dy-brand-800);
+	--dy-color-brand-900: var(--dy-brand-900);
+	--dy-color-brand-950: var(--dy-brand-950);
+
+	/* =========================================================================
+	   02. اللون — الأسطح والحدود
+	   ========================================================================= */
+
+	--dy-color-surface-base: var(--dy-surface);
+	--dy-color-surface-raised: var(--dy-bg-elevated);
+	--dy-color-surface-overlay: var(--dy-surface-hover);
+	--dy-color-surface-sunken: var(--dy-bg-sunken);
+	--dy-color-surface-inverted: var(--dy-surface-inverted);
+
+	--dy-color-surface-border: var(--dy-border);
+	--dy-color-surface-border-soft: var(--dy-border-soft);
+	--dy-color-surface-border-strong: var(--dy-border-strong);
+
+	/* =========================================================================
+	   03. اللون — النص
+	   ========================================================================= */
+
+	--dy-color-text-strong: var(--dy-text-strong);
+	--dy-color-text-primary: var(--dy-text);
+	--dy-color-text-secondary: var(--dy-text-secondary);
+	--dy-color-text-muted: var(--dy-text-muted);
+	--dy-color-text-disabled: var(--dy-text-muted);
+	--dy-color-text-inverse: var(--dy-text-on-brand);
+	--dy-color-text-link: var(--dy-text-link);
+	--dy-color-text-link-hover: var(--dy-primary-hover);
+
+	/* =========================================================================
+	   04. اللون — الطبقات العائمة
+	   ========================================================================= */
+
+	--dy-color-overlay-backdrop: rgb(
+		var(--dy-ink-c-950) /
+		var(--dy-overlay-alpha)
+	);
+	--dy-color-overlay-scrim: rgb(var(--dy-ink-c-950) / 0.6);
+
+	/* =========================================================================
+	   05. اللون — الحالات (success / warning / danger / info)
+	   الشكل واحد لكل حالة: base / hover / weak / subtle / border / text / icon
+	   ========================================================================= */
+
+	--dy-color-status-success: var(--dy-success);
+	--dy-color-status-success-hover: var(--dy-success-hover);
+	--dy-color-status-success-weak: var(--dy-success-soft);
+	--dy-color-status-success-subtle: var(--dy-success-subtle);
+	--dy-color-status-success-border: var(--dy-success-border);
+	--dy-color-status-success-text: var(--dy-success);
+	--dy-color-status-success-icon: var(--dy-success);
+	--dy-color-status-success-contrast: var(--dy-success-contrast);
+
+	--dy-color-status-warning: var(--dy-warning);
+	--dy-color-status-warning-hover: var(--dy-warning-hover);
+	--dy-color-status-warning-weak: var(--dy-warning-soft);
+	--dy-color-status-warning-subtle: var(--dy-warning-subtle);
+	--dy-color-status-warning-border: var(--dy-warning-border);
+	--dy-color-status-warning-text: var(--dy-warning);
+	--dy-color-status-warning-icon: var(--dy-warning);
+	--dy-color-status-warning-contrast: var(--dy-warning-contrast);
+
+	--dy-color-status-danger: var(--dy-danger);
+	--dy-color-status-danger-hover: var(--dy-danger-hover);
+	--dy-color-status-danger-weak: var(--dy-danger-soft);
+	--dy-color-status-danger-subtle: var(--dy-danger-subtle);
+	--dy-color-status-danger-border: var(--dy-danger-border);
+	--dy-color-status-danger-text: var(--dy-danger);
+	--dy-color-status-danger-icon: var(--dy-danger);
+	--dy-color-status-danger-contrast: var(--dy-danger-contrast);
+
+	--dy-color-status-info: var(--dy-info);
+	--dy-color-status-info-hover: var(--dy-info-hover);
+	--dy-color-status-info-weak: var(--dy-info-soft);
+	--dy-color-status-info-subtle: var(--dy-info-subtle);
+	--dy-color-status-info-border: var(--dy-info-border);
+	--dy-color-status-info-text: var(--dy-info);
+	--dy-color-status-info-icon: var(--dy-info);
+	--dy-color-status-info-contrast: var(--dy-info-contrast);
+
+	/* =========================================================================
+	   06. اللون — التفاعل (أزرار ومكوّنات النظام)
+	   ========================================================================= */
+
+	--dy-color-interactive-primary-bg: var(--dy-primary);
+	--dy-color-interactive-primary-bg-hover: var(--dy-primary-hover);
+	--dy-color-interactive-primary-bg-active: var(--dy-primary-active);
+	--dy-color-interactive-primary-bg-disabled: var(--dy-disabled-soft);
+	--dy-color-interactive-primary-border: var(--dy-primary);
+	--dy-color-interactive-primary-text: var(--dy-primary-contrast);
+
+	/*
+	 * Text colour for a *filled* control in its disabled state.
+	 *
+	 * The disabled background is `--dy-disabled-soft` — a pale step — so the
+	 * primary contrast token (white, meant to sit on the saturated brand fill)
+	 * is 1.06:1 against it: the label vanishes. Measured on the login button,
+	 * which renders disabled until both fields are filled, so the primary call
+	 * to action was unreadable at the exact moment the cashier looks for it.
+	 * WCAG 2.2 SC 1.4.3 wants 4.5:1 for body text; a disabled control is
+	 * exempt from *contrast minimum* only in the sense that it is exempt from
+	 * the 1.4.11 non-text requirement, not from being legible.
+	 */
+	--dy-color-interactive-primary-text-disabled: var(--dy-text-disabled);
+
+	--dy-color-interactive-secondary-bg: transparent;
+	--dy-color-interactive-secondary-bg-hover: var(--dy-surface-hover);
+	--dy-color-interactive-secondary-bg-active: var(--dy-surface-active);
+	--dy-color-interactive-secondary-border: var(--dy-border);
+	--dy-color-interactive-secondary-border-hover: var(--dy-primary);
+	--dy-color-interactive-secondary-text: var(--dy-text);
+
+	--dy-color-interactive-ghost-bg: transparent;
+	--dy-color-interactive-ghost-bg-hover: var(--dy-surface-hover);
+	--dy-color-interactive-ghost-bg-active: var(--dy-surface-active);
+	--dy-color-interactive-ghost-text: var(--dy-text);
+
+	--dy-color-interactive-danger-bg: var(--dy-danger);
+	--dy-color-interactive-danger-bg-hover: var(--dy-danger-hover);
+	--dy-color-interactive-danger-bg-active: var(--dy-danger-active);
+	--dy-color-interactive-danger-bg-disabled: var(--dy-danger-soft);
+	--dy-color-interactive-danger-text: var(--dy-danger-contrast);
+
+	/* =========================================================================
+	   07. إمكانية الوصول — حلقة التركيز
+	   المصدر: --dy-focus-width/--dy-focus-offset/--dy-ring
+	   ========================================================================= */
+
+	--dy-focus-color: var(--dy-ring);
+
+	/*
+	 * `index.css` reads this name for the global `:focus-visible` outline:
+	 *
+	 *   outline: var(--dy-focus-ring-width) solid
+	 *       var(--dy-focus-ring-color, var(--dy-accent, var(--accent, #3f63d9)));
+	 *
+	 * It was never declared anywhere, so the browser used the innermost
+	 * fallback and the focus ring was painted with a hard-coded hex that
+	 * ignored the theme, the accent AND dark mode. Declaring it here ends the
+	 * fallback chain: the ring is now the theme's ring colour.
+	 */
+	--dy-focus-ring-color: var(--dy-ring);
+	--dy-focus-ring-width: var(--dy-focus-width);
+
+	--dy-a11y-focus-ring-width: var(--dy-focus-width);
+	--dy-a11y-focus-ring-offset: var(--dy-focus-offset);
+	--dy-a11y-focus-ring-color: var(--dy-ring);
+	--dy-a11y-focus-ring-offset-color: var(--dy-surface);
+
+	/* =========================================================================
+	   08. الحدود — سماكات وحدود عناصر الإدخال
+	   ========================================================================= */
+
+	--dy-border-width-hairline: 1px;
+	--dy-border-width-thin: 1px;
+	--dy-border-width-medium: 2px;
+	--dy-border-width-thick: 2px;
+	--dy-border-width-heavy: 3px;
+
+	--dy-input-border: var(--dy-border);
+	--dy-input-bg: var(--dy-surface);
+
+	/* =========================================================================
+	   09. الطباعة — أسماء جسر + مقاسات الجسر الرأسية
+	   القيم أدناه هي نفس قيم design-tokens.js (المصدر JS)، فلا تغيير بصري.
+	   ========================================================================= */
+
+	--dy-font-family-sans: var(--dy-font-sans);
+	--dy-font-family-mono: var(--dy-font-mono);
+	--dy-font-family-money: var(--dy-font-money);
+
+	--dy-typography-font-size-xs-min: 0.7rem;
+	--dy-typography-font-size-xs-max: 0.75rem;
+	--dy-typography-font-size-sm-min: 0.81rem;
+	--dy-typography-font-size-sm-max: 0.875rem;
+	--dy-typography-font-size-base-min: 0.94rem;
+	--dy-typography-font-size-base-max: 1rem;
+	--dy-typography-font-size-lg-min: 1.06rem;
+	--dy-typography-font-size-lg-max: 1.125rem;
+	--dy-typography-font-size-xl-min: 1.25rem;
+	--dy-typography-font-size-xl-max: 1.375rem;
+
+	--dy-typography-lineHeight-tight: var(--dy-leading-tight);
+	--dy-typography-lineHeight-snug: var(--dy-leading-snug);
+	--dy-typography-lineHeight-normal: var(--dy-leading-normal);
+	--dy-typography-lineHeight-relaxed: var(--dy-leading-relaxed);
+
+	--dy-typography-fontWeight-medium: var(--dy-weight-medium);
+	--dy-typography-fontWeight-semibold: var(--dy-weight-semibold);
+	--dy-typography-fontWeight-bold: var(--dy-weight-bold);
+
+	/* =========================================================================
+	   10. الحركة — أسماء جسر على سلم --dy-dur و --dy-ease
+	   القيم مطابقة تمامًا لما كانت تُحلّ إليه عبر fallback، مع ميزة إضافية:
+	   في prefers-reduced-motion تصبح المدد 0ms تلقائيًا (tokens.css §رموز).
+	   ========================================================================= */
+
+	--dy-motion-duration-instant: var(--dy-dur-instant);
+	--dy-motion-duration-fast: var(--dy-dur-micro);
+	--dy-motion-duration-normal: var(--dy-dur-fast);
+	--dy-motion-duration-moderate: var(--dy-dur-moderate);
+	--dy-motion-duration-base: var(--dy-dur-base);
+	--dy-motion-duration-slow: var(--dy-dur-slow);
+
+	--dy-motion-fast: var(--dy-dur-fast);
+	--dy-dur-standard: var(--dy-dur-base);
+
+	--dy-motion-ease-standard: var(--dy-ease-standard);
+	--dy-motion-ease-decelerate: var(--dy-ease-decelerate);
+	--dy-motion-easing-ease-out: var(--dy-ease-decelerate);
+
+	/* =========================================================================
+	   11. التكديس — أسماء جسر (القيم محفوظة عمدًا، انظر ترويسة الملف)
+	   ========================================================================= */
+
+	--dy-zIndex-dropdown: 100;
+	--dy-zIndex-modal: 400;
+	--dy-zIndex-toast: 700;
+
+	--dy-z-dialog: 400;
+	--dy-z-dialog-content: 500;
+	--dy-z-drawer: 350;
+
+	/* =========================================================================
+	   12. المقاسات التركيبية — مشتقة من --dy-control-h-* و--dy-space-*
+	   حتى تعمل طبقة density (density.css) دون تعديل أي مكوّن.
+	   ========================================================================= */
+
+	--dy-components-button-height-sm: var(--dy-control-h-xs);
+	--dy-components-button-height-md: var(--dy-control-h-md);
+	--dy-components-button-height-lg: var(--dy-control-h-lg);
+
+	--dy-components-button-padding-sm: 0 var(--dy-space-3);
+	--dy-components-button-padding-md: 0 var(--dy-space-4);
+	--dy-components-button-padding-lg: 0 var(--dy-space-6);
+
+	--dy-components-input-height-sm: var(--dy-control-h-xs);
+	--dy-components-input-height-md: var(--dy-control-h-md);
+	--dy-components-input-height-lg: var(--dy-control-h-lg);
+	--dy-components-input-padding: var(--dy-input-padding-inline);
+
+	/* =========================================================================
+	   13. أسماء قديمة شائعة في الشجرة — أُبقيت كبدائل مسمّاة
+	   ========================================================================= */
+
+	--dy-primary-light: var(--dy-primary-soft);
+	--dy-surface-soft: var(--dy-surface-hover);
+	--dy-surface-strong: var(--dy-surface-active);
+	--dy-bg-hover: var(--dy-surface-hover);
+	--dy-brand-contrast: var(--dy-text-on-brand);
+	--dy-accent-contrast: var(--dy-primary-contrast);
+	--dy-accent-c-500: var(--dy-brand-c-500);
+}

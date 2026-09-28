@@ -525,6 +525,19 @@ export function createRateLimiter({
 
 		const metrics = globalMetrics.getMetrics(key)
 
+		/*
+		 * The `allowed` / `retryAfterMs` pair is the contract `check()` returns
+		 * (see the three locked branches above) and the contract every caller
+		 * reads. `getState()` used to return neither, so a consumer deriving
+		 * `allowed` from it evaluated `!undefined` — `true` — and therefore
+		 * rendered the lockout banner on a page that was never locked, while
+		 * `Math.ceil(undefined / 1000)` printed `NaN` in the countdown. Derive
+		 * both from the same source of truth `check()` uses; never from a
+		 * literal, so the two can never disagree again.
+		 */
+		const isLocked = state.lockoutUntil > now
+		const retryAfterMs = isLocked ? state.lockoutUntil - now : 0
+
 		return {
 			attempts: validAttempts.length,
 			maxAttempts: state.adaptiveThreshold,
@@ -532,8 +545,10 @@ export function createRateLimiter({
 				0,
 				state.adaptiveThreshold - validAttempts.length,
 			),
+			allowed: !isLocked,
+			retryAfterMs,
 			lockoutUntil: state.lockoutUntil,
-			isLocked: state.lockoutUntil > now,
+			isLocked,
 			totalBlocked: state.totalBlocked,
 			windowMs,
 			adaptiveThreshold: state.adaptiveThreshold,

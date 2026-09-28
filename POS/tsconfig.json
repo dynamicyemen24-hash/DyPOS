@@ -1,4 +1,5 @@
 {
+	"$schema": "https://json.schemastore.org/tsconfig.json",
 	"compilerOptions": {
 		"target": "ES2022",
 		"module": "ESNext",
@@ -17,6 +18,40 @@
 		"noFallthroughCasesInSwitch": true,
 		"forceConsistentCasingInFileNames": true,
 
+		/* Every guard below is a "this cannot happen" signal rather than a style
+		   preference. Each was MEASURED against this repo (enabled one at a
+		   time, errors fixed at the source) instead of copied from a template.
+
+		   noUncheckedIndexedAccess  `arr[i]` is `T | undefined`, so `arr[0].x`
+		     can no longer pretend the element exists. Enabling it found three
+		     real defects: an unguarded `history[0]` write, a
+		     `transitions[idx] = { ...transitions[idx] }` that could discard a
+		     definition entry, and a `dueDates[0]` typed `string | null` while
+		     being `string | null | undefined`.
+		   noUnusedLocals / noUnusedParameters  an unused local is almost always
+		     a forgotten refactor or a dropped binding. This is what surfaced
+		     the unused `netSales` parameter and the `options` argument that
+		     `start()` accepted and silently discarded.
+		   noImplicitReturns  returning a value on one path and falling off the
+		     end is a bug waiting for a caller.
+		   allowUnreachableCode:false / allowUnusedLabels:false  dead code and
+		     labels nobody jumps to should not survive review. */
+		"noUncheckedIndexedAccess": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		/* `noPropertyAccessFromIndexSignature` is deliberately NOT enabled:
+		   it is the one guard that fights this repo's linter. It demands
+		   `globalProperties["__"]`, while Biome's recommended `useLiteralKeys`
+		   demands `globalProperties.__` — the two rules are mutually exclusive
+		   on that exact line. It also bought only this one diagnostic, so
+		   turning it off is the cheaper way to keep a single style. */
+		"noUncheckedSideEffectImports": true,
+		"allowUnreachableCode": false,
+		"allowUnusedLabels": false,
+		"useUnknownInCatchVariables": true,
+		"erasableSyntaxOnly": true,
+
 		"esModuleInterop": true,
 		"resolveJsonModule": true,
 		"isolatedModules": true,
@@ -25,12 +60,25 @@
 		"noEmit": true,
 
 		"types": ["vite/client"],
-		"baseUrl": ".",
+		/* No `baseUrl`: it is deprecated in TypeScript 6 and removed in 7, and
+		   nothing here needs it — every bare import in src/**\/*.{ts,tsx} is a real
+		   package ("vue"), every local import is relative or uses the `@/` alias.
+		   Since TS 4.1 `paths` values resolve against this file's own directory,
+		   so `./src/*` keeps meaning the same thing without a base directory. */
 		"paths": {
 			"@/*": ["./src/*"]
 		}
 	},
-	"include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"],
+	"include": [
+		"src/**/*.ts",
+		"src/**/*.tsx",
+		"src/**/*.d.ts",
+		/* unplugin-auto-import writes this at the project root. It is generated
+		   and currently declares nothing, so leaving it out changed nothing —
+		   but the day it declares a global, an excluded file means the editor
+		   flags every use of that global as undefined. Cheap to include. */
+		"auto-imports.d.ts"
+	],
 	"exclude": [
 		"node_modules",
 		"dist",

@@ -322,6 +322,22 @@ function handleKeydown(e) {
 .dy-btn--primary.dy-btn--disabled {
   background: var(--dy-color-interactive-primary-bg-disabled, #a7f3d0);
   border-color: var(--dy-color-interactive-primary-bg-disabled, #a7f3d0);
+  /*
+   * The label colour has to be stated *here*, not inherited from
+   * `.dy-btn--primary`. That rule's `color` is the brand-contrast token
+   * (white), which is correct on the saturated brand fill but only 1.06:1 on
+   * the pale `--dy-disabled-soft` fill set two lines above: on the login page
+   * the disabled submit button was a white label on a near-white pill, i.e.
+   * invisible. Specificity is equal, so the later rule wins — which is the
+   * whole point of naming the colour in the disabled branch.
+   */
+  color: var(--dy-color-interactive-primary-text-disabled, #334155);
+  /*
+   * و`opacity: 1` — القاعدة العامة `.dy-btn--disabled` تخفض الشفافية إلى 0.6،
+   * فتعتيم مركّب فوق اللون: القياس في المتصفح كان 3.27:1 بعد اختيار اللون
+   * الصحيح وحده (9.45:1). الحالة «معطّل» تُعبَّر عنها الألوان هنا، لا الشفافية.
+   */
+  opacity: 1;
 }
 
 /* Secondary — Alternative action */

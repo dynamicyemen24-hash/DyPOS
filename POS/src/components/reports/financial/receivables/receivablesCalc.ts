@@ -114,7 +114,7 @@ export function buildPartyLedgerModel<T extends LedgerInvoice>(
 				.map((invoice) => invoice.due_date)
 				.filter((date): date is string => Boolean(date))
 				.sort()
-			const oldestDueDate = dueDates.length ? dueDates[0] : null
+			const oldestDueDate = dueDates[0] ?? null
 			const overdueDays = daysOverdue(oldestDueDate, now)
 			return {
 				party: bucket.party,

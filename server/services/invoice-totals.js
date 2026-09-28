@@ -13,7 +13,7 @@
  * - Overpay → explicit change; paid/remaining never negative.
  * - Status epsilons in minor units (<=1 minor = PAID).
  */
-import { toMinor, toMajor, pctOf, clampMinor } from '../lib/money.js';
+import { toMinor, toMajor, clampMinor, computeLineMinor } from '../lib/money.js';
 
 /**
  * Compute line + cart totals.
@@ -29,18 +29,12 @@ export function computeInvoiceTotals(lines, opts = {}) {
   for (const line of lines || []) {
     const qty = Number(line.qty) > 0 ? Number(line.qty) : 0;
     const price = Number(line.unitPrice) || 0;
-    const discountMinor = clampMinor(toMinor(line.discount), toMinor(qty * price));
-    const taxRate = Math.max(0, Math.min(Number(line.taxRate) || 0, 100));
-    const lineGrossMinor = toMinor(qty * price) - discountMinor;
-    let lineNetMinor = lineGrossMinor;
-    let lineTaxMinor = pctOf(lineGrossMinor, taxRate);
-    if (taxInclusive && taxRate > 0) {
-      lineNetMinor = Math.round((lineGrossMinor * 100) / (100 + taxRate));
-      lineTaxMinor = lineGrossMinor - lineNetMinor;
-    }
-    subtotalMinor += lineNetMinor;
-    taxTotalMinor += lineTaxMinor;
-    computed.push({ ...line, netMinor: lineNetMinor, taxMinor: lineTaxMinor, totalMinor: lineNetMinor + lineTaxMinor });
+    const amounts = computeLineMinor({
+      qty, price, discount: line.discount, taxRate: line.taxRate, taxInclusive,
+    });
+    subtotalMinor += amounts.netMinor;
+    taxTotalMinor += amounts.taxMinor;
+    computed.push({ ...line, netMinor: amounts.netMinor, taxMinor: amounts.taxMinor, totalMinor: amounts.totalMinor });
   }
 
   const grossMinor = subtotalMinor + taxTotalMinor;

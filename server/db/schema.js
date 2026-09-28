@@ -16,8 +16,9 @@ import { DatabaseSync } from 'node:sqlite';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DYPOS_DB_PATH || join(__dirname, '..', 'data', 'dypos.db');
 import { initGrowthEngineTables } from '../lib/growthEngine.js';
+import { migrateTenancy } from './migrations-tenancy.js';
 
-const MIGRATION_VERSION = 23; // Increment when schema changes
+const MIGRATION_VERSION = 24; // Increment when schema changes
 
 function columnExists(table, column) {
 	try {
@@ -190,25 +191,29 @@ export function migrate() {
       -- ══════════════════════════════════════════════════════════
       -- Invoices
       -- ══════════════════════════════════════════════════════════
-      CREATE TABLE IF NOT EXISTS invoices (
-        id TEXT PRIMARY KEY,
-        number TEXT NOT NULL,
-        customer_id TEXT,
-        customer_name TEXT NOT NULL DEFAULT 'Walk-in Customer',
-        shift_id TEXT,
-        terminal_id TEXT,
-        subtotal REAL NOT NULL DEFAULT 0,
-        tax_amount REAL NOT NULL DEFAULT 0,
-        discount_amount REAL NOT NULL DEFAULT 0,
-        total REAL NOT NULL DEFAULT 0,
-        paid_amount REAL NOT NULL DEFAULT 0,
-        remaining_amount REAL NOT NULL DEFAULT 0,
-        status TEXT NOT NULL DEFAULT 'UNPAID',
-        paid_at TEXT,
-        notes TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
+       CREATE TABLE IF NOT EXISTS invoices (
+         id TEXT PRIMARY KEY,
+         number TEXT NOT NULL,
+         customer_id TEXT,
+         customer_name TEXT NOT NULL DEFAULT 'Walk-in Customer',
+         shift_id TEXT,
+         terminal_id TEXT,
+         subtotal REAL NOT NULL DEFAULT 0,
+         tax_amount REAL NOT NULL DEFAULT 0,
+         discount_amount REAL NOT NULL DEFAULT 0,
+         total REAL NOT NULL DEFAULT 0,
+         paid_amount REAL NOT NULL DEFAULT 0,
+         remaining_amount REAL NOT NULL DEFAULT 0,
+         status TEXT NOT NULL DEFAULT 'UNPAID',
+         paid_at TEXT,
+         voided_at TEXT,
+         voided_by TEXT,
+         returned_at TEXT,
+         returned_by TEXT,
+         notes TEXT,
+         created_at TEXT NOT NULL DEFAULT (datetime('now')),
+         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+       );
       CREATE INDEX IF NOT EXISTS idx_invoices_shift ON invoices(shift_id);
       CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
       CREATE INDEX IF NOT EXISTS idx_invoices_created ON invoices(created_at);
@@ -544,81 +549,7 @@ export function migrate() {
   // ── v8: multi-tenancy (tenants → organizations → branches) + control fields + trail ──
   // Scoping columns are NULLABLE: legacy single-tenant rows keep working, and
   // DYPOS_REQUIRE_TENANT=1 flips enforcement on (same pattern as REQUIRE_SHIFT).
-  if (currentVersion < 8) {
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS tenants (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        code TEXT UNIQUE,
-        plan TEXT NOT NULL DEFAULT 'standard',
-        is_active INTEGER NOT NULL DEFAULT 1,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-      CREATE TABLE IF NOT EXISTS organizations (
-        id TEXT PRIMARY KEY,
-        tenant_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        code TEXT,
-        vat_number TEXT,
-        is_active INTEGER NOT NULL DEFAULT 1,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-      CREATE INDEX IF NOT EXISTS idx_orgs_tenant ON organizations(tenant_id);
-      CREATE TABLE IF NOT EXISTS branches (
-        id TEXT PRIMARY KEY,
-        org_id TEXT NOT NULL,
-        tenant_id TEXT NOT NULL DEFAULT '',
-        name TEXT NOT NULL,
-        code TEXT,
-        warehouse_id TEXT,
-        is_active INTEGER NOT NULL DEFAULT 1,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-      CREATE INDEX IF NOT EXISTS idx_branches_org ON branches(org_id);
-      CREATE INDEX IF NOT EXISTS idx_branches_tenant ON branches(tenant_id);
-      CREATE TABLE IF NOT EXISTS audit_trail (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        tenant_id TEXT NOT NULL DEFAULT '',
-        entity_type TEXT NOT NULL,
-        entity_id TEXT NOT NULL,
-        action TEXT NOT NULL,
-        before_json TEXT NOT NULL DEFAULT '{}',
-        after_json TEXT NOT NULL DEFAULT '{}',
-        user_id TEXT,
-        username TEXT,
-        ip TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-      CREATE INDEX IF NOT EXISTS idx_trail_entity ON audit_trail(entity_type, entity_id, id);
-      CREATE INDEX IF NOT EXISTS idx_trail_tenant ON audit_trail(tenant_id, created_at DESC);
-    `);
-    addColumnIfMissing('products', 'tenant_id', 'TEXT');
-    addColumnIfMissing('products', 'created_by', 'TEXT');
-    addColumnIfMissing('products', 'updated_by', 'TEXT');
-    addColumnIfMissing('customers', 'tenant_id', 'TEXT');
-    addColumnIfMissing('customers', 'created_by', 'TEXT');
-    addColumnIfMissing('customers', 'updated_by', 'TEXT');
-    addColumnIfMissing('invoices', 'tenant_id', 'TEXT');
-    addColumnIfMissing('invoices', 'branch_id', 'TEXT');
-    addColumnIfMissing('invoices', 'created_by', 'TEXT');
-    addColumnIfMissing('invoices', 'updated_by', 'TEXT');
-    addColumnIfMissing('shifts', 'tenant_id', 'TEXT');
-    addColumnIfMissing('shifts', 'branch_id', 'TEXT');
-    addColumnIfMissing('warehouses', 'tenant_id', 'TEXT');
-    addColumnIfMissing('warehouses', 'branch_id', 'TEXT');
-    addColumnIfMissing('users', 'tenant_id', 'TEXT');
-    db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_products_tenant ON products(tenant_id);
-      CREATE INDEX IF NOT EXISTS idx_customers_tenant ON customers(tenant_id);
-      CREATE INDEX IF NOT EXISTS idx_invoices_tenant ON invoices(tenant_id, created_at DESC);
-      CREATE INDEX IF NOT EXISTS idx_shifts_tenant ON shifts(tenant_id, status);
-    `);
-    db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
-      .run(8, 'Tenancy hierarchy + scoping + control fields + audit_trail');
-  }
+  migrateTenancy(db, addColumnIfMissing, currentVersion);
 
   // ── v9: master data — currencies + units of measure (+ seeds) ──
   if (currentVersion < 9) {
@@ -1048,6 +979,22 @@ export function migrate() {
         .run(23, 'offers + coupons tenant isolation');
     } catch (e) {
       console.warn('[DyPOS] v23 migration deferred:', String(e.message).slice(0, 200));
+    }
+  }
+
+  // ── v24: invoice return tracking (returned_at/returned_by) ──
+  // Separates returns from voids semantically: voided_at/voided_by
+  // belong to cancellations; returned_at/returned_by belong to returns.
+  // Both coexist on the same invoice (an invoice could theoretically be
+  // returned then voided by an admin).
+  if (currentVersion < 24) {
+    try {
+      addColumnIfMissing('invoices', 'returned_at', 'TEXT');
+      addColumnIfMissing('invoices', 'returned_by', 'TEXT');
+      db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
+        .run(24, 'invoice return tracking fields');
+    } catch (e) {
+      console.warn('[DyPOS] v24 migration deferred:', String(e.message).slice(0, 200));
     }
   }
 

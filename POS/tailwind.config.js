@@ -84,7 +84,8 @@ const semantic = {
 
 	// Focus ring
 	"focus-ring": "var(--dy-focus-ring)",
-	"focus-ring-offset": "var(--dy-focus-ring-offset)",
+	"focus-ring-offset": "var(--dy-focus-ring-offset-color)",
+	"focus-ring-offset-color": "var(--dy-focus-ring-offset-color)",
 
 	// Overlay
 	"overlay-backdrop": "var(--dy-overlay-backdrop)",

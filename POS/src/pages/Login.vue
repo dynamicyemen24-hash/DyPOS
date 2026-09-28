@@ -36,39 +36,63 @@ import CompanyFooter from "@/components/common/CompanyFooter.vue"
 import DyButton from "@/components/ui/DyButton.vue"
 import PasswordStrengthBar from "@/components/reports/dashboards/core/PasswordStrengthBar.vue"
 
+/*
+ * تنسيقات شاشة الدخول في ملف مستقل: `styles/pages/login.css`.
+ *
+ * السبب: الملف كان 2598 سطرًا، منها 1531 سطرًا `<style scoped>` — أي أن أكثر
+ * من نصف الملف تنسيقات. الاستخراج إلى ملف جانبي يُبقي SFC تحت رافعة الحجم
+ * (`tests/fileSize.test.js`) ويفصل العرض عن منطق الصفحة.
+ *
+ * يُحمَّل عبر `<style scoped src="…">` في أسفل الملف، فيبقى النطاق خاصًا
+ * بهذه الصفحة وحدها — ولا استيراد مزدوج هنا.
+ */
+
 import { session } from "@/stores/session"
 import { goToForgotPassword } from "@/router"
 import { useSessionLock } from "@/composables/useSessionLock"
 import { useSessionTimeout } from "@/composables/useSessionTimeout"
+import { useSecondsRemaining } from "@/composables/useSecondsRemaining"
+import { useRememberedEmail } from "@/composables/useRememberedEmail"
 import { useReducedMotion } from "@/composables/useReducedMotion"
 import { useMediaQuery } from "@/composables/useMediaQuery"
 import {
-	usePinAuth,
-	isPinValid,
-	pinLogin,
-	savePin,
-	clearPin,
-	getLockRemainingSeconds,
-} from "@/composables/usePinAuth"
+	useLoginRuntime,
+	attemptLocalLogin,
+	loginRateLimiter,
+	sanitizeForInput,
+	log,
+} from "@/composables/useLoginRuntime"
+import { usePinAuth } from "@/composables/usePinAuth"
+import {
+	PIN_EXPIRY_MS,
+	PIN_MAX_LENGTH,
+	PIN_MIN_LENGTH,
+	sanitizePin,
+	validatePinPair,
+} from "@/composables/usePinAuthRules"
 
 import { cleanupUserSession, normalizeAuthError } from "@/utils/auth"
-import { ensureCSRFToken } from "@/utils/csrf"
-import { offlineWorker } from "@/utils/offline/workerClient"
-import { logger } from "@/utils/logger"
-import { enhancedLoginRateLimiter } from "@/utils/rateLimiterEnhanced"
 import {
 	handleAuthFailure,
 	handleAuthSuccess,
-	handleCSRFRefresh,
 	handleSessionExpiry,
 	handleSessionIdleTimeout,
 	handleSessionAbsoluteTimeout,
 	installSecurityMonitor,
 	checkSessionSecurity,
 } from "@/utils/securityHardening"
-import { offlineState } from "@/utils/offline/offlineState"
-import { offlineWorker as offlineWorkerClient } from "@/utils/offline/workerClient"
-import { userRepository } from "@/repositories/userRepository"
+
+/* ============================================================================
+ * Constants
+ * ========================================================================== */
+
+/** مدة الجلسة قبل التحذير — نفس القيمة التي يمررها useSessionTimeout. */
+const SESSION_DURATION_MS = 30 * 60 * 1000
+
+/** رسالة القفل بصيغة واحدة، ومكان واحد للعدّ التنازلي. */
+function rateLimitMessage(retryAfterMs) {
+	return `محاولات كثيرة جدًا. انتظر ${Math.ceil(Number(retryAfterMs || 0) / 1000)} ثانية ثم حاول مرة أخرى.`
+}
 
 /* ============================================================================
  * Props / Emits
@@ -123,10 +147,7 @@ const { isLocked: sessionLocked, unlock: unlockSession } = useSessionLock()
  * Form State
  * ========================================================================== */
 
-const email = ref("")
 const password = ref("")
-
-const rememberMe = ref(true)
 
 const isSubmitting = ref(false)
 const loginError = ref("")
@@ -140,22 +161,32 @@ const loginForm = ref(null)
  * Runtime State
  * ============================================================================ */
 
-const runtimeState = ref("idle")
+/* ============================================================================
+ * Runtime Readiness
+ * ---------------------------------------------------------------------------
+ * منطق التهيئة (CSRF، محرّك عدم الاتصال، اكتشاف الشبكة، تحديد الجاهزية)
+ * Lives in composables/useLoginRuntime.js — قابل للاختبار وحده، ومختبر في
+ * tests/loginRuntime.test.js.
+ * ========================================================================== */
 
-/*
- * idle
- * preparing
- * ready
- * degraded
- * failed
- */
-
-const runtimeError = ref("")
-const runtimeMessage = ref("")
-
-const csrfReady = ref(false)
-const offlineReady = ref(false)
-const sessionReady = ref(false)
+const {
+	runtimeState,
+	runtimeMessage,
+	csrfReady,
+	offlineReady,
+	sessionReady,
+	isOfflineMode,
+	offlineDetected,
+	isOnline,
+	isRuntimeReady,
+	rateLimitState,
+	isRateLimited,
+	setRuntimeState,
+	prepareRuntime,
+	detectAndSetOfflineMode,
+	handleOnline,
+	handleOffline,
+} = useLoginRuntime({ showOfflineReadiness: props.showOfflineReadiness })
 
 const shiftDialogOpen = ref(false)
 const shiftOpening = ref(false)
@@ -163,11 +194,8 @@ const shiftOpening = ref(false)
 const authenticationCompleted = ref(false)
 
 /* ============================================================================
- * Rate Limiter & Session Timeout
- * ============================================================================ */
-
-const rateLimitState = computed(() => enhancedLoginRateLimiter.getState())
-const isRateLimited = computed(() => !rateLimitState.value.allowed)
+ * Session Timeout
+ * ========================================================================== */
 
 const sessionTimeout = useSessionTimeout({
 	warningBeforeMs: 5 * 60 * 1000,
@@ -179,9 +207,40 @@ const sessionTimeout = useSessionTimeout({
 	},
 })
 
+/*
+ * Destructure to top level: `<script setup>` unwraps only top-level bindings,
+ * so a template reading `sessionTimeout.showWarning` gets a ref object — always
+ * truthy, and `NaN` under arithmetic. See useSecondsRemaining.
+ */
+const {
+	showWarning: showSessionWarning,
+	timeRemaining: sessionTimeRemaining,
+	isExtending: isExtendingSession,
+	extendSession,
+	dismissWarning,
+} = sessionTimeout
+
+const sessionSecondsLeft = useSecondsRemaining(sessionTimeRemaining)
+
+/** Lockout countdown, same derivation — see useSecondsRemaining. */
+const retryAfterSeconds = useSecondsRemaining(
+	computed(() => rateLimitState.value?.retryAfterMs),
+)
+
 // Security hardening: install session activity monitoring and enforce
 // session expiry, idle timeout, and absolute timeout policies.
 let stopSecurityMonitor = null
+
+/**
+ * The periodic policy check.
+ *
+ * It used to be assigned to a local `const interval` that was never stored
+ * and never cleared — the timer outlived the component and kept calling
+ * `checkSessionSecurity()` on a page that was no longer mounted. A login
+ * screen is entered and left repeatedly (every session expiry, every
+ * back-navigation), so those timers accumulate.
+ */
+let securityCheckTimer = null
 
 function installSessionSecurityMonitor() {
 	if (stopSecurityMonitor) return
@@ -189,7 +248,7 @@ function installSessionSecurityMonitor() {
 	stopSecurityMonitor = installSecurityMonitor()
 
 	// Periodic session security check (independent of user activity).
-	const interval = setInterval(() => {
+	securityCheckTimer = setInterval(() => {
 		const status = checkSessionSecurity()
 		if (status !== "valid") {
 			if (status === "idle_timeout") handleSessionIdleTimeout()
@@ -198,162 +257,17 @@ function installSessionSecurityMonitor() {
 	}, 60 * 1000)
 }
 
-/* ============================================================================
- * Offline Detection & Offline Login Support
- * ============================================================================ */
-
-const OFFLINE_DETECTION_TIMEOUT_MS = 3000
-const isOfflineMode = ref(false)
-const offlineDetected = ref(false)
-
-async function detectOfflineMode() {
-	if (!isBrowser) return false
-
-	try {
-		const controller = new AbortController()
-		const timeoutId = setTimeout(
-			() => controller.abort(),
-			OFFLINE_DETECTION_TIMEOUT_MS,
-		)
-
-		const response = await fetch(endpoints.ping, {
-			method: "GET",
-			cache: "no-store",
-			credentials: "same-origin",
-			signal: controller.signal,
-		})
-
-		clearTimeout(timeoutId)
-
-		if (response.ok) {
-			log.info("Backend reachable — online mode")
-			return false
-		}
-
-		if (response.status === 503) {
-			log.info("Backend unavailable (503) — offline mode")
-			return true
-		}
-
-		log.warn(`Backend responded with ${response.status} — treating as offline`)
-		return true
-	} catch (error) {
-		if (error.name === "AbortError" || error.name === "TimeoutError") {
-			log.info("Backend ping timeout — offline mode")
-		} else {
-			log.info("Backend unreachable — offline mode", error?.message || error)
-		}
-		return true
+/** Idempotent teardown — safe to call even if the monitor was never installed. */
+function stopSessionSecurityMonitor() {
+	if (stopSecurityMonitor) {
+		stopSecurityMonitor()
+		stopSecurityMonitor = null
+	}
+	if (securityCheckTimer) {
+		clearInterval(securityCheckTimer)
+		securityCheckTimer = null
 	}
 }
-
-async function detectAndSetOfflineMode() {
-	isOfflineMode.value = await detectOfflineMode()
-	offlineDetected.value = true
-
-	if (isOfflineMode.value) {
-		log.info("OFFLINE MODE: Enabling offline login")
-		// Initialize offline systems
-		await initializeOfflineSystems()
-		window.__DYPOS_OFFLINE__ = true
-	} else {
-		log.info("ONLINE MODE: Backend reachable")
-	}
-	return isOfflineMode.value
-}
-
-async function initializeOfflineSystems() {
-	if (!isBrowser) return
-
-	try {
-		log.info("Initializing offline systems...")
-
-		// Initialize offline DB (Dexie) - this happens automatically on import
-		const db = await import("@/services/db").then((m) => m.default)
-		// Open the database connection
-		await db.open().catch((error) => {
-			log.warn("Offline DB open failed", error)
-		})
-
-		// Initialize offline numbering (for invoice numbers)
-		await import("@/services/offline-numbering").catch((error) => {
-			log.warn("Offline numbering init failed", error)
-		})
-
-		// Initialize stock reservations (local only)
-		await import("@/services/stock-reservations").catch((error) => {
-			log.warn("Local stock reservations init failed", error)
-		})
-
-		// Initialize offline store and sync queue
-		await import("@/services/offline-store").catch((error) => {
-			log.warn("Offline store init failed", error)
-		})
-
-		log.info("Offline systems initialized")
-	} catch (error) {
-		log.error("Offline systems initialization failed", error)
-	}
-}
-
-/**
- * Attempt local authentication using the user repository (Dexie `users`).
- * Falls back to online authentication if online.
- */
-async function attemptLocalLogin(email, password) {
-	if (!isOfflineMode.value) {
-		return { success: false, reason: "Online mode - use server authentication" }
-	}
-
-	try {
-		const result = await userRepository.authenticate(
-			email.value,
-			password.value,
-		)
-		if (!result.success) return result
-
-		const user = result.user
-		// Login successful - create local session
-		session.user = user.email
-
-		// Store session in localStorage for persistence
-		localStorage.setItem(
-			"dypos_user_session",
-			JSON.stringify({
-				email: user.email,
-				full_name: user.full_name,
-				user_id: user.id,
-				role: user.role,
-				loginTime: Date.now(),
-			}),
-		)
-
-		log.info("Offline login successful for:", user.email)
-		return { success: true, user }
-	} catch (error) {
-		log.error("Offline login failed:", error)
-		return { success: false, error: error.message || "فشل تسجيل الدخول المحلي" }
-	}
-}
-
-/* ============================================================================
- * UI State
- * ========================================================================== */
-
-const showPassword = ref(false)
-const showRuntimeDetails = ref(false)
-const showPinSetup = ref(false)
-const pinCode = ref("")
-const pinConfirm = ref("")
-
-// PIN Login state
-const pinLoginEnabled = ref(false)
-const pinLoginInProgress = ref(false)
-const pinError = ref("")
-const pinSetupError = ref("")
-const lockRemaining = ref(0)
-
-const isOnline = ref(typeof navigator === "undefined" ? true : navigator.onLine)
 
 /* ============================================================================
  * Computed
@@ -430,14 +344,6 @@ const runtimeStatus = computed(() => {
 		icon: "shield",
 		label: "بيئة التشغيل",
 	}
-})
-
-const isRuntimeReady = computed(() => {
-	return (
-		csrfReady.value &&
-		sessionReady.value &&
-		(offlineReady.value || !props.showOfflineReadiness)
-	)
 })
 
 const submitLabel = computed(() => {
@@ -521,167 +427,42 @@ const passwordStrength = computed(() => {
 })
 
 /* ============================================================================
- * Runtime Helpers
- * ============================================================================ */
+ * Error
+ * ========================================================================== */
 
-function setRuntimeState(state, message = "") {
-	runtimeState.value = state
-	runtimeMessage.value = message
-}
-
+/** خطأ واحد واضح، ومسار واحد لعرضه وإخفائه. */
 function clearLoginError() {
 	loginError.value = ""
-}
-
-/* ============================================================================
- * Network State
- * ========================================================================== */
-
-function handleOnline() {
-	isOnline.value = true
-
-	if (runtimeState.value === "degraded") {
-		void prepareRuntime()
-	}
-}
-
-function handleOffline() {
-	isOnline.value = false
-
-	if (!session.isLoggedIn) {
-		setRuntimeState(
-			"degraded",
-			"لا يوجد اتصال حاليًا. سيتم التحقق من الجاهزية عند عودة الاتصال.",
-		)
-	}
-}
-
-/* ============================================================================
- * Runtime Preparation
- * ========================================================================== */
-
-async function prepareRuntime() {
-	if (runtimeState.value === "preparing") {
-		return
-	}
-
-	setRuntimeState("preparing")
-
-	try {
-		/*
-		 * CSRF
-		 * ------------------------------------------------------------------
-		 * لا يتم تخزين token في component state.
-		 * مسؤولية التخزين والإدارة تقع على طبقة csrf المركزية.
-		 */
-		try {
-			await ensureCSRFToken()
-
-			csrfReady.value = true
-		} catch (error) {
-			csrfReady.value = false
-
-			logger?.warn?.("DyPOS runtime: CSRF preparation failed", error)
-
-			if (!isOnline.value) {
-				setRuntimeState("degraded", "سيتم استكمال التجهيز عند عودة الاتصال.")
-
-				return
-			}
-
-			throw error
-		}
-
-		/*
-		 * Offline Runtime
-		 * ------------------------------------------------------------------
-		 * لا نفترض شكل API محدد.
-		 * ندعم worker الحالي سواء كان:
-		 * - function
-		 * - object
-		 * - promise-based initializer
-		 */
-		if (props.showOfflineReadiness) {
-			try {
-				await initializeOfflineRuntime()
-
-				offlineReady.value = true
-			} catch (error) {
-				offlineReady.value = false
-
-				logger?.warn?.(
-					"DyPOS runtime: offline worker initialization failed",
-					error,
-				)
-
-				/*
-				 * لا نمنع تسجيل الدخول بسبب طبقة offline
-				 * إذا كان الاتصال الشبكي متاحًا.
-				 */
-				if (isOnline.value) {
-					setRuntimeState(
-						"degraded",
-						"الاتصال متاح، لكن التشغيل دون اتصال لم يكتمل.",
-					)
-
-					return
-				}
-
-				setRuntimeState("degraded", "الاتصال غير متاح حاليًا.")
-
-				return
-			}
-		} else {
-			offlineReady.value = true
-		}
-
-		setRuntimeState("ready", "بيئة التشغيل جاهزة.")
-	} catch (error) {
-		setRuntimeState("failed", "تعذر تجهيز البيئة الآمنة لتسجيل الدخول.")
-
-		runtimeError.value = error
-
-		logger?.error?.("DyPOS runtime preparation failed", error)
-	}
-}
-
-async function initializeOfflineRuntime() {
-	if (!offlineWorker) {
-		return
-	}
-
-	if (typeof offlineWorker === "function") {
-		await offlineWorker()
-		return
-	}
-
-	if (typeof offlineWorker.initialize === "function") {
-		await offlineWorker.initialize()
-		return
-	}
-
-	if (typeof offlineWorker.init === "function") {
-		await offlineWorker.init()
-		return
-	}
-
-	/*
-	 * Worker موجود لكنه لا يملك initializer معروف.
-	 * لا نعتبر ذلك failure قاتلًا.
-	 */
 }
 
 /* ============================================================================
  * Authentication
  * ========================================================================== */
 
+/** الإجراء الذي ينجح بعده كلٌّ من المسارين — مسار واحد للحساب بدل مسارين. */
+function completeAuthentication(stage) {
+	loginRateLimiter.recordSuccess()
+	sessionReady.value = true
+	authenticationCompleted.value = true
+
+	sessionTimeout.start(SESSION_DURATION_MS)
+	installSessionSecurityMonitor()
+
+	log.info(`DyPOS authentication completed (${stage})`)
+	handleAuthSuccess({ stage })
+
+	emit("authenticated")
+}
+
+/**
+ * تسجيل الدخول. يختار المسار حسب وضع الاتصال المُكتشف فعلياً (probe
+ * للخادم) لا حسب `navigator.onLine` — انظر useLoginRuntime.
+ */
 async function submitLogin() {
-	if (!canSubmit.value) {
-		return
-	}
+	if (!canSubmit.value) return
 
 	if (isRateLimited.value) {
-		loginError.value = `محاولات كثيرة جدًا. انتظر ${Math.ceil(rateLimitState.value.retryAfterMs / 1000)} ثانية ثم حاول مرة أخرى.`
+		loginError.value = rateLimitMessage(rateLimitState.value.retryAfterMs)
 		handleAuthFailure({
 			stage: "rate_limit",
 			retryAfterMs: rateLimitState.value.retryAfterMs,
@@ -690,7 +471,6 @@ async function submitLogin() {
 	}
 
 	clearLoginError()
-
 	isSubmitting.value = true
 	authenticationCompleted.value = false
 
@@ -699,70 +479,40 @@ async function submitLogin() {
 			await prepareRuntime()
 		}
 
-		// Detect offline mode before attempting login
 		if (!offlineDetected.value) {
 			await detectAndSetOfflineMode()
 		}
 
-		const loginResult = null
-
 		if (isOfflineMode.value) {
-			// Attempt offline login
-			log.info("Attempting offline login...")
-			const offlineResult = await attemptLocalLogin(email, password)
+			const offlineResult = await attemptLocalLogin(
+				email.value.trim(),
+				password.value,
+			)
 
-			if (offlineResult.success) {
-				loginRateLimiter.recordSuccess()
-				sessionReady.value = true
-				authenticationCompleted.value = true
-
-				sessionTimeout.start(30 * 60 * 1000)
-				installSessionSecurityMonitor()
-
-				logger?.info?.("DyPOS offline authentication completed")
-
-				handleAuthSuccess({ stage: "offline_login" })
-
-				emit("authenticated")
-
-				await bootstrapAuthenticatedSession()
-				return
-			} else {
+			if (!offlineResult.success) {
+				// No throwing: the offline result is already user-shaped, and
+				// the catch block would overwrite it with a generic message.
 				loginError.value = offlineResult.error || "فشل تسجيل الدخول المحلي"
-				throw new Error(offlineResult.error || "فشل تسجيل الدخول المحلي")
-			}
-		} else {
-			// Online mode - use server authentication
-			if (!csrfReady.value && isOnline.value) {
-				await prepareRuntime()
+				return
 			}
 
+			completeAuthentication("offline_login")
+		} else {
 			await session.login({
 				usr: sanitizeForInput(email.value.trim()),
 				pwd: sanitizeForInput(password.value),
 			})
 
-			loginRateLimiter.recordSuccess()
-			sessionReady.value = true
-			authenticationCompleted.value = true
-
-			sessionTimeout.start(30 * 60 * 1000)
-			installSessionSecurityMonitor()
-
-			logger?.info?.("DyPOS authentication completed")
-
-			handleAuthSuccess({ stage: "login" })
-
-			emit("authenticated")
-
-			await bootstrapAuthenticatedSession()
+			completeAuthentication("login")
 		}
+
+		await bootstrapAuthenticatedSession()
 	} catch (error) {
 		authenticationCompleted.value = false
 
 		const limitResult = loginRateLimiter.recordFailure()
 		if (!limitResult.allowed) {
-			loginError.value = `محاولات كثيرة جدًا. انتظر ${Math.ceil(limitResult.retryAfterMs / 1000)} ثانية ثم حاول مرة أخرى.`
+			loginError.value = rateLimitMessage(limitResult.retryAfterMs)
 			handleAuthFailure({
 				stage: "rate_limit",
 				retryAfterMs: limitResult.retryAfterMs,
@@ -776,7 +526,7 @@ async function submitLogin() {
 			})
 		}
 
-		logger?.warn?.("DyPOS authentication failed", {
+		log.warn("DyPOS authentication failed", {
 			status: error?.status || error?.response?.status || undefined,
 		})
 
@@ -834,7 +584,7 @@ async function bootstrapAuthenticatedSession() {
 
 		emitReady()
 	} catch (error) {
-		logger?.error?.("DyPOS session bootstrap failed", error)
+		log.error("DyPOS session bootstrap failed", error)
 
 		loginError.value = "تم تسجيل الدخول، لكن تعذر تجهيز جلسة نقطة البيع."
 
@@ -898,7 +648,7 @@ async function handleShiftConfirm(payload) {
 
 		emitReady()
 	} catch (error) {
-		logger?.error?.("DyPOS shift opening failed", error)
+		log.error("DyPOS shift opening failed", error)
 
 		/*
 		 * ShiftOpeningDialog مسؤول عن عرض خطأ العملية
@@ -922,11 +672,42 @@ function handleShiftCancel() {
  * Session Recovery
  * ========================================================================== */
 
+const unlockPassword = ref("")
+const unlockError = ref("")
+const unlocking = ref(false)
+
+/**
+ * فتح الجلسة المقفلة.
+ *
+ * `unlock()` تتحقق من كلمة المرور على الخادم (أو من الكاش المخزّن محلياً)،
+ * فالزر القديم كان يناديها بلا وسيط — أي زر يرسم ولا يفعل شيئاً. الآن صار
+ * خلفه حقل كلمة مرور حقيقي ورسالة خطأ من الـ composable نفسه.
+ */
 async function handleSessionLock() {
+	if (unlocking.value) return
+
+	if (!unlockPassword.value) {
+		unlockError.value = "أدخل كلمة المرور لفتح الجلسة."
+		return
+	}
+
+	unlocking.value = true
+	unlockError.value = ""
+
 	try {
-		await unlockSession?.()
+		const result = await unlockSession(unlockPassword.value)
+
+		if (result?.success) {
+			unlockPassword.value = ""
+			return
+		}
+
+		unlockError.value = result?.error || "تعذر فتح الجلسة. حاول مرة أخرى."
 	} catch (error) {
-		logger?.warn?.("DyPOS session unlock failed", error)
+		log.warn("DyPOS session unlock failed", error)
+		unlockError.value = "تعذر فتح الجلسة. حاول مرة أخرى."
+	} finally {
+		unlocking.value = false
 	}
 }
 
@@ -934,7 +715,7 @@ async function cleanup() {
 	try {
 		await cleanupUserSession?.()
 	} catch (error) {
-		logger?.warn?.("DyPOS session cleanup failed", error)
+		log.warn("DyPOS session cleanup failed", error)
 	}
 }
 
@@ -942,12 +723,68 @@ async function cleanup() {
  * PIN Authentication
  * ============================================================================ */
 
+const showPinSetup = ref(false)
+const pinCode = ref("")
+const pinConfirm = ref("")
+const pinLoginInProgress = ref(false)
+const pinError = ref("")
+const pinSetupError = ref("")
+
+/** هل واجهة PIN معروضة بدل نموذج كلمة المرور؟ */
+const pinModeActive = ref(false)
+
 const {
 	isPinValid: pinAvailable,
 	pinLogin: attemptPinLogin,
 	savePin: storePin,
 	clearPin: wipePin,
+	loadPinState,
 } = usePinAuth()
+
+/**
+ * رقم خانات PIN المستعمل في الحقول والوصف.
+ * مصدر واحد: طول المُدخل الفعلي، فيُحسب مرة واحدة بدل تكراره حرفيًا.
+ */
+const pinLength = computed(() => Math.max(pinCode.value.length, PIN_MIN_LENGTH))
+
+/** يقبل الحقل أرقامًا فقط — يمنع الحروف قبل أن تصل إلى PBKDF2. */
+function sanitizePinInput(event) {
+	pinCode.value = sanitizePin(event.target.value)
+	pinError.value = ""
+}
+
+/**
+ * كاتب واحد لحقلي الإعداد.
+ * الحقلان يفعلان الشيء نفسه بالضبط؛ تكرار التعبير في القالب يعني أن إصلاح
+ * أحدهما لاحقًا يترك الآخر على السلوك القديم بلا تحذير.
+ */
+function onPinSetupInput(field, event) {
+	const digits = sanitizePin(event.target.value)
+
+	if (field === "code") pinCode.value = digits
+	else pinConfirm.value = digits
+
+	pinSetupError.value = ""
+}
+
+/** ينتقل من كلمة المرور إلى PIN فقط إن كان هناك PIN فعلي. */
+function enterPinMode() {
+	pinModeActive.value = true
+	loginError.value = ""
+	pinError.value = ""
+	nextTick(() => pinCodeInput.value?.focus?.())
+}
+
+/** العودة لنموذج كلمة المرور. */
+function exitPinMode() {
+	pinModeActive.value = false
+	pinCode.value = ""
+	pinError.value = ""
+	nextTick(() => emailInput.value?.focus?.())
+}
+
+const pinCodeInput = ref(null)
+const pinConfirmInput = ref(null)
 
 async function handlePinLogin() {
 	if (!pinAvailable.value) {
@@ -960,20 +797,22 @@ async function handlePinLogin() {
 	pinError.value = ""
 
 	try {
-		await attemptPinLogin(pinCode.value)
+		// `pinLogin` يُرجع { success, error } ولا يرمي أبداً — فالاعتماد على
+		// catch كان يجعل أي PIN خاطئ يبدو "ناجحاً" ويمرّر المستخدم إلى ما
+		// بعده. العقد يُفحص هنا صراحةً.
+		const result = await attemptPinLogin(pinCode.value)
+		if (!result?.success) {
+			pinError.value = result?.error || "كود PIN غير صحيح"
+			return
+		}
+
 		pinCode.value = ""
-		authenticationCompleted.value = true
-		sessionReady.value = true
-		sessionTimeout.start(30 * 60 * 1000)
-		installSessionSecurityMonitor()
-		logger?.info?.("DyPOS PIN authentication completed")
-		handleAuthSuccess({ stage: "pin_login" })
-		emit("authenticated")
+		completeAuthentication("pin_login")
 		await bootstrapAuthenticatedSession()
 	} catch (error) {
 		authenticationCompleted.value = false
 		pinError.value = error?.message || "كود PIN غير صحيح"
-		logger?.warn?.("DyPOS PIN authentication failed", error)
+		log.warn("DyPOS PIN authentication failed", error)
 		emit("error", error)
 	} finally {
 		pinLoginInProgress.value = false
@@ -984,27 +823,30 @@ async function handlePinLogin() {
  * إعداد PIN جديد بعد أول تسجيل دخول أو عند الطلب.
  */
 async function handlePinSetup() {
-	if (pinCode.value.length < 4) {
-		pinSetupError.value = "كود PIN يجب أن يكون 4 خانات على الأقل"
+	// The length range, the digits-only rule and the confirmation match are one
+	// contract; `validatePinPair` is that contract, so the two setup fields
+	// cannot disagree about what a valid PIN is.
+	const invalid = validatePinPair(pinCode.value, pinConfirm.value)
+	if (invalid) {
+		pinSetupError.value = invalid
 		return
 	}
 
-	if (pinCode.value !== pinConfirm.value) {
-		pinSetupError.value = "كودا PIN غير متطابقين"
+	// savePin(pinCode, email, expiryMs) — الترتيب (email, pin) كان معكوساً،
+	// فكان يُخزَّن البريد في خانة الكود ويُشوَّش أي تحقق لاحق.
+	const saved = await storePin(pinCode.value, email.value.trim(), PIN_EXPIRY_MS)
+
+	if (!saved) {
+		pinSetupError.value = "فشل إعداد كود PIN"
+		log.error("DyPOS PIN setup failed")
 		return
 	}
 
-	try {
-		await storePin(email.value.trim(), pinCode.value, 60 * 60 * 1000)
-		pinSetupError.value = ""
-		showPinSetup.value = false
-		pinCode.value = ""
-		pinConfirm.value = ""
-		logger?.info?.("DyPOS PIN setup completed")
-	} catch (error) {
-		pinSetupError.value = error?.message || "فشل إعداد كود PIN"
-		logger?.error?.("DyPOS PIN setup failed", error)
-	}
+	pinSetupError.value = ""
+	showPinSetup.value = false
+	pinCode.value = ""
+	pinConfirm.value = ""
+	log.info("DyPOS PIN setup completed")
 }
 
 function cancelPinSetup() {
@@ -1021,9 +863,9 @@ function handleClearPin() {
 	try {
 		wipePin()
 		pinError.value = ""
-		logger?.info?.("DyPOS PIN cleared")
+		log.info("DyPOS PIN cleared")
 	} catch (error) {
-		logger?.warn?.("DyPOS PIN clear failed", error)
+		log.warn("DyPOS PIN clear failed", error)
 	}
 }
 
@@ -1031,39 +873,15 @@ function handleClearPin() {
  * Remembered Email
  * ========================================================================== */
 
-const REMEMBERED_EMAIL_KEY = "dypos.auth.email"
-
-function restoreRememberedEmail() {
-	if (!props.rememberEmail) {
-		return
-	}
-
-	try {
-		const remembered = window.localStorage.getItem(REMEMBERED_EMAIL_KEY)
-
-		if (remembered) {
-			email.value = remembered
-		}
-	} catch (error) {
-		logger?.debug?.("DyPOS remembered email unavailable", error)
-	}
-}
-
-function persistRememberedEmail() {
-	if (!props.rememberEmail) {
-		return
-	}
-
-	try {
-		if (rememberMe.value && email.value.trim()) {
-			window.localStorage.setItem(REMEMBERED_EMAIL_KEY, email.value.trim())
-		} else {
-			window.localStorage.removeItem(REMEMBERED_EMAIL_KEY)
-		}
-	} catch (error) {
-		logger?.debug?.("DyPOS remembered email persistence unavailable", error)
-	}
-}
+const {
+	email,
+	rememberMe,
+	restore: restoreRememberedEmail,
+	persist: persistRememberedEmail,
+} = useRememberedEmail({
+	enabled: props.rememberEmail,
+	onError: (message, error) => log.debug(message, error),
+})
 
 /* ============================================================================
  * Keyboard
@@ -1072,6 +890,9 @@ function persistRememberedEmail() {
 function handleGlobalKeydown(event) {
 	// Enter submits from anywhere except multiline inputs (native form
 	// behavior already covers single-line inputs + the submit button).
+	// The form element is read from the template ref, not `document` — a
+	// querySelector here used to call a `handleLogin()` that never existed,
+	// so pressing Enter outside the fields threw a ReferenceError.
 	if (
 		event.key === "Enter" &&
 		!event.shiftKey &&
@@ -1080,10 +901,10 @@ function handleGlobalKeydown(event) {
 		!(event.target instanceof HTMLTextAreaElement) &&
 		!isSubmitting.value
 	) {
-		const form = document.querySelector(".dy-login__form")
+		const form = loginForm.value
 		if (form && !form.contains(event.target)) {
 			event.preventDefault()
-			handleLogin()
+			void submitLogin()
 			return
 		}
 	}
@@ -1106,6 +927,15 @@ onMounted(async () => {
 
 	window.addEventListener("keydown", handleGlobalKeydown)
 
+	/*
+	 * قراءة حالة PIN المحفوظة قبل رسم النموذج.
+	 *
+	 * `isPinValid` كان `false` دائمًا لأن `loadPinState()` — وهي الدالة
+	 * الوحيدة التي تقرأ localStorage — لم تكن تُستدعى أبدًا. فكان زر «دخول
+	 * سريع بالرمز» لو وُجد سيظهر ولا يفعل شيئًا: عقد ميت.
+	 */
+	loadPinState()
+
 	await nextTick()
 
 	/*
@@ -1127,10 +957,9 @@ onBeforeUnmount(async () => {
 
 	window.removeEventListener("keydown", handleGlobalKeydown)
 
-	if (stopSecurityMonitor) {
-		stopSecurityMonitor()
-		stopSecurityMonitor = null
-	}
+	stopSessionSecurityMonitor()
+
+	sessionTimeout.destroy?.()
 
 	await cleanup()
 })
@@ -1149,17 +978,6 @@ watch(
 		if (!sessionReady.value) {
 			await bootstrapAuthenticatedSession()
 		}
-	},
-)
-
-watch(
-	() => shiftDialogOpen.value,
-	async (open) => {
-		if (!open) {
-			return
-		}
-
-		await nextTick()
 	},
 )
 
@@ -1397,7 +1215,7 @@ function goToRegister() {
 
                         <span>
                             المحاولة بعد
-                            {{ Math.ceil(rateLimitState.retryAfterMs / 1000) }}
+                            {{ retryAfterSeconds }}
                             ثانية
                         </span>
                     </div>
@@ -1446,9 +1264,115 @@ function goToRegister() {
                     </button>
                 </div>
 
+                <!-- =================================================================
+                     PIN Quick Login
+                     ==================================================================
+                     The whole PIN feature existed and was fully implemented in
+                     `usePinAuth` (PBKDF2, expiry, attempt lockout) — but no
+                     markup ever read it, so `pinAvailable` was false, the
+                     handlers were unreachable, and the whole path was dead
+                     weight. The API is the intent; this is the missing UI.
+                     ================================================================= -->
+
+                <form
+                    v-if="pinModeActive"
+                    ref="pinForm"
+                    class="dy-login__form"
+                    novalidate
+                    @submit.prevent="handlePinLogin"
+                >
+                    <div class="dy-login__field">
+                        <label
+                            for="dypos-pin-code"
+                            class="dy-login__label"
+                        >
+                            {{ pinAvailable ? "كود الدخول السريع" : "لا يوجد رمز محفوظ" }}
+                        </label>
+
+                        <div
+                            class="dy-login__input-wrap"
+                            :class="{
+                                'dy-login__input-wrap--error': pinError,
+                            }"
+                        >
+                            <FeatherIcon
+                                name="key"
+                                :size="18"
+                                class="dy-login__input-icon"
+                                aria-hidden="true"
+                            />
+
+                            <input
+                                id="dypos-pin-code"
+                                ref="pinCodeInput"
+                                :value="pinCode"
+                                class="dy-login__input dy-login__input--pin"
+                                type="password"
+                                inputmode="numeric"
+                                autocomplete="off"
+                                maxlength="8"
+                                dir="ltr"
+                                placeholder="••••"
+                                :disabled="pinLoginInProgress || !pinAvailable"
+                                :aria-invalid="!!pinError"
+                                aria-describedby="dypos-pin-error"
+                                @input="sanitizePinInput"
+                            />
+                        </div>
+
+                        <p
+                            v-if="pinError"
+                            id="dypos-pin-error"
+                            class="dy-login__field-error"
+                            role="alert"
+                            aria-live="assertive"
+                        >
+                            <FeatherIcon
+                                name="alert-circle"
+                                :size="14"
+                                aria-hidden="true"
+                            />
+                            {{ pinError }}
+                        </p>
+                        <p
+                            v-else
+                            class="dy-login__hint"
+                        >
+                            أدخل رمز الدخول السريع ({{ pinLength }} خانات على الأقل)
+                        </p>
+                    </div>
+
+                    <DyButton
+                        type="submit"
+                        variant="primary"
+                        size="lg"
+                        class="dy-login__submit"
+                        :loading="pinLoginInProgress"
+                        :disabled="!pinAvailable || pinCode.length < PIN_MIN_LENGTH"
+                        :aria-busy="pinLoginInProgress"
+                    >
+                        <FeatherIcon
+                            v-if="!pinLoginInProgress"
+                            name="zap"
+                            :size="18"
+                            aria-hidden="true"
+                        />
+                        دخول سريع
+                    </DyButton>
+
+                    <button
+                        type="button"
+                        class="dy-login__link-button"
+                        @click="exitPinMode"
+                    >
+                        الدخول بكلمة المرور
+                    </button>
+                </form>
+
                 <!-- Form -->
 
                 <form
+                    v-else
                     ref="loginForm"
                     class="dy-login__form"
                     novalidate
@@ -1671,6 +1595,170 @@ function goToRegister() {
                     </DyButton>
                 </form>
 
+                <!-- =================================================================
+                     Quick-access row: PIN entry + setup
+                     ==================================================================
+                     `handleClearPin` was the fourth dead handler: it existed, was
+                     correct, and nothing could ever call it — so a saved PIN could
+                     not be revoked from the screen that owns it. Both actions are
+                     gated on the same `pinAvailable` fact, so neither can render a
+                     button that does nothing.
+                     ================================================================= -->
+
+                <div
+                    v-if="!pinModeActive"
+                    class="dy-login__quick-actions"
+                >
+                    <button
+                        v-if="pinAvailable"
+                        type="button"
+                        class="dy-login__link-button"
+                        @click="enterPinMode"
+                    >
+                        <FeatherIcon
+                            name="zap"
+                            :size="15"
+                            aria-hidden="true"
+                        />
+                        دخول سريع برمز PIN
+                    </button>
+
+                    <button
+                        v-else
+                        type="button"
+                        class="dy-login__link-button"
+                        :disabled="!email"
+                        :title="
+                            email
+                                ? 'اضبط رمز دخول سريع لهذا الجهاز'
+                                : 'أدخل بريدك أولًا'
+                        "
+                        @click="showPinSetup = true"
+                    >
+                        <FeatherIcon
+                            name="key"
+                            :size="15"
+                            aria-hidden="true"
+                        />
+                        إنشاء رمز دخول سريع
+                    </button>
+
+                    <button
+                        v-if="pinAvailable"
+                        type="button"
+                        class="dy-login__link-button dy-login__link-button--quiet"
+                        @click="handleClearPin"
+                    >
+                        إلغاء الرمز
+                    </button>
+                </div>
+
+                <!-- PIN setup -->
+
+                <div
+                    v-if="showPinSetup"
+                    class="dy-login__pin-setup"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="dypos-pin-setup-title"
+                >
+                    <h3
+                        id="dypos-pin-setup-title"
+                        class="dy-login__pin-setup-title"
+                    >
+                        إنشاء رمز دخول سريع
+                    </h3>
+
+                    <p class="dy-login__hint">
+                        يُحفظ الرمز مشفّرًا على هذا الجهاز فقط، ويصالح
+                        {{ PIN_EXPIRY_MS / 60000 }} دقيقة. لا يمكن استعادته إن فُقد.
+                    </p>
+
+                    <form
+                        class="dy-login__form"
+                        novalidate
+                        @submit.prevent="handlePinSetup"
+                    >
+                        <div class="dy-login__field">
+                            <label
+                                for="dypos-pin-new"
+                                class="dy-login__label"
+                            >
+                                الرمز الجديد
+                            </label>
+
+                            <input
+                                id="dypos-pin-new"
+                                :value="pinCode"
+                                class="dy-login__input"
+                                type="password"
+                                inputmode="numeric"
+                                autocomplete="off"
+                                maxlength="8"
+                                dir="ltr"
+                                :aria-invalid="!!pinSetupError"
+                                @input="onPinSetupInput('code', $event)"
+                            />
+                        </div>
+
+                        <div class="dy-login__field">
+                            <label
+                                for="dypos-pin-confirm"
+                                class="dy-login__label"
+                            >
+                                تأكيد الرمز
+                            </label>
+
+                            <input
+                                id="dypos-pin-confirm"
+                                ref="pinConfirmInput"
+                                :value="pinConfirm"
+                                class="dy-login__input"
+                                type="password"
+                                inputmode="numeric"
+                                autocomplete="off"
+                                maxlength="8"
+                                dir="ltr"
+                                :aria-invalid="!!pinSetupError"
+                                @input="onPinSetupInput('confirm', $event)"
+                            />
+                        </div>
+
+                        <p
+                            v-if="pinSetupError"
+                            class="dy-login__field-error"
+                            role="alert"
+                            aria-live="assertive"
+                        >
+                            <FeatherIcon
+                                name="alert-circle"
+                                :size="14"
+                                aria-hidden="true"
+                            />
+                            {{ pinSetupError }}
+                        </p>
+
+                        <div class="dy-login__quick-actions">
+                            <DyButton
+                                type="submit"
+                                variant="primary"
+                                size="sm"
+                                :disabled="pinCode.length < PIN_MIN_LENGTH"
+                            >
+                                حفظ الرمز
+                            </DyButton>
+
+                            <button
+                                type="button"
+                                class="dy-login__link-button"
+                                @click="cancelPinSetup"
+                            >
+                                إلغاء
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
                 <!-- Security / Runtime information -->
 
                 <aside
@@ -1771,7 +1859,7 @@ function goToRegister() {
 
                 <Transition name="dy-fade">
                     <div
-                        v-if="sessionTimeout.showWarning"
+                        v-if="showSessionWarning"
                         class="dy-login__timeout"
                         role="alertdialog"
                         aria-modal="true"
@@ -1789,7 +1877,7 @@ function goToRegister() {
 
                             <p>
                                 يتبقى
-                                {{ Math.ceil(sessionTimeout.timeRemaining / 1000) }}
+                                {{ sessionSecondsLeft }}
                                 ثانية. هل تريد تمديد الجلسة؟
                             </p>
 
@@ -1797,8 +1885,8 @@ function goToRegister() {
                                 <DyButton
                                     variant="primary"
                                     size="sm"
-                                    :loading="sessionTimeout.isExtending"
-                                    @click="sessionTimeout.extendSession()"
+                                    :loading="isExtendingSession"
+                                    @click="extendSession()"
                                 >
                                     تمديد الجلسة
                                 </DyButton>
@@ -1806,7 +1894,7 @@ function goToRegister() {
                                 <button
                                     type="button"
                                     class="dy-login__timeout-logout"
-                                    @click="sessionTimeout.dismissWarning"
+                                    @click="dismissWarning"
                                 >
                                     تسجيل الخروج
                                 </button>
@@ -1872,1524 +1960,69 @@ function goToRegister() {
                     تم قفل جلسة التشغيل لحماية بيانات نقطة البيع.
                 </p>
 
-                <DyButton
-                    variant="primary"
-                    size="lg"
-                    @click="handleSessionLock"
+                <form
+                    class="dy-login__lock-form"
+                    novalidate
+                    @submit.prevent="handleSessionLock"
                 >
-                    فتح الجلسة
-                </DyButton>
+                    <label
+                        for="dypos-unlock-password"
+                        class="dy-login__label"
+                    >
+                        كلمة المرور
+                    </label>
+
+                    <div class="dy-login__input-wrap">
+                        <FeatherIcon
+                            name="lock"
+                            :size="18"
+                            class="dy-login__input-icon"
+                            aria-hidden="true"
+                        />
+
+                        <input
+                            id="dypos-unlock-password"
+                            v-model="unlockPassword"
+                            class="dy-login__input"
+                            type="password"
+                            autocomplete="current-password"
+                            dir="ltr"
+                            placeholder="أدخل كلمة المرور"
+                            :disabled="unlocking"
+                            :aria-invalid="!!unlockError"
+                            aria-describedby="dypos-unlock-error"
+                        />
+                    </div>
+
+                    <p
+                        v-if="unlockError"
+                        id="dypos-unlock-error"
+                        class="dy-login__field-error"
+                        role="alert"
+                        aria-live="assertive"
+                    >
+                        <FeatherIcon
+                            name="alert-circle"
+                            :size="14"
+                            aria-hidden="true"
+                        />
+                        {{ unlockError }}
+                    </p>
+
+                    <DyButton
+                        type="submit"
+                        variant="primary"
+                        size="lg"
+                        :loading="unlocking"
+                        :disabled="unlocking"
+                        class="dy-login__lock-submit"
+                    >
+                        فتح الجلسة
+                    </DyButton>
+                </form>
             </div>
         </div>
     </main>
 </template>
 
-<style scoped>
-/* =============================================================================
-   DyPOS — Enterprise SaaS Login Surface
-   RTL-first / Arabic-first / Production Grade
-   ============================================================================= */
-
-.dy-login {
-    --login-panel-width: min(100%, 620px);
-    --login-content-width: 480px;
-
-    position: relative;
-    display: grid;
-    grid-template-columns: minmax(360px, 0.9fr) minmax(520px, 1.1fr);
-
-    min-height: 100vh;
-    min-height: 100dvh;
-
-    overflow: hidden;
-
-    background: var(--dy-bg);
-    color: var(--dy-text);
-
-    font-family: var(--dy-font-arabic);
-
-    isolation: isolate;
-}
-
-/* =============================================================================
-   Brand
-   ============================================================================= */
-
-.dy-login__brand {
-    position: relative;
-    display: flex;
-    min-height: 100%;
-    overflow: hidden;
-
-    background:
-        linear-gradient(
-            135deg,
-            rgb(var(--dy-brand-c-950) / 0.98),
-            rgb(var(--dy-brand-c-900) / 0.9)
-        );
-
-    background-position: center;
-    background-size: cover;
-
-    color: white;
-}
-
-.dy-login__brand-overlay {
-    position: absolute;
-    inset: 0;
-
-    background:
-        radial-gradient(
-            circle at 20% 20%,
-            rgb(var(--dy-brand-c-500) / 0.20),
-            transparent 34%
-        ),
-        radial-gradient(
-            circle at 80% 80%,
-            rgb(var(--dy-mint-c-500) / 0.15),
-            transparent 34%
-        );
-}
-
-.dy-login__brand-content {
-    position: relative;
-    z-index: 1;
-
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-
-    justify-content: space-between;
-
-    min-height: 100%;
-
-    padding:
-        max(48px, env(safe-area-inset-top))
-        clamp(40px, 6vw, 88px)
-        max(40px, env(safe-area-inset-bottom));
-}
-
-.dy-login__logo-shell {
-    display: inline-flex;
-    width: fit-content;
-
-    padding: 14px 18px;
-
-    border:
-        1px solid
-        rgb(255 255 255 / 0.16);
-
-    border-radius: var(--dy-radius-xl);
-
-    background:
-        rgb(255 255 255 / 0.07);
-
-    backdrop-filter:
-        blur(16px)
-        saturate(1.3);
-
-    -webkit-backdrop-filter:
-        blur(16px)
-        saturate(1.3);
-}
-
-.dy-login__logo {
-    display: block;
-    width: 176px;
-    height: auto;
-    object-fit: contain;
-}
-
-.dy-login__brand-copy {
-    max-width: 540px;
-    margin-block: auto;
-    padding-block: 72px 48px;
-}
-
-.dy-login__eyebrow {
-    display: inline-flex;
-    align-items: center;
-
-    margin-bottom: var(--dy-space-5);
-
-    color:
-        rgb(
-            255 255 255 /
-            0.72
-        );
-
-    font-size: 0.9rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-}
-
-.dy-login__brand-title {
-    margin: 0;
-
-    color: white;
-
-    font-size:
-        clamp(
-            2.5rem,
-            5vw,
-            4.8rem
-        );
-
-    font-weight: 800;
-    line-height: 1.08;
-    letter-spacing: -0.035em;
-}
-
-.dy-login__brand-description {
-    max-width: 480px;
-
-    margin:
-        var(--dy-space-6)
-        0
-        0;
-
-    color:
-        rgb(
-            255 255 255 /
-            0.72
-        );
-
-    font-size:
-        clamp(
-            1rem,
-            1.5vw,
-            1.15rem
-        );
-
-    line-height: 1.9;
-}
-
-.dy-login__context {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-
-    margin-top: auto;
-}
-
-.dy-login__context-item {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-
-    min-height: 38px;
-
-    padding-inline: 11px;
-
-    border:
-        1px solid
-        rgb(255 255 255 / 0.12);
-
-    border-radius: var(--dy-radius-lg);
-
-    background:
-        rgb(255 255 255 / 0.055);
-
-    color:
-        rgb(255 255 255 / 0.82);
-
-    font-size: 0.82rem;
-}
-
-.dy-login__context-icon {
-    display: inline-flex;
-    color:
-        rgb(
-            255 255 255 /
-            0.62
-        );
-}
-
-.dy-login__context-label {
-    max-width: 180px;
-
-    overflow: hidden;
-
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.dy-login__brand-footer {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-
-    margin-top: var(--dy-space-8);
-
-    color:
-        rgb(
-            255 255 255 /
-            0.45
-        );
-
-    font-size: 0.75rem;
-}
-
-.dy-login__brand-dot {
-    width: 3px;
-    height: 3px;
-
-    border-radius: 50%;
-
-    background:
-        rgb(
-            255 255 255 /
-            0.32
-        );
-}
-
-/* =============================================================================
-   Authentication Panel
-   ============================================================================= */
-
-.dy-login__panel {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    min-width: 0;
-    min-height: 100%;
-
-    overflow: auto;
-
-    background:
-        var(--dy-bg);
-}
-
-.dy-login__panel-inner {
-    width: min(
-        100%,
-        var(--login-content-width)
-    );
-
-    padding:
-        max(48px, env(safe-area-inset-top))
-        40px
-        max(40px, env(safe-area-inset-bottom));
-}
-
-.dy-login__header {
-    margin-bottom: var(--dy-space-8);
-}
-
-.dy-login__mobile-logo {
-    display: none;
-}
-
-.dy-login__section-label {
-    display: block;
-
-    margin-bottom: 8px;
-
-    color: var(--dy-accent);
-
-    font-size: 0.82rem;
-    font-weight: 800;
-}
-
-.dy-login__title {
-    margin: 0;
-
-    color: var(--dy-text-strong);
-
-    font-size:
-        clamp(
-            2rem,
-            4vw,
-            2.7rem
-        );
-
-    font-weight: 800;
-    letter-spacing: -0.035em;
-    line-height: 1.15;
-}
-
-.dy-login__subtitle {
-    margin:
-        var(--dy-space-3)
-        0
-        0;
-
-    color: var(--dy-text-secondary);
-
-    font-size: 0.98rem;
-    line-height: 1.8;
-}
-
-/* =============================================================================
-   Runtime
-   ============================================================================= */
-
-.dy-login__runtime {
-    display: flex;
-    align-items: center;
-    gap: 11px;
-
-    min-height: 52px;
-
-    margin-bottom: var(--dy-space-5);
-    padding: 10px 12px;
-
-    border:
-        1px solid
-        var(--dy-border);
-
-    border-radius: var(--dy-radius-lg);
-
-    background:
-        var(--dy-surface);
-
-    color: var(--dy-text-secondary);
-}
-
-.dy-login__runtime-icon {
-    display: inline-flex;
-    flex: 0 0 auto;
-
-    color: var(--dy-accent);
-}
-
-.dy-login__runtime-content {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    min-width: 0;
-    gap: 1px;
-
-    font-size: 0.78rem;
-}
-
-.dy-login__runtime-content strong {
-    color: var(--dy-text-strong);
-    font-size: 0.8rem;
-}
-
-.dy-login__runtime--success {
-    border-color:
-        rgb(
-            var(--dy-mint-c-500) /
-            0.24
-        );
-
-    background:
-        rgb(
-            var(--dy-mint-c-500) /
-            0.06
-        );
-}
-
-.dy-login__runtime--success
-    .dy-login__runtime-icon {
-    color: var(--dy-mint-600);
-}
-
-.dy-login__runtime--warning {
-    border-color:
-        rgb(
-            var(--dy-amber-c-500) /
-            0.28
-        );
-
-    background:
-        rgb(
-            var(--dy-amber-c-500) /
-            0.07
-        );
-}
-
-.dy-login__runtime--warning
-    .dy-login__runtime-icon {
-    color: var(--dy-amber-600);
-}
-
-.dy-login__runtime--error {
-    border-color:
-        rgb(
-            var(--dy-crimson-c-500) /
-            0.28
-        );
-
-    background:
-        rgb(
-            var(--dy-crimson-c-500) /
-            0.07
-        );
-}
-
-.dy-login__runtime--error
-    .dy-login__runtime-icon {
-    color: var(--dy-crimson-600);
-}
-
-.dy-login__runtime-action {
-    flex: 0 0 auto;
-
-    min-height: 34px;
-
-    padding-inline: 10px;
-
-    border: 0;
-    border-radius: var(--dy-radius-md);
-
-    background:
-        var(--dy-surface-strong);
-
-    color: var(--dy-text-strong);
-
-    font: inherit;
-    font-size: 0.75rem;
-    font-weight: 700;
-
-    cursor: pointer;
-}
-
-.dy-login__runtime-action:focus-visible {
-    outline:
-        var(--dy-focus-width)
-        solid
-        var(--dy-focus-color);
-
-    outline-offset: 2px;
-}
-
-/* =============================================================================
-   Error
-   ============================================================================= */
-
-.dy-login__error {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-
-    margin-bottom: var(--dy-space-5);
-    padding: 13px 14px;
-
-    border:
-        1px solid
-        rgb(
-            var(--dy-crimson-c-500) /
-            0.24
-        );
-
-    border-radius: var(--dy-radius-lg);
-
-    background:
-        rgb(
-            var(--dy-crimson-c-500) /
-            0.07
-        );
-
-    color: var(--dy-crimson-700);
-}
-
-.dy-login__error-icon {
-    display: inline-flex;
-    flex: 0 0 auto;
-
-    margin-top: 1px;
-}
-
-.dy-login__error-content {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    gap: 2px;
-
-    min-width: 0;
-
-    font-size: 0.82rem;
-    line-height: 1.6;
-}
-
-.dy-login__error-content strong {
-    font-weight: 800;
-}
-
-.dy-login__error-close {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-
-    width: 32px;
-    height: 32px;
-
-    flex: 0 0 auto;
-
-    border: 0;
-    border-radius: var(--dy-radius-md);
-
-    background: transparent;
-
-    color: inherit;
-
-    cursor: pointer;
-}
-
-.dy-login__error-close:hover {
-    background:
-        rgb(
-            var(--dy-crimson-c-500) /
-            0.08
-        );
-}
-
-/* =============================================================================
-   Form
-   ============================================================================= */
-
-.dy-login__form {
-    display: flex;
-    flex-direction: column;
-    gap: var(--dy-space-5);
-}
-
-.dy-login__field {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.dy-login__label-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.dy-login__label {
-    color: var(--dy-text-strong);
-
-    font-size: 0.84rem;
-    font-weight: 750;
-}
-
-.dy-login__input-wrap {
-    position: relative;
-
-    display: flex;
-    align-items: center;
-
-    min-height: var(--dy-control-h-xl);
-
-    border:
-        1px solid
-        var(--dy-input-border);
-
-    border-radius: var(--dy-radius-lg);
-
-    background:
-        var(--dy-input-bg);
-
-    transition:
-        border-color
-            var(--dy-dur-fast)
-            var(--dy-ease-standard),
-        box-shadow
-            var(--dy-dur-fast)
-            var(--dy-ease-standard),
-        background-color
-            var(--dy-dur-fast)
-            var(--dy-ease-standard);
-}
-
-.dy-login__input-wrap:focus-within {
-    border-color: var(--dy-accent);
-
-    box-shadow:
-        0 0 0
-            3px
-            rgb(
-                var(--dy-brand-c-500) /
-                0.12
-            );
-}
-
-.dy-login__input-icon {
-    position: absolute;
-    inset-inline-start: 16px;
-
-    color: var(--dy-text-muted);
-
-    pointer-events: none;
-}
-
-.dy-login__input {
-    width: 100%;
-    min-width: 0;
-    min-height: var(--dy-control-h-xl);
-
-    padding:
-        0
-        48px
-        0
-        48px;
-
-    border: 0;
-    outline: 0;
-
-    background: transparent;
-
-    color: var(--dy-text);
-
-    font-family:
-        var(--dy-font-english),
-        var(--dy-font-arabic);
-
-    font-size: 0.95rem;
-}
-
-.dy-login__input::placeholder {
-    color: var(--dy-text-muted);
-    opacity: 1;
-}
-
-.dy-login__input:disabled {
-    cursor: not-allowed;
-    opacity: var(--dy-disabled-opacity);
-}
-
-.dy-login__password-toggle {
-    position: absolute;
-    inset-inline-end: 8px;
-
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-
-    width: 40px;
-    height: 40px;
-
-    border: 0;
-    border-radius: var(--dy-radius-md);
-
-    background: transparent;
-
-    color: var(--dy-text-muted);
-
-    cursor: pointer;
-}
-
-.dy-login__password-toggle:hover {
-    background:
-        var(--dy-surface-soft);
-
-    color: var(--dy-text-strong);
-}
-
-.dy-login__password-toggle:disabled {
-    cursor: not-allowed;
-    opacity: var(--dy-disabled-opacity);
-}
-
-.dy-login__password-toggle:focus-visible,
-.dy-login__error-close:focus-visible {
-    outline:
-        var(--dy-focus-width)
-        solid
-        var(--dy-focus-color);
-
-    outline-offset: 2px;
-}
-
-.dy-login__options {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--dy-space-4);
-
-    margin-top: -2px;
-}
-
-.dy-login__remember {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-
-    color: var(--dy-text-secondary);
-
-    font-size: 0.8rem;
-
-    cursor: pointer;
-}
-
-.dy-login__remember input {
-    position: absolute;
-
-    width: 1px;
-    height: 1px;
-
-    opacity: 0;
-}
-
-.dy-login__checkbox {
-    position: relative;
-
-    display: inline-flex;
-
-    width: 18px;
-    height: 18px;
-
-    flex: 0 0 auto;
-
-    border:
-        1px solid
-        var(--dy-border-strong);
-
-    border-radius: 5px;
-
-    background: var(--dy-surface);
-
-    transition:
-        background-color
-            var(--dy-dur-fast)
-            var(--dy-ease-standard),
-        border-color
-            var(--dy-dur-fast)
-            var(--dy-ease-standard);
-}
-
-.dy-login__remember input:checked
-    + .dy-login__checkbox {
-    border-color: var(--dy-accent);
-    background: var(--dy-accent);
-}
-
-.dy-login__remember input:checked
-    + .dy-login__checkbox::after {
-    content: "";
-
-    position: absolute;
-
-    inset-inline-start: 5px;
-    top: 2px;
-
-    width: 5px;
-    height: 9px;
-
-    border:
-        solid
-        var(--dy-accent-foreground);
-
-    border-width:
-        0
-        2px
-        2px
-        0;
-
-    transform: rotate(45deg);
-}
-
-.dy-login__remember input:focus-visible
-    + .dy-login__checkbox {
-    outline:
-        var(--dy-focus-width)
-        solid
-        var(--dy-focus-color);
-
-    outline-offset: 2px;
-}
-
-.dy-login__forgot {
-    color: var(--dy-accent);
-
-    font-size: 0.8rem;
-    font-weight: 750;
-
-    text-decoration: none;
-}
-
-.dy-login__forgot:hover {
-    text-decoration: underline;
-    text-underline-offset: 3px;
-}
-
-.dy-login__submit {
-    width: 100%;
-    margin-top: var(--dy-space-2);
-}
-
-/* =============================================================================
-   Security
-   ============================================================================= */
-
-.dy-login__security {
-    margin-top: var(--dy-space-7);
-
-    border:
-        1px solid
-        var(--dy-border);
-
-    border-radius: var(--dy-radius-xl);
-
-    background:
-        var(--dy-surface-soft);
-}
-
-.dy-login__security-main {
-    display: flex;
-    align-items: flex-start;
-    gap: 11px;
-
-    padding: 13px 14px;
-}
-
-.dy-login__security-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-
-    width: 34px;
-    height: 34px;
-
-    flex: 0 0 auto;
-
-    border-radius: var(--dy-radius-md);
-
-    background:
-        rgb(
-            var(--dy-mint-c-500) /
-            0.10
-        );
-
-    color: var(--dy-mint-600);
-}
-
-.dy-login__security-main div {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    gap: 2px;
-
-    min-width: 0;
-}
-
-.dy-login__security-main strong {
-    color: var(--dy-text-strong);
-
-    font-size: 0.8rem;
-}
-
-.dy-login__security-main span {
-    color: var(--dy-text-muted);
-
-    font-size: 0.73rem;
-    line-height: 1.6;
-}
-
-.dy-login__details-toggle {
-    width: 100%;
-
-    padding:
-        8px
-        14px;
-
-    border: 0;
-    border-top:
-        1px solid
-        var(--dy-border);
-
-    background: transparent;
-
-    color: var(--dy-text-muted);
-
-    font: inherit;
-    font-size: 0.72rem;
-    font-weight: 700;
-
-    cursor: pointer;
-}
-
-.dy-login__details-toggle:hover {
-    color: var(--dy-text-strong);
-    background: var(--dy-surface);
-}
-
-.dy-login__details {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-
-    gap: 1px;
-
-    border-top:
-        1px solid
-        var(--dy-border);
-
-    background: var(--dy-border);
-}
-
-.dy-login__details > div {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-
-    padding: 9px 12px;
-
-    background: var(--dy-surface);
-
-    font-size: 0.7rem;
-}
-
-.dy-login__details span {
-    color: var(--dy-text-muted);
-}
-
-.dy-login__details strong {
-    color: var(--dy-text-strong);
-}
-
-/* =============================================================================
-   Footer
-   ============================================================================= */
-
-.dy-login__footer {
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 8px;
-
-    margin-top: var(--dy-space-8);
-
-    color: var(--dy-text-muted);
-
-    font-size: 0.68rem;
-}
-
-/* =============================================================================
-   Session Lock
-   ============================================================================= */
-
-.dy-login__lock {
-    position: fixed;
-    z-index: var(--dy-z-modal);
-
-    inset: 0;
-
-    display: grid;
-    place-items: center;
-
-    padding: var(--dy-space-6);
-
-    background:
-        rgb(
-            var(--dy-brand-c-950) /
-            0.72
-        );
-
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-}
-
-.dy-login__lock-card {
-    width: min(
-        100%,
-        420px
-    );
-
-    padding: 28px;
-
-    border:
-        1px solid
-        var(--dy-border);
-
-    border-radius: var(--dy-radius-2xl);
-
-    background: var(--dy-surface);
-
-    box-shadow: var(--dy-elevation-5);
-
-    text-align: center;
-}
-
-.dy-login__lock-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-
-    width: 48px;
-    height: 48px;
-
-    margin-bottom: var(--dy-space-4);
-
-    border-radius: 14px;
-
-    background:
-        rgb(
-            var(--dy-brand-c-500) /
-            0.10
-        );
-
-    color: var(--dy-accent);
-}
-
-.dy-login__lock-card h2 {
-    margin: 0;
-
-    color: var(--dy-text-strong);
-
-    font-size: 1.2rem;
-    font-weight: 800;
-}
-
-.dy-login__lock-card p {
-    margin:
-        var(--dy-space-3)
-        0
-        var(--dy-space-6);
-
-    color: var(--dy-text-secondary);
-
-    font-size: 0.85rem;
-    line-height: 1.8;
-}
-
-/* =============================================================================
-   Responsive
-   ============================================================================= */
-
-@media (max-width: 1100px) {
-    .dy-login {
-        grid-template-columns:
-            minmax(320px, 0.75fr)
-            minmax(480px, 1.25fr);
-    }
-
-    .dy-login__brand-content {
-        padding-inline: 40px;
-    }
-
-    .dy-login__brand-title {
-        font-size: 3rem;
-    }
-}
-
-@media (max-width: 900px) {
-    .dy-login {
-        display: block;
-
-        overflow: auto;
-    }
-
-    .dy-login__brand {
-        display: none;
-    }
-
-    .dy-login__panel {
-        min-height: 100vh;
-        min-height: 100dvh;
-    }
-
-    .dy-login__panel-inner {
-        width: min(
-            100%,
-            520px
-        );
-
-        padding:
-            max(32px, env(safe-area-inset-top))
-            28px
-            max(28px, env(safe-area-inset-bottom));
-    }
-
-    .dy-login__mobile-logo {
-        display: block;
-
-        margin-bottom: 28px;
-    }
-
-    .dy-login__mobile-logo img {
-        display: block;
-
-        width: 148px;
-        height: auto;
-    }
-}
-
-@media (max-width: 560px) {
-    .dy-login__panel-inner {
-        padding-inline: 18px;
-    }
-
-    .dy-login__title {
-        font-size: 2rem;
-    }
-
-    .dy-login__subtitle {
-        font-size: 0.9rem;
-    }
-
-    .dy-login__options {
-        align-items: flex-start;
-        flex-direction: column;
-    }
-
-    .dy-login__input-wrap,
-    .dy-login__input {
-        min-height: 52px;
-    }
-
-    .dy-login__details {
-        grid-template-columns: 1fr;
-    }
-}
-
-@media (max-width: 380px) {
-    .dy-login__panel-inner {
-        padding-inline: 14px;
-    }
-
-    .dy-login__title {
-        font-size: 1.8rem;
-    }
-}
-
-/* =============================================================================
-   Reduced Motion
-   ============================================================================= */
-
-@media (prefers-reduced-motion: reduce) {
-    .dy-login *,
-    .dy-login *::before,
-    .dy-login *::after {
-        scroll-behavior: auto !important;
-
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-
-        transition-duration: 0.01ms !important;
-    }
-}
-
-/* =============================================================================
-   Forced Colors
-   ============================================================================= */
-
-@media (forced-colors: active) {
-    .dy-login__input-wrap,
-    .dy-login__runtime,
-    .dy-login__error,
-    .dy-login__security,
-    .dy-login__lock-card {
-        border-color: CanvasText;
-    }
-
-    .dy-login__forgot,
-    .dy-login__section-label {
-        color: LinkText;
-    }
-
-    .dy-login__submit {
-        forced-color-adjust: none;
-    }
-
-    .dy-login__checkbox {
-        border-color: CanvasText;
-    }
-}
-
-/* =============================================================================
-   Print
-   ============================================================================= */
-
-@media print {
-    .dy-login__brand,
-    .dy-login__runtime,
-    .dy-login__security,
-    .dy-login__footer,
-    .dy-login__lock {
-        display: none !important;
-    }
-
-    .dy-login {
-        display: block;
-
-        min-height: auto;
-
-        color: #000;
-        background: #fff;
-    }
-
-    .dy-login__panel {
-        display: block;
-    }
-}
-
-/* =============================================================================
-   Rate Limit Indicator
-   ============================================================================= */
-
-.dy-login__rate-limit {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: var(--dy-space-5);
-    padding: 12px 14px;
-    border: 1px solid rgb(var(--dy-amber-c-500) / 0.28);
-    border-radius: var(--dy-radius-lg);
-    background: rgb(var(--dy-amber-c-500) / 0.07);
-    color: var(--dy-amber-700);
-}
-
-.dy-login__rate-limit-icon {
-    display: inline-flex;
-    flex: 0 0 auto;
-    color: var(--dy-amber-600);
-}
-
-.dy-login__rate-limit-content {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    font-size: 0.78rem;
-    strong {
-        color: var(--dy-text-strong);
-        font-size: 0.8rem;
-    }
-}
-
-/* =============================================================================
-   Session Timeout Warning
-   ============================================================================= */
-
-.dy-login__timeout {
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgb(0 0 0 / 0.5);
-}
-
-.dy-login__timeout-card {
-    width: min(100%, 420px);
-    padding: 24px;
-    background: var(--dy-bg);
-    border-radius: var(--dy-radius-xl);
-    box-shadow: 0 24px 64px rgb(0 0 0 / 0.3);
-    text-align: center;
-}
-
-.dy-login__timeout-card h3 {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    margin: 0;
-    color: var(--dy-text-strong);
-    font-size: 1.1rem;
-    font-weight: 800;
-}
-
-.dy-login__timeout-card p {
-    margin: 12px 0;
-    color: var(--dy-text-secondary);
-    font-size: 0.9rem;
-    line-height: 1.8;
-}
-
-.dy-login__timeout-actions {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
-    margin-top: 16px;
-}
-
-.dy-login__timeout-logout {
-    padding: 8px 16px;
-    border: 1px solid var(--dy-border);
-    border-radius: var(--dy-radius-lg);
-    background: transparent;
-    color: var(--dy-text-secondary);
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.dy-login__timeout-logout:hover {
-	background: var(--dy-surface);
-	border-color: var(--dy-crimson-500);
-	color: var(--dy-crimson-600);
-}
-
-/* =============================================================================
-   Offline Indicator
-   ============================================================================= */
-
-.dy-login__offline-banner {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 8px;
-
-	padding: 10px 16px;
-
-	background: rgb(var(--dy-amber-c-500) / 0.12);
-	border-bottom: 1px solid rgb(var(--dy-amber-c-500) / 0.24);
-
-	color: var(--dy-amber-700);
-
-	font-size: 0.82rem;
-	font-weight: 600;
-
-	animation: dy-slide-down var(--dy-dur-standard) var(--dy-ease-standard);
-}
-
-@keyframes dy-slide-down {
-	from {
-		opacity: 0;
-		transform: translateY(-100%);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
-}
-
-/* =============================================================================
-   Input Error State
-   ============================================================================= */
-
-.dy-login__input--error + .dy-login__password-toggle {
-	color: var(--dy-crimson-600);
-}
-
-.dy-login__input-wrap:has(.dy-login__input--error) {
-	border-color: var(--dy-crimson-500);
-}
-
-.dy-login__input-wrap:has(.dy-login__input--error):focus-within {
-	border-color: var(--dy-crimson-500);
-	box-shadow: 0 0 0 3px rgb(var(--dy-crimson-c-500) / 0.12);
-}
-
-/* =============================================================================
-   Password Strength
-   ============================================================================= */
-
-.dy-login__strength {
-	font-size: 0.78rem;
-	font-weight: 700;
-}
-
-.dy-login__field-error {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-
-	color: var(--dy-crimson-600);
-
-	font-size: 0.78rem;
-	font-weight: 600;
-}
-
-/* =============================================================================
-   Offline Mode Variant
-   ============================================================================= */
-
-.dy-login--offline .dy-login__title::after {
-	content: " (غير متصل)";
-	color: var(--dy-amber-600);
-	font-weight: 600;
-	font-size: 0.9em;
-}
-
-/* =============================================================================
-   Reduced Motion Class
-   ============================================================================= */
-
-.dy-login--reduced-motion *,
-.dy-login--reduced-motion *::before,
-.dy-login--reduced-motion *::after {
-	animation-duration: 0.01ms !important;
-	transition-duration: 0.01ms !important;
-}
-
-/* =============================================================================
-   Dark Mode Enhancements
-   ============================================================================= */
-
-.dy-login--dark .dy-login__offline-banner {
-	background: rgb(var(--dy-amber-c-500) / 0.18);
-	border-bottom-color: rgb(var(--dy-amber-c-500) / 0.3);
-	color: var(--dy-amber-400);
-}
-
-.dy-login--dark .dy-login__input-wrap {
-	background: var(--dy-surface);
-	border-color: var(--dy-border);
-}
-
-.dy-login--dark .dy-login__input-wrap:focus-within {
-	box-shadow: 0 0 0 3px rgb(var(--dy-brand-c-500) / 0.18);
-}
-
-.dy-login--dark .dy-login__error {
-	background: rgb(var(--dy-crimson-c-500) / 0.12);
-	border-color: rgb(var(--dy-crimson-c-500) / 0.3);
-	color: var(--dy-crimson-400);
-}
-
-.dy-login--dark .dy-login__error-close:hover {
-	background: rgb(var(--dy-crimson-c-500) / 0.12);
-}
-
-.dy-login--dark .dy-login__rate-limit {
-	background: rgb(var(--dy-amber-c-500) / 0.12);
-	border-color: rgb(var(--dy-amber-c-500) / 0.3);
-	color: var(--dy-amber-400);
-}
-
-.dy-login--dark .dy-login__timeout-card {
-	background: var(--dy-surface);
-	box-shadow: 0 24px 64px rgb(0 0 0 / 0.5);
-}
-
-/* =============================================================================
-   Mobile Enhancements
-   ============================================================================= */
-
-@media (max-width: 768px) {
-	.dy-login--mobile .dy-login__panel-inner {
-		padding-inline: 24px;
-	}
-
-	.dy-login--mobile .dy-login__offline-banner {
-		font-size: 0.78rem;
-		padding: 8px 12px;
-	}
-}
-
-@media (max-width: 480px) {
-	.dy-login--mobile .dy-login__panel-inner {
-		padding-inline: 16px;
-	}
-
-	.dy-login--mobile .dy-login__title {
-		font-size: 1.6rem;
-	}
-
-	.dy-login--mobile .dy-login__submit {
-		width: 100%;
-	}
-}
-
-/* =============================================================================
-   Focus Visible Enhancement
-   ============================================================================= */
-
-.dy-login__input:focus-visible,
-.dy-login__password-toggle:focus-visible,
-.dy-login__forgot:focus-visible,
-.dy-login__remember input:focus-visible + .dy-login__checkbox {
-	outline: 2px solid var(--dy-accent);
-	outline-offset: 2px;
-}
-
-.dy-login__remember:focus-visible {
-	border-radius: var(--dy-radius-sm);
-}
-</style>
+<style scoped src="@/styles/pages/login.css"></style>

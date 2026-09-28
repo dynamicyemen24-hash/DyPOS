@@ -25,12 +25,23 @@ const ROOT = resolve(HERE, "..")
 
 /** [file, maxLines] — measured, not aspirational. Lower the number when you split. */
 const CAPS = [
+	// 6359 → 6355: مؤقّت إشعار البيع (showNotification + timeout المعلّق على
+	// الدالة نفسه، ثلاثة مواقع لتفريغه) استُخرج إلى
+	// composables/useSaleNotification.js مع اختبار tests/saleNotification.test.js.
 	// 6374 → 6359: تسجيل الخروج + اختصار Shift+Esc زاد~30 سطرًا، فاستُخرج
 	// مسار لوحة المفاتيح إلى utils/gridNavigation.js (مع اختبارات) وسلسلة
 	// الإغلاق إلى composables/useOverlayCloser.js. الاتجاه downward فقط.
-	["src/pages/POSSale.vue", 6359],
+	["src/pages/POSSale.vue", 6355],
 	["src/components/settings/POSSettings.vue", 2092],
-	["src/pages/Login.vue", 3406],
+	// 3406 → 3225 → 1706 → 2039:
+	//  - تهيئة بيئة التشغيل (~250 سطرًا) انتقلت إلى composables/useLoginRuntime.js
+	//  - ثم استُخرجت 1531 سطرًا من `<style scoped>` إلى styles/pages/login.css
+	//    (2598 → 1706)، فانخفض الرقم 892 سطرًا في التزام واحد.
+	//  - ثم رُفع إلى 2039 لأن واجهة PIN وُصلت بالقالب: مسار الدخول السريع كان
+	//    ميّتًا تمامًا (سبعة معالجات لا يقرأها قالب واحد، و`loadPinState` لم
+	//    تُستدعَ قط). الرفع **مقيس** لا مُقنع: الكود الميت صار سطحًا يعمل،
+	//    وهذا وحده يبرّر الأسطر. الاتجاه بعدها نزول فقط.
+	["src/pages/Login.vue", 2039],
 	["src/stores/itemSearch.js", 2620],
 	["src/components/work/WorkDataGrid.vue", 1188],
 ]

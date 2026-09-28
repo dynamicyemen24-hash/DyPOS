@@ -262,8 +262,12 @@ export class WorkflowEngine {
 			],
 		}
 
-		// Update history entry with instance ID
-		instance.history[0].instanceId = instance.id
+		// Update history entry with instance ID. `history[0]` is only defined
+		// by the literal above, so this is a structural guarantee rather than
+		// a runtime condition — but the index type is T | undefined, so it is
+		// read once into a local instead of dereferenced blindly.
+		const initialHistoryEntry = instance.history[0]
+		if (initialHistoryEntry) initialHistoryEntry.instanceId = instance.id
 
 		this.instances.set(instance.id, instance)
 		this.emit("instance.created", { instance })
@@ -535,9 +539,6 @@ export class WorkflowEngine {
 		instance: WorkflowInstance,
 		payload?: WorkflowData,
 	): WorkflowContext {
-		const currentStateDef = this.definitions.get(instance.workflowId)?.states[
-			instance.currentState
-		]
 		return {
 			workflowId: instance.workflowId,
 			instanceId: instance.id,
@@ -604,7 +605,7 @@ export class WorkflowEngine {
 
 	private async executeAction(
 		action: WorkflowAction,
-		context: WorkflowContext,
+		_context: WorkflowContext,
 	): Promise<void> {
 		// Implementation would handle each action type
 		// notify, webhook, email, assign, update, create, delete, log, custom
@@ -702,6 +703,7 @@ export function useWorkflow(workflowId: string) {
 				workflowId,
 				payload,
 				"current-user",
+				options,
 			)
 		} catch (e) {
 			error.value = String(e)
@@ -823,12 +825,13 @@ export function useWorkflowDesigner() {
 	}
 
 	function updateTransition(id: string, updates: Partial<WorkflowTransition>) {
-		const idx = definition.value.transitions.findIndex((t) => t.id === id)
-		if (idx >= 0)
-			definition.value.transitions[idx] = {
-				...definition.value.transitions[idx],
-				...updates,
-			}
+		// Reading the element once and narrowing it is the point: the previous
+		// `transitions[idx] = { ...transitions[idx] }` assigned into a slot the
+		// compiler could not prove existed, silently discarding the definition
+		// entry if the array shifted between the find and the write.
+		const existing = definition.value.transitions.find((t) => t.id === id)
+		if (!existing) return
+		Object.assign(existing, updates)
 	}
 
 	function deleteTransition(id: string) {

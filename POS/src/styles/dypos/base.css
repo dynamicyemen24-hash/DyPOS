@@ -392,6 +392,29 @@ canvas {
 	max-width: 100%;
 }
 
+/*
+ * Inline icons get a size floor here, in the base layer, for one measured
+ * reason.
+ *
+ * `FeatherIcon` drops its own `width`/`height` attributes so that a caller's
+ * utility class is the only sizing authority — and nothing in this app
+ * supplied the other half of that bargain. The reset above sets
+ * `max-width: 100%`, but an inline `<svg>` is a replaced element, so with no
+ * width of its own it fell back to `width: 100%` and stretched to fill its
+ * container. On the login page that put a 382px envelope across the email and
+ * password fields and a 382px padlock over the unlock field, hiding the form
+ * behind its own icons.
+ *
+ * 1em at the icon's inherited font-size is a safe floor, not an opinion about
+ * the final size: a `w-5 h-5` utility still wins because it targets the
+ * element, and any component rule (`.dy-login__input-icon`) outranks a single
+ * class selector.
+ */
+.dy-icon {
+	width: 1em;
+	height: 1em;
+}
+
 img,
 video {
 	height: auto;
