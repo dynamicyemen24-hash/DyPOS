@@ -34,11 +34,6 @@ const MIGRATION_VERSION = 27; // Increment when schema changes
  * entry here; the DDL and its rationale stay with the migration.
  */
 const LATE_MIGRATIONS = Object.freeze([
-	{ version: 27, run: (d) => {
-		d.exec("DROP INDEX IF EXISTS idx_invoices_idem");
-		d.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_idem ON invoices(tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> ''");
-	}, note: 'tenant-scoped invoice idempotency' },
-
 	{ version: 23, run: migratePromotionTenancy, note: 'offers + coupons tenant isolation' },
 	{ version: 24, run: migrateInvoiceReturnTracking, note: 'invoice return tracking fields' },
 	{ version: 25, run: (d) => migrateOpeningBalances(d), note: 'opening balances per fiscal year' },
