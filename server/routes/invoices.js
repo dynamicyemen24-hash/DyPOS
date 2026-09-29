@@ -328,6 +328,12 @@ router.post('/', validate(invoiceSchema), (req, res) => {
       if (amt < 0 || amt > 10_000_000) throw new Error('مبلغ دفعة غير صالح');
       const pm = String(p.method || 'CASH').toUpperCase().slice(0, 20);
       assertPayMethod(pm, p.reference);
+      // Non-cash tenders are settlement instruments, not change-bearing cash.
+      // Reject overpayment instead of storing a payment larger than the invoice
+      // and later hiding the difference by capping paid_amount.
+      if (pm !== 'CASH' && toMinor(amt) > Math.max(0, needMinor)) {
+        throw Object.assign(new Error('مبلغ الدفع غير النقدي يتجاوز المبلغ المستحق'), { statusCode: 400 });
+      }
       // WALLET deducts from the customer's balance inside this same transaction.
       // Digital balance is capped at what is still owed: cash handed over the
       // total is fine (it becomes change), silently draining a wallet past the
