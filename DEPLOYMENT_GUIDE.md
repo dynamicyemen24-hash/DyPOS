@@ -1,8 +1,7 @@
 # DyPOS Deployment Guide — dypos.smartportssoft.com
 
 ## حالة النشر الآن (2026-09-29)
-- **الموقع حيّ ويعمل** ويقدّم الإصدار `1.37.0` (بناء 2026-09-26) — أي **قبل** آخر
-  عمل على `main`. هذه الدفعة ترفع Pages و`dypos-api` إلى `1.40.0` معًا.
+- **الإصدار المستهدف:** `1.40.0`. إذا كان النطاق الحي يعرض إصدارًا أقدم، يعتبر النشر **فاشلًا** ولا يجوز اعتباره مكتملًا حتى تتطابق الواجهة والـAPI مع `main`.
 - **العطل السابق مُثبَت برمجيًا** (لا استنتاج): `scripts/pages-preflight.mjs` كان
   يحصل على `HTTP 403` + `code 10000` على `GET /accounts/{id}/pages/projects`
   بعد نجاح `/user/tokens/verify` — أي أن المشروع موجود والرمز صالح، لكن
@@ -79,7 +78,7 @@ node scripts/verify-live.mjs --site=http://127.0.0.1:8080    # أي أصل آخ�
 - `/sw.js` → 200 (Service Worker بمدى الجذر = Offline-First)
 - `/manifest.webmanifest` → 200 (قابل للتثبيت)
 - `/pos/deep-link-probe` → 200 + قوقعة التطبيق (الرابط العميق لا يكسر Ctrl+F5)
-- `/api/ping` → 200 (Worker الـAPI على نفس النطاق)
+- `/api/health` → 200 + `version === package.json.version` (تطابق إصدار الـAPI مع الواجهة)
 
 > **نبض الإنتاج**: `.github/workflows/uptime.yml` يشغّل نفس السكربت كل 15 دقيقة.
 > الفحوص القديمة كانت تستطلع `/assets/DyPOS/pos/version.json` وتطلب حزمة `?v=` —
