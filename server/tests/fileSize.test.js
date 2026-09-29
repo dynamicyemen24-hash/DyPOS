@@ -35,9 +35,20 @@ const CAPS = [
   // copy-pasted try/catch block: db/schema.js now runs v23+ from one LATE_MIGRATIONS
   // table, so db/migrations-opening-balance-items.js (v26) joined the registry as
   // one data row instead of ten lines.
+  //
+  // Raised once, and deliberately, for v27 + v28 (1033 → 1037): both are real
+  // financial-integrity migrations (tenant-scoped invoice idempotency, one OPEN
+  // shift per terminal). At four lines each — one import and one registry row —
+  // they are already at the floor the table-driven runner allows. When the next
+  // migration lands, extract the migration registry into db/migrations-index.js
+  // rather than raising this again.
   ['routes/method.js', 3907],
-  ['db/schema.js', 1033],
-  ['routes/invoices.js', 881],
+  ['db/schema.js', 1037],
+  // 881 → 888, the one deliberate raise in this release: tenant-scoped
+  // idempotency lookups and the non-cash overpayment guard. The guard itself was
+  // extracted to lib/payment-invariants.js, so the next payment rule lands
+  // there instead of here.
+  ['routes/invoices.js', 888],
   ['server.js', 637],
 ];
 

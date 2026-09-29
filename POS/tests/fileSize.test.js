@@ -37,7 +37,10 @@ const CAPS = [
 	// 6374 → 6359: تسجيل الخروج + اختصار Shift+Esc زاد~30 سطرًا، فاستُخرج
 	// مسار لوحة المفاتيح إلى utils/gridNavigation.js (مع اختبارات) وسلسلة
 	// الإغلاق إلى composables/useOverlayCloser.js. الاتجاه downward فقط.
-	["src/pages/POSSale.vue", 6255],
+	// 6255 → 6264: زر «التسويات» في رأس شاشة البيع (9 أسطر) الذي يفتح شاشة
+	// التسويات الجديدة في workScreens.js. رُفع السقف لأن الزرDead code كان
+	// أخطر من حجمه: شاشة تسويات موجودة بلا مدخل إليها. الاتجاه بعده نزول فقط.
+	["src/pages/POSSale.vue", 6264],
 	["src/components/settings/POSSettings.vue", 2092],
 	// 3406 → 3225 → 1706 → 2039:
 	//  - تهيئة بيئة التشغيل (~250 سطرًا) انتقلت إلى composables/useLoginRuntime.js

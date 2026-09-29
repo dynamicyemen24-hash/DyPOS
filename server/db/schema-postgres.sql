@@ -95,6 +95,8 @@ CREATE TABLE IF NOT EXISTS shifts (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_shifts_terminal ON shifts(terminal_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_shifts_open_terminal ON shifts(COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'), terminal_id) WHERE status='OPEN';
+CREATE INDEX IF NOT EXISTS idx_shifts_settlement ON shifts(tenant_id, status, closed_at DESC, id);
 
 CREATE TABLE IF NOT EXISTS invoices (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -119,7 +121,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_number ON invoices(number);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_idem ON invoices(idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_idem ON invoices(tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
 CREATE INDEX IF NOT EXISTS idx_invoices_shift ON invoices(shift_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
 CREATE INDEX IF NOT EXISTS idx_invoices_created ON invoices(created_at);
@@ -3908,3 +3910,5 @@ COMMIT;
 --    invoices, invoice_items, inventory_movements, business_events and audit
 --    tables by tenant/date. Do this only after measuring actual workload and
 --    query plans.
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_idem ON invoices(tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';

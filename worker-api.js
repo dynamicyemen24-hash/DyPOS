@@ -1,166 +1,182 @@
 /**
- * DyPOS Backend API Worker
- * Provides API endpoints for PWA sync and online functionality
- * Uses D1 database for persistence
+ * DyPOS API Edge Gateway
+ *
+ * The worker is a same-origin security/routing boundary. It must never
+ * impersonate users, persist fake sales, or report successful writes that the
+ * authoritative backend did not commit.
+ *
+ * Two properties are load-bearing and both are covered by tests:
+ *
+ *  1. NO SELF-PROXY. `BACKEND_URL` historically pointed at this worker's own
+ *     host, so every /api/* request was proxied to itself. The result was a
+ *     request loop that surfaced as a flat 503 for the whole API. The upstream
+ *     is now resolved and rejected up front when it is the edge itself.
+ *
+ *  2. D1 STAYS BOUND. The schema migrations (v23 → v28) run through the
+ *     `dypos_db` binding; dropping it (as an earlier revision did) silently
+ *     disables every pending migration, so invoices would be written against an
+ *     un-upgraded schema. `/api/ready` reports the bound version so a deploy
+ *     that lost the binding cannot look healthy.
  */
 
-const API_VERSION = '1.40.0';
+// `.mjs` is mandatory here: the repo root declares `"type": "commonjs"`, so a
+// sibling `.js` ES module would be loaded as CommonJS by Node (the security
+// test suite) while Wrangler still treats it as ESM.
+import { isSelfProxy } from "./worker-edge-hosts.mjs";
+
+const API_VERSION = "1.40.0";
+const DEFAULT_BACKEND_URL = "https://dypos-api.smartportssoft.com";
+const ALLOWED_ORIGIN = "https://dypos.smartportssoft.com";
+const HOP_BY_HOP = new Set([
+  "connection",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+]);
 
 export default {
-	async fetch(request, env, ctx) {
-		const url = new URL(request.url);
-		const path = url.pathname;
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    // A single fixed origin: the PWA is served from the same origin, so echoing
+    // an arbitrary `Origin` back would only widen the attack surface. The
+    // previous revision wrote a ternary whose two branches were identical,
+    // which read like an allowlist check but was not one.
+    const corsHeaders = {
+      "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
+      "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Accept, Content-Type, Authorization, X-DyPOS-CSRF-Token, X-Request-Id",
+      "Access-Control-Expose-Headers": "X-Request-Id, Retry-After",
+      "Access-Control-Max-Age": "86400",
+      Vary: "Origin",
+    };
 
-		// CORS headers
-		const corsHeaders = {
-			'Access-Control-Allow-Origin': '*',
-			'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-			'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Request-Id',
-			'Access-Control-Max-Age': '86400',
-		};
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
 
-		if (request.method === 'OPTIONS') {
-			return new Response(null, { headers: corsHeaders });
-		}
+    // Keep a deterministic edge health endpoint for routing diagnostics.
+    // The authoritative /api/health is proxied below and is the release gate.
+    if (url.pathname === "/api/edge-health") {
+      return json(
+        {
+          status: "ok",
+          service: "dypos-api-edge",
+          version: API_VERSION,
+        },
+        200,
+        corsHeaders,
+      );
+    }
 
-		try {
-			// Health check
-			if (path === '/api/health' || path === '/health') {
-				return jsonResponse({ status: 'ok', version: API_VERSION, timestamp: new Date().toISOString() }, corsHeaders);
-			}
+    // Readiness is answered by the EDGE itself, never proxied: it must describe
+    // this deployment, and a proxied answer could not report on our own bindings.
+    // The D1 check is deliberate — losing the binding disables every pending
+    // migration (v23 → v28), which is a broken release, not a healthy one.
+    if (url.pathname === "/api/ready" || url.pathname === "/ready") {
+      if (!env.dypos_db) {
+        return json(
+          {
+            error: "D1 binding is missing; pending schema migrations cannot run",
+            code: "DATABASE_UNBOUND",
+            version: API_VERSION,
+          },
+          503,
+          corsHeaders,
+        );
+      }
+      return json(
+        {
+          status: "ready",
+          version: API_VERSION,
+          service: "dypos-api-edge",
+          database_bound: true,
+          timestamp: new Date().toISOString(),
+        },
+        200,
+        corsHeaders,
+      );
+    }
 
-			if (path === '/api/ready' || path === '/ready') {
-				return jsonResponse({ status: 'ready', checks: { database: true } }, corsHeaders);
-			}
+    const backendBase = String(env.BACKEND_URL || DEFAULT_BACKEND_URL).replace(/\/+$/, "");
+    let backend;
+    try {
+      backend = new URL(backendBase);
+    } catch {
+      return json({ error: "API backend configuration is invalid" }, 500, corsHeaders);
+    }
 
-			// Ping endpoint for offline detection
-			if (path === '/api/method/DyPOS.api.ping' || path === '/api/ping') {
-				return jsonResponse({ status: 'ok', server_time: new Date().toISOString() }, corsHeaders);
-			}
+    // Fail loudly and immediately instead of proxying the edge to itself. A
+    // request loop is worse than an outage to diagnose: every endpoint returns
+    // the same 503 and the log shows no upstream host at all.
+    if (isSelfProxy(url.host, backend)) {
+      return json(
+        {
+          error: "API upstream is not configured",
+          code: "UPSTREAM_MISCONFIGURED",
+          detail: `BACKEND_URL (${backend.origin}) resolves to this worker (${url.host}). Point it at the authoritative backend.`,
+          version: API_VERSION,
+        },
+        503,
+        corsHeaders,
+      );
+    }
 
-			// Auth endpoints
-			if (path === '/api/method/dypos.auth.get_logged_user' || path === '/api/auth/user') {
-				const authHeader = request.headers.get('Authorization');
-				if (!authHeader) {
-					return jsonResponse({ user: null, authenticated: false }, corsHeaders);
-				}
-				// In production, validate JWT token here
-				return jsonResponse({
-					user: {
-						id: 'demo-user',
-						username: 'demo',
-						role: 'ADMIN',
-						full_name: 'Demo User'
-					},
-					authenticated: true
-				}, corsHeaders);
-			}
+    const target = new URL(url.pathname + url.search, backend);
+    const headers = new Headers(request.headers);
+    headers.delete("host");
+    headers.delete("content-length");
+    headers.set("X-DyPOS-Edge", "cloudflare-worker");
 
-			if (path === '/api/method/DyPOS.api.auth.register' || path === '/api/auth/register') {
-				const body = await request.json();
-				return jsonResponse({
-					success: true,
-					message: 'Registration successful (demo)',
-					user: { id: 'new-user', ...body }
-				}, corsHeaders);
-			}
+    for (const name of HOP_BY_HOP) headers.delete(name);
 
-			// Localization endpoints (canonical + legacy paths).
-			// The PWA is local-first: these exist only as optional enrichment.
-			if (path === '/api/localization/translations' ||
-				path === '/api/method/DyPOS.api.localization.get_app_translations') {
-				return jsonResponse({ translations: {} }, corsHeaders);
-			}
+    const requestId = request.headers.get("X-Request-Id") || crypto.randomUUID();
+    headers.set("X-Request-Id", requestId);
 
-			if (path === '/api/localization/locales' ||
-				path === '/api/method/DyPOS.api.localization.get_allowed_locales') {
-				return jsonResponse({ locales: ['ar', 'en'] }, corsHeaders);
-			}
+    try {
+      const upstream = await fetch(target, {
+        method: request.method,
+        headers,
+        body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body,
+        redirect: "manual",
+      });
 
-			if (path === '/api/localization/user-language' ||
-				path === '/api/method/DyPOS.api.localization.get_user_language') {
-				return jsonResponse({ locale: 'ar', user_language: 'ar' }, corsHeaders);
-			}
+      const responseHeaders = new Headers(upstream.headers);
+      for (const name of HOP_BY_HOP) responseHeaders.delete(name);
+      for (const [key, value] of Object.entries(corsHeaders)) responseHeaders.set(key, value);
+      responseHeaders.set("X-Request-Id", requestId);
 
-			// Features endpoint
-			if (path === '/api/features') {
-				return jsonResponse({
-					features: {
-						offline_first: true,
-						pwa: true,
-						arabic_rtl: true,
-						offline_auth: true,
-						offline_sales: true,
-						self_checkout: true,
-						stock_management: true,
-						reports: true
-					}
-				}, corsHeaders);
-			}
+      return new Response(upstream.body, {
+        status: upstream.status,
+        statusText: upstream.statusText,
+        headers: responseHeaders,
+      });
+    } catch (error) {
+      console.error("Authoritative backend unavailable", {
+        requestId,
+        path: url.pathname,
+        error: String(error?.message || error),
+      });
 
-			// CSRF token (canonical + legacy path)
-			if (path === '/api/csrf_token' || path === '/api/method/DyPOS.api.utilities.get_csrf_token') {
-				return jsonResponse({ csrf_token: crypto.randomUUID() }, corsHeaders);
-			}
-
-			if (path === '/api/auth/login') {
-				return jsonResponse({
-					success: false,
-					offline_first: true,
-					message: 'Use local offline login; server login is optional sync-only'
-				}, corsHeaders);
-			}
-
-			if (path === '/api/auth/logout') {
-				return jsonResponse({ success: true }, corsHeaders);
-			}
-
-			// Device registration
-			if (path === '/api/device' || path === '/api/method/DyPOS.api.device.register') {
-				return jsonResponse({
-					device_id: 'device-' + crypto.randomUUID().slice(0, 8),
-					registered: true
-				}, corsHeaders);
-			}
-
-			// Sync endpoints (canonical + legacy paths)
-			if (path === '/api/sync' || path === '/api/sync/push' || path === '/api/method/DyPOS.api.sync.push') {
-				const body = await request.json().catch(() => ({}));
-				// Store sync operations in D1
-				return jsonResponse({
-					success: true,
-					synced: body.operations?.length || 0,
-					conflicts: []
-				}, corsHeaders);
-			}
-
-			if (path === '/api/sync/pull' || path === '/api/method/DyPOS.api.sync.pull') {
-				return jsonResponse({
-					operations: [],
-					checkpoint: Date.now()
-				}, corsHeaders);
-			}
-
-			// Not found
-			return jsonResponse({ error: 'Not found', path }, { ...corsHeaders, status: 404 });
-
-		} catch (error) {
-			console.error('Worker error:', error);
-			return jsonResponse({
-				error: 'Internal server error',
-				message: error.message
-			}, { ...corsHeaders, status: 500 });
-		}
-	}
+      return json(
+        {
+          error: "الخدمة الخلفية غير متاحة حاليًا",
+          code: "UPSTREAM_UNAVAILABLE",
+          request_id: requestId,
+        },
+        503,
+        corsHeaders,
+      );
+    }
+  },
 };
 
-function jsonResponse(data, options = {}) {
-	const headers = {
-		'Content-Type': 'application/json',
-		...options.headers
-	};
-	return new Response(JSON.stringify(data), {
-		status: options.status || 200,
-		headers
-	});
+function json(data, status, headers) {
+  const out = new Headers(headers);
+  out.set("Content-Type", "application/json; charset=utf-8");
+  return new Response(JSON.stringify(data), { status, headers: out });
 }
+

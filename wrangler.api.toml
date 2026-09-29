@@ -1,6 +1,15 @@
-# DyPOS API Worker (Cloudflare Workers + D1)
-# Serves /api/* on dypos.smartportssoft.com; Pages serves the PWA shell.
-# Deploy: wrangler deploy -c wrangler.api.toml
+# DyPOS API Edge Gateway (Cloudflare Workers + D1)
+#
+# The edge is a same-origin security/routing boundary. It must never impersonate
+# a user or report a write as successful that the authoritative backend did not
+# commit.
+#
+# D1 stays bound ON PURPOSE: it is where the schema migrations (v23 → v28) live
+# and where the edge keeps its own operational tables. An earlier revision of this
+# file removed the binding while turning the worker into a pure proxy; that
+# silently disabled every pending migration at deploy time (a D1 migration can
+# only run where the binding exists), so invoices would have been written against
+# an un-upgraded schema. Kept here, and covered by a guard in worker-api.js.
 name = "dypos-api"
 main = "worker-api.js"
 compatibility_date = "2026-09-24"

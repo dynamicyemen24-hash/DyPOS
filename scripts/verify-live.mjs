@@ -20,7 +20,7 @@
  *   /sw.js                200 (service worker at root scope = offline-first PWA)
  *   /manifest.webmanifest 200 (installable)
  *   /pos/<deep link>      200 + app shell (Ctrl+F5 on a deep route must work)
- *   /api/ping             200 (the dypos-api Worker shares this origin)
+ *   /api/health           200 + version === expected (frontend/API release parity)
  *
  * Exit code 1 = at least one probe failed. `GITHUB_STEP_SUMMARY`, when set, gets
  * the same table the terminal shows.
@@ -106,9 +106,15 @@ async function spaFallback() {
 }
 
 async function apiPing() {
-	const { status, body } = await httpGet(`${SITE}/api/ping`)
+	const { status, body } = await httpGet(`${SITE}/api/health`)
 	assert(status === 200, `HTTP ${status}`)
-	return body.replace(/\s+/g, " ").slice(0, 80)
+	const parsed = JSON.parse(body)
+	assert(parsed.status === "ok", `unexpected health status: ${parsed.status ?? "missing"}`)
+	assert(
+		parsed.version === EXPECTED,
+		`API health says '${parsed.version ?? "missing"}' but this release is ${EXPECTED} — frontend and API are out of sync`,
+	)
+	return `version ${parsed.version} · ${body.replace(/\s+/g, " ").slice(0, 120)}`
 }
 
 await probe("release stamp /version.json", versionStamp)

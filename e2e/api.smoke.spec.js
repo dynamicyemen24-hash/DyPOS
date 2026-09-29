@@ -153,4 +153,35 @@ test.describe
 			const dead = await request.get("/api/auth/me", { headers })
 			expect(dead.status()).toBe(401)
 		})
+		test("real customer read path returns paginated records without mutation", async ({ request }) => {
+			const login = await request.post("/api/auth/login", { data: { username: USERNAME, password: PASSWORD } })
+			const token = (await login.json()).token
+			const res = await request.get("/api/customers?limit=10&offset=0", { headers: { Authorization: `Bearer ${token}` } })
+			expect(res.status()).toBe(200)
+			const body = await res.json()
+			expect(Array.isArray(body.customers)).toBe(true)
+			expect(body).toHaveProperty("total")
+			expect(body).toHaveProperty("hasMore")
+			for (const row of body.customers) { expect(row).toHaveProperty("id"); expect(row).toHaveProperty("name") }
+		})
+
+		test("shift settlement reconciles net cash and blocks duplicate terminal opening", async ({ request }) => {
+			const login = await request.post("/api/auth/login", { data: { username: USERNAME, password: PASSWORD } })
+			const token = (await login.json()).token
+			const headers = { Authorization: `Bearer ${token}` }
+			const terminal = `E2E-TERM-${Date.now()}`
+			const opened = await request.post("/api/shifts/open", { headers, data: { terminalId: terminal, openingCash: 0 } })
+			expect(opened.status()).toBe(201)
+			const shiftId = (await opened.json()).shiftId
+			const duplicate = await request.post("/api/shifts/open", { headers, data: { terminalId: terminal, openingCash: 10 } })
+			expect(duplicate.status()).toBe(409)
+			expect((await duplicate.json()).shiftId).toBe(shiftId)
+			const sale = await request.post("/api/invoices", { headers, data: { items: [{ productId, qty: 1, unitPrice: 100 }], shiftId, terminalId: terminal, payments: [{ method: "CASH", amount: 150 }] } })
+			expect(sale.status()).toBe(201)
+			const close = await request.post(`/api/shifts/${shiftId}/close`, { headers, data: { closingCash: 100 } })
+			expect(close.status()).toBe(200)
+			const settlement = await close.json()
+			expect(Number(settlement.expected)).toBe(100)
+			expect(Number(settlement.variance)).toBe(0)
+		})
 	})
