@@ -5,6 +5,7 @@
  */
 
 const API_VERSION = '1.40.0';
+const ALLOWED_ORIGIN = 'https://dypos.smartportssoft.com';
 
 export default {
 	async fetch(request, env, ctx) {
@@ -12,8 +13,9 @@ export default {
 		const path = url.pathname;
 
 		// CORS headers
+		const requestOrigin = request.headers.get('Origin');
 		const corsHeaders = {
-			'Access-Control-Allow-Origin': '*',
+			'Access-Control-Allow-Origin': requestOrigin === ALLOWED_ORIGIN ? ALLOWED_ORIGIN : ALLOWED_ORIGIN,
 			'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 			'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Request-Id',
 			'Access-Control-Max-Age': '86400',
@@ -44,25 +46,13 @@ export default {
 				if (!authHeader) {
 					return jsonResponse({ user: null, authenticated: false }, corsHeaders);
 				}
-				// In production, validate JWT token here
-				return jsonResponse({
-					user: {
-						id: 'demo-user',
-						username: 'demo',
-						role: 'ADMIN',
-						full_name: 'Demo User'
-					},
-					authenticated: true
-				}, corsHeaders);
+				// Never treat the presence of an Authorization header as authentication.
+				// Real identity validation belongs to the authoritative backend/session layer.
+				return jsonResponse({ error: 'Authentication is not available on this edge compatibility endpoint' }, { ...corsHeaders, status: 501 });
 			}
 
 			if (path === '/api/method/DyPOS.api.auth.register' || path === '/api/auth/register') {
-				const body = await request.json();
-				return jsonResponse({
-					success: true,
-					message: 'Registration successful (demo)',
-					user: { id: 'new-user', ...body }
-				}, corsHeaders);
+				return jsonResponse({ error: 'Registration must use the authoritative backend' }, { ...corsHeaders, status: 501 });
 			}
 
 			// Localization endpoints (canonical + legacy paths).
@@ -148,7 +138,7 @@ export default {
 			console.error('Worker error:', error);
 			return jsonResponse({
 				error: 'Internal server error',
-				message: error.message
+				request_id: request.headers.get('X-Request-Id') || crypto.randomUUID(),
 			}, { ...corsHeaders, status: 500 });
 		}
 	}
