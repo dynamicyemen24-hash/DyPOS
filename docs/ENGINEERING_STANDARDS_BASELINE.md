@@ -95,3 +95,25 @@ Changes affecting money, tax, invoice numbering, inventory, permissions, authent
 8. Tax calculation is deterministic for the same jurisdiction/configuration/version.
 9. Currency precision is explicit.
 10. Normal users cannot rewrite audit history.
+
+
+## Requirements traceability baseline
+
+The normative product specification is docs/FUNCTIONAL_NONFUNCTIONAL_REQUIREMENTS.md.
+
+For every P0 requirement, engineering SHALL maintain:
+Requirement ID → implementation → automated test → CI gate → operational evidence → exception/risk record.
+
+Financial requirements additionally require:
+- explicit state machine;
+- tenant/business scope;
+- server-authoritative calculation;
+- idempotency and concurrency behavior;
+- audit and reconciliation evidence;
+- migration/recovery story;
+- jurisdiction/profile version;
+- offline behavior where applicable.
+
+## Fiscal-period rule
+
+Accounting periods are date-ranged business objects. Posting SHALL resolve the effective period from the transaction timestamp against starts_on/ends_on and SHALL reject CLOSED periods. Calendar-year fallback is permitted only when no configured period covers the effective date.
