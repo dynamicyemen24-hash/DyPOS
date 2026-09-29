@@ -5,6 +5,8 @@ import { ensureOpenFiscalPeriod } from '../routes/fiscal.js';
 
 const code = '9901';
 
+db.exec(`CREATE TABLE IF NOT EXISTS fiscal_years (code TEXT PRIMARY KEY, starts_on TEXT NOT NULL, ends_on TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'OPEN', closed_by TEXT, closed_at TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`).run?.();
+
 after(() => {
   try { db.prepare('DELETE FROM fiscal_years WHERE code=?').run(code); } catch {}
 });
