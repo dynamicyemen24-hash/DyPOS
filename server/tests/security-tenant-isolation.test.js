@@ -113,7 +113,7 @@ describe('Tenant-scoped financial idempotency', () => {
     const key = `same-client-key-${stamp}`;
     const a = await req('POST', '/api/invoices', {
       items: [{ productId: prodA, qty: 1 }],
-      payments: [{ method: 'CASH', amount: 103.5 }],
+      payments: [{ method: 'CASH', amount: 30 }],
       idempotencyKey: key,
     }, tokenA, { 'X-Tenant-Id': tenantA });
     assert.strictEqual(a.status, 201);
