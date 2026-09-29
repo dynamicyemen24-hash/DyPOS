@@ -307,7 +307,9 @@ router.post('/', validate(invoiceSchema), (req, res) => {
       const r = computeCouponDiscount(c, toMajor(grossMinor));
       if (!r.ok) throw Object.assign(new Error(r.error), { statusCode: 400 });
       couponDiscountMinor = Math.min(toMinor(r.discount), grossMinor - manualDiscountMinor);
-      const inc = db.prepare(`UPDATE coupons SET used_count=used_count+1 WHERE code=? AND (max_uses=0 OR used_count < max_uses)`).run(couponCode);
+      const inc = scope.tenantId
+        ? db.prepare(`UPDATE coupons SET used_count=used_count+1 WHERE code=? AND (tenant_id=? OR tenant_id IS NULL) AND (max_uses=0 OR used_count < max_uses)`).run(couponCode, scope.tenantId)
+        : db.prepare(`UPDATE coupons SET used_count=used_count+1 WHERE code=? AND (max_uses=0 OR used_count < max_uses)`).run(couponCode);
       if (inc.changes === 0) throw Object.assign(new Error('تجاوز حد استخدام الكوبون (تعارض تزامن)'), { statusCode: 409 });
     }
     const discountAmountMinor = Math.min(manualDiscountMinor + couponDiscountMinor, grossMinor);
