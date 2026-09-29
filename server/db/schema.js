@@ -21,6 +21,7 @@ import { migrateOpeningBalances } from './migrations-opening-balances.js';
 import { migrateInvoiceReturnTracking } from './migrations-invoice-returns.js';
 import { migratePromotionTenancy } from './migrations-promotion-tenancy.js';
 import { migrateOpeningBalanceItems } from './migrations-opening-balance-items.js';
+import { migrateInvoiceTenantIdempotency } from './migrations-invoice-tenant-idempotency.js';
 
 const MIGRATION_VERSION = 27; // Increment when schema changes
 
@@ -38,6 +39,7 @@ const LATE_MIGRATIONS = Object.freeze([
 	{ version: 24, run: migrateInvoiceReturnTracking, note: 'invoice return tracking fields' },
 	{ version: 25, run: (d) => migrateOpeningBalances(d), note: 'opening balances per fiscal year' },
 	{ version: 26, run: migrateOpeningBalanceItems, note: 'opening balances item link (product_id)' },
+	{ version: 27, run: migrateInvoiceTenantIdempotency, note: 'invoice idempotency scoped to tenant' },
 ]);
 
 function columnExists(table, column) {
