@@ -95,3 +95,8 @@ A UI change is production-ready only when:
 **Specified → Designed → Implemented → Tested → Accessibility-reviewed → Responsive-reviewed → Theme-reviewed → Accepted.**
 
 The repository's functional/non-functional requirements remain the authoritative product acceptance layer; this document defines the visual/interaction implementation baseline.
+
+
+## Enterprise UX reference profile
+
+For enterprise workflow architecture, apply `docs/ENTERPRISE_UX_ARCHITECTURE.md`. It defines Fiori-aligned role-based/responsive/simple/coherent principles and Odoo-inspired modularity, without copying proprietary assets or claiming certification.
