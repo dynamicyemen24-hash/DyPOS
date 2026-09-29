@@ -13,12 +13,12 @@
 ## Verify before you claim done (all must be green)
 
 ```powershell
-# server/ — 463 tests / 147 suites
+# server/ — 534 tests / 166 suites
 npm test                              # = node scripts/run-tests.mjs
 npx @biomejs/biome check .
 npm run parity
 npm run contract
-# POS/ — 1027 tests / 70 files
+# POS/ — 1048 tests / 73 files
 npm run test:run
 npx biome check src/<touched-file>
 # production, from the repo root (after a deploy)
@@ -26,7 +26,7 @@ npm run verify:live                   # = node scripts/verify-live.mjs
 ```
 
 Test counts are *measured* by the runners, never estimated: server
-`463 tests / 147 suites`, POS `1027 tests / 70 files`.
+`534 tests / 166 suites`, POS `1048 tests / 73 files`.
 
 `POS/node_modules` is disposable — if a command hangs on `npx … Ok to proceed?`,
 the install is missing: `npm ci` in `POS/` (and add the package to

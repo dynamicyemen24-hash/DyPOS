@@ -90,6 +90,14 @@ export async function pagedList(doctype, options = {}) {
 			offset: rows.length,
 		})
 		if (page.source !== DATA_SOURCE.SERVER || page.rows.length === 0) break
+		// A short page is the last page — the classic REST terminator. Stopping
+		// here also makes a server that IGNORES `limit_start` safe: without this
+		// the loop would re-read page 1 until it hit MAX_ROWS and report the same
+		// 500 rows many times over as if they were distinct invoices.
+		if (page.rows.length < PAGE_SIZE) {
+			rows.push(...page.rows)
+			break
+		}
 		rows.push(...page.rows)
 	}
 

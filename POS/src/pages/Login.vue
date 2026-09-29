@@ -746,12 +746,6 @@ const {
 	loadPinState,
 } = usePinAuth()
 
-/**
- * رقم خانات PIN المستعمل في الحقول والوصف.
- * مصدر واحد: طول المُدخل الفعلي، فيُحسب مرة واحدة بدل تكراره حرفيًا.
- */
-const pinLength = computed(() => Math.max(pinCode.value.length, PIN_MIN_LENGTH))
-
 /** يقبل الحقل أرقامًا فقط — يمنع الحروف قبل أن تصل إلى PBKDF2. */
 function sanitizePinInput(event) {
 	pinCode.value = sanitizePin(event.target.value)
@@ -1039,6 +1033,8 @@ function goToRegister() {
 
                 <div class="dy-login__brand-copy">
                     <span class="dy-login__eyebrow">
+                        <span class="dy-login__eyebrow-dot" aria-hidden="true" />
+
                         نقطة البيع الذكية
                     </span>
 
@@ -1069,10 +1065,7 @@ function goToRegister() {
                         :key="`${item.icon}-${item.label}`"
                         class="dy-login__context-item"
                     >
-                        <span
-                            class="dy-login__context-icon"
-                            aria-hidden="true"
-                        >
+                        <span class="dy-login__context-icon" aria-hidden="true">
                             <FeatherIcon
                                 :name="item.icon"
                                 :size="16"
@@ -1092,19 +1085,13 @@ function goToRegister() {
                         تشغيل مؤسسي
                     </span>
 
-                    <span
-                        class="dy-login__brand-dot"
-                        aria-hidden="true"
-                    />
+                    <span class="dy-login__brand-dot" aria-hidden="true" />
 
                     <span>
                         جاهز للتوسع
                     </span>
 
-                    <span
-                        class="dy-login__brand-dot"
-                        aria-hidden="true"
-                    />
+                    <span class="dy-login__brand-dot" aria-hidden="true" />
 
                     <span>
                         عربي أولاً
@@ -1118,7 +1105,19 @@ function goToRegister() {
              =============================================================== -->
 
         <section class="dy-login__panel">
-            <div class="dy-login__panel-inner">
+            <div
+                class="dy-login__panel-inner"
+                :aria-busy="isSubmitting"
+            >
+                <!-- شريط التقدّم: العنصر الوحيد الذي يمثّل حالة `dy-login--busy` -->
+                <div
+                    v-if="isSubmitting"
+                    class="dy-login__progress"
+                    aria-hidden="true"
+                >
+                    <span class="dy-login__progress-bar" />
+                </div>
+
                 <!-- Header -->
 
                 <header class="dy-login__header">
@@ -1160,10 +1159,7 @@ function goToRegister() {
                     "
                     aria-live="polite"
                 >
-                    <span
-                        class="dy-login__runtime-icon"
-                        aria-hidden="true"
-                    >
+                    <span class="dy-login__runtime-icon" aria-hidden="true">
                         <FeatherIcon
                             :name="runtimeStatus.icon"
                             :size="17"
@@ -1190,7 +1186,7 @@ function goToRegister() {
                         type="button"
                         class="dy-login__runtime-action"
                         @click="prepareRuntime"
-                    aria-label="إعادة محاولة الاتصال بالخادم"
+                        aria-label="إعادة محاولة الاتصال بالخادم"
                     >
                         إعادة المحاولة
                     </button>
@@ -1204,10 +1200,7 @@ function goToRegister() {
                     role="alert"
                     aria-live="assertive"
                 >
-                    <span
-                        class="dy-login__rate-limit-icon"
-                        aria-hidden="true"
-                    >
+                    <span class="dy-login__rate-limit-icon" aria-hidden="true">
                         <FeatherIcon
                             name="clock"
                             :size="18"
@@ -1236,10 +1229,7 @@ function goToRegister() {
                     role="alert"
                     aria-live="assertive"
                 >
-                    <span
-                        class="dy-login__error-icon"
-                        aria-hidden="true"
-                    >
+                    <span class="dy-login__error-icon" aria-hidden="true">
                         <FeatherIcon
                             name="alert-circle"
                             :size="18"
@@ -1344,7 +1334,8 @@ function goToRegister() {
                             v-else
                             class="dy-login__hint"
                         >
-                            أدخل رمز الدخول السريع ({{ pinLength }} خانات على الأقل)
+                            أدخل رمز الدخول السريع (من {{ PIN_MIN_LENGTH }} إلى
+                            {{ PIN_MAX_LENGTH }} خانات)
                         </p>
                     </div>
 
@@ -1370,7 +1361,7 @@ function goToRegister() {
                         type="button"
                         class="dy-login__link-button"
                         @click="exitPinMode"
-                    aria-label="العودة لتسجيل الدخول بكلمة المرور"
+                        aria-label="العودة لتسجيل الدخول بكلمة المرور"
                     >
                         الدخول بكلمة المرور
                     </button>
@@ -1479,7 +1470,7 @@ function goToRegister() {
                                 id="dypos-login-password"
                                 ref="passwordInput"
                                 v-model="password"
-                                class="dy-login__input dy-login__input--password"
+                                class="dy-login__input"
                                 :class="{ 'dy-login__input--error': !password.value && isSubmitting }"
                                 :type="
                                     showPassword
@@ -1491,7 +1482,7 @@ function goToRegister() {
                                 placeholder="أدخل كلمة المرور"
                                 :disabled="isSubmitting"
                                 required
-                                aria-invalid="!!(!password.value && isSubmitting)"
+                                :aria-invalid="!!(!password.value && isSubmitting)"
                                 aria-describedby="dypos-login-password-error"
                                 @input="clearLoginError"
                             />
@@ -1621,7 +1612,7 @@ function goToRegister() {
                         type="button"
                         class="dy-login__link-button"
                         @click="enterPinMode"
-                    aria-label="التبديل لتسجيل الدخول السريع برمز PIN"
+                        aria-label="التبديل لتسجيل الدخول السريع برمز PIN"
                     >
                         <FeatherIcon
                             name="zap"
@@ -1653,7 +1644,7 @@ function goToRegister() {
                         type="button"
                         class="dy-login__link-button dy-login__link-button--quiet"
                         @click="handleClearPin"
-                    aria-label="إلغاء رمز الدخول السريع المحفوظ"
+                        aria-label="إلغاء رمز الدخول السريع المحفوظ"
                     >
                         إلغاء الرمز
                     </button>
@@ -1758,8 +1749,8 @@ function goToRegister() {
                                 type="button"
                                 class="dy-login__link-button"
                                 @click="cancelPinSetup"
-                            aria-label="إلغاء إعداد رمز PIN"
-                            >
+                        aria-label="إلغاء إعداد رمز PIN"
+                    >
                                 إلغاء
                             </button>
                         </div>
@@ -1773,10 +1764,7 @@ function goToRegister() {
                     aria-label="معلومات الأمان والتشغيل"
                 >
                     <div class="dy-login__security-main">
-                        <span
-                            class="dy-login__security-icon"
-                            aria-hidden="true"
-                        >
+                        <span class="dy-login__security-icon" aria-hidden="true">
                             <FeatherIcon
                                 name="shield-check"
                                 :size="18"
@@ -1804,7 +1792,11 @@ function goToRegister() {
                             showRuntimeDetails =
                                 !showRuntimeDetails
                         "
-                    :aria-label="showRuntimeDetails ? 'إخفاء تفاصيل الاتصال' : 'عرض تفاصيل الاتصال'"
+                        :aria-label="
+                            showRuntimeDetails
+                                ? 'إخفاء تفاصيل الاتصال'
+                                : 'عرض تفاصيل الاتصال'
+                        "
                     >
                         التفاصيل
                     </button>
@@ -1903,7 +1895,7 @@ function goToRegister() {
                                     type="button"
                                     class="dy-login__timeout-logout"
                                     @click="dismissWarning"
-                                aria-label="تسجيل الخروج وإنهاء الجلسة"
+                                    aria-label="تسجيل الخروج وإنهاء الجلسة"
                                 >
                                     تسجيل الخروج
                                 </button>
@@ -1912,19 +1904,21 @@ function goToRegister() {
                     </div>
                 </Transition>
 
+                <!-- Register — كان ابنًا مباشرًا للشبكة بلا تنسيق، فيقع في
+                     الصف الثاني تحت لوحة الهوية الداكنة. -->
+
+                <p class="dy-login__register">
+                    ليس لديك حساب؟
+                    <a href="/account/register" @click.prevent="goToRegister">
+                        سجّل الآن
+                    </a>
+                </p>
+
                 <!-- Footer — اسم الشركة + رابط موقعها الرسمي -->
 
                 <CompanyFooter class="dy-login__footer" />
             </div>
         </section>
-
-        <!-- Register Link -->
-
-        <div class="dy-login__register-link">
-            <a href="/account/register" @click.prevent="goToRegister">
-                ليس لديك حساب؟ سجّل الآن
-            </a>
-        </div>
 
         <!-- =================================================================
              Shift Opening

@@ -163,15 +163,83 @@ export const getStockLevel = notSupported("getStockLevel")
 export const adjustStock = notSupported("adjustStock")
 export const getSyncCheckpoint = notSupported("getSyncCheckpoint")
 
-// Subscriptions (v1.27.0 engine lives in the REST backend only)
-export const getSubscriptionPlans = notSupported("getSubscriptionPlans")
-export const createSubscriptionPlan = notSupported("createSubscriptionPlan")
-export const updateSubscriptionPlan = notSupported("updateSubscriptionPlan")
-export const getSubscriptions = notSupported("getSubscriptions")
-export const subscribeCustomer = notSupported("subscribeCustomer")
-export const pauseSubscription = notSupported("pauseSubscription")
-export const resumeSubscription = notSupported("resumeSubscription")
-export const cancelSubscription = notSupported("cancelSubscription")
-export const runBilling = notSupported("runBilling")
-export const getSubscriptionReport = notSupported("getSubscriptionReport")
-export const getCustomerBillings = notSupported("getCustomerBillings")
+// ── Subscriptions ────────────────────────────────────────────────────────────
+
+export async function getSubscriptionPlans(params = {}) {
+	const r = await call("DyPOS.api.subscriptions.get_subscription_plans", params)
+	return {
+		plans: r.plans,
+		total: r.total,
+		limit: r.limit,
+		offset: r.offset,
+		hasMore: r.hasMore,
+	}
+}
+
+export async function createSubscriptionPlan(data) {
+	const r = await call("DyPOS.api.subscriptions.create_subscription_plan", data)
+	return r
+}
+
+export async function updateSubscriptionPlan(id, data) {
+	const r = await call("DyPOS.api.subscriptions.update_subscription_plan", {
+		id,
+		...data,
+	})
+	return r
+}
+
+export async function getSubscriptions(params = {}) {
+	const r = await call("DyPOS.api.subscriptions.get_subscriptions", params)
+	return {
+		subscriptions: r.subscriptions,
+		total: r.total,
+		limit: r.limit,
+		offset: r.offset,
+		hasMore: r.hasMore,
+	}
+}
+
+export async function subscribeCustomer(data) {
+	const r = await call("DyPOS.api.subscriptions.subscribe_customer", data)
+	return r
+}
+
+export async function pauseSubscription(id) {
+	const r = await call("DyPOS.api.subscriptions.pause_subscription", { id })
+	return r
+}
+
+export async function resumeSubscription(id) {
+	const r = await call("DyPOS.api.subscriptions.resume_subscription", { id })
+	return r
+}
+
+export async function cancelSubscription(id) {
+	const r = await call("DyPOS.api.subscriptions.cancel_subscription", { id })
+	return r
+}
+
+export async function runBilling(data) {
+	const r = await call("DyPOS.api.subscriptions.run_billing", data)
+	return r
+}
+
+export async function getSubscriptionReport() {
+	const r = await call("DyPOS.api.subscriptions.get_subscription_report", {})
+	return r
+}
+
+export async function getCustomerBillings(customerId, params = {}) {
+	const r = await call("DyPOS.api.subscriptions.get_customer_billings", {
+		customerId,
+		...params,
+	})
+	return {
+		billings: r.billings,
+		total: r.total,
+		limit: r.limit,
+		offset: r.offset,
+		hasMore: r.hasMore,
+	}
+}

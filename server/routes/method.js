@@ -36,9 +36,26 @@ import {
   loginIpLimiter,
 } from './auth.js';
 import { assertTenantScope, resolveTenantFilter } from '../lib/tenant.js';
+import { tenantColumnKnown } from '../lib/tenant-tables.js';
 import { authAttempts } from '../middleware/metrics.js';
 import { logger } from '../lib/logger.js';
 import { VERSION } from '../lib/version.js';
+import { registerOpeningBalanceVerbs } from './opening-balance-methods.js';
+import { registerSubscriptionVerbs } from './subscription-methods.js';
+import {
+	loadInvoiceFull as loadInvoiceFullRows,
+	mapInvoiceItemToRest,
+	mapInvoiceRowToDoc,
+	mapPaymentsFromFrappe,
+	parseMaybeJson,
+	toNum,
+} from './method-payloads.js';
+
+/** `loadInvoiceFull` is bound to this module's db handle in one place. */
+function loadInvoiceFull(id) {
+	return loadInvoiceFullRows(db, id);
+}
+
 import { DOCTYPES, resolveDoctype, mapCoupon } from './doctypes.js';
 
 export { DOCTYPES, resolveDoctype };
@@ -316,23 +333,6 @@ function redactRow(spec, row) {
   const out = { ...row };
   for (const col of forbidden) delete out[col];
   return out;
-}
-
-// Tables that carry tenant_id (keep in sync with schema.js + migrations).
-// Null = legacy global. NOTE: users.tenant_id is migration-added (v14+);
-// on a pre-migration DB the scoped queries fail closed to an empty list.
-const TENANT_TABLES = new Set([
-  'products', 'customers', 'invoices', 'stock_levels', 'shifts', 'offers', 'coupons',
-  'expenses', 'audit_trail', 'sync_log', 'webhook_outbox', 'user_sessions', 'users',
-  'settings', 'hardware_devices', 'store_synergies', 'merchant_insights', 'customer_feedback',
-  'payment_methods', 'business_settings', 'currencies', 'uoms',
-  'fiscal_years', 'invoice_sequences', 'subscription_plans', 'customer_subscriptions',
-  'subscription_billings', 'alert_notifications', 'devices', 'api_keys',
-  'password_resets', 'idempotency_keys', 'dispatcher_lock',
-]);
-
-function tenantColumnKnown(table) {
-  return TENANT_TABLES.has(String(table));
 }
 
 /** Append `(tenant_id=? OR tenant_id IS NULL)` when the caller is tenant-bound. Fail-closed: invalid/spoofed tenant → 403 (never an unscoped list). */
@@ -1555,104 +1555,7 @@ def('dypos.client.has_value', (params, req, res) => {
 // Domain methods: invoices / shifts / customers / auth / partials / offers
 // ══════════════════════════════════════════════════════════════════════
 
-function toNum(v, fallback = 0) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function parseMaybeJson(v) {
-  if (v == null) return v;
-  if (typeof v === 'object') return v;
-  if (typeof v === 'string') {
-    try { return JSON.parse(v); } catch { return v; }
-  }
-  return v;
-}
-
-function mapInvoiceItemToRest(it) {
-  const productId = String(it.item_code || it.productId || it.product_id || '').trim();
-  const qty = toNum(it.qty ?? it.quantity, 1);
-  const rate = it.rate != null ? toNum(it.rate) : toNum(it.unitPrice);
-  const discount = it.discount_amount != null ? toNum(it.discount_amount) : toNum(it.discount);
-  const discountPct = toNum(it.discount_percentage);
-  const lineGross = qty * rate;
-  const disc = discount > 0 ? discount : (discountPct > 0 ? (lineGross * discountPct) / 100 : 0);
-  return {
-    productId,
-    qty,
-    unitPrice: rate,
-    discount: Math.round(disc * 100) / 100,
-    taxRate: it.tax_rate != null ? toNum(it.tax_rate) : undefined,
-    uom: it.uom ? String(it.uom).slice(0, 20) : undefined,
-    warehouseId: it.warehouse ? String(it.warehouse).slice(0, 32) : undefined,
-    isFreeItem: Boolean(Number(it.is_free_item) || it.isFreeItem) || undefined,
-    freeQty: it.free_qty != null ? Math.max(0, Math.floor(toNum(it.free_qty))) : undefined,
-  };
-}
-
-function mapPaymentsFromFrappe(payments) {
-  if (!Array.isArray(payments)) return [];
-  return payments
-    .filter((p) => p && !p.is_customer_credit)
-    .map((p) => ({
-      method: String(p.mode_of_payment || p.method || 'CASH').toUpperCase().slice(0, 20),
-      amount: toNum(p.amount),
-      reference: String(p.reference || '').slice(0, 128),
-    }))
-    .filter((p) => p.amount >= 0)
-    .slice(0, 10);
-}
-
-function mapInvoiceRowToDoc(inv, items = null, payments = null) {
-  const out = {
-    name: inv.id,
-    id: inv.id,
-    invoice_name: inv.id,
-    doctype: 'Sales Invoice',
-    docstatus: inv.status === 'DRAFT' || inv.status === 'UNPAID' ? 0 : 1,
-    status: inv.status,
-    number: inv.number,
-    invoice_number: inv.number,
-    customer: inv.customer_id || 'WALK-IN',
-    customer_name: inv.customer_name,
-    customer_id: inv.customer_id,
-    subtotal: inv.subtotal,
-    total: inv.total,
-    grand_total: inv.total,
-    base_grand_total: inv.total,
-    discount_amount: inv.discount_amount,
-    total_taxes_and_charges: inv.tax_amount,
-    tax_amount: inv.tax_amount,
-    paid_amount: inv.paid_amount,
-    outstanding_amount: inv.remaining_amount,
-    remaining_amount: inv.remaining_amount,
-    change_amount: 0,
-    currency: inv.currency || 'SAR',
-    shift_id: inv.shift_id,
-    terminal_id: inv.terminal_id,
-    notes: inv.notes || '',
-    is_pos: 1,
-    update_stock: 1,
-    posting_date: String(inv.created_at || '').slice(0, 10),
-    creation: inv.created_at,
-    modified: inv.updated_at || inv.created_at,
-    created_at: inv.created_at,
-    // Return/void tracking: distinguishes cancellations from returns.
-    ...(inv.voided_at ? { voided_at: inv.voided_at, voided_by: inv.voided_by } : {}),
-    ...(inv.returned_at ? { returned_at: inv.returned_at, returned_by: inv.returned_by } : {}),
-  };
-  if (items) out.items = items;
-  if (payments) out.payments = payments;
-  return out;
-}
-
-function loadInvoiceFull(id) {
-  const inv = db.prepare('SELECT * FROM invoices WHERE id=?').get(id);
-  if (!inv) return null;
-  const items = db.prepare('SELECT * FROM invoice_items WHERE invoice_id=?').all(id);
-  const pays = db.prepare('SELECT * FROM payments WHERE invoice_id=?').all(id);
-  return { inv, items, pays };
-}
+/** Create sale or finalize a DRAFT — mirrors routes/invoices.js money/stock rules. */
 
 /** Create sale or finalize a DRAFT — mirrors routes/invoices.js money/stock rules. */
 function createOrFinalizeSale(req, payload) {
@@ -3932,6 +3835,9 @@ def('DyPOS.api.pos_profile.update_warehouse', (params, req, res) => {
 });
 
 // ── Lowercase dypos.* aliases (the bridge uses dypos.api.*) ─────────
+registerOpeningBalanceVerbs(def, requireUser);
+registerSubscriptionVerbs(def, requireUser);
+
 for (const [key, entry] of [...handlers.entries()]) {
   if (key.startsWith('DyPOS.')) {
     const lower = `dypos${key.slice(5)}`;

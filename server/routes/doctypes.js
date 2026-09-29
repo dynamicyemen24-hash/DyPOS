@@ -173,6 +173,36 @@ export const DOCTYPES = {
     defaultWhere: null,
     idAliases: ['id', 'name'],
   },
+  'Opening Balance': {
+    table: 'opening_balances',
+    idCol: 'id',
+    fields: {
+      name: 'id', fiscal_year: 'fiscal_year', account_type: 'account_type',
+      account_id: 'account_id', account_code: 'account_code',
+      account_name: 'account_name', product_id: 'product_id',
+      amount_minor: 'amount_minor',
+      quantity: 'quantity', notes: 'notes',
+    },
+    mapRow(r) {
+      return {
+        name: r.id, id: r.id, fiscal_year: r.fiscal_year,
+        account_type: r.account_type, account_id: r.account_id,
+        account_code: r.account_code, account_name: r.account_name,
+        // The ITEM this movement is about. A stock row without it is a balance
+        // nothing can join to the catalogue, so the link travels on every read
+        // (including the offline mirror) — an omitted column is how a client
+        // invents its own, wrong, way of matching rows to items.
+        product_id: r.product_id ?? null,
+        // Minor units travel as-is; the client formats with toMajor. Returning a
+        // float here is what makes a ledger disagree with itself by a halala.
+        amount_minor: r.amount_minor ?? 0,
+        quantity: r.quantity ?? 0, notes: r.notes,
+        created_at: r.created_at, updated_at: r.updated_at,
+      };
+    },
+    defaultWhere: null,
+    idAliases: ['id', 'name'],
+  },
 };
 
 export function resolveDoctype(doctype) {

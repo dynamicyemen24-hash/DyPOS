@@ -45,6 +45,7 @@ const ROUTE_NAMES = Object.freeze({
 	REPORTS: "Reports",
 	WORK_SCREENS: "WorkScreens",
 	SETTINGS: "Settings",
+	OPENING_BALANCES: "OpeningBalances",
 })
 
 const ROUTE_TITLES = Object.freeze({
@@ -57,6 +58,7 @@ const ROUTE_TITLES = Object.freeze({
 	[ROUTE_NAMES.STOCK_MANAGEMENT]: "إدارة المخزون",
 	[ROUTE_NAMES.WORK_SCREENS]: "شاشات العمل",
 	[ROUTE_NAMES.SETTINGS]: "الإعدادات العامة",
+	[ROUTE_NAMES.OPENING_BALANCES]: "الأرصدة الافتتاحية",
 	landing: "DyPOS",
 	[ROUTE_NAMES.NOT_FOUND]: "صفحة غير موجودة",
 })
@@ -223,6 +225,21 @@ const routes = [
 		path: "/settings",
 		name: ROUTE_NAMES.SETTINGS,
 		component: () => import("@/pages/SettingsPage.vue"),
+		meta: {
+			[ROUTE_META.requiresAuth]: true,
+		},
+	},
+
+	/**
+	 * الأرصدة الافتتاحية — مركز السنة المالية قبل أول فاتورة.
+	 *
+	 * مسار مستقل لا شاشة عمل: التحقق يبقى على السيرفر (ADMIN/MANAGER) والشاشة
+	 * تعلن ذلك بنفسها بدل أن تبدو قابلة للكتابة لكل من يصل إليها.
+	 */
+	{
+		path: "/opening-balances",
+		name: ROUTE_NAMES.OPENING_BALANCES,
+		component: () => import("@/pages/OpeningBalancesPage.vue"),
 		meta: {
 			[ROUTE_META.requiresAuth]: true,
 		},

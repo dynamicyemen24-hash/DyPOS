@@ -54,6 +54,12 @@ export const WORK_NAV_SECTIONS = Object.freeze([
 				to: { name: "Settings" },
 				icon: "settings",
 			},
+			{
+				id: "opening-balances",
+				label: "الأرصدة الافتتاحية",
+				to: { name: "OpeningBalances" },
+				icon: "book",
+			},
 		],
 	},
 ])

@@ -802,6 +802,58 @@ ALTER TABLE coupons ADD COLUMN IF NOT EXISTS tenant_id TEXT;
 CREATE INDEX IF NOT EXISTS idx_offers_tenant ON offers(tenant_id, is_active);
 CREATE INDEX IF NOT EXISTS idx_coupons_tenant ON coupons(tenant_id, is_active);
 INSERT INTO schema_version (version, description) VALUES (23, 'offers + coupons tenant isolation') ON CONFLICT DO NOTHING;
+
+-- ── v25: opening balances (أرصدة افتتاحية) ──
+-- The starting position a tenant carries INTO a fiscal year: customer
+-- receivables, cash on hand, and stock on hand. Without it a migrated or
+-- newly-imported business has no history, so aging, receivable and
+-- stock-valuation reports read zero for the period BEFORE the first invoice.
+--
+-- amount_minor is BIGINT minor units (halalas), never NUMERIC(12,2): opening
+-- balances feed receivables and stock valuation, and an auditor summing them
+-- against invoices must land on the same halala. NUMERIC(14,2) is still exact
+-- in Postgres, but BIGINT keeps the SQLite and Postgres representations of the
+-- same quantity literally identical (parity compares storage classes), so a
+-- value written on dev reads back byte-for-byte the same in production.
+--
+-- UNIQUE(fiscal_year, account_type, account_id, tenant_id) is what makes an
+-- import idempotent: re-importing the same file corrects the row in place
+-- instead of doubling the customer's debt.
+CREATE TABLE IF NOT EXISTS opening_balances (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id TEXT NOT NULL DEFAULT '',
+  fiscal_year TEXT NOT NULL,
+  account_type TEXT NOT NULL,
+  account_id TEXT NOT NULL DEFAULT '',
+  account_code TEXT NOT NULL DEFAULT '',
+  account_name TEXT NOT NULL DEFAULT '',
+  amount_minor BIGINT NOT NULL DEFAULT 0,
+  quantity NUMERIC(18,4) NOT NULL DEFAULT 0,
+  notes TEXT NOT NULL DEFAULT '',
+  created_by TEXT NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_opening_balance
+  ON opening_balances(fiscal_year, account_type, account_id, tenant_id);
+CREATE INDEX IF NOT EXISTS idx_opening_tenant
+  ON opening_balances(tenant_id, fiscal_year);
+INSERT INTO schema_version (version, description) VALUES (25, 'opening balances per fiscal year') ON CONFLICT DO NOTHING;
+
+-- v26: the ITEM an opening balance belongs to.
+--
+-- A stock row that names its item only in free text (account_id/account_code)
+-- cannot be joined to the catalogue, so the movement it records has no
+-- approvable counterpart: one item, many movements is the shape, and this is
+-- the FK that carries it. Indexed for the join direction that matters (every
+-- movement of one item, e.g. FEFO/expiry or a stock card).
+--
+-- Nullable by design: customer/cash/supplier positions have no item, and rows
+-- written before v26 have none either. A '' default would be WRONG rather than
+-- untidy — '' is non-NULL and no products.id equals it, so the FK rejects it.
+ALTER TABLE opening_balances ADD COLUMN IF NOT EXISTS product_id UUID REFERENCES products(id);
+CREATE INDEX IF NOT EXISTS idx_opening_product ON opening_balances(product_id);
+INSERT INTO schema_version (version, description) VALUES (26, 'opening balances item link (product_id)') ON CONFLICT DO NOTHING;
 /*
 ===============================================================================
 DyPOS — GLOBAL PRODUCTION DATABASE ENGINE PACK

@@ -174,7 +174,7 @@ export async function readLocalRows(doctype, options = {}, deps = {}) {
 	const table = MIRRORED_DOCTYPES[doctype]
 	if (!table)
 		return { ok: false, rows: [], reason: `no local mirror for ${doctype}` }
-	const { filters = [], limit = 0 } = options
+	const { filters = [], limit = 0, offset = 0 } = options
 	// Validate the filters BEFORE touching IndexedDB: a query we cannot honour
 	// must not read the database at all.
 	for (const filter of filters) {
@@ -190,7 +190,13 @@ export async function readLocalRows(doctype, options = {}, deps = {}) {
 		const all = await db.table(table).toArray()
 		const filtered = applyFilters(all, filters)
 		if (!filtered.ok) return { ok: false, rows: [], reason: filtered.reason }
-		const rows = limit > 0 ? filtered.rows.slice(0, limit) : filtered.rows
+		// Same windowing the server applies via `limit_start`/`limit_page_length`,
+		// so a paged reader walks identical rows online and offline.
+		const start = offset > 0 ? offset : 0
+		const rows =
+			limit > 0
+				? filtered.rows.slice(start, start + limit)
+				: filtered.rows.slice(start)
 		return { ok: true, rows, table }
 	} catch (error) {
 		log.warn("local mirror read failed", {

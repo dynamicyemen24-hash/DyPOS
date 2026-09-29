@@ -181,7 +181,23 @@ describe("the general settings screen is reachable from the POS", () => {
 	it("the settings route hosts the settings component and closes back", () => {
 		const settingsPage = read("src", "pages", "SettingsPage.vue")
 		expect(settingsPage).toContain("POSSettings")
-		expect(settingsPage).toContain('@close="goBack"')
+		// The event must be the one the CHILD actually emits.
+		//
+		// This assertion used to require `@close="goBack"`, but `POSSettings`
+		// declares `defineEmits(["update:modelValue"])` and never emits `close` —
+		// so the listener it required was a dead contract: a handler wired to an
+		// event that cannot fire, i.e. a close button that does nothing. It
+		// passed while the real defect was live, because the same page passed
+		// `:show` instead of `:model-value` and the overlay never rendered at all
+		// (see tests/settingsPage.test.js for the rendered-output guard).
+		//
+		// Pinning the wiring to the emitted event is what makes "closes back"
+		// true rather than merely present in the source.
+		expect(settingsPage).toContain('@update:model-value="goBack"')
+		// And the prop the overlay really declares, so the surface is not blank.
+		expect(settingsPage).toContain(':model-value="true"')
+		// A re-introduction of the dead `close` listener must fail here too.
+		expect(settingsPage).not.toContain('@close="goBack"')
 	})
 })
 

@@ -54,6 +54,7 @@ import { resolveTechnicalDebtAndOptimize } from './lib/productionRelease.js';
 
 import reportsRoutes from './routes/reports.js';
 import subscriptionsRoutes from './routes/subscriptions.js';
+import openingBalancesRoutes from './routes/opening-balances.js';
 import openapiRoutes from './routes/openapi.js';
 import deviceRoutes from './routes/device.js';
 import devicesRoutes from './routes/devices.js';
@@ -470,6 +471,7 @@ app.use('/api/fiscal-years', authMiddleware, fiscalRoutes);
 app.use('/api/reports', authMiddleware, reportsRoutes);
 app.use('/api/devices', authMiddleware, devicesRoutes);
 app.use('/api/subscriptions', authMiddleware, subscriptionsRoutes);
+app.use('/api/opening-balances', authMiddleware, openingBalancesRoutes);
 app.use('/api/marketing', marketingRoutes);
 app.use('/api/growth', growthRoutes);
 app.use('/api/print-configs', printConfigsRoutes);

@@ -93,7 +93,13 @@ export async function methodGetList(doctype, options = {}) {
  * @returns {Promise<{rows: Array, source: string, error: Error|null}>}
  */
 export async function methodGetListWithSource(doctype, options = {}) {
-	const { fields, filters = [], orderBy = null, limit = 0 } = options
+	const {
+		fields,
+		filters = [],
+		orderBy = null,
+		limit = 0,
+		offset = 0,
+	} = options
 	try {
 		const response = await methodCall("dypos.client.get_list", {
 			doctype,
@@ -101,7 +107,7 @@ export async function methodGetListWithSource(doctype, options = {}) {
 			filters,
 			order_by: orderBy,
 			limit_page_length: limit,
-			limit_start: 0,
+			limit_start: offset,
 		})
 		const rows = response?.message ?? response
 		return {
@@ -111,7 +117,7 @@ export async function methodGetListWithSource(doctype, options = {}) {
 		}
 	} catch (error) {
 		if (error?.code === NO_DYPOS_API) throw error
-		const local = await readLocalRows(doctype, { filters, limit })
+		const local = await readLocalRows(doctype, { filters, limit, offset })
 		if (local.ok && local.rows.length > 0) {
 			logger.warn("server unreachable — serving mirrored local rows", {
 				doctype,

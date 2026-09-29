@@ -4,19 +4,38 @@
    ============================================================================= */
 
 .dy-login {
-	--login-panel-width: min(100%, 620px);
-	--login-content-width: 480px;
+	/*
+	 * العرض نفسه يتغيّر بتغيّر الشاشة: 480px كان يضيّق حقلَي الدخول على
+	 * الشاشات المتوسطة ويجعل سطر «الخيارات» يلتفّ. 520px يمنح حقل الرمز
+	 * المتباعد (`letter-spacing: 0.4em`) مساحة دون أن يتزاحم الزر.
+	 */
+	--login-content-width: 520px;
 
 	position: relative;
 	display: grid;
+
+	/*
+	 * مناطق صريحة بدل التوزيع التلقائي.
+	 *
+	 * شريط «عدم الاتصال» ابن مباشر لهذه الشبكة. بدون مناطق، كان يملأ الخلية
+	 * (1,1) فيزاح لوحة الهوية إلى العمود الثاني ولوحة النموذج إلى الصف
+	 * الثاني — أي أن التخطيط ينهار في الحالة التي يجب أن تصمد فيها الشاشة
+	 * على أي حال. الصف الأول `auto` يطوى إلى صفر حين لا يكون الشريط موجودًا،
+	 * فلا يدفع أي شيء.
+	 */
 	grid-template-columns: minmax(360px, 0.9fr) minmax(520px, 1.1fr);
+	grid-template-rows: auto minmax(0, 1fr);
+	grid-template-areas:
+		"banner banner"
+		"brand panel";
 
 	min-height: 100vh;
 	min-height: 100dvh;
 
 	overflow: hidden;
 
-	background: var(--dy-bg);
+	/* الصفحة بأرضية هادئة، والبطاقة فوقها: تمايزٌ لونيٌّ حقيقي لا ظلٌّ واحد. */
+	background: var(--dy-surface-soft);
 	color: var(--dy-text);
 
 	font-family: var(--dy-font-arabic);
@@ -29,6 +48,8 @@
    ============================================================================= */
 
 .dy-login__brand {
+	grid-area: brand;
+
 	position: relative;
 	display: flex;
 	min-height: 100%;
@@ -112,17 +133,53 @@
 	padding-block: 72px 48px;
 }
 
+/*
+ * شارة الحالة، لا سطر نص.
+ *
+ * كانت «نقطة البيع الذكية» نصًارماديًا يعلو العنوان بلا دور وظيفي؛ صارت كبسولة
+ * زجاجية بنقطة نابضة، فصار الشكل وحده يقول شيئًا (نظام يعمل) قبل قراءة أي نص.
+ * النقطة `aria-hidden` لأن النابض لا يُنطَق.
+ */
 .dy-login__eyebrow {
 	display: inline-flex;
 	align-items: center;
+	gap: 9px;
 
 	margin-bottom: var(--dy-space-5);
 
-	color: rgb(255 255 255 / 0.72);
+	padding: 7px 14px 7px 12px;
 
-	font-size: 0.9rem;
+	border: 1px solid rgb(255 255 255 / 0.16);
+
+	border-radius: var(--dy-radius-full);
+
+	background: rgb(255 255 255 / 0.07);
+
+	backdrop-filter: blur(12px) saturate(1.3);
+	-webkit-backdrop-filter: blur(12px) saturate(1.3);
+
+	box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08);
+
+	color: rgb(255 255 255 / 0.86);
+
+	font-size: 0.78rem;
 	font-weight: 700;
 	letter-spacing: 0.02em;
+}
+
+.dy-login__eyebrow-dot {
+	width: 7px;
+	height: 7px;
+
+	flex: 0 0 auto;
+
+	border-radius: var(--dy-radius-full);
+
+	background: var(--dy-mint-400);
+
+	box-shadow: 0 0 0 3px rgb(var(--dy-mint-c-500) / 0.28);
+
+	animation: dy-pulse-soft 2.6s var(--dy-ease-standard) infinite;
 }
 
 .dy-login__brand-title {
@@ -164,15 +221,22 @@
 
 	min-height: 38px;
 
-	padding-inline: 11px;
+	padding-inline: 12px;
 
-	border: 1px solid rgb(255 255 255 / 0.12);
+	border: 1px solid rgb(255 255 255 / 0.14);
 
 	border-radius: var(--dy-radius-lg);
 
-	background: rgb(255 255 255 / 0.055);
+	background: rgb(255 255 255 / 0.06);
 
-	color: rgb(255 255 255 / 0.82);
+	/* الزجاج: تمويه + إضاءة علوية رفيعة. الخلفية خلفه صورة، فالحافة وحدها
+	   لا تكفي — الطبقة نصف الشفافة هي ما يبقي النص مقروءًا فوق أي بكسل. */
+	backdrop-filter: blur(10px) saturate(1.2);
+	-webkit-backdrop-filter: blur(10px) saturate(1.2);
+
+	box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.07);
+
+	color: rgb(255 255 255 / 0.86);
 
 	font-size: 0.82rem;
 }
@@ -233,6 +297,8 @@
    ============================================================================= */
 
 .dy-login__panel {
+	grid-area: panel;
+
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -240,20 +306,127 @@
 	min-width: 0;
 	min-height: 100%;
 
+	/* الهوامش الآمنة تخصّ الصفحة لا البطاقة: البطاقة تُزاح عن الحواف بيقين
+	   ١٦px، بينما الحافة نفسها يجب أن تبقى ملتصقة بحدّ الشاشة على iOS. */
+	padding: max(16px, env(safe-area-inset-top)) 16px
+		max(16px, env(safe-area-inset-bottom));
+
 	overflow: auto;
 
-	background: var(--dy-bg);
+	/* توهّج عريض في الزاوية العليا من جهة البطاقة: يوجّه العين من الهوية
+	   الداكنة إلى النموذج دون أن يضيف لونًا عابرًا. */
+	background: radial-gradient(
+		85% 55% at 78% 4%,
+		rgb(var(--dy-brand-c-500) / 0.08),
+		transparent 62%
+	);
 }
 
 .dy-login__panel-inner {
+	position: relative;
+
+	/* يقصّ شريط التقدّم على زوايا البطاقة الدائرية بدل أن يفيض فوقها. */
+	overflow: hidden;
+
 	width: min(100%, var(--login-content-width));
 
-	padding: max(48px, env(safe-area-inset-top)) 40px
-		max(40px, env(safe-area-inset-bottom));
+	padding: clamp(28px, 3.2vw, 44px);
+
+	border: 1px solid var(--dy-border-soft);
+
+	border-radius: var(--dy-radius-2xl);
+
+	background: var(--dy-surface);
+
+	box-shadow: var(--dy-elevation-3);
+}
+
+/* =============================================================================
+   Progress Rail — the busy state the page declared but never styled
+   =============================================================================
+   `dy-login--busy` was set on the root for the whole life of the page and had
+   no rule anywhere: the only progress signal was the button's own spinner, and
+   the form around it looked idle. This is that state — an indeterminate rail
+   clipped to the card's top edge, which costs one element and reads at a
+   glance from a terminal two metres away.
+   ========================================================================== */
+
+.dy-login__progress {
+	position: absolute;
+	inset-block-start: 0;
+	inset-inline: 0;
+
+	height: 3px;
+
+	overflow: hidden;
+
+	/* الشريط مؤشر، لا هدف: لا يحجب أول حقل. */
+	pointer-events: none;
+}
+
+.dy-login__progress-bar {
+	display: block;
+
+	width: 38%;
+	height: 100%;
+
+	background: linear-gradient(
+		90deg,
+		transparent,
+		var(--dy-accent) 35%,
+		var(--dy-accent) 65%,
+		transparent
+	);
+
+	opacity: 0;
+}
+
+.dy-login--busy .dy-login__progress-bar {
+	opacity: 1;
+
+	animation: dy-login-progress 1.15s var(--dy-ease-standard) infinite;
+}
+
+@keyframes dy-login-progress {
+	from {
+		transform: translateX(-115%);
+	}
+
+	to {
+		transform: translateX(365%);
+	}
+}
+
+/* المسار من اليمين لليسار: نفس الحركة، معكوسة الاتجاه. */
+[dir="rtl"] .dy-login__progress-bar {
+	animation-direction: reverse;
+}
+
+/* القفل طبقة فوق البطاقة: الطمس يوضّح أن هناك ما ينتظر خلفها. */
+.dy-login--locked .dy-login__panel-inner {
+	filter: blur(3px) saturate(0.85);
+}
+
+.dy-login__panel-inner,
+.dy-login--locked .dy-login__panel-inner {
+	transition: filter var(--dy-dur-moderate) var(--dy-ease-standard);
+}
+
+.dy-login--busy .dy-login__panel-inner {
+	box-shadow: var(--dy-elevation-4);
+}
+
+/* أثناء الإرسال: الروابط الثانوية لا تقبل الضغط، وتقول ذلك بلونها لا بتعتيتها
+   (بوابة `compounded dimming`: اللون وحده، ٤٫٧:١ على الأقل). */
+.dy-login--busy .dy-login__link-button,
+.dy-login--busy .dy-login__register a {
+	pointer-events: none;
+
+	color: var(--dy-text-muted);
 }
 
 .dy-login__header {
-	margin-bottom: var(--dy-space-8);
+	margin-bottom: var(--dy-space-7);
 }
 
 .dy-login__mobile-logo {
@@ -296,6 +469,82 @@
    Runtime
    ============================================================================= */
 
+/*
+ * One anatomy for the three status surfaces (runtime / error / lockout).
+ *
+ * They were three adjacent rules with three paddings and three borders, all
+ * saying the same thing - "something happened, and here is how bad" - in three
+ * different ways. They now share padding, border and a 3px status rail, so the
+ * trio moves as one.
+ */
+.dy-login__runtime,
+.dy-login__error,
+.dy-login__rate-limit {
+	position: relative;
+
+	padding: 13px 14px 13px 17px;
+
+	border: 1px solid var(--dy-border);
+	border-inline-start-width: 3px;
+
+	border-radius: var(--dy-radius-lg);
+
+	background: var(--dy-surface);
+
+	color: var(--dy-text-secondary);
+
+	overflow: hidden;
+}
+
+/* الحافة الملوّنة هي الدرجة: أخضر/كهرماني/أحمر حسب حالة السطح. */
+.dy-login__runtime::after,
+.dy-login__error::after,
+.dy-login__rate-limit::after {
+	content: "";
+
+	position: absolute;
+	inset-block: 0;
+	inset-inline-start: 0;
+
+	width: 3px;
+
+	background: var(--dy-text-muted);
+}
+
+.dy-login__runtime--info::after {
+	background: var(--dy-accent);
+
+	animation: dy-state-pulse 1.6s var(--dy-ease-standard) infinite;
+}
+
+.dy-login__runtime--success::after {
+	background: var(--dy-mint-600);
+}
+
+.dy-login__runtime--warning::after {
+	background: var(--dy-amber-600);
+}
+
+.dy-login__runtime--error::after,
+.dy-login__error::after {
+	background: var(--dy-crimson-600);
+}
+
+.dy-login__rate-limit::after {
+	background: var(--dy-amber-600);
+}
+
+@keyframes dy-state-pulse {
+	0%,
+	100% {
+		opacity: 0.3;
+	}
+
+	50% {
+		opacity: 1;
+	}
+}
+
 .dy-login__runtime {
 	display: flex;
 	align-items: center;
@@ -304,15 +553,6 @@
 	min-height: 52px;
 
 	margin-bottom: var(--dy-space-5);
-	padding: 10px 12px;
-
-	border: 1px solid var(--dy-border);
-
-	border-radius: var(--dy-radius-lg);
-
-	background: var(--dy-surface);
-
-	color: var(--dy-text-secondary);
 }
 
 .dy-login__runtime-icon {
@@ -398,21 +638,23 @@
    Error
    ============================================================================= */
 
+/* The border/background/box come from the shared anatomy above; only the
+   severity colour and the flex layout are this surface's own. */
 .dy-login__error {
 	display: flex;
 	align-items: flex-start;
 	gap: 10px;
 
 	margin-bottom: var(--dy-space-5);
-	padding: 13px 14px;
 
-	border: 1px solid rgb(var(--dy-crimson-c-500) / 0.24);
-
-	border-radius: var(--dy-radius-lg);
+	border-color: rgb(var(--dy-crimson-c-500) / 0.24);
 
 	background: rgb(var(--dy-crimson-c-500) / 0.07);
 
 	color: var(--dy-crimson-700);
+
+	/* It is a failure, not a layout shift: the card must not resize around it. */
+	animation: dy-pop-in var(--dy-dur-moderate) var(--dy-ease-emphasized);
 }
 
 .dy-login__error-icon {
@@ -510,12 +752,27 @@
 		var(--dy-dur-fast) var(--dy-ease-standard);
 }
 
+/* Hover is a separate, weaker state than focus: it lifts the border one step
+   and stops, so the focus ring is never competing with a second signal.
+   Both exclusions are load-bearing, not tidiness: `:focus-within` because
+   `:not(:focus-within)` scores 0,3,0 against `:focus-within`'s 0,2,0, so a
+   hovering field would otherwise paint a neutral border *over* its focus
+   colour; and the error wrap because a neutral hover must never overwrite the
+   severity the field is already showing. */
+.dy-login__input-wrap:hover:not(:focus-within):not(
+		.dy-login__input-wrap--error
+	) {
+	border-color: var(--dy-border-strong);
+}
+
 .dy-login__input-wrap:focus-within {
 	border-color: var(--dy-accent);
 
 	box-shadow: 0 0 0 3px rgb(var(--dy-brand-c-500) / 0.12);
 }
 
+/* The leading icon joins the field's state: the icon is the label the eye
+   lands on first, so it is the first thing that should confirm focus. */
 .dy-login__input-icon {
 	position: absolute;
 	inset-inline-start: 16px;
@@ -528,6 +785,12 @@
 	color: var(--dy-text-muted);
 
 	pointer-events: none;
+
+	transition: color var(--dy-dur-fast) var(--dy-ease-standard);
+}
+
+.dy-login__input-wrap:focus-within .dy-login__input-icon {
+	color: var(--dy-accent);
 }
 
 .dy-login__input {
@@ -535,7 +798,9 @@
 	min-width: 0;
 	min-height: var(--dy-control-h-xl);
 
-	padding: 0 48px 0 48px;
+	/* 56px on the trailing side clears the 44px show/hide toggle (6px inset
+	   + 44px target) so the two can never overlap. */
+	padding: 0 56px 0 48px;
 
 	border: 0;
 	outline: 0;
@@ -571,14 +836,19 @@
 
 .dy-login__password-toggle {
 	position: absolute;
-	inset-inline-end: 8px;
+	inset-inline-end: 6px;
 
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 
-	width: 40px;
-	height: 40px;
+	/*
+	 * 44px, not 40px: this is a touch target on a POS terminal (WCAG 2.2
+	 * SC 2.5.8 asks 24px; the design system's own floor is 44px). It was
+	 * the only interactive element on the page below that floor.
+	 */
+	width: var(--dy-touch-min);
+	height: var(--dy-touch-min);
 
 	border: 0;
 	border-radius: var(--dy-radius-md);
@@ -622,11 +892,21 @@
 	align-items: center;
 	gap: 8px;
 
+	/* The visible box is 18px, but the *target* is the whole label: this is
+	   the row a finger has to hit on a terminal, so it carries the floor. */
+	min-height: var(--dy-touch-min);
+
 	color: var(--dy-text-secondary);
 
 	font-size: 0.8rem;
 
 	cursor: pointer;
+
+	transition: color var(--dy-dur-fast) var(--dy-ease-standard);
+}
+
+.dy-login__remember:hover {
+	color: var(--dy-text-strong);
 }
 
 .dy-login__remember input {
@@ -688,22 +968,54 @@
 }
 
 .dy-login__forgot {
+	display: inline-flex;
+	align-items: center;
+
+	min-height: var(--dy-touch-min);
+
 	color: var(--dy-text-link);
 
 	font-size: 0.8rem;
 	font-weight: 750;
 
 	text-decoration: none;
+
+	transition: color var(--dy-dur-fast) var(--dy-ease-standard);
 }
 
 .dy-login__forgot:hover {
+	color: var(--dy-primary-hover);
+
 	text-decoration: underline;
 	text-underline-offset: 3px;
 }
 
+/*
+ * The primary action is the only thing on the card that should feel physical.
+ *
+ * A brand-tinted shadow lifts it off the surface, and the lift grows on hover
+ * — but never on a disabled button, where the shadow would advertise a
+ * pressability the control does not have (the compounding-dimming lesson).
+ */
 .dy-login__submit {
 	width: 100%;
+
 	margin-top: var(--dy-space-2);
+
+	box-shadow: var(--dy-shadow-brand);
+
+	transition: transform var(--dy-dur-fast) var(--dy-ease-standard), box-shadow
+		var(--dy-dur-fast) var(--dy-ease-standard);
+}
+
+.dy-login__submit:not(:disabled):hover {
+	transform: translateY(-1px);
+
+	box-shadow: var(--dy-elevation-4);
+}
+
+.dy-login__submit:not(:disabled):active {
+	transform: translateY(0);
 }
 
 /* =============================================================================
@@ -711,7 +1023,9 @@
    ============================================================================= */
 
 .dy-login__security {
-	margin-top: var(--dy-space-7);
+	margin-top: var(--dy-space-6);
+
+	overflow: hidden;
 
 	border: 1px solid var(--dy-border);
 
@@ -768,7 +1082,13 @@
 }
 
 .dy-login__details-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
 	width: 100%;
+
+	min-height: var(--dy-touch-min);
 
 	padding: 8px 14px;
 
@@ -784,6 +1104,9 @@
 	font-weight: 700;
 
 	cursor: pointer;
+
+	transition: color var(--dy-dur-fast) var(--dy-ease-standard), background-color
+		var(--dy-dur-fast) var(--dy-ease-standard);
 }
 
 .dy-login__details-toggle:hover {
@@ -826,6 +1149,70 @@
    Footer
    ============================================================================= */
 
+/* =============================================================================
+   Register — the row that used to be an orphan grid item
+   =============================================================================
+   `<div class="dy-login__register-link">` was a direct child of the two-column
+   `.dy-login` grid with no rule of its own: auto-placement put it in row 2,
+   column 1 — under the dark brand panel — rendered in the browser's default
+   link colour on a surface the design system never measured. It now lives
+   inside the card, where it is a quiet secondary action under a hairline.
+   `grid-area: banner` exists for the same class of reason: in a grid, an
+   unplaced child is a layout accident waiting to happen.
+   ========================================================================== */
+
+.dy-login__register {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--dy-space-2);
+
+	margin-top: var(--dy-space-6);
+
+	padding-top: var(--dy-space-5);
+
+	border-top: 1px solid var(--dy-border-soft);
+
+	color: var(--dy-text-secondary);
+
+	font-size: 0.82rem;
+
+	line-height: 1.6;
+}
+
+.dy-login__register a {
+	display: inline-flex;
+	align-items: center;
+
+	min-height: var(--dy-touch-min);
+
+	color: var(--dy-text-link);
+
+	font-weight: 750;
+
+	text-decoration: none;
+
+	transition: color var(--dy-dur-fast) var(--dy-ease-standard);
+}
+
+.dy-login__register a:hover {
+	color: var(--dy-primary-hover);
+
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.dy-login__register a:focus-visible {
+	outline: var(--dy-focus-width) solid var(--dy-focus-color);
+
+	outline-offset: var(--dy-focus-offset);
+
+	border-radius: var(--dy-radius-xs);
+}
+
+/* Footer + the register row both close the card; the hairline above the
+   register row is what tells the eye "this is the end of the form", not
+   another field. */
 .dy-login__footer {
 	display: flex;
 	justify-content: center;
@@ -874,6 +1261,8 @@
 	box-shadow: var(--dy-elevation-5);
 
 	text-align: center;
+
+	animation: dy-pop-in var(--dy-dur-moderate) var(--dy-ease-emphasized);
 }
 
 .dy-login__lock-icon {
@@ -972,8 +1361,7 @@
 	.dy-login__panel-inner {
 		width: min(100%, 520px);
 
-		padding: max(32px, env(safe-area-inset-top)) 28px
-			max(28px, env(safe-area-inset-bottom));
+		padding: clamp(24px, 6vw, 34px);
 	}
 
 	.dy-login__mobile-logo {
@@ -991,10 +1379,6 @@
 }
 
 @media (max-width: 560px) {
-	.dy-login__panel-inner {
-		padding-inline: 18px;
-	}
-
 	.dy-login__title {
 		font-size: 2rem;
 	}
@@ -1019,10 +1403,6 @@
 }
 
 @media (max-width: 380px) {
-	.dy-login__panel-inner {
-		padding-inline: 14px;
-	}
-
 	.dy-login__title {
 		font-size: 1.8rem;
 	}
@@ -1054,12 +1434,22 @@
 	.dy-login__runtime,
 	.dy-login__error,
 	.dy-login__security,
+	.dy-login__panel-inner,
 	.dy-login__lock-card {
 		border-color: CanvasText;
 	}
 
+	/* The focus ring is a border + box-shadow, and forced-colors drops both.
+	   Without this the focused field is indistinguishable from a resting one,
+	   which is exactly the state a cashier cannot afford to misread. */
+	.dy-login__input-wrap:focus-within {
+		outline: 2px solid Highlight;
+		outline-offset: 1px;
+	}
+
 	.dy-login__forgot,
-	.dy-login__section-label {
+	.dy-login__section-label,
+	.dy-login__register a {
 		color: LinkText;
 	}
 
@@ -1070,6 +1460,18 @@
 	.dy-login__checkbox {
 		border-color: CanvasText;
 	}
+
+	/* The rail is a background, and backgrounds are the first thing a forced
+	   palette removes: the severity would go with it. */
+	.dy-login__runtime::after,
+	.dy-login__error::after,
+	.dy-login__rate-limit::after {
+		background: CanvasText;
+	}
+
+	.dy-login__progress-bar {
+		background: Highlight;
+	}
 }
 
 /* =============================================================================
@@ -1079,8 +1481,11 @@
 @media print {
 	.dy-login__brand,
 	.dy-login__runtime,
+	.dy-login__error,
 	.dy-login__security,
 	.dy-login__footer,
+	.dy-login__register,
+	.dy-login__progress,
 	.dy-login__lock {
 		display: none !important;
 	}
@@ -1096,6 +1501,13 @@
 
 	.dy-login__panel {
 		display: block;
+
+		background: none;
+	}
+
+	.dy-login__panel-inner {
+		border: 0;
+		box-shadow: none;
 	}
 }
 
@@ -1107,11 +1519,13 @@
 	display: flex;
 	align-items: center;
 	gap: 10px;
+
 	margin-bottom: var(--dy-space-5);
-	padding: 12px 14px;
-	border: 1px solid rgb(var(--dy-amber-c-500) / 0.28);
-	border-radius: var(--dy-radius-lg);
+
+	border-color: rgb(var(--dy-amber-c-500) / 0.28);
+
 	background: rgb(var(--dy-amber-c-500) / 0.07);
+
 	color: var(--dy-amber-700);
 }
 
@@ -1143,16 +1557,50 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background: rgb(0 0 0 / 0.5);
+
+	padding: var(--dy-space-5);
+
+	background: rgb(var(--dy-brand-c-950) / 0.62);
+
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+}
+
+/*
+ * `<Transition name="dy-fade">` wrapped this dialog and nothing in the repo
+ * defined a single `.dy-fade-*` class, so the transition resolved to nothing
+ * and the dialog simply blinked. Vue's four classes are the whole contract:
+ * two for the active window, two for the ends.
+ */
+.dy-fade-enter-active,
+.dy-fade-leave-active {
+	transition: opacity var(--dy-dur-moderate) var(--dy-ease-standard), transform
+		var(--dy-dur-moderate) var(--dy-ease-emphasized);
+}
+
+.dy-fade-enter-from,
+.dy-fade-leave-to {
+	opacity: 0;
+
+	transform: translateY(10px) scale(0.98);
 }
 
 .dy-login__timeout-card {
 	width: min(100%, 420px);
+
 	padding: 24px;
-	background: var(--dy-bg);
+
+	border: 1px solid var(--dy-border);
+
 	border-radius: var(--dy-radius-xl);
-	box-shadow: 0 24px 64px rgb(0 0 0 / 0.3);
+
+	background: var(--dy-surface);
+
+	box-shadow: var(--dy-elevation-5);
+
 	text-align: center;
+
+	animation: dy-pop-in var(--dy-dur-moderate) var(--dy-ease-emphasized);
 }
 
 .dy-login__timeout-card h3 {
@@ -1181,11 +1629,18 @@
 }
 
 .dy-login__timeout-logout {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+
+	min-height: var(--dy-touch-min);
+
 	padding: 8px 16px;
 	border: 1px solid var(--dy-border);
 	border-radius: var(--dy-radius-lg);
 	background: transparent;
 	color: var(--dy-text-secondary);
+	font: inherit;
 	font-size: 0.85rem;
 	cursor: pointer;
 	transition: background-color var(--dy-dur-fast) var(--dy-ease-standard),
@@ -1204,6 +1659,11 @@
    ============================================================================= */
 
 .dy-login__offline-banner {
+	/* Declared, not auto-placed: see the `grid-template-areas` note on
+	   `.dy-login`. This banner is the one child that appears and disappears,
+	   and it is the one child that must not move anything when it does. */
+	grid-area: banner;
+
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -1302,13 +1762,17 @@
 	color: var(--dy-amber-400);
 }
 
-.dy-login--dark .dy-login__input-wrap {
-	background: var(--dy-surface);
-	border-color: var(--dy-border);
-}
-
+/* The field keeps `--dy-input-bg`: overriding it with `--dy-surface` here made
+   the input the same colour as the card it now sits on. Only the ring needed
+   strengthening for a near-black surface. */
 .dy-login--dark .dy-login__input-wrap:focus-within {
 	box-shadow: 0 0 0 3px rgb(var(--dy-brand-c-500) / 0.18);
+}
+
+.dy-login--dark .dy-login__panel-inner {
+	border-color: var(--dy-border);
+
+	box-shadow: var(--dy-elevation-4);
 }
 
 .dy-login--dark .dy-login__error {
@@ -1329,7 +1793,7 @@
 
 .dy-login--dark .dy-login__timeout-card {
 	background: var(--dy-surface);
-	box-shadow: 0 24px 64px rgb(0 0 0 / 0.5);
+	box-shadow: var(--dy-elevation-5);
 }
 
 /* =============================================================================
@@ -1364,9 +1828,31 @@
 /* =============================================================================
    Focus Visible Enhancement
    ============================================================================= */
+/* -----------------------------------------------------------------------------
+ * THE BUG THIS BLOCK USED TO BE.
+ *
+ * The rule that opened it read:
+ *
+ *     .dy-login__input:focus-visible,
+ *     .dy-login__password-toggle:focus-visible,
+ *     (a section comment wedged between the selectors, here)
+ *
+ *         .dy-login__quick-actions { display: flex; ... }
+ *
+ * A comment inside a selector list is legal CSS, so nothing warned: three
+ * selectors collapsed into ONE rule, and the block's layout - display:flex,
+ * a 16px margin-top, a 16px padding-top and a border-top - was applied to the
+ * focused <input> itself. Every time a cashier focused the email or password
+ * field, that field jumped ~28px down and grew a divider line. Every suite
+ * stayed green, because no test read this file.
+ *
+ * The two state selectors were redundant anyway: the field's ring comes from
+ * `.dy-login__input-wrap:focus-within`, and the toggle already has its own
+ * focus rule further up. So the list is gone rather than repaired - a comment
+ * wedged into a selector list is not a formatting nit, it is a silent cascade
+ * change.
+ * -------------------------------------------------------------------------- */
 
-.dy-login__input:focus-visible,
-.dy-login__password-toggle:focus-visible,
 /* =============================================================================
    PIN QUICK LOGIN
    -----------------------------------------------------------------------------
@@ -1375,7 +1861,7 @@
    magic z-index), so the new surface cannot look like a second design language.
    ========================================================================== */
 
-	.dy-login__quick-actions {
+.dy-login__quick-actions {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
@@ -1423,9 +1909,13 @@
 	background: var(--dy-surface-hover);
 }
 
+/* `--dy-focus-width/--dy-focus-color/--dy-focus-offset` are the system's own
+   names. The ring-* aliases resolve only through the legacy brand layer, and
+   a page style that depends on the layer the repo is trying to retire is one
+   refactor away from losing its focus indicator silently. */
 .dy-login__link-button:focus-visible {
-	outline: var(--dy-focus-ring-width) solid var(--dy-focus-ring-color);
-	outline-offset: var(--dy-focus-ring-offset);
+	outline: var(--dy-focus-width) solid var(--dy-focus-color);
+	outline-offset: var(--dy-focus-offset);
 }
 
 .dy-login__link-button:disabled {
@@ -1449,6 +1939,11 @@
 	font-family: var(--dy-font-mono);
 	font-size: 1.15rem;
 	letter-spacing: 0.4em;
+
+	/* The tracking also lands *after* the last digit, which pushes a centred
+	   PIN half a step off centre. This puts it back. */
+	text-indent: 0.4em;
+
 	text-align: center;
 }
 
@@ -1472,8 +1967,13 @@
 	padding: var(--dy-space-5);
 
 	border: 1px solid var(--dy-border);
+	border-inline-start: 3px solid var(--dy-accent);
+
 	border-radius: var(--dy-radius-lg);
+
 	background: var(--dy-surface-hover);
+
+	animation: dy-pop-in var(--dy-dur-moderate) var(--dy-ease-emphasized);
 }
 
 .dy-login__pin-setup-title {

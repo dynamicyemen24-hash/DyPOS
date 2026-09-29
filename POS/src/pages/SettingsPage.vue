@@ -1,9 +1,12 @@
 <template>
 	<!--
 		الإعدادات العامة كصفحة كاملة (قابل للرابط العميق وزر الرجوع).
-		POSSettings نفسه طبقة تغطية ثابتة — نمرّر show=true ونقرّبها للصفحة.
+		POSSettings نفسه طبقة تغطية ثابتة — نمرّر model-value=true ونقرّبها للصفحة.
+		العقد هو modelValue/update:modelValue (كما تُعلنه POSSettings) لا show/close:
+		مرّرنا `show` فوصل `modelValue=undefined` فلم يرندر الجذر `v-if="show"`،
+		فبقيت الصفحة فارغة تمامًا.
 	-->
-	<POSSettings :show="true" @close="goBack" />
+	<POSSettings :model-value="true" @update:model-value="goBack" />
 </template>
 
 <script setup>

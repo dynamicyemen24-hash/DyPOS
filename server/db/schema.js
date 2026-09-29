@@ -17,8 +17,28 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DYPOS_DB_PATH || join(__dirname, '..', 'data', 'dypos.db');
 import { initGrowthEngineTables } from '../lib/growthEngine.js';
 import { migrateTenancy } from './migrations-tenancy.js';
+import { migrateOpeningBalances } from './migrations-opening-balances.js';
+import { migrateInvoiceReturnTracking } from './migrations-invoice-returns.js';
+import { migratePromotionTenancy } from './migrations-promotion-tenancy.js';
+import { migrateOpeningBalanceItems } from './migrations-opening-balance-items.js';
 
-const MIGRATION_VERSION = 24; // Increment when schema changes
+const MIGRATION_VERSION = 26; // Increment when schema changes
+
+/**
+ * Migrations that live in their own `db/migrations-*.js` file (v23+).
+ *
+ * Data, not a fourth copy-pasted `if (currentVersion < N) { try { … } catch }`
+ * block: a registration that differs from its neighbour's is how a version
+ * silently stops running, and this file is capped by `tests/fileSize.test.js` —
+ * every repeated wrapper is a line the cap cannot afford. Adding one is a single
+ * entry here; the DDL and its rationale stay with the migration.
+ */
+const LATE_MIGRATIONS = Object.freeze([
+	{ version: 23, run: migratePromotionTenancy, note: 'offers + coupons tenant isolation' },
+	{ version: 24, run: migrateInvoiceReturnTracking, note: 'invoice return tracking fields' },
+	{ version: 25, run: (d) => migrateOpeningBalances(d), note: 'opening balances per fiscal year' },
+	{ version: 26, run: migrateOpeningBalanceItems, note: 'opening balances item link (product_id)' },
+]);
 
 function columnExists(table, column) {
 	try {
@@ -961,40 +981,14 @@ export function migrate() {
     }
   }
 
-  // ── v23: promotions plane tenant isolation (offers + coupons) ──
-  // Offers and coupons are tenant-attributed business data (each store manages
-  // its own promotions), but their tables shipped without a tenant column —
-  // GET /api/offers leaked every tenant's promotions. Guarded add-column:
-  // legacy rows keep NULL = global (same rule as assertRecordTenant); the
-  // routes scope by tenant only when a caller provides one.
-  if (currentVersion < 23) {
+  // ── v23+: each step records its own schema_version row and is wrapped so a
+  // failure is DEFERRED with a warning instead of killing startup.
+  for (const step of LATE_MIGRATIONS) {
+    if (currentVersion >= step.version) continue;
     try {
-      addColumnIfMissing('offers', 'tenant_id', 'TEXT');
-      addColumnIfMissing('coupons', 'tenant_id', 'TEXT');
-      db.exec(`
-        CREATE INDEX IF NOT EXISTS idx_offers_tenant ON offers(tenant_id, is_active);
-        CREATE INDEX IF NOT EXISTS idx_coupons_tenant ON coupons(tenant_id, is_active);
-      `);
-      db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
-        .run(23, 'offers + coupons tenant isolation');
+      step.run(db, addColumnIfMissing);
     } catch (e) {
-      console.warn('[DyPOS] v23 migration deferred:', String(e.message).slice(0, 200));
-    }
-  }
-
-  // ── v24: invoice return tracking (returned_at/returned_by) ──
-  // Separates returns from voids semantically: voided_at/voided_by
-  // belong to cancellations; returned_at/returned_by belong to returns.
-  // Both coexist on the same invoice (an invoice could theoretically be
-  // returned then voided by an admin).
-  if (currentVersion < 24) {
-    try {
-      addColumnIfMissing('invoices', 'returned_at', 'TEXT');
-      addColumnIfMissing('invoices', 'returned_by', 'TEXT');
-      db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
-        .run(24, 'invoice return tracking fields');
-    } catch (e) {
-      console.warn('[DyPOS] v24 migration deferred:', String(e.message).slice(0, 200));
+      console.warn(`[DyPOS] v${step.version} (${step.note}) deferred:`, String(e.message).slice(0, 200));
     }
   }
 
