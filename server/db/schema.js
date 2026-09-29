@@ -1026,8 +1026,7 @@ export function snapshotForMigration(backupDir) {
   return snap;
 }
 
-// Named export kept in addition to the default export: `server.js` imports
-// `{ migrate, db, checkDbHealth }`, while every route module uses the default.
+// Named export kept for `server.js`; routes use the default export.
 // Both styles must resolve, otherwise the ESM linker fails at startup.
 export { db };
 export { MIGRATION_VERSION };
