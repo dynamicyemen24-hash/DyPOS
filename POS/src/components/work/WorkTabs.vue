@@ -27,6 +27,7 @@
         :aria-controls="`${tabId}-panel-${tab.id}`"
         :tabindex="activeTab === tab.id ? 0 : -1"
         :disabled="tab.disabled"
+        :aria-label="t(tab.label)"
         class="work-tabs__tab"
         :class="[
           { 'work-tabs__tab--active': activeTab === tab.id },

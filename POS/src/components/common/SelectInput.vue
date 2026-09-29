@@ -10,6 +10,10 @@
 			@keydown.escape="close"
 			@keydown.down.prevent="openAndFocusFirst"
 			:disabled="disabled"
+			:aria-label="placeholder"
+			:aria-expanded="isOpen"
+			:aria-haspopup="listbox"
+			:aria-controls="dropdownId"
 			class="w-full h-7 border border-gray-100 rounded bg-gray-100 hover:border-gray-200 hover:bg-gray-200 px-2 pe-8 text-base text-start transition-colors focus:border-gray-500 focus:outline-none focus:bg-white focus:shadow-sm flex items-center"
 			:class="[selectClass, disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer']"
 		>
@@ -38,10 +42,12 @@
 				<div
 					v-if="isOpen"
 					ref="dropdownRef"
+					:id="dropdownId"
 					class="fixed bg-white border border-gray-100 rounded-lg shadow-lg flex flex-col dropdown-z-index"
 					:style="dropdownStyle"
 					:class="searchable ? 'max-h-80' : 'max-h-60'"
 					role="listbox"
+					aria-label="خيارات"
 				>
 					<!-- Search Input (when searchable) -->
 					<div
@@ -58,6 +64,8 @@
 								v-model="searchQuery"
 								type="text"
 								:placeholder="searchPlaceholder"
+								:aria-label="searchPlaceholder"
+								:aria-controls="dropdownId"
 								class="w-full h-8 ps-8 pe-2 text-sm border border-gray-200 rounded bg-gray-50 focus:outline-none focus:border-gray-400 focus:bg-white"
 								@keydown.escape="close"
 								@keydown.down.prevent="focusFirstOption"
@@ -107,7 +115,15 @@
 
 <script setup>
 import { FeatherIcon } from "dypos-ui"
-import { computed, ref, onMounted, onBeforeUnmount, nextTick, watch } from "vue"
+import {
+	computed,
+	ref,
+	onMounted,
+	onBeforeUnmount,
+	nextTick,
+	useId,
+	watch,
+} from "vue"
 
 defineOptions({
 	inheritAttrs: false,
@@ -162,6 +178,14 @@ const searchInputRef = ref(null)
 const optionRefs = ref([])
 const dropdownPosition = ref({ top: 0, left: 0, width: 0 })
 const searchQuery = ref("")
+
+/**
+ * `aria-controls` has to point at THIS instance's listbox, and a hard-coded
+ * `id="dropdown"` gives every SelectInput on the screen the same one — invalid
+ * HTML, and a screen reader is told the trigger controls whichever dropdown it
+ * happens to find first.
+ */
+const dropdownId = `select-dropdown-${useId()}`
 
 const selectedLabel = computed(() => {
 	const selected = props.options.find((opt) => opt.value === props.modelValue)

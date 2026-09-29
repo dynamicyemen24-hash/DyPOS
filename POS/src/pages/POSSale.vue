@@ -46,8 +46,13 @@ import {
 	goToWorkScreens,
 } from "@/router"
 import { terminateSession } from "@/utils/auth"
-import { createOverlayCloser } from "@/composables/useOverlayCloser"
 import { createSaleNotification } from "@/composables/useSaleNotification"
+import {
+	createHeaderActions,
+	handleHeaderAction,
+} from "@/composables/usePosHeaderActions"
+import { createKeyboardShortcuts } from "@/composables/useKeyboardShortcuts"
+import { useConnectionWatch } from "@/composables/useConnectionWatch"
 import { gridNextIndex, readDirectionRTL } from "@/utils/gridNavigation"
 import POSHeader from "@/components/pos/POSHeader.vue"
 import SmartCashierDock from "@/components/pos/SmartCashierDock.vue"
@@ -1330,154 +1335,42 @@ async function handleLogout() {
 	goToLogin()
 }
 
-/** يغلق علمًا منطقيًا — يمنع `noAssignInExpressions` ويقرأ أوضح. */
-function setFalse(flag) {
-	return () => {
-		flag.value = false
-	}
-}
-
-/**
- * أولوية الإغلاق بمفتاح Escape — الترتيب هنا هو ترتيب الأولوية
- * (لوحة الاختصارات أولًا لأنها أصغر طبقة، ثم محرّر الكمية، فالدفع…).
- */
-const overlays = createOverlayCloser([
-	[showShortcutsPanel, setFalse(showShortcutsPanel)],
-	[() => Boolean(quantityEditor.value), closeQuantityEditor],
-	[showPaymentPanel, closePayment],
-	[showDiscountPanel, setFalse(showDiscountPanel)],
-	[showCustomerPanel, setFalse(showCustomerPanel)],
-	[showHeldSalesPanel, setFalse(showHeldSalesPanel)],
-])
-
-/** إجراءات الترويسة — خريطة بدالة switch أطول. */
-const headerActions = {
-	held: () => {
-		showHeldSalesPanel.value = true
-	},
-	returns: () => openReturns(),
-	customer: () => {
-		showCustomerPanel.value = true
-	},
-	// زر القائمة كان يُطلق menu-clicked بلا حالة مطابقة = زر ميت.
-	menu: () => goToWorkScreens(),
-}
-
-function handleHeaderAction(action) {
-	headerActions[action]?.()
-}
-
 /* ============================================================================
- * Keyboard Shortcuts
+ * Header Actions & Keyboard Shortcuts — extracted to composables
  * ========================================================================== */
 
-function handleKeydown(event) {
-	const target = event.target
+const headerActions = createHeaderActions({
+	showHeldSalesPanel,
+	openReturns,
+	showCustomerPanel,
+})
 
-	const isTyping =
-		target instanceof HTMLInputElement ||
-		target instanceof HTMLTextAreaElement ||
-		target instanceof HTMLSelectElement
-
-	/*
-	 * F2 — البحث
-	 */
-	if (event.key === "F2") {
-		event.preventDefault()
-
-		focusSearch()
-
-		return
-	}
-
-	/*
-	 * F8 — إظهار/إخفاء الكاشير الذكي
-	 */
-	if (event.key === "F8") {
-		event.preventDefault()
-
-		showSmartDock.value = !showSmartDock.value
-
-		return
-	}
-
-	/*
-	 * ? — مساعدة الاختصارات (يعمل مع Shift+؟ العربية)
-	 */
-	if ((event.key === "?" || event.key === "؟") && !isTyping) {
-		event.preventDefault()
-		showShortcutsPanel.value = !showShortcutsPanel.value
-		return
-	}
-
-	/*
-	 * Shift + Esc — تسجيل الخروج (مُعلن في جدول الاختصارات بالإعدادات).
-	 * يسبق فرع Escape العادي: كلاهما key === "Escape"، ولو جاء بعده ما نُفِّذ.
-	 */
-	if (event.key === "Escape" && event.shiftKey) {
-		event.preventDefault()
-
-		handleLogout()
-
-		return
-	}
-
-	/*
-	 * Escape — إغلاق overlay (الأولوية في useOverlayCloser، مسجّلة أدناه)
-	 */
-	if (event.key === "Escape") {
-		overlays.closeFirstOpen()
-
-		return
-	}
-
-	/*
-	 * Ctrl/Cmd + Enter — الدفع (يعمل حتى من داخل حقل البحث لسرعة الكاشير)
-	 */
-	if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-		if (canCheckout.value && !showPaymentPanel.value) {
-			event.preventDefault()
-
-			openPayment()
-		}
-	}
-
-	/*
-	 * F4 — تعليق البيع
-	 */
-	if (event.key === "F4" && props.allowHold) {
-		event.preventDefault()
-
-		holdSale()
-	}
-
-	/*
-	 * Delete — حذف العنصر المحدد
-	 */
-	if (event.key === "Delete" && activeProductIndex.value >= 0 && !isTyping) {
-		const item = cart.value[activeProductIndex.value]
-
-		if (item) {
-			removeItem(item)
-		}
-	}
-}
+const { handleKeydown } = createKeyboardShortcuts({
+	showShortcutsPanel,
+	quantityEditor,
+	showPaymentPanel,
+	showDiscountPanel,
+	showCustomerPanel,
+	showHeldSalesPanel,
+	showSmartDock,
+	searchInput,
+	canCheckout,
+	cart,
+	activeProductIndex,
+	closeQuantityEditor,
+	closePayment,
+	handleLogout,
+	openPayment,
+	holdSale,
+	removeItem,
+	allowHold: () => props.allowHold,
+})
 
 /* ============================================================================
  * Online / Offline
  * ========================================================================== */
 
-function handleOnline() {
-	isOnline.value = true
-
-	syncState.value = "ready"
-}
-
-function handleOffline() {
-	isOnline.value = false
-
-	syncState.value = "offline"
-}
+const { handleOnline, handleOffline } = useConnectionWatch(isOnline, syncState)
 
 /* ============================================================================
  * Product Keyboard Navigation
@@ -1612,7 +1505,7 @@ watch(
             @settings-clicked="goToSettings"
             @close-clicked="handleLogout"
             @menu-clicked="
-                handleHeaderAction('menu')
+                handleHeaderAction('menu', headerActions)
             "
         >
             <!-- مؤشر حالة المزامنة الحي (معلّق/متصل/مزامنة أولية) -->
@@ -1874,16 +1767,17 @@ watch(
                             }}
                         </span>
 
-                        <button
-                            v-if="
-                                searchDidYouMean
-                            "
-                            type="button"
-                            class="dy-pos-sale__smart-search-suggestion"
-                            @click="
-                                applyDidYouMean
-                            "
-                        >
+<button
+							v-if="
+								searchDidYouMean
+							"
+							type="button"
+							class="dy-pos-sale__smart-search-suggestion"
+							@click="
+								applyDidYouMean
+							"
+							:aria-label="`تطبيق اقتراح البحث: ${searchDidYouMean}`"
+						>
                             <FeatherIcon
                                 name="corner-up-right"
                                 :size="14"
@@ -2248,17 +2142,18 @@ watch(
 
                 <!-- Customer -->
 
-                <button
-                    v-if="
-                        showCustomer
-                    "
-                    type="button"
-                    class="dy-pos-sale__customer"
-                    @click="
-                        showCustomerPanel =
-                            true
-                    "
-                >
+<button
+					v-if="
+						showCustomer
+					"
+					type="button"
+					class="dy-pos-sale__customer"
+					@click="
+						showCustomerPanel =
+							true
+					"
+					aria-label="اختيار العميل"
+				>
                     <span
                         class="dy-pos-sale__customer-avatar"
                     >
@@ -2326,14 +2221,15 @@ watch(
                             اختر منتجًا من القائمة لبدء البيع.
                         </span>
 
-                        <button
-                            type="button"
-                            @click="
-                                focusSearch
-                            "
-                        >
-                            ابدأ البحث
-                        </button>
+<button
+							type="button"
+							@click="
+								focusSearch
+							"
+							aria-label="التركيز على شريط البحث"
+						>
+							ابدأ البحث
+						</button>
                     </div>
 
                     <div
@@ -2522,18 +2418,19 @@ watch(
 
                     <!-- Discount -->
 
-                    <button
-                        v-if="
-                            allowDiscount &&
-                            !cartEmpty
-                        "
-                        type="button"
-                        class="dy-pos-sale__discount-action"
-                        @click="
-                            showDiscountPanel =
-                                !showDiscountPanel
-                        "
-                    >
+<button
+						v-if="
+							allowDiscount &&
+							!cartEmpty
+						"
+						type="button"
+						class="dy-pos-sale__discount-action"
+						@click="
+							showDiscountPanel =
+								!showDiscountPanel
+						"
+						:aria-label="globalDiscount ? 'تعديل الخصم العام' : 'إضافة خصم عام'"
+					>
                         <FeatherIcon
                             name="percent"
                             :size="15"
@@ -2555,35 +2452,37 @@ watch(
                         <div
                             class="dy-pos-sale__segmented"
                         >
-                            <button
-                                type="button"
-                                :class="{
-                                    active:
-                                        discountType ===
-                                        'amount',
-                                }"
-                                @click="
-                                    discountType =
-                                        'amount'
-                                "
-                            >
-                                مبلغ
-                            </button>
+<button
+								type="button"
+								:class="{
+									active:
+										discountType ===
+										'amount',
+								}"
+								@click="
+									discountType =
+										'amount'
+								"
+								aria-label="خصم بمبلغ ثابت"
+							>
+								مبلغ
+							</button>
 
-                            <button
-                                type="button"
-                                :class="{
-                                    active:
-                                        discountType ===
-                                        'percent',
-                                }"
-                                @click="
-                                    discountType =
-                                        'percent'
-                                "
-                            >
-                                نسبة
-                            </button>
+<button
+								type="button"
+								:class="{
+									active:
+										discountType ===
+										'percent',
+								}"
+								@click="
+									discountType =
+										'percent'
+								"
+								aria-label="خصم بنسبة مئوية"
+							>
+								نسبة
+							</button>
                         </div>
 
                         <input
@@ -2676,20 +2575,21 @@ watch(
                             </strong>
                         </DyButton>
 
-                        <button
-                            v-if="
-                                allowHold
-                            "
-                            type="button"
-                            class="dy-pos-sale__hold"
-                            :disabled="
-                                cartEmpty ||
-                                busy
-                            "
-                            @click="
-                                holdSale
-                            "
-                        >
+<button
+							v-if="
+								allowHold
+							"
+							type="button"
+							class="dy-pos-sale__hold"
+							:disabled="
+								cartEmpty ||
+								busy
+							"
+							@click="
+								holdSale
+							"
+							aria-label="حفظ الفاتورة كفاتورة معلقة"
+						>
                             <FeatherIcon
                                 name="pause-circle"
                                 :size="17"

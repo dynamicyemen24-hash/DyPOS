@@ -61,6 +61,7 @@
             class="work-toolbar__overflow-item"
             role="menuitem"
             :disabled="action.disabled"
+            :aria-label="t(action.label)"
             @click="executeOverflow(action)"
           >
             <FeatherIcon v-if="action.icon" :name="action.icon" class="w-4 h-4" aria-hidden="true" />

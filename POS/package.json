@@ -1,7 +1,7 @@
 {
 	"name": "pos-next-frontend",
 	"private": true,
-	"version": "1.39.0",
+	"version": "1.40.0",
 	"type": "module",
 	"scripts": {
 		"dev": "vite",
@@ -27,7 +27,7 @@
 		"@vueuse/core": "^10.11.1",
 		"chart.js": "^4.5.1",
 		"dexie": "^4.4.6",
-		"dompurify": "^3.3.0",
+		"dompurify": "^3.4.16",
 		"feather-icons": "^4.29.2",
 		"pinia": "^3.0.4",
 		"qz-tray": "^2.2.5",

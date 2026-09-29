@@ -25,13 +25,19 @@ const ROOT = resolve(HERE, "..")
 
 /** [file, maxLines] — measured, not aspirational. Lower the number when you split. */
 const CAPS = [
+	// 6355 → 6255: اختصارات لوحة المفاتيح (F2/F4/F8/Ctrl+Enter/Escape/Shift+Esc/
+	// Delete) وإجراءات رأس شاشة البيع استُخرجت إلى
+	// composables/useKeyboardShortcuts.js وcomposables/usePosHeaderActions.js
+	// (مع tests/posHeaderActions.test.js)، ومراقب الاتصال
+	// (online/offline) إلى composables/useConnectionWatch.js، وسلسلة الإغلاق
+	// المكرّرة قُذفت من الصفحة. الاتجاه downward فقط.
 	// 6359 → 6355: مؤقّت إشعار البيع (showNotification + timeout المعلّق على
 	// الدالة نفسه، ثلاثة مواقع لتفريغه) استُخرج إلى
 	// composables/useSaleNotification.js مع اختبار tests/saleNotification.test.js.
 	// 6374 → 6359: تسجيل الخروج + اختصار Shift+Esc زاد~30 سطرًا، فاستُخرج
 	// مسار لوحة المفاتيح إلى utils/gridNavigation.js (مع اختبارات) وسلسلة
 	// الإغلاق إلى composables/useOverlayCloser.js. الاتجاه downward فقط.
-	["src/pages/POSSale.vue", 6355],
+	["src/pages/POSSale.vue", 6255],
 	["src/components/settings/POSSettings.vue", 2092],
 	// 3406 → 3225 → 1706 → 2039:
 	//  - تهيئة بيئة التشغيل (~250 سطرًا) انتقلت إلى composables/useLoginRuntime.js
@@ -41,7 +47,10 @@ const CAPS = [
 	//    ميّتًا تمامًا (سبعة معالجات لا يقرأها قالب واحد، و`loadPinState` لم
 	//    تُستدعَ قط). الرفع **مقيس** لا مُقنع: الكود الميت صار سطحًا يعمل،
 	//    وهذا وحده يبرّر الأسطر. الاتجاه بعدها نزول فقط.
-	["src/pages/Login.vue", 2039],
+	// 2039 → 2037: أسماء ميسّرة (aria-label) لثمانية أزرار في صفحة الدخول، ونصوص
+	// زر رمز الدخول السريع نُقلت إلى ثلاثة ثوابت في <script> بدل ternary من
+	// خمسة أسطر في القالب. الاتجاه نزول فقط.
+	["src/pages/Login.vue", 2037],
 	["src/stores/itemSearch.js", 2620],
 	["src/components/work/WorkDataGrid.vue", 1188],
 ]

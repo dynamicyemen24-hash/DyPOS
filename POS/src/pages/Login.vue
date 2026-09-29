@@ -730,6 +730,11 @@ const pinLoginInProgress = ref(false)
 const pinError = ref("")
 const pinSetupError = ref("")
 
+/** نصوص زر «إنشاء رمز دخول سريع» المعطّل: تلميح الفأرة قصير، والاسم الميسّر (aria-label) يشرح سبب التعطيل. */
+const PIN_DEVICE_HINT = "اضبط رمز دخول سريع لهذا الجهاز"
+const PIN_EMAIL_TOO_SHORT = "أدخل بريدك أولًا"
+const PIN_EMAIL_REQUIRED = "أدخل بريدك الإلكتروني أولًا لتمكين إنشاء رمز PIN"
+
 /** هل واجهة PIN معروضة بدل نموذج كلمة المرور؟ */
 const pinModeActive = ref(false)
 
@@ -1185,6 +1190,7 @@ function goToRegister() {
                         type="button"
                         class="dy-login__runtime-action"
                         @click="prepareRuntime"
+                    aria-label="إعادة محاولة الاتصال بالخادم"
                     >
                         إعادة المحاولة
                     </button>
@@ -1364,6 +1370,7 @@ function goToRegister() {
                         type="button"
                         class="dy-login__link-button"
                         @click="exitPinMode"
+                    aria-label="العودة لتسجيل الدخول بكلمة المرور"
                     >
                         الدخول بكلمة المرور
                     </button>
@@ -1614,6 +1621,7 @@ function goToRegister() {
                         type="button"
                         class="dy-login__link-button"
                         @click="enterPinMode"
+                    aria-label="التبديل لتسجيل الدخول السريع برمز PIN"
                     >
                         <FeatherIcon
                             name="zap"
@@ -1628,11 +1636,8 @@ function goToRegister() {
                         type="button"
                         class="dy-login__link-button"
                         :disabled="!email"
-                        :title="
-                            email
-                                ? 'اضبط رمز دخول سريع لهذا الجهاز'
-                                : 'أدخل بريدك أولًا'
-                        "
+                        :title="email ? PIN_DEVICE_HINT : PIN_EMAIL_TOO_SHORT"
+                        :aria-label="email ? PIN_DEVICE_HINT : PIN_EMAIL_REQUIRED"
                         @click="showPinSetup = true"
                     >
                         <FeatherIcon
@@ -1648,6 +1653,7 @@ function goToRegister() {
                         type="button"
                         class="dy-login__link-button dy-login__link-button--quiet"
                         @click="handleClearPin"
+                    aria-label="إلغاء رمز الدخول السريع المحفوظ"
                     >
                         إلغاء الرمز
                     </button>
@@ -1752,6 +1758,7 @@ function goToRegister() {
                                 type="button"
                                 class="dy-login__link-button"
                                 @click="cancelPinSetup"
+                            aria-label="إلغاء إعداد رمز PIN"
                             >
                                 إلغاء
                             </button>
@@ -1797,6 +1804,7 @@ function goToRegister() {
                             showRuntimeDetails =
                                 !showRuntimeDetails
                         "
+                    :aria-label="showRuntimeDetails ? 'إخفاء تفاصيل الاتصال' : 'عرض تفاصيل الاتصال'"
                     >
                         التفاصيل
                     </button>
@@ -1895,6 +1903,7 @@ function goToRegister() {
                                     type="button"
                                     class="dy-login__timeout-logout"
                                     @click="dismissWarning"
+                                aria-label="تسجيل الخروج وإنهاء الجلسة"
                                 >
                                     تسجيل الخروج
                                 </button>
