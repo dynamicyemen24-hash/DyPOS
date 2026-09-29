@@ -103,6 +103,30 @@ export const WORK_SCREENS = Object.freeze([
 			}),
 	},
 	{
+		id: "settlements",
+		label: "التسويات",
+		icon: "clipboard",
+		doctype: "POS Opening Shift",
+		permission: "work.settlements",
+		orderBy: "creation desc",
+		columns: [
+			{ key: "name", label: "رقم الوردية", frozen: "right", sortable: true },
+			{ key: "terminal_id", label: "الطرفية", sortable: true },
+			{ key: "opening_cash", label: "رصيد الافتتاح", align: "end", format: (row) => money(row) },
+			{ key: "closing_cash", label: "الرصيد الفعلي", align: "end", sortable: true, format: (row) => money(row) },
+			{ key: "expected_cash", label: "المتوقع", align: "end", sortable: true, format: (row) => money(row) },
+			{ key: "variance", label: "الفرق", align: "end", sortable: true, format: (row) => money(row) },
+			{ key: "status", label: "الحالة", filterable: true },
+			{ key: "closed_at", label: "تاريخ الإغلاق", sortable: true, format: (row) => String(row?.closed_at ?? "—").slice(0, 19).replace("T", " ") },
+		],
+		load: (limit) =>
+			methodGetListWithSource("POS Opening Shift", {
+				fields: ["name", "terminal_id", "opening_cash", "closing_cash", "expected_cash", "variance", "status", "closed_at"],
+				orderBy: "creation desc",
+				limit,
+			}),
+	},
+	{
 		id: "stock",
 		label: "تنبيه المخزون",
 		icon: "alert-triangle",
