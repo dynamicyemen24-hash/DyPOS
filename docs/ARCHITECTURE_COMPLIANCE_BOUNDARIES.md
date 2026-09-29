@@ -76,7 +76,7 @@ Server flow:
 8. persist acknowledgement;
 9. return canonical server state.
 
-Retrying the same operation returns the original acknowledgement instead of executing it again.
+Retrying the same operation returns the original acknowledgement instead of executing it again. Idempotency keys are scoped to the owning tenant/business boundary; a client-generated key from tenant A must never deduplicate a transaction belonging to tenant B.
 
 ## Data classification
 
