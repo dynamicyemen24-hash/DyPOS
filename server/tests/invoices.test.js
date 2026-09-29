@@ -87,6 +87,15 @@ describe('Invoices — create', () => {
     assert.strictEqual(got.body.payments.length, 1);
   });
 
+  it('rejects non-cash overpayment instead of silently capping the ledger', async () => {
+    const res = await req('POST', '/api/invoices', {
+      items: [{ productId, qty: 1 }], // total 57.5 with default VAT
+      payments: [{ method: 'CARD', amount: 100 }],
+    }, token);
+    assert.strictEqual(res.status, 400);
+    assert.match(String(res.body.error || ''), /يتجاوز المبلغ المستحق/);
+  });
+
   it('GET /api/invoices clamps limit (DoS guard)', async () => {
     const res = await req('GET', '/api/invoices?limit=9999', null, token);
     assert.strictEqual(res.status, 200);
