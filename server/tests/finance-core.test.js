@@ -279,3 +279,35 @@ describe('Change, inclusive tax, currency default, print branding', () => {
     await req('PUT', '/api/settings', { business_name: '' }, admin);
   });
 });
+
+
+describe('Shift settlement integrity', () => {
+  it('reconciles cash net of change instead of gross tendered cash', async () => {
+    const terminal = 'TERM-SETTLE-' + Date.now();
+    const opened = await req('POST', '/api/shifts/open', { terminalId: terminal, openingCash: 0 }, admin);
+    assert.strictEqual(opened.status, 201);
+    const shiftId = opened.body.shiftId;
+
+    const sale = await req('POST', '/api/invoices', {
+      items: [{ productId, qty: 1, unitPrice: 100 }],
+      shiftId,
+      terminalId: terminal,
+      payments: [{ method: 'CASH', amount: 150 }],
+    }, cashier);
+    assert.strictEqual(sale.status, 201);
+
+    const close = await req('POST', '/api/shifts/' + shiftId + '/close', { closingCash: 100 }, admin);
+    assert.strictEqual(close.status, 200);
+    assert.strictEqual(Number(close.body.expected), 100);
+    assert.strictEqual(Number(close.body.variance), 0);
+  });
+
+  it('prevents a second open shift on the same terminal', async () => {
+    const terminal = 'TERM-UNIQUE-' + Date.now();
+    const first = await req('POST', '/api/shifts/open', { terminalId: terminal, openingCash: 10 }, admin);
+    assert.strictEqual(first.status, 201);
+    const second = await req('POST', '/api/shifts/open', { terminalId: terminal, openingCash: 20 }, admin);
+    assert.strictEqual(second.status, 409);
+    assert.strictEqual(second.body.shiftId, first.body.shiftId);
+  });
+});
