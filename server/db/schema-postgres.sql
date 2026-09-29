@@ -3908,3 +3908,5 @@ COMMIT;
 --    invoices, invoice_items, inventory_movements, business_events and audit
 --    tables by tenant/date. Do this only after measuring actual workload and
 --    query plans.
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_idem ON invoices(tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
