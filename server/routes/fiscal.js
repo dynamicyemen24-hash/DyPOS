@@ -21,24 +21,41 @@ export function yearOf(d = new Date()) {
   return String(d.getUTCFullYear());
 }
 
+export function ensureOpenFiscalPeriod(at = new Date()) {
+  const date = at instanceof Date ? at : new Date(at);
+  if (Number.isNaN(date.getTime())) throw Object.assign(new Error('تاريخ الفترة المالية غير صالح'), { statusCode: 400 });
+  const iso = date.toISOString().slice(0, 10);
+  const fallbackCode = yearOf(date);
+  let row;
+  try {
+    row = db.prepare('SELECT code,status,starts_on,ends_on FROM fiscal_years WHERE starts_on <= ? AND ends_on >= ? ORDER BY starts_on DESC, code DESC LIMIT 1').get(iso, iso);
+  } catch {
+    return { code: fallbackCode, status: 'OPEN', starts_on: `${fallbackCode}-01-01`, ends_on: `${fallbackCode}-12-31` };
+  }
+  if (!row) {
+    db.prepare("INSERT OR IGNORE INTO fiscal_years (code,starts_on,ends_on,status) VALUES (?,?,?,'OPEN')")
+      .run(fallbackCode, `${fallbackCode}-01-01`, `${fallbackCode}-12-31`);
+    return { code: fallbackCode, status: 'OPEN', starts_on: `${fallbackCode}-01-01`, ends_on: `${fallbackCode}-12-31` };
+  }
+  if (String(row.status).toUpperCase() !== 'OPEN') {
+    throw Object.assign(new Error(`الفترة المالية ${row.code} مقفلة — الترحيل فيها مرفوض`), { statusCode: 409 });
+  }
+  return row;
+}
+
 export function ensureOpenFiscalYear(code) {
   const c = String(code || '').trim().slice(0, 4);
   if (!/^\d{4}$/.test(c)) throw Object.assign(new Error('السنة المالية 4 أرقام'), { statusCode: 400 });
-  let row;
-  try {
-    row = db.prepare('SELECT code, status FROM fiscal_years WHERE code=?').get(c);
-  } catch {
-    return { code: c, status: 'OPEN' }; // pre-v14 DBs (migrate pending) → permissive
-  }
+  const row = db.prepare('SELECT code,status,starts_on,ends_on FROM fiscal_years WHERE code=?').get(c);
   if (!row) {
-    db.prepare(`INSERT OR IGNORE INTO fiscal_years (code,starts_on,ends_on,status) VALUES (?,?,?,'OPEN')`)
+    db.prepare("INSERT OR IGNORE INTO fiscal_years (code,starts_on,ends_on,status) VALUES (?,?,?,'OPEN')")
       .run(c, `${c}-01-01`, `${c}-12-31`);
-    return { code: c, status: 'OPEN' };
+    return { code: c, status: 'OPEN', starts_on: `${c}-01-01`, ends_on: `${c}-12-31` };
   }
   if (String(row.status).toUpperCase() !== 'OPEN') {
     throw Object.assign(new Error(`السنة المالية ${c} مقفلة — الترحيل فيها مرفوض`), { statusCode: 409 });
   }
-  return { code: c, status: 'OPEN' };
+  return row;
 }
 
 function validDate(s) {
