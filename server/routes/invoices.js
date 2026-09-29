@@ -16,7 +16,7 @@ import { ah, mapErrorStatus } from '../lib/async.js';
 import { idempotency } from '../lib/idempotency.js';
 import { emit } from '../lib/webhooks.js';
 import { emit as emitRealtime } from '../lib/realtime.js';
-import { ensureOpenFiscalYear, yearOf } from './fiscal.js';
+import { ensureOpenFiscalPeriod, yearOf } from './fiscal.js';
 import { invoicePrefix, getSetting, defaultTaxRate, stockControlMode, stockWarningThreshold } from '../lib/settings.js';
 import { decrementStock } from '../lib/stockPolicy.js';
 
@@ -133,7 +133,7 @@ router.post('/', validate(invoiceSchema), (req, res) => {
     for (const it of items) assertUom(it.uom || 'Unit');
     // Fiscal period control: the sale posts into the current UTC fiscal year;
     // a CLOSED year refuses posting so reported periods stay immutable.
-    fiscalYear = ensureOpenFiscalYear(yearOf());
+    fiscalYear = ensureOpenFiscalPeriod(new Date());
   } catch (e) {
     return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 200) });
   }
