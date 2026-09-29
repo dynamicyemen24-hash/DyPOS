@@ -140,8 +140,9 @@ router.post('/', validate(invoiceSchema), (req, res) => {
 
    const idemKey = String(b.idempotencyKey || '').trim() || null;
    if (idemKey) {
-     // Dedup by idempotency_key only: id is always a fresh UUID.
-     const existing = db.prepare('SELECT id FROM invoices WHERE idempotency_key=? LIMIT 1').get(idemKey);
+     // Idempotency is tenant-scoped: the same client-generated key may legally
+     // exist in two independent businesses without cross-tenant deduplication.
+     const existing = db.prepare('SELECT id FROM invoices WHERE tenant_id IS ? AND idempotency_key=? LIMIT 1').get(scope.tenantId ?? null, idemKey);
      if (existing) return res.json({ deduped: true, invoiceId: existing.id });
    }
 
@@ -223,7 +224,7 @@ router.post('/', validate(invoiceSchema), (req, res) => {
         .run(invoiceId, number, customerId, customerName, 0, 0, 0, 0, 0, 0, 'UNPAID', invCurrency, String(b.notes || '').trim().slice(0, 1000), String(b.channelId || '').trim().slice(0, 64), shiftId, terminalId, idemKey, scope.tenantId, scope.branchId, req.user?.username || null);
     } catch (e) {
       if (idemKey && /UNIQUE|CONFLICT/i.test(String(e.message))) {
-        const dup = db.prepare('SELECT id FROM invoices WHERE idempotency_key=?').get(idemKey);
+        const dup = db.prepare('SELECT id FROM invoices WHERE tenant_id IS ? AND idempotency_key=?').get(scope.tenantId ?? null, idemKey);
         if (dup) return { deduped: true, invoiceId: dup.id };
       }
       throw e;
