@@ -15,6 +15,7 @@ import { methodGetListWithSource } from "@/utils/methodClient"
 import { productRepository } from "@/repositories/productRepository"
 
 const money = (row) => Number(row?.grand_total ?? row?.total ?? 0)
+const amount = (field) => (row) => Number(row?.[field] ?? 0).toFixed(2)
 
 /** @type {ReadonlyArray<{id:string,label:string,icon:string,doctype:string,permission:string,orderBy:string,columns:Array<object>,load:Function}>} */
 export const WORK_SCREENS = Object.freeze([
@@ -112,10 +113,10 @@ export const WORK_SCREENS = Object.freeze([
 		columns: [
 			{ key: "name", label: "رقم الوردية", frozen: "right", sortable: true },
 			{ key: "terminal_id", label: "الطرفية", sortable: true },
-			{ key: "opening_cash", label: "رصيد الافتتاح", align: "end", format: (row) => money(row) },
-			{ key: "closing_cash", label: "الرصيد الفعلي", align: "end", sortable: true, format: (row) => money(row) },
-			{ key: "expected_cash", label: "المتوقع", align: "end", sortable: true, format: (row) => money(row) },
-			{ key: "variance", label: "الفرق", align: "end", sortable: true, format: (row) => money(row) },
+			{ key: "opening_cash", label: "رصيد الافتتاح", align: "end", format: amount("opening_cash") },
+			{ key: "closing_cash", label: "الرصيد الفعلي", align: "end", sortable: true, format: amount("closing_cash") },
+			{ key: "expected_cash", label: "المتوقع", align: "end", sortable: true, format: amount("expected_cash") },
+			{ key: "variance", label: "الفرق", align: "end", sortable: true, format: amount("variance") },
 			{ key: "status", label: "الحالة", filterable: true },
 			{ key: "closed_at", label: "تاريخ الإغلاق", sortable: true, format: (row) => String(row?.closed_at ?? "—").slice(0, 19).replace("T", " ") },
 		],
