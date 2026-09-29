@@ -7,7 +7,7 @@ async function request(path, init = {}) {
   return worker.fetch(new Request(`https://dypos.smartportssoft.com${path}`, init), {})
 }
 
-test("edge health exposes the release version", async () => {
+test("edge health exposes the release version and stays deterministic", async () => {
   const response = await request("/api/health")
   assert.equal(response.status, 200)
   const body = await response.json()
