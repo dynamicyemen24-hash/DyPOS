@@ -22,8 +22,9 @@ import { migrateInvoiceReturnTracking } from './migrations-invoice-returns.js';
 import { migratePromotionTenancy } from './migrations-promotion-tenancy.js';
 import { migrateOpeningBalanceItems } from './migrations-opening-balance-items.js';
 import { migrateInvoiceTenantIdempotency } from './migrations-invoice-tenant-idempotency.js';
+import { migrateShiftSettlementIntegrity } from './migrations-shift-settlement-integrity.js';
 
-const MIGRATION_VERSION = 27; // Increment when schema changes
+const MIGRATION_VERSION = 28; // Increment when schema changes
 
 /**
  * Migrations that live in their own `db/migrations-*.js` file (v23+).
@@ -40,6 +41,7 @@ const LATE_MIGRATIONS = Object.freeze([
 	{ version: 25, run: (d) => migrateOpeningBalances(d), note: 'opening balances per fiscal year' },
 	{ version: 26, run: migrateOpeningBalanceItems, note: 'opening balances item link (product_id)' },
 	{ version: 27, run: migrateInvoiceTenantIdempotency, note: 'invoice idempotency scoped to tenant' },
+	{ version: 28, run: migrateShiftSettlementIntegrity, note: 'shift settlement concurrency integrity' },
 ]);
 
 function columnExists(table, column) {
