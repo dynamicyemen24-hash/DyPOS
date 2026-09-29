@@ -3,10 +3,10 @@ name: Deploy to Cloudflare (production)
 # أي تعديل يُدمج في main يُبنى ويُنشر تلقائيًا إلى مشروع Cloudflare Pages
 # (dypos-pos → dypos.smartportssoft.com) ثم يتحقق حيًا أن العملاء يرون الإصدار الجديد.
 #
-# لماذا Pages لا Workers: نطاق الإنتاج مُثبَت على مشروع Pages (تحقّقنا: رفع Pages
-# يدويًا يحدّث أصول النطاق، وروابط SPA العميقة تُرجع 200). ومسار Workers لم ينجح
-# ولا مرة (6 دفعات فاشلة)، وسبب التخلّي عنه أن التوكن آنذاك لم يكن يملك Pages:Edit.
-# إذن الهدف Pages، والتوكن اللازم يجب أن يملك Pages:Edit.
+# نطاق الواجهة مُثبَت على مشروع Pages، ومسار `/api/*` مُثبت على Worker مستقل
+# اسمه `dypos-api`. يُنشر الاثنان من نفس الإصدار حتى لا تعرض الواجهة نسخة أحدث
+# من واجهة API أو العكس. يحتاج التوكن إلى Pages:Edit وWorkers Scripts:Edit،
+# وإلى Zone Workers Routes:Edit إذا كان النشر سيحدّث route لأول مرة.
 #
 # التخطيط: `build:pages` (base "/"، ويمسح outDir) هو نفس البناء الذي يخدم الإنتاج
 # اليوم، وينتج `sw.js` في جذر النطاق بمدى "/" — وهو شرط تحكّم Service Worker
@@ -152,17 +152,29 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy POS/dist/pos --project-name=dypos-pos --branch=main --commit-dirty=true
 
+      # واجهة API مستقلة عن Pages وتخدم `/api/*` على النطاق نفسه.
+      - name: Deploy dypos-api Worker
+        id: deploy_api
+        if: steps.cf.outputs.available == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.api.toml
+
       # ── Deploy-time failure → one clear remediation line. ──
       - name: Deploy failed → actionable secret error
         if: failure() && steps.deploy.outcome == 'failure'
         run: |
           echo "::error::Cloudflare Pages deploy FAILED. The step above ('Preflight: Pages project reachable') already proved whether the token may use the Pages API and whether the project exists — read ITS output first: it distinguishes 'no permission' from 'project missing' and prints the exact fix for the case it found. If the preflight passed and the deploy still failed, the token can read the project but cannot upload a deployment (an edited, older token): re-issue it with Cloudflare Pages:Edit, gh secret set CLOUDFLARE_API_TOKEN, re-run. All build gates before this step are green, so nothing about the code is in question."
 
-      # ── لا خطوة لضبط أصل الواجهة الخلفية هنا.
-      # `/api/*` يخدمه Worker مستقل اسمه `dypos-api` (wrangler.api.toml) عبر
-      # route على نفس النطاق، وهو يجيب `/api/ping` بنفسه ولا يمرّر إلى Express
-      # ولا يقرأ BACKEND_URL إطلاقًا. الخطوة القديمة كانت تكتب سرًّا لا يقرأه
-      # أحد على Worker `dypos-pos`، فحُذفت. وخادم Express له مضيف منفصل. ──
+      - name: API Worker deploy failed → actionable secret error
+        if: failure() && steps.deploy_api.outcome == 'failure'
+        run: |
+          echo "::error::dypos-api Worker deploy FAILED. The token must include Workers Scripts:Edit and, when the route is changed or first created, Zone Workers Routes:Edit. Verify the account ID and re-run the workflow after updating CLOUDFLARE_API_TOKEN."
+
+      # `/api/*` يخدمه Worker مستقل اسمه `dypos-api` (wrangler.api.toml)، وهو
+      # يجيب `/api/ping` بنفسه ولا يمرّر إلى Express ولا يقرأ BACKEND_URL.
 
       # Optional cache purge — only when the zone id secret is provided
       # (Pages on a custom domain normally picks up instantly; kept for belt

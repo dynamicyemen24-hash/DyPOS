@@ -4,6 +4,8 @@
  * Uses D1 database for persistence
  */
 
+const API_VERSION = '1.40.0';
+
 export default {
 	async fetch(request, env, ctx) {
 		const url = new URL(request.url);
@@ -24,7 +26,7 @@ export default {
 		try {
 			// Health check
 			if (path === '/api/health' || path === '/health') {
-				return jsonResponse({ status: 'ok', version: '1.38.0', timestamp: new Date().toISOString() }, corsHeaders);
+				return jsonResponse({ status: 'ok', version: API_VERSION, timestamp: new Date().toISOString() }, corsHeaders);
 			}
 
 			if (path === '/api/ready' || path === '/ready') {

@@ -52,7 +52,9 @@ const CAPS = [
 	// خمسة أسطر في القالب. الاتجاه نزول فقط.
 	["src/pages/Login.vue", 2037],
 	["src/stores/itemSearch.js", 2620],
-	["src/components/work/WorkDataGrid.vue", 1188],
+	// 1188 → 1150: column layout and cell formatting moved to focused modules as
+	// the frozen-grid contract grew.
+	["src/components/work/WorkDataGrid.vue", 1150],
 ]
 
 const countLines = (relPath) => {

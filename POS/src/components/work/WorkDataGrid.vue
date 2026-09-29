@@ -67,10 +67,13 @@
           <select
             :id="densityId"
             v-model="density"
-            :options="densityOptions"
             class="work-data-grid__density-select"
             @change="onDensityChange"
-          />
+          >
+            <option v-for="option in densityOptions" :key="option" :value="option">
+              {{ t(option) }}
+            </option>
+          </select>
         </div>
       </div>
     </div>
@@ -144,23 +147,23 @@
               @toggle="toggleGroup(group.id)"
             />
             <DataRow
-              v-for="(row, rIndex) in getVisibleRows(group?.rows || [])"
-              :key="`${group?.id || 'root'}-${getRowKey(row, rIndex)}-left`"
-              :row="row"
+              v-for="(entry, rIndex) in frozenRows"
+              :key="`${entry.groupId}-${getRowKey(entry.row, rIndex)}-left`"
+              :row="entry.row"
               :columns="frozenLeftColumns"
               :row-index="rIndex"
+              :row-key="getRowKey(entry.row, rIndex)"
               :selectable="selectable"
-              :selected="isRowSelected(row)"
-              :expanded="expandedRows.has(getRowKey(row))"
-              :editing="editingCell?.rowKey === getRowKey(row) && frozenLeftColumns.some(c => c.key === editingCell.colKey)"
-              :edit-mode="editingCell"
-              @select="toggleRowSelection(row)"
-              @click="handleRowClick(row, $event)"
-              @dblclick="startInlineEdit(row, $event.target.closest('td')?.dataset?.colKey)"
-              @keydown="handleCellKeydown(row, $event)"
+              :selected="isRowSelected(entry.row)"
+              :expanded="expandedRows.has(getRowKey(entry.row))"
+              :editing="editingCell"
+              @select="toggleRowSelection(entry.row)"
+              @click="handleRowClick(entry.row, $event)"
+              @dblclick="startInlineEdit(entry.row, $event.target.closest('td')?.dataset?.colKey)"
+              @keydown="handleCellKeydown(entry.row, $event)"
               @edit-save="saveInlineEdit"
               @edit-cancel="cancelInlineEdit"
-              @expand="toggleRowExpand(getRowKey(row))"
+              @expand="toggleRowExpand(getRowKey(entry.row))"
             />
           </tbody>
         </table>
@@ -304,23 +307,23 @@
               @toggle="toggleGroup(group.id)"
             />
             <DataRow
-              v-for="(row, rIndex) in getVisibleRows(group?.rows || [])"
-              :key="`${group?.id || 'root'}-${getRowKey(row, rIndex)}-right`"
-              :row="row"
+              v-for="(entry, rIndex) in frozenRows"
+              :key="`${entry.groupId}-${getRowKey(entry.row, rIndex)}-right`"
+              :row="entry.row"
               :columns="frozenRightColumns"
               :row-index="rIndex"
+              :row-key="getRowKey(entry.row, rIndex)"
               :selectable="selectable"
-              :selected="isRowSelected(row)"
-              :expanded="expandedRows.has(getRowKey(row))"
-              :editing="editingCell?.rowKey === getRowKey(row) && frozenRightColumns.some(c => c.key === editingCell.colKey)"
-              :edit-mode="editingCell"
-              @select="toggleRowSelection(row)"
-              @click="handleRowClick(row, $event)"
-              @dblclick="startInlineEdit(row, $event.target.closest('td')?.dataset?.colKey)"
-              @keydown="handleCellKeydown(row, $event)"
+              :selected="isRowSelected(entry.row)"
+              :expanded="expandedRows.has(getRowKey(entry.row))"
+              :editing="editingCell"
+              @select="toggleRowSelection(entry.row)"
+              @click="handleRowClick(entry.row, $event)"
+              @dblclick="startInlineEdit(entry.row, $event.target.closest('td')?.dataset?.colKey)"
+              @keydown="handleCellKeydown(entry.row, $event)"
               @edit-save="saveInlineEdit"
               @edit-cancel="cancelInlineEdit"
-              @expand="toggleRowExpand(getRowKey(row))"
+              @expand="toggleRowExpand(getRowKey(entry.row))"
             />
           </tbody>
         </table>
@@ -418,7 +421,6 @@ import {
 } from "vue"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
-import { formatCurrencySafe } from "@/utils/currency"
 import WorkSearch from "./WorkSearch.vue"
 import WorkActions from "./WorkActions.vue"
 import WorkPagination from "./WorkPagination.vue"
@@ -429,7 +431,8 @@ import HeaderRow from "./WorkDataGrid/HeaderRow.vue"
 import DataRow from "./WorkDataGrid/DataRow.vue"
 import GroupHeader from "./WorkDataGrid/GroupHeader.vue"
 import ColumnFilter from "./WorkDataGrid/ColumnFilter.vue"
-import InlineEditCell from "./WorkDataGrid/InlineEditCell.vue"
+import { useWorkDataGridColumns } from "./useWorkDataGridColumns.js"
+import { formatCell, getCellValue } from "./useWorkDataGridFormatting.js"
 
 const props = defineProps({
 	columns: {
@@ -493,26 +496,17 @@ const emit = defineEmits([
 // Direction
 const { dir: direction } = inject("dy-direction", { value: "rtl" })
 
-// Column partitioning
-const frozenLeftColumns = computed(() =>
-	props.columns.filter((c) => c.frozen === "left"),
-)
-const frozenRightColumns = computed(() =>
-	props.columns.filter((c) => c.frozen === "right"),
-)
-const mainColumns = computed(() => props.columns.filter((c) => !c.frozen))
-const allColumns = computed(() => [
-	...frozenLeftColumns.value,
-	...mainColumns.value,
-	...frozenRightColumns.value,
-])
-
-const frozenLeftWidth = computed(() =>
-	frozenLeftColumns.value.reduce((s, c) => s + (c.width || 150), 0),
-)
-const frozenRightWidth = computed(() =>
-	frozenRightColumns.value.reduce((s, c) => s + (c.width || 150), 0),
-)
+const {
+	frozenLeftColumns,
+	frozenRightColumns,
+	mainColumns,
+	allColumns,
+	visibleColumns,
+	totalColumns,
+	frozenLeftWidth,
+	frozenRightWidth,
+	columnStyle,
+} = useWorkDataGridColumns(props)
 
 // State
 const sortKey = ref(props.defaultSort?.key || null)
@@ -667,6 +661,14 @@ const groupedRows = computed(() => {
 	}
 	return Array.from(groups.values())
 })
+
+const frozenRows = computed(() =>
+	grouped.value
+		? groupedRows.value.flatMap((group) =>
+				getVisibleRows(group.rows).map((row) => ({ row, groupId: group.id })),
+			)
+		: paginatedRows.value.map((row) => ({ row, groupId: "root" })),
+)
 
 function getVisibleRows(rows) {
 	if (!grouped.value) return rows
@@ -914,45 +916,6 @@ function handleRowClick(row, e) {
 
 function getRowKey(row, index) {
 	return row?.[props.rowKey] ?? `row-${index}`
-}
-
-function getCellValue(row, column) {
-	if (typeof column?.compute === "function") return column.compute(row)
-	return row?.[column?.key]
-}
-
-function formatCell(row, column) {
-	const value = getCellValue(row, column)
-	if (value == null) return "—"
-	switch (column?.format) {
-		case "currency":
-			return formatCurrency(value)
-		case "number":
-			return formatNumber(value)
-		case "percent":
-			return formatPercent(value)
-		case "date":
-			return formatDate(value)
-		default:
-			return String(value)
-	}
-}
-
-function formatCurrency(val) {
-	return formatCurrencySafe(val)
-}
-function formatNumber(val) {
-	return new Intl.NumberFormat("ar-SA").format(Number(val))
-}
-function formatPercent(val) {
-	return new Intl.NumberFormat("ar-SA", { style: "percent" }).format(
-		Number(val) / 100,
-	)
-}
-function formatDate(val) {
-	return new Intl.DateTimeFormat("ar-SA", { dateStyle: "medium" }).format(
-		new Date(val),
-	)
 }
 
 // Bulk Actions

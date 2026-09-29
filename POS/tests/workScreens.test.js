@@ -269,6 +269,43 @@ describe("the work-screens page actually renders (compiled + fed)", () => {
 		expect(wrapper.html(), "the screen label must render").toContain("الفواتير")
 		wrapper.unmount()
 	}, 30_000)
+
+	it("mounts the data grid without undeclared template bindings", async () => {
+		const { mount } = await import("@vue/test-utils")
+		const { default: WorkDataGrid } = await import(
+			"@/components/work/WorkDataGrid.vue"
+		)
+		const wrapper = mount(WorkDataGrid, {
+			props: {
+				columns: [
+					{ key: "name", label: "الاسم", filterable: true },
+					{ key: "status", label: "الحالة", frozen: "right" },
+				],
+				rows: [],
+			},
+			global: {
+				stubs: {
+					WorkSearch: true,
+					WorkActions: true,
+					WorkPagination: true,
+					WorkEmptyState: true,
+					WorkCard: true,
+					HeaderRow: true,
+					DataRow: true,
+					GroupHeader: true,
+					ColumnFilter: true,
+					InlineEditCell: true,
+					FeatherIcon: true,
+				},
+			},
+		})
+
+		expect(wrapper.findAll(".work-data-grid__filter-cell")).toHaveLength(2)
+		expect(
+			wrapper.find(".work-data-grid__empty-cell").attributes("colspan"),
+		).toBe("2")
+		wrapper.unmount()
+	})
 })
 
 function POSHeaderEmits() {
