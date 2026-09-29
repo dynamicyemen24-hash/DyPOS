@@ -16,7 +16,7 @@ import { ah, mapErrorStatus } from '../lib/async.js';
 import { idempotency } from '../lib/idempotency.js';
 import { emit } from '../lib/webhooks.js';
 import { emit as emitRealtime } from '../lib/realtime.js';
-import { ensureOpenFiscalPeriod, yearOf } from './fiscal.js';
+import { ensureOpenFiscalPeriod, ensureOpenFiscalYear, yearOf } from './fiscal.js';
 import { invoicePrefix, getSetting, defaultTaxRate, stockControlMode, stockWarningThreshold } from '../lib/settings.js';
 import { decrementStock } from '../lib/stockPolicy.js';
 
