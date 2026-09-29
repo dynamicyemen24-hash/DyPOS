@@ -69,7 +69,6 @@ db.pragma('busy_timeout = 5000');
 // instead of letting -wal grow without limit during sale storms.
 db.pragma('journal_size_limit = 67108864');
 
-
 export function checkDbHealth() {
   try {
     const result = db.prepare('SELECT 1 as alive').get();
