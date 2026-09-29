@@ -19,10 +19,18 @@ router.post('/open', validate(shiftOpenSchema), (req, res) => {
   } catch (e) {
     return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 200) });
   }
-  const existing = db.prepare('SELECT id FROM shifts WHERE terminal_id=? AND status=?').get(term, 'OPEN');
-  if (existing) return res.status(409).json({ error: 'يوجد وردية مفتوحة بالفعل', shiftId: existing.id });
   const id = uuid();
-  db.prepare('INSERT INTO shifts (id,terminal_id,opened_by,opening_cash,status,tenant_id,branch_id) VALUES (?,?,?,?,?,?,?)').run(id, term, req.user?.fullName || req.user?.username || 'System', Number(openingCash) || 0, 'OPEN', scope.tenantId, scope.branchId);
+  try {
+    db.prepare('INSERT INTO shifts (id,terminal_id,opened_by,opening_cash,status,tenant_id,branch_id) VALUES (?,?,?,?,?,?,?)').run(id, term, req.user?.fullName || req.user?.username || 'System', Number(openingCash) || 0, 'OPEN', scope.tenantId, scope.branchId);
+  } catch (e) {
+    if (/UNIQUE|constraint/i.test(String(e.message))) {
+      const existing = scope.tenantId
+        ? db.prepare('SELECT id FROM shifts WHERE terminal_id=? AND status=? AND tenant_id=? ORDER BY opened_at DESC LIMIT 1').get(term, 'OPEN', scope.tenantId)
+        : db.prepare("SELECT id FROM shifts WHERE terminal_id=? AND status='OPEN' AND tenant_id IS NULL ORDER BY opened_at DESC LIMIT 1").get(term);
+      return res.status(409).json({ error: 'يوجد وردية مفتوحة بالفعل', shiftId: existing?.id });
+    }
+    throw e;
+  }
   req.audit?.('shift.open', { shiftId: id, terminalId: term });
   recordTrail(req, { entity: 'SHIFT', entityId: id, action: 'OPEN', after: { terminalId: term, tenantId: scope.tenantId } });
   return res.status(201).json({ shiftId: id, terminalId: term, openingCash: Number(openingCash) || 0, status: 'OPEN' });
@@ -85,7 +93,7 @@ router.post('/:id/close', (req, res) => {
       }
       if (shift.status !== 'OPEN') throw Object.assign(new Error('الوردية مغلقة بالفعل'), { statusCode: 400 });
       const stats = db.prepare(`SELECT COUNT(*) as orders_count, COALESCE(SUM(total),0) as total_sales FROM invoices WHERE shift_id=? AND status IN ('PAID','PARTIAL')`).get(shift.id);
-      const cashStats = db.prepare(`SELECT COALESCE(SUM(p.amount),0) as cash_total FROM payments p JOIN invoices i ON p.invoice_id=i.id WHERE i.shift_id=? AND p.method='CASH' AND i.status IN ('PAID','PARTIAL')`).get(shift.id);
+      const cashStats = db.prepare(`SELECT COALESCE(SUM(cash_net),0) as cash_total FROM (SELECT i.id, MAX(0, COALESCE(SUM(CASE WHEN p.method='CASH' THEN p.amount ELSE 0 END),0) - MAX(0, COALESCE(SUM(p.amount),0) - i.total)) AS cash_net FROM invoices i LEFT JOIN payments p ON p.invoice_id=i.id WHERE i.shift_id=? AND i.status IN ('PAID','PARTIAL') GROUP BY i.id)`).get(shift.id);
       const expected = toNum(shift.opening_cash) + toNum(cashStats.cash_total);
       const counted = closingCash != null ? toNum(closingCash) : expected;
       const variance = Math.round((counted - expected) * 100) / 100;
@@ -131,7 +139,7 @@ router.post('/:id/handover', (req, res) => {
       const clash = db.prepare('SELECT id FROM shifts WHERE terminal_id=? AND status=? AND id!=?').get(targetTerm, 'OPEN', shift.id);
       if (clash) throw Object.assign(new Error('يوجد وردية مفتوحة بالفعل على الطرفية الهدف'), { statusCode: 409 });
       const stats = db.prepare(`SELECT COUNT(*) as orders_count, COALESCE(SUM(total),0) as total_sales FROM invoices WHERE shift_id=? AND status IN ('PAID','PARTIAL')`).get(shift.id);
-      const cashStats = db.prepare(`SELECT COALESCE(SUM(p.amount),0) as cash_total FROM payments p JOIN invoices i ON p.invoice_id=i.id WHERE i.shift_id=? AND p.method='CASH' AND i.status IN ('PAID','PARTIAL')`).get(shift.id);
+      const cashStats = db.prepare(`SELECT COALESCE(SUM(cash_net),0) as cash_total FROM (SELECT i.id, MAX(0, COALESCE(SUM(CASE WHEN p.method='CASH' THEN p.amount ELSE 0 END),0) - MAX(0, COALESCE(SUM(p.amount),0) - i.total)) AS cash_net FROM invoices i LEFT JOIN payments p ON p.invoice_id=i.id WHERE i.shift_id=? AND i.status IN ('PAID','PARTIAL') GROUP BY i.id)`).get(shift.id);
       const expected = toNum(shift.opening_cash) + toNum(cashStats.cash_total);
       const counted = closingCash != null ? toNum(closingCash) : expected;
       const variance = Math.round((counted - expected) * 100) / 100;
@@ -168,7 +176,8 @@ router.get('/:id/xreport', (req, res) => {
   }
   const stats = db.prepare(`SELECT COUNT(*) as orders_count, COALESCE(SUM(total),0) as total_sales, COALESCE(SUM(paid_amount),0) as paid_total FROM invoices WHERE shift_id=? AND status IN ('PAID','PARTIAL')`).get(shift.id);
   const payments = db.prepare(`SELECT p.method, COALESCE(SUM(p.amount),0) as total, COUNT(*) as count FROM payments p JOIN invoices i ON p.invoice_id=i.id WHERE i.shift_id=? GROUP BY p.method`).all(shift.id);
-  const expected = toNum(shift.opening_cash) + payments.filter((p) => p.method === 'CASH').reduce((a, p) => a + toNum(p.total), 0);
+  const cashNet = db.prepare(`SELECT COALESCE(SUM(cash_net),0) AS total FROM (SELECT i.id, MAX(0, COALESCE(SUM(CASE WHEN p.method='CASH' THEN p.amount ELSE 0 END),0) - MAX(0, COALESCE(SUM(p.amount),0) - i.total)) AS cash_net FROM invoices i LEFT JOIN payments p ON p.invoice_id=i.id WHERE i.shift_id=? AND i.status IN ('PAID','PARTIAL') GROUP BY i.id)`).get(shift.id)?.total;
+  const expected = toNum(shift.opening_cash) + toNum(cashNet);
   const out = { shiftId: shift.id, status: shift.status, expected: Math.round(expected * 100) / 100, ordersCount: stats.orders_count, totalSales: stats.total_sales, paidTotal: stats.paid_total, payments };
   if (req.query.counted != null && req.query.counted !== '') {
     const counted = Number(req.query.counted);
