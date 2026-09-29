@@ -97,6 +97,10 @@ Changes affecting money, tax, invoice numbering, inventory, permissions, authent
 10. Normal users cannot rewrite audit history.
 
 
+## Design system & UX baseline
+
+The production UI contract is defined in `docs/DESIGN_SYSTEM_UX_STANDARD.md`. It governs semantic tokens, theme independence, RTL/LTR behavior, touch/keyboard parity, focus visibility, reduced motion, high-contrast modes, responsive behavior and component state completeness.
+
 ## Requirements traceability baseline
 
 The normative product specification is docs/FUNCTIONAL_NONFUNCTIONAL_REQUIREMENTS.md.
