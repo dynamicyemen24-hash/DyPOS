@@ -107,28 +107,13 @@ export default {
 
 			// Device registration
 			if (path === '/api/device' || path === '/api/method/DyPOS.api.device.register') {
-				return jsonResponse({
-					device_id: 'device-' + crypto.randomUUID().slice(0, 8),
-					registered: true
-				}, corsHeaders);
+				return jsonResponse({ error: 'Device registration must use the authoritative backend' }, { ...corsHeaders, status: 501 });
 			}
 
 			// Sync endpoints (canonical + legacy paths)
-			if (path === '/api/sync' || path === '/api/sync/push' || path === '/api/method/DyPOS.api.sync.push') {
-				const body = await request.json().catch(() => ({}));
-				// Store sync operations in D1
-				return jsonResponse({
-					success: true,
-					synced: body.operations?.length || 0,
-					conflicts: []
-				}, corsHeaders);
-			}
-
-			if (path === '/api/sync/pull' || path === '/api/method/DyPOS.api.sync.pull') {
-				return jsonResponse({
-					operations: [],
-					checkpoint: Date.now()
-				}, corsHeaders);
+			if (path === '/api/sync' || path === '/api/sync/push' || path === '/api/method/DyPOS.api.sync.push' ||
+				path === '/api/sync/pull' || path === '/api/method/DyPOS.api.sync.pull') {
+				return jsonResponse({ error: 'Sync must use the authoritative backend; no-op sync is disabled' }, { ...corsHeaders, status: 501 });
 			}
 
 			// Not found
