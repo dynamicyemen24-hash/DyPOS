@@ -141,7 +141,7 @@ router.post('/', validate(invoiceSchema), (req, res) => {
    const idemKey = String(b.idempotencyKey || '').trim() || null;
    if (idemKey) {
      // Idempotency is tenant-scoped: the same client-generated key may legally
-     // exist in two independent businesses without cross-tenant deduplication.
+     // exist in independent businesses without cross-tenant deduplication.
      const existing = db.prepare('SELECT id FROM invoices WHERE tenant_id IS ? AND idempotency_key=? LIMIT 1').get(scope.tenantId ?? null, idemKey);
      if (existing) return res.json({ deduped: true, invoiceId: existing.id });
    }
