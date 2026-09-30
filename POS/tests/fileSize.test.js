@@ -60,7 +60,14 @@ const CAPS = [
 	//   و`pinLength` المحذوف كان computed يقرأ نفسه (كان يطبع "٧ خانات على
 	//   الأقل" بعد كتابة سبع خانات). الاتجاه نزول فقط.
 	["src/pages/Login.vue", 2031],
-	["src/stores/itemSearch.js", 2620],
+	// 2620 → 2561: the per-code tracking bookkeeping (registry buckets, the
+	// empty-bucket pruning that keeps a long session from leaking one Set per
+	// code it ever sold, and the list mutators) moved to
+	// stores/itemListRegistry.js — one implementation for the browse list and
+	// the search results, with its own coverage
+	// (tests/itemListRegistry.test.js, 12 checks). The cap moves downward only.
+	["src/stores/itemSearch.js", 2561],
+	["src/stores/itemListRegistry.js", 178],
 	// 1188 → 1150: column layout and cell formatting moved to focused modules as
 	// the frozen-grid contract grew.
 	["src/components/work/WorkDataGrid.vue", 1150],

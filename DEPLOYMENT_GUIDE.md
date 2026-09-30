@@ -127,19 +127,37 @@ cd server
    node db/migrate.js      # schema v24
 npm run seed:royal      # 64 SKUs + stock + users (atomic, idempotent)
 npm run e2e:royal       # 14-check proof: login→shift→sale→pay→stock→void→close
+npm run e2e:yaqoub      # 17-check run as subscriber #1's own manager account
 ```
+
 - البذر ذري (`BEGIN/COMMIT`) وآمن للمفاتيح (`ON CONFLICT DO UPDATE` — لا حذف).
 - كلمات المرور bcrypt حقيقية (تُطبع مرة واحدة)؛ حساب `admin` يُجبر على التغيير.
 - سكربت E2E يلغّي فاتورته ويغلق ورديته — قاعدة الإنتاج تبقى نظيفة.
 
+### The final operational run as subscriber #1
+
+`npm run e2e:yaqoub` boots a real Express server against the production database
+and authenticates as the human manager account itself (`yaqoub.sahel`), not a
+synthetic one: login, session identity, wrong-password rejection, unauthenticated
+read rejection, catalog, opening stock, shift open, paid invoice, stock
+decrement, daily report, customers, settings, shift settlement at variance 0 --
+then voids the invoice and restores stock. The last two checks are cleanup, not
+nails: the void keeps the audit row and the books stay clean.
+
+> The run re-provisions the `yaqoub.sahel` password (bcrypt cost 12) and sets
+> `must_change_password=0` so the run is repeatable. For the credential you
+> actually hand the subscriber: set `DYPOS_OP_PASSWORD=<their-code>` before the
+> run so that exact code is stored. **Rotate it on first login**
+> (`/api/auth/change-password`).
+
 ## Version Info (حالي)
-- **Version:** `1.41.1` (single source: root `package.json`)
+- **Version:** `1.41.2` (single source: root `package.json`)
 - **Date:** September 30, 2026
 - **Framework:** Vue 3 + Chart.js + dypos-ui
 - **PWA:** Yes (SW root scope، `build:pages` → `POS/dist/pos`)
 - **Deploy:** push to `main` → GitHub Actions → Cloudflare Pages + `dypos-api` Worker → `npm run verify:live`
 - **Live قبل هذه الدفعة:** `https://dypos.smartportssoft.com/` يقدّم `1.40.0` (Pages منشورة بنجاح في 2026-09-30)؛ تُحدَّث إلى `1.41.1` بعد نجاح `Live verify` — والمعوّق حاليًا هو `/api/health` (أصل خلفي مفقود) لا الواجهة.
-- **Tests:** server 559/559 (172 مجموعة) · POS 1060/1060 (75 ملفًا) · method contract 75 فعلًا / 104 موقع استدعاء مغطّاة / 249 معالجًا · biome 0 errors · pg parity OK · بوابة وصولية بلا كود ميت (`POS/tests/deadCode.test.js` + `server/tests/deadCode.test.js`)
+- **Tests:** server 561/561 (173 مجموعة) · POS 1072/1072 (76 ملفًا) · method contract 75 فعلًا / 104 موقع استدعاء مغطّاة / 249 معالجًا · biome 0 errors · pg parity OK · بوابة وصولية بلا كود ميت (`POS/tests/deadCode.test.js` + `server/tests/deadCode.test.js`)
 
 ## Backend topology (why `/api` needs an origin)
 - Cloudflare Pages serves the frontend from `dypos-pos`; a separate `dypos-api` Worker owns

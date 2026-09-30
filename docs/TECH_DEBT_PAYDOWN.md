@@ -162,9 +162,9 @@
 
 | # | الدين | الأثر | سبب التأجيل | خطة السداد |
 |---|-------|-------|-------------|------------|
-| 1 | **CSP `style-src 'unsafe-inline'`** | تضييق إضافي مؤجل | قيد بناء Vue (TODO في `server.js`) | ترحيل hash/nonce — مسجل في `SECURITY.md` |
-| 2 | **`echarts` متوسطة داخل `dypos-ui`** | لا أثر إنتاجيًا (مثبت: غائبة من الحزمة) | الإصلاح رجوع كاسر 146 إصدارًا | عند كل ترقية `dypos-ui` — مسجل في `SECURITY.md` |
-| 3 | **ملفات POS العملاقة** (PaymentDialog، POSSale…) | صيانة أصعب | خارج نطاق الجولة | تقسيم تدريجي مع تغطية اختبارية |
+| 1 | ~~CSP `style-src 'unsafe-inline'`~~ | **مسدود ومُثبت بالقياس 2026-09-30**: `server/middleware/cspNonce.js#buildCspWithNonce` يبني `style-src 'self' 'nonce-…'`، وفحص حي على خادم يعمل أعاد `/api/health` بترويسة بلا `unsafe-inline` والـnonce حيًّا ومختلفًا لكل طلب. السلسلة `unsafe-inline` باقية في فرع `securityHeaders` الاحتياطي فقط (لا يعمل في مسار Express الحيّ). | قيد بناء Vue (كان TODO في `server.js`) | ~~مُغلق~~ |
+| 2 | ~~`echarts` متوسطة داخل `dypos-ui`~~ | **مسدود ومُثبت بالقياس**: الحزمة الأولى `POS/packages/dypos-ui`، و`echarts` غائبة عن `POS/package-lock.json` وعن `POS/node_modules`، و`POS/tests/buildConfig.test.js` يمنع عودتها صامتة. | الإصلاح رجوع كاسر 146 إصدارًا | ~~مُغلق~~ |
+| 3 | **ملفات POS العملاقة** (POSSale.vue 6264، itemSearch) | صيانة أصعب | جولة تدريجية بمقاس | **قيد التنفيذ**: `itemSearch.js` 2620 → **2561** (سجلّ تتبّع الأصناف إلى `stores/itemListRegistry.js` + 12 اختبارًا جديدًا)؛ `POSSale.vue` و`Login.vue` و`POSSettings.vue` لم تُقسَّم بعد | continua |
 
 ### 🎯 الدرس المُثبَّت بهذه الجولة
 > **لا تُصلح الأعراض، أغلق الفئة**: قفلٌ في مسار دون آخر، ونطاقٌ يُتخطى عند

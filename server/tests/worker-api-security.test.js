@@ -37,7 +37,7 @@ test("edge health exposes the gateway release version and stays deterministic", 
   assert.equal(response.status, 200)
   const body = await response.json()
   assert.equal(body.status, "ok")
-  assert.equal(body.version, "1.41.1")
+  assert.equal(body.version, "1.41.2")
 })
 
 test("edge forwards authentication to the authoritative backend", async () => {

@@ -1,5 +1,12 @@
-﻿/**
- * DyPOS single source of truth for the server version (C3) v1.41.1
+/**
+ * DyPOS single source of truth for the server version (C3) v1.41.2
+ *
+ * 1.41.2 -- the subscriber-#1 operational run is now a repeatable, measured
+ * gate instead of a one-off: `npm run e2e:yaqoub` boots a real server and
+ * drives 17 checks as the shop's own manager account (login -> shift -> sale
+ * -> payment -> stock -> report -> settlement -> void), and the item-search
+ * registry moved to `stores/itemListRegistry.js` with 12 new unit tests
+ * behind a lowered file-size cap.
  *
  * 1.41.1 — the production dependency audit is clean again: `@vue/test-utils`
  * sat in `dependencies` while only tests import it, so the chain
@@ -15,5 +22,5 @@
  * Bumped with every change, as the deploy gate compares the live
  * /version.json against this number.
  */
-export const VERSION = '1.41.1';
+export const VERSION = '1.41.2';
 export default VERSION;
