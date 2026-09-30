@@ -33,7 +33,7 @@ describe("TranslatedHTML", () => {
 	it("strips script and event handlers (the XSS boundary)", () => {
 		const wrapper = mount(TranslatedHTML, {
 			props: {
-				inner: '<b onclick="steal()">x</b><script>alert(1)<\/script>',
+				inner: '<b onclick="steal()">x</b><script>alert(1)</script>',
 			},
 		})
 

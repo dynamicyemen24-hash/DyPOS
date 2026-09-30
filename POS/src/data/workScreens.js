@@ -113,16 +113,56 @@ export const WORK_SCREENS = Object.freeze([
 		columns: [
 			{ key: "name", label: "رقم الوردية", frozen: "right", sortable: true },
 			{ key: "terminal_id", label: "الطرفية", sortable: true },
-			{ key: "opening_cash", label: "رصيد الافتتاح", align: "end", format: amount("opening_cash") },
-			{ key: "closing_cash", label: "الرصيد الفعلي", align: "end", sortable: true, format: amount("closing_cash") },
-			{ key: "expected_cash", label: "المتوقع", align: "end", sortable: true, format: amount("expected_cash") },
-			{ key: "variance", label: "الفرق", align: "end", sortable: true, format: amount("variance") },
+			{
+				key: "opening_cash",
+				label: "رصيد الافتتاح",
+				align: "end",
+				format: amount("opening_cash"),
+			},
+			{
+				key: "closing_cash",
+				label: "الرصيد الفعلي",
+				align: "end",
+				sortable: true,
+				format: amount("closing_cash"),
+			},
+			{
+				key: "expected_cash",
+				label: "المتوقع",
+				align: "end",
+				sortable: true,
+				format: amount("expected_cash"),
+			},
+			{
+				key: "variance",
+				label: "الفرق",
+				align: "end",
+				sortable: true,
+				format: amount("variance"),
+			},
 			{ key: "status", label: "الحالة", filterable: true },
-			{ key: "closed_at", label: "تاريخ الإغلاق", sortable: true, format: (row) => String(row?.closed_at ?? "—").slice(0, 19).replace("T", " ") },
+			{
+				key: "closed_at",
+				label: "تاريخ الإغلاق",
+				sortable: true,
+				format: (row) =>
+					String(row?.closed_at ?? "—")
+						.slice(0, 19)
+						.replace("T", " "),
+			},
 		],
 		load: (limit) =>
 			methodGetListWithSource("POS Opening Shift", {
-				fields: ["name", "terminal_id", "opening_cash", "closing_cash", "expected_cash", "variance", "status", "closed_at"],
+				fields: [
+					"name",
+					"terminal_id",
+					"opening_cash",
+					"closing_cash",
+					"expected_cash",
+					"variance",
+					"status",
+					"closed_at",
+				],
 				orderBy: "creation desc",
 				limit,
 			}),

@@ -119,12 +119,20 @@ describe("work-screen navigation is wired to real routes", () => {
 	})
 
 	it("registers settlements as a real, source-backed work screen", () => {
-		const settlement = WORK_SCREENS.find((screen) => screen.id === "settlements")
+		const settlement = WORK_SCREENS.find(
+			(screen) => screen.id === "settlements",
+		)
 		expect(settlement).toBeTruthy()
 		expect(settlement.permission).toBe("work.settlements")
 		expect(settlement.doctype).toBe("POS Opening Shift")
 		expect(settlement.columns.map((column) => column.key)).toEqual(
-			expect.arrayContaining(["opening_cash", "closing_cash", "expected_cash", "variance", "status"]),
+			expect.arrayContaining([
+				"opening_cash",
+				"closing_cash",
+				"expected_cash",
+				"variance",
+				"status",
+			]),
 		)
 		expect(settlement.load.toString()).toContain("POS Opening Shift")
 		const nav = flatWorkNav().find((item) => item.id === "settlements")

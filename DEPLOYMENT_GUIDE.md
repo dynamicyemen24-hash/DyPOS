@@ -1,16 +1,47 @@
 # DyPOS Deployment Guide — dypos.smartportssoft.com
 
-## حالة النشر الآن (2026-09-29)
-- **الإصدار المستهدف:** `1.40.0`. إذا كان النطاق الحي يعرض إصدارًا أقدم، يعتبر النشر **فاشلًا** ولا يجوز اعتباره مكتملًا حتى تتطابق الواجهة والـAPI مع `main`.
-- **العطل السابق مُثبَت برمجيًا** (لا استنتاج): `scripts/pages-preflight.mjs` كان
-  يحصل على `HTTP 403` + `code 10000` على `GET /accounts/{id}/pages/projects`
-  بعد نجاح `/user/tokens/verify` — أي أن المشروع موجود والرمز صالح، لكن
-  `Cloudflare Pages:Edit` كانت غائبة. تم تحديث الرمز قبل تشغيل هذه الدفعة.
-- كل بوابات ما قبل النشر خضراء (اختبارات + lint + parity + عقد + ميزانية البناء)،
-  و`npm run verify:live` يعطي 6/6 على الموقع الحالي ويفشل بسبب واحد فقط:
-  `version.json = 1.37.0` بينما المستودع على `1.40.0` — أي أن البوابة تصف
-  العطل بدقة بدل أن تصمت.
+## حالة النشر الآن (2026-09-30)
+- **الإصدار المستهدف:** `1.41.0`. إذا كان النطاق الحي يعرض إصدارًا أقدم، يعتبر النشر **فاشلًا** ولا يجوز اعتباره مكتملًا حتى تتطابق الواجهة والـAPI مع `main`.
+- **رمز Cloudflare سليم الآن — مُثبت بالقياس لا بالافتراض**: التشغيل `36703778984` (2026-09-30 10:39Z) اجتاز `pages-preflight`، ونشر Pages، ونشر `dypos-api`؛ سقطت خطوة واحدة فقط: `Live verify`. خلل `403 + code 10000` (غياب `Cloudflare Pages:Edit`) انتهى بعد تجديد الرمز في 2026-09-29 21:28Z.
+- **⚠️ العطل الوحيد المتبقي: `/api/health` → `503 UPSTREAM_MISCONFIGURED`** — بسببه يبقى `Live verify` و`Uptime Monitor` أحمرَّين. التفصيل والمعالجة في القسم «إحياء الـAPI الحيّ» أدناه. البوابة الآن تطبع اسم العطل لا رقمًا مجرّدًا.
+- كل بوابات ما قبل النشر خضراء (اختبارات + lint + parity + عقد + ميزانية البناء + `vue-tsc`).
 
+### 🔴 إحياء الـAPI الحيّ — سبب احمرار `Live verify` و`Uptime Monitor`
+
+**القياس (2026-09-30):**
+
+| المسار | الرد |
+|--------|------|
+| `/api/ready` | `200 {"status":"ready","database_bound":true}` — الحافة نفسها سليمة |
+| `/api/health` · `/api/ping` · `/api/version` | `503 {"code":"UPSTREAM_MISCONFIGURED","detail":"BACKEND_URL (https://dypos-api.smartportssoft.com) resolves to this worker (dypos.smartportssoft.com)…"}` |
+
+**جذر السبب (ثلاث حقائق متسلسلة، لا استنتاج):**
+
+1. `wrangler.api.toml` يضبط `[vars] BACKEND_URL = "https://dypos-api.smartportssoft.com"`.
+2. ذلك المضيف مُدرج في `worker-edge-hosts.mjs#DYPOS_EDGE_HOSTS`، أي أنه **الـWorker نفسه** — فحارس `isSelfProxy` يرفض التوجيه (سلوك مقصود، مغطّى بـ`server/tests/worker-edge-hosts.test.js`)؛ ولو فتح الحارس لكان المرور إلى مضيف بلا سجل DNS ⇒ نفس النتيجة.
+3. **لا يوجد أصل خلفي أصلًا**: لا سجل DNS لـ`dypos-api.smartportssoft.com` (NXDOMAIN)، ولا خادم Express ولا نفق `cloudflared` مُشغَّلان على هذا النطاق. التطبيق يعمل اليوم بوضع Offline-First فقط (المبيعات محلية في IndexedDB، والمزامنة معلّقة).
+
+**المعالجة — بالترتيب، وكل خطوة تُقاس:**
+
+```bash
+# 1) أصل مفوّض دائم (VPS أو حاوية) يشغّل الخادم
+cd server && npm ci && npm run migrate && node entrypoint.js
+#    أو من جذر المستودع: docker compose up -d
+
+# 2) كشفه خلف نفق Cloudflare بلا منافذ مفتوحة
+CLOUDFLARED_TOKEN=<token> docker compose --profile tunnel up -d cloudflared
+#    Zero Trust → Networks → Tunnels → Create → Public hostname
+#    (مثال) api.dypos.smartportssoft.com → Service: http://dypos-server:3001
+
+# 3) توجيه الحافة إليه — ولا يجوز أبدًا أن يكون المضيف ذاته
+npx wrangler secret put BACKEND_URL --config wrangler.api.toml
+#    ثم احذف BACKEND_URL من [vars] في wrangler.api.toml حتى لا يعيد أي نشر كتابة القيمة الخاطئة
+
+# 4) البوابة الوحيدة التي تُقر
+npm run verify:live        # يجب أن تعطي 6/6
+```
+
+> **قاعدة دائمة:** أي `BACKEND_URL` إمّا مُدرج في `DYPOS_EDGE_HOSTS` أو لا يحلّ في DNS = إنتاج بلا API. الحافة لا تنتحل الصحة أبدًا؛ تردّ `503` باسم العطل، والنبض كل 15 دقيقة يعيد تكراره بدقّة.
 ### صلاحيات رمز النشر (لا تُكتب قيمة التوكن في المستودع أبدًا)
 - **Account → Cloudflare Pages → Edit** لنشر `dypos-pos`.
 - **Account → Workers Scripts → Edit** لنشر Worker `dypos-api`.
@@ -102,20 +133,17 @@ npm run e2e:royal       # 14-check proof: login→shift→sale→pay→stock→v
 - سكربت E2E يلغّي فاتورته ويغلق ورديته — قاعدة الإنتاج تبقى نظيفة.
 
 ## Version Info (حالي)
-- **Version:** `1.40.0` (single source: root `package.json`)
-- **Date:** September 29, 2026
+- **Version:** `1.41.0` (single source: root `package.json`)
+- **Date:** September 30, 2026
 - **Framework:** Vue 3 + Chart.js + dypos-ui
 - **PWA:** Yes (SW root scope، `build:pages` → `POS/dist/pos`)
 - **Deploy:** push to `main` → GitHub Actions → Cloudflare Pages + `dypos-api` Worker → `npm run verify:live`
-- **Live قبل هذه الدفعة:** `https://dypos.smartportssoft.com/` يقدّم `1.37.0`؛ يُحدّث
-  إلى `1.40.0` بعد نجاح خط النشر والتحقق الحي.
-- **Tests:** server 463/463 (147 مجموعة) · POS 1028/1028 (70 ملفًا) · method contract
-  64 فعلًا / 64 مغطّى · biome 0 errors · pg parity OK · بوابة وصولية بلا كود ميت
-  (`POS/tests/deadCode.test.js` + `server/tests/deadCode.test.js`)
+- **Live قبل هذه الدفعة:** `https://dypos.smartportssoft.com/` يقدّم `1.40.0` (Pages منشورة بنجاح في 2026-09-30)؛ تُحدَّث إلى `1.41.0` بعد نجاح `Live verify` — والمعوّق حاليًا هو `/api/health` (أصل خلفي مفقود) لا الواجهة.
+- **Tests:** server 559/559 (172 مجموعة) · POS 1060/1060 (75 ملفًا) · method contract 75 فعلًا / 104 موقع استدعاء مغطّاة / 249 معالجًا · biome 0 errors · pg parity OK · بوابة وصولية بلا كود ميت (`POS/tests/deadCode.test.js` + `server/tests/deadCode.test.js`)
 
 ## Backend topology (why `/api` needs an origin)
 - Cloudflare Pages serves the frontend from `dypos-pos`; a separate `dypos-api` Worker owns
-  same-origin `/api/*` and returns `/api/ping` directly.
+  same-origin `/api/*`. The edge answers `/api/edge-health` and `/api/ready` itself and proxies every other path — `/api/ping` included — so a missing authoritative backend reads as 503 on all of them.
 - The Express API can run on a VPS (`docker compose up -d`) and be exposed through a
   Cloudflare Tunnel (`docker compose --profile tunnel up -d cloudflared` with
   `CLOUDFLARED_TOKEN`). Keep the API origin and credentials in deployment secrets; never

@@ -117,7 +117,9 @@ const totalCount = computed(() => rows.value.length)
  * سليم. لذلك يُعدّ هنا ويُعرض بنداء صريح (`unlinkedStockBanner`).
  */
 const unlinkedStock = computed(
-	() => rows.value.filter((r) => r.account_type === "stock" && !r.product_id).length,
+	() =>
+		rows.value.filter((r) => r.account_type === "stock" && !r.product_id)
+			.length,
 )
 
 const unlinkedStockBanner = computed(() => {
