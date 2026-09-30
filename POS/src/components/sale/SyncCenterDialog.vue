@@ -488,11 +488,12 @@ function formatDate(timestamp) {
 	const date = new Date(Number(timestamp) || Date.now())
 	const now = new Date()
 	const diffInSeconds = Math.floor((now - date) / 1000)
-	if (diffInSeconds < 60) return __("Just now")
+	// الرسائل الافتراضية عربية أولًا: لا سلاسل إنجليزية ظاهرة للمستخدم.
+	if (diffInSeconds < 60) return __("الآن")
 	if (diffInSeconds < 3600)
-		return __("{0} minutes ago", [Math.floor(diffInSeconds / 60)])
+		return __("منذ {0} دقيقة", [Math.floor(diffInSeconds / 60)])
 	if (diffInSeconds < 86400)
-		return __("{0} hours ago", [Math.floor(diffInSeconds / 3600)])
+		return __("منذ {0} ساعة", [Math.floor(diffInSeconds / 3600)])
 	return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`
 }
 
