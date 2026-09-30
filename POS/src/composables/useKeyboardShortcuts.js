@@ -143,11 +143,7 @@ export function createKeyboardShortcuts({
 		/*
 		 * Delete — حذف العنصر المحدد
 		 */
-		if (
-			event.key === "Delete" &&
-			activeProductIndex.value >= 0 &&
-			!isTyping
-		) {
+		if (event.key === "Delete" && activeProductIndex.value >= 0 && !isTyping) {
 			const item = cart.value[activeProductIndex.value]
 
 			if (item) {

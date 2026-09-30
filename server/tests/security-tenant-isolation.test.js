@@ -101,6 +101,32 @@ async function req(method, path, body, tok, extra = {}) {
   return { status: r.status, body: j };
 }
 
+describe('Tenant-scoped financial idempotency', () => {
+  it('allows the same client idempotency key in independent tenants without cross-tenant deduplication', async () => {
+    const productB = await req('POST', '/api/products', {
+      name: 'Iso Product B',
+      code: `ISO-B-${stamp}`,
+      unitPrice: 90,
+      taxRate: 15,
+    }, tokenB, { 'X-Tenant-Id': tenantB });
+    assert.strictEqual(productB.status, 201);
+    const key = `same-client-key-${stamp}`;
+    const a = await req('POST', '/api/invoices', {
+      items: [{ productId: prodA, qty: 1 }],
+      payments: [{ method: 'CASH', amount: 30 }],
+      idempotencyKey: key,
+    }, tokenA, { 'X-Tenant-Id': tenantA });
+    assert.strictEqual(a.status, 201);
+    const b = await req('POST', '/api/invoices', {
+      items: [{ productId: productB.body.id, qty: 1 }],
+      payments: [{ method: 'CASH', amount: 103.5 }],
+      idempotencyKey: key,
+    }, tokenB, { 'X-Tenant-Id': tenantB });
+    assert.strictEqual(b.status, 201);
+    assert.notStrictEqual(b.body.invoiceId, a.body.invoiceId);
+  });
+});
+
 describe('Tenant isolation — PASSING guards (B cannot read A by id)', () => {
   it('products/:id hides cross-tenant product (404)', async () => {
     const r = await req('GET', `/api/products/${prodA}`, null, tokenB, { 'X-Tenant-Id': tenantB });

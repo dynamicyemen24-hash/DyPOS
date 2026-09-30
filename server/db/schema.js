@@ -21,8 +21,10 @@ import { migrateOpeningBalances } from './migrations-opening-balances.js';
 import { migrateInvoiceReturnTracking } from './migrations-invoice-returns.js';
 import { migratePromotionTenancy } from './migrations-promotion-tenancy.js';
 import { migrateOpeningBalanceItems } from './migrations-opening-balance-items.js';
+import { migrateInvoiceTenantIdempotency } from './migrations-invoice-tenant-idempotency.js';
+import { migrateShiftSettlementIntegrity } from './migrations-shift-settlement-integrity.js';
 
-const MIGRATION_VERSION = 26; // Increment when schema changes
+const MIGRATION_VERSION = 28; // Increment when schema changes
 
 /**
  * Migrations that live in their own `db/migrations-*.js` file (v23+).
@@ -38,6 +40,8 @@ const LATE_MIGRATIONS = Object.freeze([
 	{ version: 24, run: migrateInvoiceReturnTracking, note: 'invoice return tracking fields' },
 	{ version: 25, run: (d) => migrateOpeningBalances(d), note: 'opening balances per fiscal year' },
 	{ version: 26, run: migrateOpeningBalanceItems, note: 'opening balances item link (product_id)' },
+	{ version: 27, run: migrateInvoiceTenantIdempotency, note: 'invoice idempotency scoped to tenant' },
+	{ version: 28, run: migrateShiftSettlementIntegrity, note: 'shift settlement concurrency integrity' },
 ]);
 
 function columnExists(table, column) {
@@ -66,7 +70,6 @@ db.pragma('busy_timeout = 5000');
 // Bound the WAL file on busy stores (64MB): checkpoints reclaim beyond this
 // instead of letting -wal grow without limit during sale storms.
 db.pragma('journal_size_limit = 67108864');
-
 
 export function checkDbHealth() {
   try {
@@ -1025,9 +1028,8 @@ export function snapshotForMigration(backupDir) {
   return snap;
 }
 
-// Named export kept in addition to the default export: `server.js` imports
-// `{ migrate, db, checkDbHealth }`, while every route module uses the default.
+// Named exports are kept alongside the default: `server.js` imports
+// `{ db, MIGRATION_VERSION }`, while every route module uses the default.
 // Both styles must resolve, otherwise the ESM linker fails at startup.
-export { db };
-export { MIGRATION_VERSION };
+export { db, MIGRATION_VERSION };
 export default db;

@@ -6,7 +6,7 @@
  * This file only maps HTTP → lib context, lib errors → HTTP status + body.
  */
 import { Router } from 'express';
-import { assertTenantScope, resolveTenantFilter } from '../lib/tenant.js';
+import { resolveTenantFilter } from '../lib/tenant.js';
 import {
 	SubscriptionError,
 	listPlans,

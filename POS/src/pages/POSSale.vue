@@ -1512,6 +1512,15 @@ watch(
             <template #actions>
                 <SyncStatusIndicator @click="showSyncCenter = true" />
                 <button
+                    type="button"
+                    class="dy-pos-header-action"
+                    :title="__('التسويات')"
+                    :aria-label="__('التسويات')"
+                    @click="goToWorkScreens('settlements')"
+                >
+                    <FeatherIcon name="clipboard" class="h-[18px] w-[18px]" />
+                </button>
+                <button
                     v-if="allowPrintLastInvoice"
                     type="button"
                     class="dy-pos-header-action"

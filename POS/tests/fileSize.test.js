@@ -37,7 +37,10 @@ const CAPS = [
 	// 6374 → 6359: تسجيل الخروج + اختصار Shift+Esc زاد~30 سطرًا، فاستُخرج
 	// مسار لوحة المفاتيح إلى utils/gridNavigation.js (مع اختبارات) وسلسلة
 	// الإغلاق إلى composables/useOverlayCloser.js. الاتجاه downward فقط.
-	["src/pages/POSSale.vue", 6255],
+	// 6255 → 6264: زر «التسويات» في رأس شاشة البيع (9 أسطر) الذي يفتح شاشة
+	// التسويات الجديدة في workScreens.js. رُفع السقف لأن الزرDead code كان
+	// أخطر من حجمه: شاشة تسويات موجودة بلا مدخل إليها. الاتجاه بعده نزول فقط.
+	["src/pages/POSSale.vue", 6264],
 	["src/components/settings/POSSettings.vue", 2092],
 	// 3406 → 3225 → 1706 → 2039:
 	//  - تهيئة بيئة التشغيل (~250 سطرًا) انتقلت إلى composables/useLoginRuntime.js
@@ -57,7 +60,14 @@ const CAPS = [
 	//   و`pinLength` المحذوف كان computed يقرأ نفسه (كان يطبع "٧ خانات على
 	//   الأقل" بعد كتابة سبع خانات). الاتجاه نزول فقط.
 	["src/pages/Login.vue", 2031],
-	["src/stores/itemSearch.js", 2620],
+	// 2620 → 2561: the per-code tracking bookkeeping (registry buckets, the
+	// empty-bucket pruning that keeps a long session from leaking one Set per
+	// code it ever sold, and the list mutators) moved to
+	// stores/itemListRegistry.js — one implementation for the browse list and
+	// the search results, with its own coverage
+	// (tests/itemListRegistry.test.js, 12 checks). The cap moves downward only.
+	["src/stores/itemSearch.js", 2561],
+	["src/stores/itemListRegistry.js", 178],
 	// 1188 → 1150: column layout and cell formatting moved to focused modules as
 	// the frozen-grid contract grew.
 	["src/components/work/WorkDataGrid.vue", 1150],

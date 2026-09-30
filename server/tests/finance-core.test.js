@@ -243,11 +243,33 @@ describe('Change, inclusive tax, currency default, print branding', () => {
     const fund = await req('POST', `/api/customers/${cid}/wallet`, { amount: 1000, direction: 'credit' }, admin);
     assert.strictEqual(fund.status, 200);
     const r = await req('POST', '/api/invoices', { customerId: cid, items: [{ productId, qty: 1 }], payments: [{ method: 'WALLET', amount: 500 }] }, admin);
+    assert.strictEqual(r.status, 400);
+    // 500 was tendered against a ~115 invoice. The wallet is a settlement
+    // instrument, not change-bearing cash, so the over-tender is refused
+    // outright: deducting "the total and no more" here would still take the
+    // customer's money for an amount they never agreed to.
+    assert.match(String(r.body.error || ''), /يتجاوز المبلغ المستحق/);
+    const bal = await req('GET', `/api/customers/${cid}/balance`, null, admin);
+    assert.strictEqual(Number(bal.body.wallet_balance ?? bal.body.balance ?? NaN), 1000);
+  });
+
+  it('wallet settles exactly when the tender matches the total', async () => {
+    const cu = await req('POST', '/api/customers', { name: 'Wallet Exact', phone: '05' + Date.now().toString().slice(-8) }, admin);
+    assert.strictEqual(cu.status, 201);
+    const cid = cu.body.id;
+    await req('POST', `/api/customers/${cid}/wallet`, { amount: 1000, direction: 'credit' }, admin);
+    // Discover the total from a cash sale, then settle the same amount by wallet.
+    const probe = await req('POST', '/api/invoices', { items: [{ productId, qty: 1 }], payments: [{ method: 'CASH', amount: 1000 }] }, admin);
+    assert.strictEqual(probe.status, 201);
+    const total = Number(probe.body.total);
+
+    const r = await req('POST', '/api/invoices', { customerId: cid, items: [{ productId, qty: 1 }], payments: [{ method: 'WALLET', amount: total }] }, admin);
     assert.strictEqual(r.status, 201);
     assert.strictEqual(r.body.change, 0);
     assert.strictEqual(r.body.remainingAmount, 0);
     const bal = await req('GET', `/api/customers/${cid}/balance`, null, admin);
-    assert.strictEqual(Number(bal.body.wallet_balance ?? bal.body.balance ?? NaN), 885);
+    // Only the invoice total left the wallet — never the requested 1000.
+    assert.strictEqual(Number(bal.body.wallet_balance ?? bal.body.balance ?? NaN), 1000 - total);
   });
 
   it('tax-inclusive profile keeps the charged total exact (net backed out)', async () => {
@@ -277,5 +299,41 @@ describe('Change, inclusive tax, currency default, print branding', () => {
     assert.strictEqual(html.status, 200);
     assert.ok(String(html.body).includes('متجر النور'));
     await req('PUT', '/api/settings', { business_name: '' }, admin);
+  });
+});
+
+
+describe('Shift settlement integrity', () => {
+  it('reconciles cash net of change instead of gross tendered cash', async () => {
+    const terminal = 'TERM-SETTLE-' + Date.now();
+    const opened = await req('POST', '/api/shifts/open', { terminalId: terminal, openingCash: 0 }, admin);
+    assert.strictEqual(opened.status, 201);
+    const shiftId = opened.body.shiftId;
+
+    const sale = await req('POST', '/api/invoices', {
+      items: [{ productId, qty: 1, unitPrice: 100 }],
+      shiftId,
+      terminalId: terminal,
+      payments: [{ method: 'CASH', amount: 150 }],
+    }, cashier);
+    assert.strictEqual(sale.status, 201);
+
+    // The line carries the default 15% VAT, so the invoice is 115 and 35 of the
+    // 150 tendered came back as change. Only 115 should be expected in the
+    // drawer; counting the gross 150 would make every reconciliation look +35.
+    const total = Number(sale.body.total);
+    const close = await req('POST', '/api/shifts/' + shiftId + '/close', { closingCash: total }, admin);
+    assert.strictEqual(close.status, 200);
+    assert.strictEqual(Number(close.body.expected), total);
+    assert.strictEqual(Number(close.body.variance), 0);
+  });
+
+  it('prevents a second open shift on the same terminal', async () => {
+    const terminal = 'TERM-UNIQUE-' + Date.now();
+    const first = await req('POST', '/api/shifts/open', { terminalId: terminal, openingCash: 10 }, admin);
+    assert.strictEqual(first.status, 201);
+    const second = await req('POST', '/api/shifts/open', { terminalId: terminal, openingCash: 20 }, admin);
+    assert.strictEqual(second.status, 409);
+    assert.strictEqual(second.body.shiftId, first.body.shiftId);
   });
 });

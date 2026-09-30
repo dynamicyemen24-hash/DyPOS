@@ -87,6 +87,29 @@ describe('Invoices — create', () => {
     assert.strictEqual(got.body.payments.length, 1);
   });
 
+  it('rejects non-cash overpayment instead of silently capping the ledger', async () => {
+    const res = await req('POST', '/api/invoices', {
+      items: [{ productId, qty: 1 }], // total 57.5 with default VAT
+      // CARD requires a reference, so the tender must be complete: without it
+      // the request is rejected earlier for a different reason and this test
+      // would pass without ever reaching the overpayment guard.
+      payments: [{ method: 'CARD', amount: 100, reference: 'APPROVED-1' }],
+    }, token);
+    assert.strictEqual(res.status, 400);
+    assert.match(String(res.body.error || ''), /يتجاوز المبلغ المستحق/);
+  });
+
+  it('rejects a wallet over-tender instead of draining past the invoice', async () => {
+    // A digital balance is debited, not handed over: over-tendering it would
+    // silently take the customer's money beyond what the sale is worth.
+    const res = await req('POST', '/api/invoices', {
+      items: [{ productId, qty: 1 }],
+      payments: [{ method: 'WALLET', amount: 10_000 }],
+    }, token);
+    assert.strictEqual(res.status, 400);
+    assert.match(String(res.body.error || ''), /يتجاوز المبلغ المستحق/);
+  });
+
   it('GET /api/invoices clamps limit (DoS guard)', async () => {
     const res = await req('GET', '/api/invoices?limit=9999', null, token);
     assert.strictEqual(res.status, 200);

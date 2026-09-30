@@ -36,13 +36,6 @@ import smartPortsBg from "@/assets/smart-ports-og.jpg"
  * Props / Emits
  * ========================================================================== */
 
-const props = defineProps({
-	backgroundImage: {
-		type: String,
-		default: "",
-	},
-})
-
 const emit = defineEmits(["resetRequested", "error"])
 
 /* ============================================================================
@@ -67,19 +60,6 @@ const loginError = ref("")
 /* ============================================================================
  * Computed (guest page: no session timer — expiry popup must never appear)
  * ========================================================================== */
-
-const brandBackground = computed(() => {
-	const image = props.backgroundImage || smartPortsBg
-	if (!image) return {}
-	return {
-		backgroundImage: `linear-gradient(
-            135deg,
-            rgb(var(--dy-brand-c-950) / 0.96),
-            rgb(var(--dy-brand-c-900) / 0.86),
-            rgb(var(--dy-brand-c-800) / 0.62)
-        ), url("${image}")`,
-	}
-})
 
 const emailError = computed(() => {
 	if (!email.value) return ""
@@ -171,11 +151,7 @@ onUnmounted(() => {
 	>
 		<!-- Brand Panel -->
 
-		<section
-			class="dy-forgot__brand"
-			:style="brandBackground"
-			aria-label="هوية DyPOS"
-		>
+		<section class="dy-forgot__brand" aria-label="هوية DyPOS">
 			<div class="dy-forgot__brand-overlay" />
 
 			<div class="dy-forgot__brand-content">
@@ -184,8 +160,8 @@ onUnmounted(() => {
 						:src="DyPOSLogo"
 						alt="DyPOS"
 						class="dy-forgot__logo"
-						width="176"
-						height="64"
+						width="112"
+						height="112"
 						decoding="async"
 					/>
 				</div>
@@ -206,6 +182,21 @@ onUnmounted(() => {
 						لاستعادة كلمة المرور بأمان.
 					</p>
 				</div>
+
+				<!-- The identity card, framed instead of stretched behind the
+				     copy: `smart-ports-og.jpg` is a 1200×630 sharing card whose
+				     typography is baked into its pixels, so a `cover` backdrop
+				     could only ever show it cut mid-word under the headline. -->
+				<figure class="dy-forgot__brand-card">
+					<img
+						:src="smartPortsBg"
+						alt="شركة المنافذ الذكية للبرمجيات — Smart Ports Software"
+						width="1200"
+						height="630"
+						decoding="async"
+					/>
+				</figure>
+
 
 				<div class="dy-forgot__brand-footer">
 					<span>DyPOS</span>
@@ -404,6 +395,7 @@ onUnmounted(() => {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
 	min-height: 100vh;
+	min-height: 100dvh;
 
 	background: var(--dy-surface);
 	color: var(--dy-text);
@@ -424,6 +416,19 @@ onUnmounted(() => {
 	flex-direction: column;
 	justify-content: space-between;
 	padding: var(--dy-space-8);
+
+	/*
+	 * This panel used to be painted entirely by an inline `brandBackground`
+	 * that layered a `cover` copy of the 1200×630 sharing card — whose printed
+	 * words were cut mid-word behind live text. The gradient is the panel's
+	 * own now; the image lives in `.dy-forgot__brand-card`, framed.
+	 */
+	background: linear-gradient(
+		158deg,
+		rgb(var(--dy-brand-c-800)) 0%,
+		rgb(var(--dy-brand-c-900)) 44%,
+		rgb(var(--dy-brand-c-950)) 100%
+	);
 
 	color: var(--dy-text-inverse);
 }
@@ -448,20 +453,103 @@ onUnmounted(() => {
 	z-index: 1;
 
 	display: flex;
+	flex: 1;
 	flex-direction: column;
-	gap: var(--dy-space-8);
+
+	justify-content: space-between;
+
+	min-height: 100%;
 
 	max-width: 420px;
-	margin-top: auto;
+
+	/*
+	 * No `margin-top: auto` here. An auto margin absorbs every pixel of free
+	 * space before `justify-content: space-between` can share it, which pinned
+	 * the whole block — identity card included — to the bottom edge of a
+	 * viewport-height panel (the same trap login.css documents). With the
+	 * margin gone the four children spread evenly and the card lands inside
+	 * the first screen.
+	 */
 }
 
 .dy-forgot__logo-shell {
+	display: inline-flex;
 	width: fit-content;
+
+	/*
+	 * `DyPOSLogo.png` is 512×512 with the icon printed on a WHITE ground: a
+	 * translucent shell behind it could never be seen, so the shell *is* the
+	 * tile. Same treatment as the login panel, same reason.
+	 */
+	padding: 8px;
+
+	border: 1px solid rgb(255 255 255 / 0.5);
+
+	border-radius: var(--dy-radius-xl);
+
+	background: white;
+
+	box-shadow: 0 16px 32px rgb(var(--dy-brand-c-950) / 0.45);
 }
 
 .dy-forgot__logo {
-	width: 176px;
+	display: block;
+	width: 112px;
 	height: auto;
+	object-fit: contain;
+}
+
+/* =============================================================================
+   Identity card — the company image, framed instead of stretched
+   =============================================================================
+   `smart-ports-og.jpg` is a 1200×630 *sharing card*: white ground, logo, the
+   company name in two scripts, a tagline and four badges — all baked into the
+   pixels. Used as a `cover` backdrop of this tall panel it can only ever show
+   fragments of that typography, cut mid-word, underneath the live headline.
+
+   Presented as an artifact instead: a glass plaque holding the whole card at
+   its native aspect ratio. `object-fit: contain` guarantees no crop, and the
+   intrinsic `width`/`height` on the element keep the plaque from reflowing
+   while the JPEG decodes.
+   ========================================================================== */
+
+.dy-forgot__brand-card {
+	position: relative;
+
+	/* `vh` is not decoration: the panel is viewport-height and clips its
+	   overflow, so an unconstrained card would be cut off on a 1366×768
+	   laptop. The card yields height before the layout yields legibility. */
+	width: min(100%, 440px, 42vh);
+
+	margin: 0;
+
+	padding: 10px;
+
+	border: 1px solid rgb(255 255 255 / 0.2);
+	border-radius: var(--dy-radius-2xl);
+
+	background: rgb(255 255 255 / 0.1);
+	backdrop-filter: blur(20px) saturate(1.35);
+	-webkit-backdrop-filter: blur(20px) saturate(1.35);
+
+	box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.24), 0 24px 48px
+		rgb(var(--dy-brand-c-950) / 0.5);
+}
+
+.dy-forgot__brand-card img {
+	display: block;
+
+	width: 100%;
+	height: auto;
+	aspect-ratio: 1200 / 630;
+
+	object-fit: contain;
+
+	border-radius: calc(var(--dy-radius-2xl) - 10px);
+
+	/* The JPEG's own ground is white; without this the letterboxing that
+	   `contain` can introduce would read as a dirty edge. */
+	background: white;
 }
 
 .dy-forgot__eyebrow {

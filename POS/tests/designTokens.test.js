@@ -938,17 +938,50 @@ describe("compounded dimming (colour × opacity)", () => {
 	})
 })
 
-describe("a photo-backed panel scrims the text over it", () => {
-	it("the brand panel background has one owner: the component", () => {
-		// login.css used to declare a *second* gradient for `.dy-login__brand`
-		// that the component's inline style always overrode. Every edit to it
-		// was invisible in the browser — it cost two measurement rounds before
-		// walking the ancestor chain showed the real source.
+describe("the identity image is framed, never stretched behind live text", () => {
+	/*
+	 * `smart-ports-og.jpg` is a 1200×630 *sharing card*: the company name in two
+	 * scripts, a tagline and four badges are printed into its pixels. Shipped as
+	 * a `cover` backdrop of the tall brand panel, the browser can only ever show
+	 * fragments of that typography — «الذكية للبرمجيا…»، «Smart Ports Softw…» —
+	 * cropped mid-word, with the live headline painted straight on top of them.
+	 * Two competing texts, neither readable. These are the rules that keep the
+	 * framed treatment from regressing to that.
+	 */
+	it("the brand backdrop is a pure gradient owned by the stylesheet", () => {
 		const body = stripComments(ruleBody(LOGIN_CSS_FILE, ".dy-login__brand {"))
-		expect(body).not.toMatch(/background\s*:/)
-		expect(body).toMatch(/background-size:\s*cover/)
-		expect(read(SRC, "pages", "Login.vue")).toMatch(
-			/backgroundImage:\s*`linear-gradient\([\s\S]*url\("\$\{image\}"\)/,
+		expect(body, "the rule still exists").not.toBe("")
+		expect(body).toMatch(/background:\s*linear-gradient/)
+		// No photo may be the panel background: this one carries type.
+		expect(body).not.toMatch(/url\(/)
+		expect(body).not.toMatch(/background-size:\s*cover/)
+
+		// Single owner. The component used to win this with an inline `:style`,
+		// which made every edit to the rule above invisible in the browser —
+		// two measurement rounds were lost to it before the cascade was walked.
+		expect(
+			read(SRC, "pages", "Login.vue"),
+			"Login.vue must not repaint the panel background inline",
+		).not.toMatch(/:style="[^"]*background/i)
+	})
+
+	it("renders the card whole, at its own aspect ratio", () => {
+		const img = stripComments(
+			ruleBody(LOGIN_CSS_FILE, ".dy-login__brand-card img"),
+		)
+		expect(img, "the framed-card rule exists").not.toBe("")
+		expect(img).toMatch(/object-fit:\s*contain/)
+		expect(img).not.toMatch(/object-fit:\s*cover/)
+
+		const figure = read(SRC, "pages", "Login.vue").match(
+			/<figure class="dy-login__brand-card">[\s\S]*?<\/figure>/,
+		)
+		expect(figure, "the card is markup, not a CSS background").not.toBeNull()
+		// Intrinsic size: without it the plaque reflows as the JPEG decodes.
+		expect(figure[0]).toMatch(/\bwidth="1200"/)
+		expect(figure[0]).toMatch(/\bheight="630"/)
+		expect(figure[0], "the image is named, not decorative").toMatch(
+			/\balt="[^"]+"/,
 		)
 	})
 
@@ -958,13 +991,59 @@ describe("a photo-backed panel scrims the text over it", () => {
 		)
 		expect(
 			body,
-			"the panel behind this line is a photo, so the contrast cannot come " +
-				"from the text colour alone",
+			"the gradient behind this line is accent-driven, so the contrast " +
+				"cannot be left to the accent in force",
 		).toMatch(/background:\s*rgb\(var\(--dy-brand-c-950\)/)
 		// And the label must be strong enough on top of that scrim.
 		const alpha = body.match(/color:\s*rgb\(255 255 255 \/ ([\d.]+)\)/)
 		expect(alpha, "the footer sets an explicit white alpha").not.toBeNull()
 		expect(Number(alpha[1])).toBeGreaterThanOrEqual(0.7)
+	})
+
+	/*
+	 * The same treatment, measured on the siblings. Register, ForgotPassword
+	 * and ResetPassword each carry their own scoped copy of the panel, so
+	 * keeping Login.vue correct says nothing about them — and siblings
+	 * drifting apart is exactly how one page got framed while three of them
+	 * stayed stretched behind the copy.
+	 */
+	const SIBLINGS = [
+		["ForgotPassword.vue", "dy-forgot"],
+		["ResetPassword.vue", "dy-reset"],
+		["Register.vue", "dy-register"],
+	]
+
+	it.each(SIBLINGS)("%s frames the identity image", (file, prefix) => {
+		const vue = read(SRC, "pages", file)
+
+		// The gradient is the panel's own; a `url(` or a `cover` sizing would
+		// be the photo creeping back in behind live text.
+		const brand = stripComments(ruleBody(vue, `.${prefix}__brand {`))
+		expect(brand, "the panel rule still exists").not.toBe("")
+		expect(brand).toMatch(/background:\s*linear-gradient/)
+		expect(brand).not.toMatch(/url\(/)
+		expect(brand).not.toMatch(/background-size:\s*cover/)
+
+		const img = stripComments(ruleBody(vue, `.${prefix}__brand-card img`))
+		expect(img, "the framed-card rule exists").not.toBe("")
+		expect(img).toMatch(/object-fit:\s*contain/)
+		expect(img).not.toMatch(/object-fit:\s*cover/)
+
+		const tag = `figure class="${prefix}__brand-card"`
+		const open = vue.indexOf(tag)
+		expect(open, "the card is markup, not a CSS background").toBeGreaterThan(-1)
+
+		// Size and name are checked on the card itself: a `width="1200"`
+		// elsewhere in the file would prove nothing about its layout shift.
+		const card = vue.slice(open, vue.indexOf("</figure>", open))
+		expect(card).toMatch(/\bwidth="1200"/)
+		expect(card).toMatch(/\bheight="630"/)
+		expect(card, "the image is named, not decorative").toMatch(/\balt="[^"]+"/)
+
+		expect(
+			vue,
+			`${file} must not repaint the panel background inline`,
+		).not.toMatch(/:style="[^"]*background/i)
 	})
 })
 

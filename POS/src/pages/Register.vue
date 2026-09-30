@@ -40,13 +40,6 @@ import { userRepository } from "@/repositories/userRepository"
  * Props
  * ============================================================================ */
 
-const props = defineProps({
-	backgroundImage: {
-		type: String,
-		default: "",
-	},
-})
-
 const emit = defineEmits(["registered", "error"])
 
 /* ============================================================================
@@ -77,19 +70,6 @@ const showConfirmPassword = ref(false)
 /* ============================================================================
  * Computed
  * ============================================================================ */
-
-const brandBackground = computed(() => {
-	const image = props.backgroundImage || smartPortsBg
-	if (!image) return {}
-	return {
-		backgroundImage: `linear-gradient(
-            135deg,
-            rgb(var(--dy-brand-c-950) / 0.96),
-            rgb(var(--dy-brand-c-900) / 0.86),
-            rgb(var(--dy-brand-c-800) / 0.62)
-        ), url("${image}")`,
-	}
-})
 
 const canSubmit = computed(() => {
 	return (
@@ -442,11 +422,7 @@ onUnmounted(() => {
              Brand Panel
              =========================================================== -->
 
-		<section
-			class="dy-register__brand"
-			:style="brandBackground"
-			aria-label="هوية DyPOS"
-		>
+		<section class="dy-register__brand" aria-label="هوية DyPOS">
 			<div class="dy-register__brand-overlay" />
 
 			<div class="dy-register__brand-content">
@@ -455,8 +431,8 @@ onUnmounted(() => {
 						:src="DyPOSLogo"
 						alt="DyPOS"
 						class="dy-register__logo"
-						width="176"
-						height="64"
+						width="112"
+						height="112"
 						decoding="async"
 					/>
 				</div>
@@ -477,6 +453,21 @@ onUnmounted(() => {
 						نقطة البيع الذكية.
 					</p>
 				</div>
+
+				<!-- The identity card, framed instead of stretched behind the
+				     copy: `smart-ports-og.jpg` is a 1200×630 sharing card whose
+				     typography is baked into its pixels, so a `cover` backdrop
+				     could only ever show it cut mid-word under the headline. -->
+				<figure class="dy-register__brand-card">
+					<img
+						:src="smartPortsBg"
+						alt="شركة المنافذ الذكية للبرمجيات — Smart Ports Software"
+						width="1200"
+						height="630"
+						decoding="async"
+					/>
+				</figure>
+
 
 				<div class="dy-register__brand-footer">
 					<span>DyPOS</span>
@@ -1034,15 +1025,17 @@ onUnmounted(() => {
 	min-height: 100%;
 	overflow: hidden;
 
-	background:
-		linear-gradient(
-			135deg,
-			rgb(var(--dy-brand-c-950) / 0.98),
-			rgb(var(--dy-brand-c-900) / 0.9)
-		);
-
-	background-position: center;
-	background-size: cover;
+	/*
+	 * One gradient, owned here. `background-position`/`background-size: cover`
+	 * were left over from the photo this rule used to sit under; with the image
+	 * framed in `.dy-register__brand-card` there is nothing left to cover.
+	 */
+	background: linear-gradient(
+		158deg,
+		rgb(var(--dy-brand-c-800)) 0%,
+		rgb(var(--dy-brand-c-900)) 44%,
+		rgb(var(--dy-brand-c-950)) 100%
+	);
 
 	color: white;
 }
@@ -1086,30 +1079,95 @@ onUnmounted(() => {
 	display: inline-flex;
 	width: fit-content;
 
-	padding: 14px 18px;
+	/*
+	 * `DyPOSLogo.png` is 512×512 with the icon printed on a WHITE ground: the
+	 * translucent shell this used to be (14×18px of `rgb(255 255 255 / 0.07)`)
+	 * could never be seen behind it, so the shell *is* the tile. Same treatment
+	 * as the login panel, same reason.
+	 */
+	padding: 8px;
 
-	border: 1px solid rgb(255 255 255 / 0.16);
+	border: 1px solid rgb(255 255 255 / 0.5);
 
 	border-radius: var(--dy-radius-xl);
 
-	background: rgb(255 255 255 / 0.07);
+	background: white;
 
-	backdrop-filter: blur(16px) saturate(1.3);
-
-	-webkit-backdrop-filter: blur(16px) saturate(1.3);
+	box-shadow: 0 16px 32px rgb(var(--dy-brand-c-950) / 0.45);
 }
 
 .dy-register__logo {
 	display: block;
-	width: 176px;
+	width: 112px;
 	height: auto;
 	object-fit: contain;
 }
 
+/* =============================================================================
+   Identity card — the company image, framed instead of stretched
+   =============================================================================
+   `smart-ports-og.jpg` is a 1200×630 *sharing card*: white ground, logo, the
+   company name in two scripts, a tagline and four badges — all baked into the
+   pixels. Used as a `cover` backdrop of this tall panel it can only ever show
+   fragments of that typography, cut mid-word, underneath the live headline.
+
+   Presented as an artifact instead: a glass plaque holding the whole card at
+   its native aspect ratio. `object-fit: contain` guarantees no crop, and the
+   intrinsic `width`/`height` on the element keep the plaque from reflowing
+   while the JPEG decodes.
+   ========================================================================== */
+
+.dy-register__brand-card {
+	position: relative;
+
+	/* `vh` is not decoration: the panel is viewport-height and clips its
+	   overflow, so an unconstrained card would be cut off on a 1366×768
+	   laptop. The card yields height before the layout yields legibility. */
+	width: min(100%, 440px, 42vh);
+
+	margin: 0;
+
+	padding: 10px;
+
+	border: 1px solid rgb(255 255 255 / 0.2);
+	border-radius: var(--dy-radius-2xl);
+
+	background: rgb(255 255 255 / 0.1);
+	backdrop-filter: blur(20px) saturate(1.35);
+	-webkit-backdrop-filter: blur(20px) saturate(1.35);
+
+	box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.24), 0 24px 48px
+		rgb(var(--dy-brand-c-950) / 0.5);
+}
+
+.dy-register__brand-card img {
+	display: block;
+
+	width: 100%;
+	height: auto;
+	aspect-ratio: 1200 / 630;
+
+	object-fit: contain;
+
+	border-radius: calc(var(--dy-radius-2xl) - 10px);
+
+	/* The JPEG's own ground is white; without this the letterboxing that
+	   `contain` can introduce would read as a dirty edge. */
+	background: white;
+}
+
 .dy-register__brand-copy {
 	max-width: 540px;
-	margin-block: auto;
-	padding-block: 72px 48px;
+
+	/*
+	 * `margin-block: auto` used to swallow every pixel of the column's free
+	 * space before `justify-content: space-between` (on
+	 * `.dy-register__brand-content`) could share it — the same trap login.css
+	 * documents. The identity card below stayed pinned to the bottom edge of a
+	 * viewport-height panel instead of landing inside the first screen.
+	 * `padding-block` is the deliberate breathing room now, not a by-product.
+	 */
+	padding-block: 40px 24px;
 }
 
 .dy-register__eyebrow {

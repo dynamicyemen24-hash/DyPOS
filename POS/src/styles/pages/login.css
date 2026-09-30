@@ -56,17 +56,24 @@
 	overflow: hidden;
 
 	/*
-	 * لا `background: linear-gradient(...)` هنا.
+	 * الخلفية ملكٌ حصري لهذه القاعدة — والصورة ليست جزءًا منها.
 	 *
-	 * كان تدرّجًا ثانيًا للوحة يخالف المصدر الحقيقي ويتغلّب عليه دائمًا: المكوّن
-	 * يمرّر `brandBackground` كنمط مضمّن على العنصر نفسه
-	 * (linear-gradient ثلاثي + صورة smart-ports-og.jpg). أي تعديل هنا لا يظهر
-	 * في المتصفح أبدًا — وقد أضاع ذلك دورتَي قياس قبل أن يكشفه استجواب السلسلة.
-	 * المصدر الوحيد هو Login.vue، وتبقى هنا القيم التي تُكمّله:
-	 * background-position/size تعملان مع الصورة القادمة من النمط المضمّن.
+	 * كان المكوّن يمرّر `brandBackground` نمطًا مضمّنًا يضع تدرّجًا فوق
+	 * `smart-ports-og.jpg` بـ`background-size: cover`. لكن الصورة بطاقة نشر
+	 * تطبع داخلها اسم الشركة وشعارها وشعاراتها الأربع؛ الـcover يقصّها على
+	 * لوحة طولية فيخرج نصف الكلمات مبتورًا («الذكية للبرمجيا…» و«Smart Ports
+	 * Softw…») تحت عنوان حي آخر — نصّان يتشابكان ولا واحد منهما مقروء.
+	 *
+	 * الآن: تدرّج لوني نقي للوحة، والصورة صارت عنصرًا مؤطّرًا داخلها
+	 * (`.dy-login__brand-card`). البوابة في `tests/designTokens.test.js`
+	 * تمنع أي `url(...)` هنا، وتمنع المكوّن من إعادة رسم خلفية مضمّنة.
 	 */
-	background-position: center;
-	background-size: cover;
+	background: linear-gradient(
+		158deg,
+		rgb(var(--dy-brand-c-800)) 0%,
+		rgb(var(--dy-brand-c-900)) 44%,
+		rgb(var(--dy-brand-c-950)) 100%
+	);
 
 	color: white;
 }
@@ -107,30 +114,95 @@
 	display: inline-flex;
 	width: fit-content;
 
-	padding: 14px 18px;
+	/*
+	 * `DyPOSLogo.png` is 512×512 with the icon printed on a WHITE ground, so a
+	 * translucent shell behind it could never be seen — the shell *is* the tile.
+	 * At 14×18px padding over a 176px image it measured 206px tall and pushed
+	 * the identity card past the fold on a 1440×900 viewport.
+	 */
+	padding: 8px;
 
-	border: 1px solid rgb(255 255 255 / 0.16);
+	border: 1px solid rgb(255 255 255 / 0.5);
 
 	border-radius: var(--dy-radius-xl);
 
-	background: rgb(255 255 255 / 0.07);
+	background: white;
 
-	backdrop-filter: blur(16px) saturate(1.3);
-
-	-webkit-backdrop-filter: blur(16px) saturate(1.3);
+	box-shadow: 0 16px 32px rgb(var(--dy-brand-c-950) / 0.45);
 }
 
 .dy-login__logo {
 	display: block;
-	width: 176px;
+	width: 112px;
 	height: auto;
 	object-fit: contain;
 }
 
+/* =============================================================================
+   Identity card — the company image, framed instead of stretched
+   =============================================================================
+   `smart-ports-og.jpg` is a 1200×630 *sharing card*: white ground, logo, the
+   company name in two scripts, a tagline and four badges — all baked into the
+   pixels. Used as a `cover` background on a tall panel it can only ever show
+   fragments of that typography, cut mid-word, underneath the live headline.
+
+   Presented as an artifact instead: a glass plaque holding the whole card at
+   its native aspect ratio. The white ground of the JPEG becomes the point
+   (a crisp plaque on the deep brand gradient), `object-fit: contain` guarantees
+   no crop, and the intrinsic `width`/`height` on the element keep the layout
+   from shifting while it decodes.
+   ========================================================================== */
+
+.dy-login__brand-card {
+	position: relative;
+
+	/* `vh` is not decoration: the panel is viewport-height and clips its
+	   overflow, so an unconstrained card would be cut off on a 1366×768
+	   laptop. The card yields height before the layout yields legibility. */
+	width: min(100%, 440px, 42vh);
+
+	margin: 0;
+
+	padding: 10px;
+
+	border: 1px solid rgb(255 255 255 / 0.2);
+	border-radius: var(--dy-radius-2xl);
+
+	background: rgb(255 255 255 / 0.1);
+	backdrop-filter: blur(20px) saturate(1.35);
+	-webkit-backdrop-filter: blur(20px) saturate(1.35);
+
+	box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.24), 0 24px 48px
+		rgb(var(--dy-brand-c-950) / 0.5);
+}
+
+.dy-login__brand-card img {
+	display: block;
+
+	width: 100%;
+	height: auto;
+	aspect-ratio: 1200 / 630;
+
+	object-fit: contain;
+
+	border-radius: calc(var(--dy-radius-2xl) - 10px);
+
+	/* The JPEG's own ground is white; without this the letterboxing that
+	   `contain` can introduce would read as a dirty edge. */
+	background: white;
+}
+
 .dy-login__brand-copy {
 	max-width: 540px;
-	margin-block: auto;
-	padding-block: 72px 48px;
+
+	/*
+	 * No `margin-block: auto` here: it swallowed every bit of free space, so
+	 * `justify-content: space-between` had nothing to distribute and the card
+	 * below stayed pinned at y=724 — past the fold at 1440×900. With the
+	 * margins gone the four children share the column evenly (measured card
+	 * bottom: 851px at 1440×900, inside the first screen).
+	 */
+	padding-block: 40px 24px;
 }
 
 /*
@@ -187,7 +259,10 @@
 
 	color: white;
 
-	font-size: clamp(2.5rem, 5vw, 4.8rem);
+	/* 4.8rem packed two 78px lines above the identity card and pushed it past
+	   the fold at 1440×900. The headline still leads; the card now lands in
+	   the first screen. */
+	font-size: clamp(2.25rem, 4.2vw, 3.75rem);
 
 	font-weight: 800;
 	line-height: 1.08;
@@ -201,9 +276,9 @@
 
 	color: rgb(255 255 255 / 0.72);
 
-	font-size: clamp(1rem, 1.5vw, 1.15rem);
+	font-size: clamp(1rem, 1.4vw, 1.05rem);
 
-	line-height: 1.9;
+	line-height: 1.7;
 }
 
 .dy-login__context {
@@ -211,7 +286,9 @@
 	flex-wrap: wrap;
 	gap: 8px;
 
-	margin-top: auto;
+	/* No `margin-top: auto`: an auto margin absorbs the column's free space
+	   before `justify-content: space-between` can share it, which collapses the
+	   gaps above the card exactly when the tenant context is present. */
 }
 
 .dy-login__context-item {

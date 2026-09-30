@@ -13,6 +13,7 @@ import { usePOSShiftStore } from "./posShift"
 import { useRealtimePosProfile } from "@/composables/useRealtimePosProfile"
 import { useFavoritesStore } from "./favorites"
 import { normalizeArabic } from "@/utils/arabic"
+import { createItemListRegistry } from "./itemListRegistry"
 
 const log = logger.create("ItemSearch")
 
@@ -400,71 +401,26 @@ export const useItemSearchStore = defineStore("itemSearch", () => {
 		lastFilterKey = ""
 	}
 
-	function removeRegisteredItems(registrySet) {
-		if (!registrySet || registrySet.size === 0) return
-
-		registrySet.forEach((item) => {
-			const code = item?.item_code
-			if (!code) return
-			const bucket = itemRegistry.get(code)
-			if (bucket) {
-				bucket.delete(item)
-				if (bucket.size === 0) {
-					itemRegistry.delete(code)
-				}
-			}
-		})
-
-		registrySet.clear()
-	}
-
-	/**
-	 * Register items and initialize their stock
-	 */
-	function registerItems(items, registrySet) {
-		if (!Array.isArray(items) || items.length === 0) return
-
-		// Initialize stock (smart & simple!)
-		stockStore.init(items)
-
-		// Register items for tracking
-		items.forEach((item) => {
-			if (!item || !item.item_code) return
-			let bucket = itemRegistry.get(item.item_code)
-			if (!bucket) {
-				bucket = new Set()
-				itemRegistry.set(item.item_code, bucket)
-			}
-			bucket.add(item)
-			registrySet.add(item)
-		})
-	}
-
-	function replaceAllItems(items) {
-		const next = Array.isArray(items) ? items : []
-		removeRegisteredItems(registeredAllItems)
-		allItems.value = next
-		allItemsVersion.value += 1
-		registerItems(next, registeredAllItems) // Initializes stock in stock store
-		clearBaseCache()
-	}
-
-	function appendAllItems(items) {
-		if (!Array.isArray(items) || items.length === 0) return
-		allItems.value.push(...items)
-		allItemsVersion.value += 1
-		registerItems(items, registeredAllItems) // Initializes stock in stock store
-		clearBaseCache()
-	}
-
-	function setSearchResults(items) {
-		const next = Array.isArray(items) ? items : []
-		removeRegisteredItems(registeredSearchItems)
-		searchResults.value = next
-		searchResultsVersion.value += 1
-		registerItems(next, registeredSearchItems) // Initializes stock in stock store
-		clearBaseCache()
-	}
+	// The browse list, the search results and the per-code registry share one
+	// implementation (itemListRegistry) so a code is tracked the same way
+	// wherever it enters the store, and the empty-bucket pruning lives in one
+	// tested place.
+	const {
+		replaceAllItems,
+		appendAllItems,
+		setSearchResults,
+		upsertItemInList: upsertTrackedItem,
+	} = createItemListRegistry({
+		allItems,
+		searchResults,
+		allItemsVersion,
+		searchResultsVersion,
+		registeredAllItems,
+		registeredSearchItems,
+		itemRegistry,
+		stockStore,
+		invalidate: clearBaseCache,
+	})
 
 	/**
 	 * Insert or update a single item inside one of the tracked lists.
@@ -472,22 +428,7 @@ export const useItemSearchStore = defineStore("itemSearch", () => {
 	 * a full reload.
 	 */
 	function upsertItemInList(listRef, versionRef, registrySet, updatedItem) {
-		if (!updatedItem?.item_code) return
-
-		const index = listRef.value.findIndex(
-			(item) => item.item_code === updatedItem.item_code,
-		)
-
-		if (index >= 0) {
-			Object.assign(listRef.value[index], updatedItem)
-			stockStore.init([listRef.value[index]])
-		} else {
-			listRef.value.unshift(updatedItem)
-			registerItems([updatedItem], registrySet)
-		}
-
-		versionRef.value += 1
-		clearBaseCache()
+		upsertTrackedItem(listRef, versionRef, registrySet, updatedItem)
 	}
 
 	/**

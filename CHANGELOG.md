@@ -5,7 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — ترقية نظام التصميم وشاشة الدخول
+## [1.41.2] - 2026-09-30 — التشغيل النهائي باسم المشترك رقم 1، وسداد ديون مُقاسة
+
+### Added — `npm run e2e:yaqoub`: 17 فحصًا تشغيليًا باسم المدير البشري نفسه
+
+`server/scripts/operational-run-yaqoub.mjs` يشغّل خادم Express حقيقيًا على قاعدة
+الإنتاج نفسها ويدخل بحساب **`yaqoub.sahel` (يعقوب يوسف سهل، MANAGER)** لا بحساب
+اصطناعي: دخول، هوية جلسة، **رفض كلمة خاطئة (401)**، **رفض قراءة بلا مصادقة (401)**،
+كتالوج، رصيد افتتاحي، فتح وردية، فاتورة مدفوعة نقدًا، **انخفاض المخزون بالكمية
+المباعة بالضبط**، تقرير يومي، عملاء، إعدادات، **تسوية وردية بفارق صفر** — ثم
+**إلغاء الفاتورة وإرجاع المخزون** (تنظيف لا تسمير: يبقى سجل التدقيق والكتب نظيفة).
+كل تأكيد إما رد API أو صف قاعدة بيانات. الفحصان 4 و5 هما ما يجعل runbook
+«يدخل ولا يخرج» دليلًا على FR-SEC-001 لا سردًا.
+
+### Fixed — سجلّ تتبّع الأصناف: تسريب دلو فارغ لكل رمز مباع
+
+`stores/itemSearch.js` كان يحمل دفاتر التتبّع (سلال `itemRegistry`،_sets
+التسجيل،_mutators القوائم) مكرّرة بين قائمة التصفح ونتائج البحث. التقطعت في
+`stores/itemListRegistry.js` بتغطية خاصة: **الاستدعاء على `clearBaseCache` كان
+يعيد بناء سلة فارغة لكل رمز عرضته الوردية طوال اليوم**، والتسجيل كان يتكرر في
+موقعين. القيم المرجعية للمخزون والقوائمDerived صارت مكانًا واحدًا مُختبَرًا.
+
+### Changed — سقف حجم الملف نزل في نفس الالتزام (قانون `fileSize`)
+
+`itemSearch.js` **2620 → 2561** سطرًا، والسقف في `POS/tests/fileSize.test.js`
+نزل معه في نفس الالتزام، مع سقف جديد 178 للوحدة المستخرجة. 12 اختبارًا جديدًا
+(`tests/itemListRegistry.test.js`) يثبت الثبات: الدلو يُقلَّم عند فقدان آخر عنصر
+لرمز، ورمز ما زال في قائمة أخرى يبقى حيًّا، و`upsert` بلا `item_code` يُرفض بدل
+أن يتتبّع شبحًا.
+
+### Verified — الديون الأمنية المسجّلة مُثبتة بالقياس لا بالتسليم
+
+- **CSP `style-src 'unsafe-inline'`: مسدود.** فحص حي على خادم يعمل أعاد
+  `/api/health` بترويسة `style-src 'self' 'nonce-…'` **بلا `unsafe-inline`**، والـnonce
+  حيّ ومختلف لكل طلب. السلسلة باقية في فرع `securityHeaders` الاحتياطي فقط.
+- **`echarts` متوسطة: مسدود.** الحزمة الأولى `POS/packages/dypos-ui`،
+  و`echarts` غائبة عن `package-lock.json` وعن `node_modules`.
+- **اختبارات:** server **561/561** (173 مجموعة) · POS **1073/1073** (76 ملفًا) ·
+  **تشغيلي 17/17** · method contract 75/75 · biome 0 errors (419 ملفًا) ·
+  pg parity `ok:true` · `verify:live` 5/6 (العطل المتبقي: `/api/health` ⇒
+  `UPSTREAM_MISCONFIGURED` — لا يوجد أصل خلفي في الإنتاج بعد).
+
+## [1.41.1] - 2026-09-30 — تدقيق الإنتاج صفر ثغرات (تصنيف اعتماد خاطئ)
+
+### Fixed — `npm audit --omit=dev` كان يسقط بوابة CI على مكتبة اختبارية
+- **`@vue/test-utils` كان مُدرجًا في `dependencies`** ويستورده 6 ملفات اختبار ولا يستورده أي كود مُشحون. فجرّ السلسلة `js-beautify → editorconfig → minimatch@10 → brace-expansion@5.0.9` إلى تدقيق **الإنتاج**، فظهرت ثغرة DoS عالية الخطورة (`GHSA-q2hr-2g5m-vwhr` وأختاها) على مكتبة لا تدخل الحزمة أبدًا — وأسقطت `Frontend Quality Gate` في CI (تشغيل 36706638980).
+- النقل إلى `devDependencies` + `npm install --package-lock-only`: كل سلسلة الأدوات صارت `"dev": true` في القفل ⇒ `npm audit --omit=dev` = **0 ثغرات**. الحزمة المُشحونة لم تتغيّر: الفرق في المانيفست والقفل فقط.
+
+## [1.41.0] - 2026-09-30 — الهوية المؤطّرة، بوابة التنسيق، وقياس فشل الإنتاج
 
 ### Added — الأرصدة الافتتاحية مرتبطة بأصنافها (v26)
 - **القيد يعرف صنفه**: `opening_balance_entries` يحمل `product_id` + `product_name` (ترقية v26 idempotent في `db/migrations-opening-balance-items.js`)، والقيد يخزّن حركة مخزون موقّعة بصنفه فيؤثر على سجل الأصنف.
@@ -13,7 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **تسجيل الترقيات صار بيانات لا نسخًا**: `db/schema.js` يشغّل v23+ من جدول واحد `LATE_MIGRATIONS` — 4 كتل `try/catch` مكرّرة استُبدلت بحلقة واحدة، فنزل الملف 1038 → 1033 سطرًا مع إضافة ترقية كاملة، وخُفض سقف `fileSize` معه (سقف الملف لا يرتفع أبدًا — للأسفل فقط).
 
 ### Verified — أرقام مقاسة (هذه الدفعة)
-- الخادم **534 اختبارًا / 166 مجموعة / 0 إخفاق** · واجهة **1048 اختبارًا / 73 ملفًا** · `lint + contract + parity` نظيفة · بناء PWA (precache 102 مدخلًا / 3585KB) · ميزانية الحزمة **629KB من 900KB**.
+- الخادم **561 اختبارًا / 173 مجموعة / 0 إخفاق** · واجهة **1060 اختبارًا / 75 ملفًا / 0 إخفاق** · `lint + contract + parity` نظيفة · بناء PWA (precache 102 مدخلًا / 3590KB) · ميزانية الحزمة **630KB من 900KB** · `vue-tsc` نظيف.
 
 ### Fixed — البناء كان مكسورًا فعليًا
 - **`npm run build` يفشل**: `styles/dypos/semantic.css` كان تعليق ترويسته يحتوي نمطًا ينتهي بشرطة مائلة ونجمة، فيُغلق التعليق في منتصفه، فيتحوّل باقي الكلام إلى CSS ويرفضه postcss بـ `Unknown word`. البناء لم يكن أخضر قبل هذا الالتزام.
@@ -38,7 +85,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`z-index: 9999` و`transition: all` أُزيلا** من طبقة تحذير الجلسة، وانتهى تكرار `var(--x, fallback)` في حلقة التركيز.
 
 ### Verified — أرقام مقاسة
-- واجهة **1028/1028 اختبارًا / 70 ملفًا** · **biome نظيف** · بناء PWA ناجح (precache 100 مدخلًا / 3.55MB) · عقد method **64/64** · `npm run parity` نظيف.
+- واجهة **1060/1060 اختبارًا / 75 ملفًا** · **biome نظيف** · بناء PWA ناجح (precache 102 مدخلًا / 3.59MB) · عقد method **75 فعلًا / 104 مواقع استدعاء مغطّاة** · `npm run parity` نظيف.
+
+### Changed — الهوية تُؤطَّر لا أن تُمدَّد خلف النص
+- **`smart-ports-og.jpg` بطاقة نشر 1200×630** (اسم الشركة والشعار مطبوعان داخلها) كانت تُستخدم `background-size: cover` على لوحة طولية في الشاشات الأربع — Login وRegister وForgotPassword وResetPassword — فيُقصّ نصف الكلمات: «الذكية للبرمجيا…» و«Smart Ports Softw…» تحت عنوان حي، نصّان يتشابكان ولا واحد مقروء. الآن الصورة عنصر `<figure class="…__brand-card">` مؤطّر بالنسبة الأصلية (`object-fit: contain`، وقياسا `width="1200"` و`height="630"` يمنعان القفز أثناء التحميل)، والخلفية صارت تدرّجًا لونيًا يملكه ملف الأنماط وحده.
+- **`DyPOSLogo.png` أرضية بيضاء 512×512**: الحاوية الشفافة بـ`padding: 14px 18px` كانت تقيس 206px وتدفع البطاقة خارج الشاشة على 1440×900 ⇒ `padding: 8px` + خلفية بيضاء صلبة + ظل، و`width: 112px` بدل 176px.
+- **الشقيقات الثلاث مقياسة لا مفترضة**: `POS/tests/designTokens.test.js` يفحص الأربعة بصيغة `it.each` — لا `url(...)` ولا `background-size: cover` في قاعدة اللوحة، ولا `:style="…background"` داخل المكوّن (مالك واحد للخلفية)، والبطاقة `contain` لا `cover`، ولها `alt` وقياسا `width`/`height`.
+
+### Fixed — بوابة `biome check .` في الواجهة كانت حمراء على 10 ملفات
+- `npm --prefix POS run lint` كان يسقط على 10 ملفات لم تُنسَّق قط (`src/data/workScreens.js`، `src/styles/dypos/themes.css`، `src/pages/OpeningBalancesPage.vue`، `src/composables/*`، و6 ملفات اختبار) — وخط CI يشغّل `biome lint` فقط، فكان العطب مخفيًا خلف بوابة أضيق. نُسِّقت بـ`biome format --write .` والآن **417 ملفًا · 0 خطأ · 0 إصلاح معلَّق**.
+
+### Fixed — مخلفات مساحة العمل لا تعود إلى `git status`
+- حُذف 11 مخرجًا مؤقتًا (`.tmp-measure.cjs`، `.tmp-visual-audit.cjs`، لقطات `.shots/`، `*-full.txt`، `pos-test.log`) وسُجِّلت أنماطها في `.gitignore`: بند «منع لا حذف» حتى لا تتكرر في الدفعة القادمة.
+
+### Changed — البوابة الحية تصف العطل بدل أن تعطي رقمًا مجرّدًا
+- `scripts/verify-live.mjs`: عند سقوط مسبار `/api/health` تطبع جسم الرد (`code` + `error` + `detail`)، وتُصحَّح تسميته إلى `API /api/health` (كان مكتوبًا `/api/ping` وهو يقيس `/api/health`) — نبض الـheartbeat كل 15 دقيقة صار يقول لماذا، لا أن 503 فحسب.
+
+### Operational — قياس حالة الإنتاج قبل هذه الدفعة (لا استنتاج)
+- **5 من 6 عهود حيّة خضراء · `/api/health` يرد 503 `UPSTREAM_MISCONFIGURED`**: `wrangler.api.toml` يضبط `BACKEND_URL = "https://dypos-api.smartportssoft.com"` وهو مُدرج في `DYPOS_EDGE_HOSTS` (أي الـWorker نفسه)، وسجلي DNS لا يحملان له سجلًا أصلًا. الـWorker يرفض التوجيه إلى نفسه — سلوك مقصود ومغطّى باختبار — لكن **لا يوجد خادم Express أصلي خلفه**: كل `/api/*` معطّل في الإنتاج (دخول ومزامنة) والتطبيق يعمل بوضع Offline-First فقط. خطوات المعالجة في `DEPLOYMENT_GUIDE.md` وبند مفتوح في `docs/TECH_DEBT_PAYDOWN.md`.
+- **خط النشر كان يسقط قبل تجديد الرمز**: آخر محاولة (2026-09-29 21:19Z) سقطت عند `Preflight for Cloudflare Pages` بـ`403 code 10000` (غياب `Cloudflare Pages:Edit`)، وجُدِّد الرمز بعدها بـ9 دقائق دون أي محاولة نشر لاحقة.
 
 ## [1.40.0] - 2026-09-29 — اختصارات البيع، رأس POS، وتعقيم HTML
 

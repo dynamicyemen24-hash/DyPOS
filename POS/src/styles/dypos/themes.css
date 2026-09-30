@@ -681,3 +681,92 @@
 		--dy-glass-border: #d1d5db;
 	}
 }
+
+/* =============================================================================
+   03. SYSTEM HIGH-CONTRAST / FORCED COLORS
+   OS-level high-contrast modes remain authoritative.
+   Do not encode meaning with gradients or decorative color in this mode.
+   ============================================================================= */
+
+@media (forced-colors: active) {
+	:root,
+	[data-theme="light"],
+	[data-theme="dark"] {
+		color-scheme: normal;
+		--dy-bg: Canvas;
+		--dy-bg-sunken: Canvas;
+		--dy-bg-elevated: Canvas;
+		--dy-surface: Canvas;
+		--dy-surface-hover: Highlight;
+		--dy-surface-active: Highlight;
+		--dy-surface-inverted: CanvasText;
+		--dy-text-strong: CanvasText;
+		--dy-text: CanvasText;
+		--dy-text-secondary: CanvasText;
+		--dy-text-muted: GrayText;
+		--dy-text-link: LinkText;
+		--dy-text-on-brand: HighlightText;
+		--dy-text-on-mint: HighlightText;
+		--dy-text-on-crimson: HighlightText;
+		--dy-text-on-warning: HighlightText;
+		--dy-text-on-info: HighlightText;
+		--dy-border: ButtonText;
+		--dy-border-soft: ButtonText;
+		--dy-border-strong: ButtonText;
+		--dy-primary: Highlight;
+		--dy-primary-hover: Highlight;
+		--dy-primary-active: Highlight;
+		--dy-primary-soft: Canvas;
+		--dy-primary-softer: Canvas;
+		--dy-primary-contrast: HighlightText;
+		--dy-success: ButtonText;
+		--dy-danger: ButtonText;
+		--dy-warning: ButtonText;
+		--dy-info: ButtonText;
+		--dy-disabled: GrayText;
+		--dy-text-disabled: GrayText;
+		--dy-ring: Highlight;
+		--dy-ring-soft: Highlight;
+		--dy-shadow-card: none;
+		--dy-shadow-dropdown: none;
+		--dy-shadow-modal: none;
+		--dy-glass-bg: Canvas;
+		--dy-glass-border: ButtonText;
+	}
+
+	*,
+	*::before,
+	*::after {
+		forced-color-adjust: auto;
+	}
+
+	button,
+	input,
+	select,
+	textarea,
+	[role="button"],
+	[role="option"],
+	[role="menuitem"] {
+		border: 1px solid ButtonText;
+	}
+
+	:focus-visible {
+		outline: 2px solid Highlight;
+		outline-offset: 2px;
+	}
+}
+
+/* User-requested higher-contrast preference where supported. */
+@media (prefers-contrast: more) {
+	:root {
+		--dy-focus-width: 3px;
+		--dy-focus-offset: 3px;
+		--dy-border: var(--dy-ink-400);
+		--dy-border-strong: var(--dy-ink-500);
+	}
+
+	[data-theme="dark"] {
+		--dy-border: var(--dy-ink-500);
+		--dy-border-strong: var(--dy-ink-400);
+	}
+}

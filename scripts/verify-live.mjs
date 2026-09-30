@@ -20,7 +20,7 @@
  *   /sw.js                200 (service worker at root scope = offline-first PWA)
  *   /manifest.webmanifest 200 (installable)
  *   /pos/<deep link>      200 + app shell (Ctrl+F5 on a deep route must work)
- *   /api/ping             200 (the dypos-api Worker shares this origin)
+ *   /api/health           200 + version === expected (frontend/API release parity)
  *
  * Exit code 1 = at least one probe failed. `GITHUB_STEP_SUMMARY`, when set, gets
  * the same table the terminal shows.
@@ -105,10 +105,34 @@ async function spaFallback() {
 	return "HTTP 200 + app shell"
 }
 
+/**
+ * A bare "HTTP 503" sends the operator back to curl by hand, and this probe is
+ * read unattended by the 15-minute heartbeat. The edge already answers with a
+ * machine-readable `code` (UPSTREAM_MISCONFIGURED, DATABASE_UNBOUND, …) and an
+ * Arabic `error`, so name the fault instead of just the number.
+ */
+function httpFailure(status, body) {
+	const head = `HTTP ${status}`
+	try {
+		const parsed = JSON.parse(body)
+		const named = [parsed.code, parsed.error].filter(Boolean).join(" — ")
+		if (named) return `${head} · ${named}`
+	} catch {
+		// Not JSON — fall through to the raw body, collapsed and truncated.
+	}
+	return `${head} · ${String(body).replace(/\s+/g, " ").slice(0, 160)}`
+}
+
 async function apiPing() {
-	const { status, body } = await httpGet(`${SITE}/api/ping`)
-	assert(status === 200, `HTTP ${status}`)
-	return body.replace(/\s+/g, " ").slice(0, 80)
+	const { status, body } = await httpGet(`${SITE}/api/health`)
+	assert(status === 200, httpFailure(status, body))
+	const parsed = JSON.parse(body)
+	assert(parsed.status === "ok", `unexpected health status: ${parsed.status ?? "missing"}`)
+	assert(
+		parsed.version === EXPECTED,
+		`API health says '${parsed.version ?? "missing"}' but this release is ${EXPECTED} — frontend and API are out of sync`,
+	)
+	return `version ${parsed.version} · ${body.replace(/\s+/g, " ").slice(0, 120)}`
 }
 
 await probe("release stamp /version.json", versionStamp)
@@ -116,7 +140,7 @@ await probe("homepage + hashed bundle", homepageAndBundle)
 await probe("service worker /sw.js", () => assetServed("/sw.js"))
 await probe("manifest /manifest.webmanifest", () => assetServed("/manifest.webmanifest"))
 await probe("SPA deep link /pos/deep-link-probe", spaFallback)
-await probe("API /api/ping", apiPing)
+await probe("API /api/health", apiPing)
 
 const failed = results.filter((r) => !r.ok)
 const lines = results.map((r) => `${r.ok ? "✅" : "❌"} ${r.label} — ${r.detail}`)

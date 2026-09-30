@@ -134,3 +134,17 @@ POS/_build.log
 server/_install.bat
 server/_install.log
 .pages-site/
+
+# Scratch diagnostics produced while measuring (regenerable, never source)
+.biome-*.txt
+.fmt-*.txt
+.gate-*.txt
+.gate-*.err
+.run-*.log
+.run-*.err
+.live-*.txt
+.probe-*.mjs
+.tmp-*.txt
+.tmp-*.cjs
+/*-full.txt
+/shots/

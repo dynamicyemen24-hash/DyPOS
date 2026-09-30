@@ -1,16 +1,5 @@
-/**
- * Subscriptions — method-router verbs.
- *
- * Registered into `routes/method.js` so the POS (which uses the method bridge
- * exclusively per AGENTS.md invariant 9) can reach the engine. The domain logic
- * lives in `lib/subscriptions.js` and is shared with the REST layer — no
- * re-implementation, no drift.
- */
-import db from '../db/schema.js';
-import { v4 as uuid } from 'uuid';
+
 import { resolveTenantFilter, assertTenantScope } from '../lib/tenant.js';
-import { recordTrail } from '../lib/trail.js';
-import { emit } from '../lib/webhooks.js';
 import {
 	SubscriptionError,
 	listPlans,
@@ -277,7 +266,7 @@ export function registerSubscriptionVerbs(def, requireUser) {
 
 	// ── Report + statement ───────────────────────────────────────────────────
 
-	def('DyPOS.api.subscriptions.get_subscription_report', (params, req, res) => {
+	def('DyPOS.api.subscriptions.get_subscription_report', (_params, req, res) => {
 		if (!requireUser(req, res)) return;
 		const tenantId = readTenant(req, res);
 		if (tenantId === null) return;

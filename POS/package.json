@@ -1,7 +1,7 @@
 {
 	"name": "pos-next-frontend",
 	"private": true,
-	"version": "1.40.0",
+	"version": "1.41.2",
 	"type": "module",
 	"scripts": {
 		"dev": "vite",
@@ -23,7 +23,6 @@
 		"@abdulrysr/saudi-riyal-new-symbol-font": "^1.0.8",
 		"@fontsource/cairo": "^5.3.0",
 		"@noble/curves": "^2.4.0",
-		"@vue/test-utils": "^2.5.1",
 		"@vueuse/core": "^10.11.1",
 		"chart.js": "^4.5.1",
 		"dexie": "^4.4.6",
@@ -41,6 +40,7 @@
 		"@tailwindcss/forms": "^0.5.9",
 		"@vitejs/plugin-vue": "^5.1.4",
 		"@vitest/coverage-v8": "^2.1.8",
+		"@vue/test-utils": "^2.5.1",
 		"autoprefixer": "^10.6.1",
 		"jsdom": "^25.0.1",
 		"postcss": "^8.4.5",
@@ -67,6 +67,7 @@
 		"browserslist config in this package (no key, no .browserslistrc), so the",
 		"devDependency installed ~20 packages to influence nothing. If a browserslist",
 		"target ever becomes a requirement, declare the config and the package in the",
-		"same commit."
+		"same commit.",
+		"@vue/test-utils lives in devDependencies: the tests import it and shipped code does not, and as a production dependency it dragged js-beautify -> editorconfig -> minimatch -> brace-expansion into npm audit --omit=dev (one high advisory on a library the PWA never ships)."
 	]
 }

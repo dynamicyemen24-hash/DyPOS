@@ -8,6 +8,7 @@ import { recalcTier } from '../lib/loyalty.js';
 import { computeCouponDiscount } from './offers.js';
 import { appendChain } from '../lib/chain.js';
 import { toMinor, toMajor, clampMinor, computeLineMinor } from '../lib/money.js';
+import { assertNonCashNotOverpaid } from '../lib/payment-invariants.js';
 import { dayRange } from '../lib/dates.js';
 import { assertTenantScope, resolveTenantFilter, assertRecordTenant } from '../lib/tenant.js';
 import { assertCurrency, assertUom } from '../lib/fx.js';
@@ -16,7 +17,7 @@ import { ah, mapErrorStatus } from '../lib/async.js';
 import { idempotency } from '../lib/idempotency.js';
 import { emit } from '../lib/webhooks.js';
 import { emit as emitRealtime } from '../lib/realtime.js';
-import { ensureOpenFiscalYear, yearOf } from './fiscal.js';
+import { ensureOpenFiscalPeriod, ensureOpenFiscalYear, yearOf } from './fiscal.js';
 import { invoicePrefix, getSetting, defaultTaxRate, stockControlMode, stockWarningThreshold } from '../lib/settings.js';
 import { decrementStock } from '../lib/stockPolicy.js';
 
@@ -133,15 +134,15 @@ router.post('/', validate(invoiceSchema), (req, res) => {
     for (const it of items) assertUom(it.uom || 'Unit');
     // Fiscal period control: the sale posts into the current UTC fiscal year;
     // a CLOSED year refuses posting so reported periods stay immutable.
-    fiscalYear = ensureOpenFiscalYear(yearOf());
+    fiscalYear = ensureOpenFiscalPeriod(new Date());
   } catch (e) {
     return res.status(mapErrorStatus(e)).json({ error: String(e.message).slice(0, 200) });
   }
 
    const idemKey = String(b.idempotencyKey || '').trim() || null;
    if (idemKey) {
-     // Dedup by idempotency_key only: id is always a fresh UUID.
-     const existing = db.prepare('SELECT id FROM invoices WHERE idempotency_key=? LIMIT 1').get(idemKey);
+     // Tenant-scoped idempotency prevents cross-business deduplication.
+     const existing = db.prepare('SELECT id FROM invoices WHERE tenant_id IS ? AND idempotency_key=? LIMIT 1').get(scope.tenantId ?? null, idemKey);
      if (existing) return res.json({ deduped: true, invoiceId: existing.id });
    }
 
@@ -223,7 +224,7 @@ router.post('/', validate(invoiceSchema), (req, res) => {
         .run(invoiceId, number, customerId, customerName, 0, 0, 0, 0, 0, 0, 'UNPAID', invCurrency, String(b.notes || '').trim().slice(0, 1000), String(b.channelId || '').trim().slice(0, 64), shiftId, terminalId, idemKey, scope.tenantId, scope.branchId, req.user?.username || null);
     } catch (e) {
       if (idemKey && /UNIQUE|CONFLICT/i.test(String(e.message))) {
-        const dup = db.prepare('SELECT id FROM invoices WHERE idempotency_key=?').get(idemKey);
+        const dup = db.prepare('SELECT id FROM invoices WHERE tenant_id IS ? AND idempotency_key=?').get(scope.tenantId ?? null, idemKey);
         if (dup) return { deduped: true, invoiceId: dup.id };
       }
       throw e;
@@ -307,7 +308,9 @@ router.post('/', validate(invoiceSchema), (req, res) => {
       const r = computeCouponDiscount(c, toMajor(grossMinor));
       if (!r.ok) throw Object.assign(new Error(r.error), { statusCode: 400 });
       couponDiscountMinor = Math.min(toMinor(r.discount), grossMinor - manualDiscountMinor);
-      const inc = db.prepare(`UPDATE coupons SET used_count=used_count+1 WHERE code=? AND (max_uses=0 OR used_count < max_uses)`).run(couponCode);
+      const inc = scope.tenantId
+        ? db.prepare(`UPDATE coupons SET used_count=used_count+1 WHERE code=? AND (tenant_id=? OR tenant_id IS NULL) AND (max_uses=0 OR used_count < max_uses)`).run(couponCode, scope.tenantId)
+        : db.prepare(`UPDATE coupons SET used_count=used_count+1 WHERE code=? AND (max_uses=0 OR used_count < max_uses)`).run(couponCode);
       if (inc.changes === 0) throw Object.assign(new Error('تجاوز حد استخدام الكوبون (تعارض تزامن)'), { statusCode: 409 });
     }
     const discountAmountMinor = Math.min(manualDiscountMinor + couponDiscountMinor, grossMinor);
@@ -326,6 +329,10 @@ router.post('/', validate(invoiceSchema), (req, res) => {
       if (amt < 0 || amt > 10_000_000) throw new Error('مبلغ دفعة غير صالح');
       const pm = String(p.method || 'CASH').toUpperCase().slice(0, 20);
       assertPayMethod(pm, p.reference);
+      // Non-cash tenders are settlement instruments, not change-bearing cash.
+      // WALLET is included: a digital balance is debited, not handed over, so an
+      // over-tender there would silently drain the customer past the invoice.
+      assertNonCashNotOverpaid(pm, toMinor(amt), needMinor);
       // WALLET deducts from the customer's balance inside this same transaction.
       // Digital balance is capped at what is still owed: cash handed over the
       // total is fine (it becomes change), silently draining a wallet past the

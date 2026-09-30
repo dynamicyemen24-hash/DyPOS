@@ -114,11 +114,6 @@ const props = defineProps({
 		default: "",
 	},
 
-	backgroundImage: {
-		type: String,
-		default: "",
-	},
-
 	showTenantContext: {
 		type: Boolean,
 		default: true,
@@ -272,23 +267,6 @@ function stopSessionSecurityMonitor() {
 /* ============================================================================
  * Computed
  * ========================================================================== */
-
-const brandBackground = computed(() => {
-	const image = props.backgroundImage || smartPortsBg
-
-	if (!image) {
-		return {}
-	}
-
-	return {
-		backgroundImage: `linear-gradient(
-            135deg,
-            rgb(var(--dy-brand-c-950) / 0.96),
-            rgb(var(--dy-brand-c-900) / 0.86),
-            rgb(var(--dy-brand-c-800) / 0.62)
-        ), url("${image}")`,
-	}
-})
 
 const loginErrorMessage = computed(() => {
 	if (!loginError.value) {
@@ -1012,11 +990,7 @@ function goToRegister() {
              Brand / Context Panel
              =============================================================== -->
 
-        <section
-            class="dy-login__brand"
-            :style="brandBackground"
-            aria-label="هوية DyPOS"
-        >
+        <section class="dy-login__brand" aria-label="هوية DyPOS">
             <div class="dy-login__brand-overlay" />
 
             <div class="dy-login__brand-content">
@@ -1025,8 +999,8 @@ function goToRegister() {
                         :src="DyPOSLogo"
                         alt="DyPOS"
                         class="dy-login__logo"
-                        width="176"
-                        height="64"
+                        width="112"
+                        height="112"
                         decoding="async"
                     />
                 </div>
@@ -1049,6 +1023,21 @@ function goToRegister() {
                         للتشغيل اليومي السريع والموثوق.
                     </p>
                 </div>
+
+                <!-- بطاقة الهوية: الصورة مؤطّرة داخل اللوحة، لا ممدودة خلفها.
+                     الصورة بطاقة نشر 1200×630 تحمل نصوصًا مطبوعة داخلها، وجدول
+                     `cover` كان يقصّها إلى شظايا كلمات غير مقروءة («الذكية
+                     للبرمجيا…» / «Smart Ports Softw…») متضاربة مع العنوان الحي
+                     فوقها. هنا تظهر كاملة داخل إطار زجاجي: رشيقة ومقروءة. -->
+                <figure class="dy-login__brand-card">
+                    <img
+                        :src="smartPortsBg"
+                        alt="شركة المنافذ الذكية للبرمجيات — Smart Ports Software"
+                        width="1200"
+                        height="630"
+                        decoding="async"
+                    />
+                </figure>
 
                 <!-- Tenant / Branch / POS context -->
 

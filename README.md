@@ -1,4 +1,4 @@
-# DyPOS v1.36.0
+# DyPOS v1.41.2
 
 [![CI](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/ci.yml/badge.svg)](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/ci.yml)
 [![Deploy](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/deploy-cloudflare.yml/badge.svg)](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/deploy-cloudflare.yml)
@@ -30,7 +30,7 @@
 
 ---
 
-## 🏷️ الإصدار الحالي: v1.36.0 (Production Ready)
+## 🏷️ الإصدار الحالي: v1.41.2 (Production Ready)
 
 | المكون | الإصدار | الحالة |
 |----------|---------|--------|
@@ -50,8 +50,8 @@
 
 | معيار | النتيجة | التفاصيل |
 |--------|---------|-----------|
-| **اختبارات الواجهة الأمامية** | 552/552 ✅ | Vitest + jsdom + Vue Test Utils |
-| **اختبارات الخادم** | 362/362 ✅ | Node.js test runner + SQLite |
+| **اختبارات الواجهة الأمامية** | 1028/1028 ✅ | Vitest + jsdom + Vue Test Utils |
+| **اختبارات الخادم** | 463/463 ✅ | Node.js test runner + SQLite |
 | **التدقيق الأمني (Biome)** | 0 تحذيرات ✅ | Frontend + Backend |
 | **فحص التبعيات (npm audit)** | High+ ✅ | CI gate مفعل — ثغرتان متوسطتان في `echarts` المتداخلة بـ `dypos-ui` مقبولتان رسميًا: غير موجودتين في حزمة الإنتاج (tree-shaken، مثبت بالبناء) وإصلاحهما يتطلب كسرًا رئيسيًا |
 | **Content Security Policy** | Strict ✅ | بدون `unsafe-inline`، Hash-based |
@@ -283,7 +283,7 @@ DyPOS **نظام مستقل ولا يفرض نظامًا خارجيًا محدد
 | **Backend** | Node.js 22+, Express, SQLite / Postgres, Zod |
 | **Auth** | JWT + HttpOnly Cookies + CSRF |
 | **Real-time** | Server-Sent Events (SSE) |
-| **Testing** | Vitest (552 tests), Node test runner (362 tests) |
+| **Testing** | Vitest (1028 tests), Node test runner (463 tests) |
 | **Lint/Format** | Biome (zero warnings) |
 | **CI/CD** | GitHub Actions + Cloudflare Pages |
 | **Observability** | Pino structured logs, Request-ID tracing |
@@ -307,7 +307,7 @@ npx wrangler pages deploy .pages-site --project-name=dypos-pos --branch=main
 ### التحقق بعد النشر
 ```bash
 curl https://dypos.smartportssoft.com/assets/DyPOS/pos/version.json
-# {"version":"1.36.0","build":"1790203264127",...}
+# {"version":"1.41.2","build":"<generated-by-CI>",...}
 ```
 
 ---

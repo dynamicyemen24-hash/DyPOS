@@ -189,7 +189,9 @@ describe("opening balances screen", () => {
 
 		expect(wrapper.text()).toContain("11112222")
 		expect(wrapper.text()).not.toContain("غير مرتبط")
-		expect(wrapper.find('[data-testid="ob-unlinked-warn"]').exists()).toBe(false)
+		expect(wrapper.find('[data-testid="ob-unlinked-warn"]').exists()).toBe(
+			false,
+		)
 	})
 
 	it("flags an UNLINKED stock row instead of hiding it", async () => {
