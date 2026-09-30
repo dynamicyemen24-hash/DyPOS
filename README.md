@@ -1,4 +1,4 @@
-# DyPOS v1.41.0
+# DyPOS v1.41.1
 
 [![CI](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/ci.yml/badge.svg)](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/ci.yml)
 [![Deploy](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/deploy-cloudflare.yml/badge.svg)](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/deploy-cloudflare.yml)
@@ -30,7 +30,7 @@
 
 ---
 
-## 🏷️ الإصدار الحالي: v1.41.0 (Production Ready)
+## 🏷️ الإصدار الحالي: v1.41.1 (Production Ready)
 
 | المكون | الإصدار | الحالة |
 |----------|---------|--------|
@@ -307,7 +307,7 @@ npx wrangler pages deploy .pages-site --project-name=dypos-pos --branch=main
 ### التحقق بعد النشر
 ```bash
 curl https://dypos.smartportssoft.com/assets/DyPOS/pos/version.json
-# {"version":"1.41.0","build":"<generated-by-CI>",...}
+# {"version":"1.41.1","build":"<generated-by-CI>",...}
 ```
 
 ---

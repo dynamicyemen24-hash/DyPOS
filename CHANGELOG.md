@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.41.1] - 2026-09-30 — تدقيق الإنتاج صفر ثغرات (تصنيف اعتماد خاطئ)
+
+### Fixed — `npm audit --omit=dev` كان يسقط بوابة CI على مكتبة اختبارية
+- **`@vue/test-utils` كان مُدرجًا في `dependencies`** ويستورده 6 ملفات اختبار ولا يستورده أي كود مُشحون. فجرّ السلسلة `js-beautify → editorconfig → minimatch@10 → brace-expansion@5.0.9` إلى تدقيق **الإنتاج**، فظهرت ثغرة DoS عالية الخطورة (`GHSA-q2hr-2g5m-vwhr` وأختاها) على مكتبة لا تدخل الحزمة أبدًا — وأسقطت `Frontend Quality Gate` في CI (تشغيل 36706638980).
+- النقل إلى `devDependencies` + `npm install --package-lock-only`: كل سلسلة الأدوات صارت `"dev": true` في القفل ⇒ `npm audit --omit=dev` = **0 ثغرات**. الحزمة المُشحونة لم تتغيّر: الفرق في المانيفست والقفل فقط.
+
 ## [1.41.0] - 2026-09-30 — الهوية المؤطّرة، بوابة التنسيق، وقياس فشل الإنتاج
 
 ### Added — الأرصدة الافتتاحية مرتبطة بأصنافها (v26)
@@ -13,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **تسجيل الترقيات صار بيانات لا نسخًا**: `db/schema.js` يشغّل v23+ من جدول واحد `LATE_MIGRATIONS` — 4 كتل `try/catch` مكرّرة استُبدلت بحلقة واحدة، فنزل الملف 1038 → 1033 سطرًا مع إضافة ترقية كاملة، وخُفض سقف `fileSize` معه (سقف الملف لا يرتفع أبدًا — للأسفل فقط).
 
 ### Verified — أرقام مقاسة (هذه الدفعة)
-- الخادم **559 اختبارًا / 172 مجموعة / 0 إخفاق** · واجهة **1060 اختبارًا / 75 ملفًا / 0 إخفاق** · `lint + contract + parity` نظيفة · بناء PWA (precache 102 مدخلًا / 3590KB) · ميزانية الحزمة **630KB من 900KB** · `vue-tsc` نظيف.
+- الخادم **561 اختبارًا / 173 مجموعة / 0 إخفاق** · واجهة **1060 اختبارًا / 75 ملفًا / 0 إخفاق** · `lint + contract + parity` نظيفة · بناء PWA (precache 102 مدخلًا / 3590KB) · ميزانية الحزمة **630KB من 900KB** · `vue-tsc` نظيف.
 
 ### Fixed — البناء كان مكسورًا فعليًا
 - **`npm run build` يفشل**: `styles/dypos/semantic.css` كان تعليق ترويسته يحتوي نمطًا ينتهي بشرطة مائلة ونجمة، فيُغلق التعليق في منتصفه، فيتحوّل باقي الكلام إلى CSS ويرفضه postcss بـ `Unknown word`. البناء لم يكن أخضر قبل هذا الالتزام.

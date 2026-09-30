@@ -1,7 +1,7 @@
 # DyPOS Deployment Guide — dypos.smartportssoft.com
 
 ## حالة النشر الآن (2026-09-30)
-- **الإصدار المستهدف:** `1.41.0`. إذا كان النطاق الحي يعرض إصدارًا أقدم، يعتبر النشر **فاشلًا** ولا يجوز اعتباره مكتملًا حتى تتطابق الواجهة والـAPI مع `main`.
+- **الإصدار المستهدف:** `1.41.1`. إذا كان النطاق الحي يعرض إصدارًا أقدم، يعتبر النشر **فاشلًا** ولا يجوز اعتباره مكتملًا حتى تتطابق الواجهة والـAPI مع `main`.
 - **رمز Cloudflare سليم الآن — مُثبت بالقياس لا بالافتراض**: التشغيل `36703778984` (2026-09-30 10:39Z) اجتاز `pages-preflight`، ونشر Pages، ونشر `dypos-api`؛ سقطت خطوة واحدة فقط: `Live verify`. خلل `403 + code 10000` (غياب `Cloudflare Pages:Edit`) انتهى بعد تجديد الرمز في 2026-09-29 21:28Z.
 - **⚠️ العطل الوحيد المتبقي: `/api/health` → `503 UPSTREAM_MISCONFIGURED`** — بسببه يبقى `Live verify` و`Uptime Monitor` أحمرَّين. التفصيل والمعالجة في القسم «إحياء الـAPI الحيّ» أدناه. البوابة الآن تطبع اسم العطل لا رقمًا مجرّدًا.
 - كل بوابات ما قبل النشر خضراء (اختبارات + lint + parity + عقد + ميزانية البناء + `vue-tsc`).
@@ -133,12 +133,12 @@ npm run e2e:royal       # 14-check proof: login→shift→sale→pay→stock→v
 - سكربت E2E يلغّي فاتورته ويغلق ورديته — قاعدة الإنتاج تبقى نظيفة.
 
 ## Version Info (حالي)
-- **Version:** `1.41.0` (single source: root `package.json`)
+- **Version:** `1.41.1` (single source: root `package.json`)
 - **Date:** September 30, 2026
 - **Framework:** Vue 3 + Chart.js + dypos-ui
 - **PWA:** Yes (SW root scope، `build:pages` → `POS/dist/pos`)
 - **Deploy:** push to `main` → GitHub Actions → Cloudflare Pages + `dypos-api` Worker → `npm run verify:live`
-- **Live قبل هذه الدفعة:** `https://dypos.smartportssoft.com/` يقدّم `1.40.0` (Pages منشورة بنجاح في 2026-09-30)؛ تُحدَّث إلى `1.41.0` بعد نجاح `Live verify` — والمعوّق حاليًا هو `/api/health` (أصل خلفي مفقود) لا الواجهة.
+- **Live قبل هذه الدفعة:** `https://dypos.smartportssoft.com/` يقدّم `1.40.0` (Pages منشورة بنجاح في 2026-09-30)؛ تُحدَّث إلى `1.41.1` بعد نجاح `Live verify` — والمعوّق حاليًا هو `/api/health` (أصل خلفي مفقود) لا الواجهة.
 - **Tests:** server 559/559 (172 مجموعة) · POS 1060/1060 (75 ملفًا) · method contract 75 فعلًا / 104 موقع استدعاء مغطّاة / 249 معالجًا · biome 0 errors · pg parity OK · بوابة وصولية بلا كود ميت (`POS/tests/deadCode.test.js` + `server/tests/deadCode.test.js`)
 
 ## Backend topology (why `/api` needs an origin)

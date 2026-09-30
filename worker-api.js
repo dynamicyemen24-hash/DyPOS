@@ -24,7 +24,7 @@
 // test suite) while Wrangler still treats it as ESM.
 import { isSelfProxy } from "./worker-edge-hosts.mjs";
 
-const API_VERSION = "1.41.0";
+const API_VERSION = "1.41.1";
 const DEFAULT_BACKEND_URL = "https://dypos-api.smartportssoft.com";
 const ALLOWED_ORIGIN = "https://dypos.smartportssoft.com";
 const HOP_BY_HOP = new Set([
