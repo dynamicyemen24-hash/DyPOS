@@ -16,6 +16,13 @@ import {
 	CONNECTIVITY_CHECK_INTERVAL,
 } from "./sync-error.js"
 import { logger } from "@/utils/logger"
+import {
+	AUTO_TRIGGERS,
+	getPollIntervalMs,
+	isAutoAllowed,
+	isLinkEnabled,
+	subscribeLinkConsent,
+} from "@/services/link-consent"
 
 const log = logger.create("SyncManager")
 
@@ -38,6 +45,7 @@ export const syncState = {
  * البدء — تهيئة الحالة والمستمعات (idempotent: استدعاءات متعددة آمنة)
  */
 let managerInitialized = false
+let consentWired = false
 
 export function initSyncManager() {
 	if (managerInitialized) return
@@ -50,7 +58,9 @@ export function initSyncManager() {
 
 	window.addEventListener("online", () => {
 		syncState.isOnline = true
-		// محاولة مزامنة فورية عند العودة للشبكة
+		// عودة الشبكة وحدها ليست طلبًا: الدفع الفوري فقط عندما يضبط
+		// المستخدم المحرك على `auto` في المتغيرات العامة (ومعه الربط).
+		if (!isAutoAllowed(AUTO_TRIGGERS.ON_RECONNECT)) return
 		runSyncCycleSilently().catch(() => {})
 		// إن لم تكتمل المزامنة الأولية من قبل — أكملها الآن
 		ensureInitialSync().catch(() => {})
@@ -60,8 +70,22 @@ export function initSyncManager() {
 		syncState.isOnline = false
 	})
 
-	// بدء حلقة الاستطلاع الدورية
-	startPolling()
+	// بدء حلقة الاستطلاع الدورية — فقط بموافقة ربط
+	if (isLinkEnabled()) startPolling()
+
+	// ربط الموافقة بالمحرك (مرة واحدة): منحها يشغّل، سحبها يوقف.
+	if (!consentWired) {
+		consentWired = true
+		subscribeLinkConsent((mode) => {
+			if (mode === "linked") {
+				managerInitialized = true
+				startPolling()
+			} else {
+				stopSyncManager()
+				managerInitialized = false
+			}
+		})
+	}
 }
 
 /**
@@ -80,10 +104,12 @@ function startPolling() {
 	}, CONNECTIVITY_CHECK_INTERVAL)
 
 	pollingInterval = setInterval(() => {
+		// المؤقّت وحده ليس طلبًا: لا دورة إلا بوضع `auto` من المستخدم.
+		if (!isAutoAllowed(AUTO_TRIGGERS.POLL)) return
 		if (!syncState.isOnline || syncState.isSyncing || !getEffectiveToken())
 			return
 		runSyncCycleSilently().catch(() => {})
-	}, SYNC_POLL_INTERVAL)
+	}, getPollIntervalMs(SYNC_POLL_INTERVAL))
 
 	// المزامنة الأولية المجزأة عند أول تشغيل (نقطة تفتيش = 0)
 	ensureInitialSync().catch(() => {})
@@ -101,6 +127,9 @@ let initialSyncRunning = false
 export async function ensureInitialSync(force = false) {
 	if (initialSyncRunning) return null
 	if (!syncState.isOnline || !getEffectiveToken()) return null
+	// السحب الأولي التلقائي حركة شبكية: `force` طلب صريح (زر/إعداد)،
+	// وغيره يحتاج وضع `auto` من المستخدم مع الربط.
+	if (!force && !isAutoAllowed(AUTO_TRIGGERS.INITIAL_PULL)) return null
 
 	const checkpoint = await getLastSyncCheckpoint()
 	if (checkpoint > 0 && !force) return null
@@ -201,8 +230,13 @@ export async function pushLocalChange(
 	// زيادة عد التغييرات منذ الأخير
 	syncState.sinceLastOnlineChanges++
 
-	// إذا كنت متصلًا، حاول تشغيل الدورة فورًا بدل الانتظار
-	if (syncState.isOnline && getEffectiveToken()) {
+	// الدفع الفوري اتصال شبكي: فقط بوضع `auto` من المستخدم (مع الربط).
+	// بدونه تبقى العملية في الطابور المحلي حتى «مزامنة الآن».
+	if (
+		isAutoAllowed(AUTO_TRIGGERS.PUSH_IMMEDIATE) &&
+		syncState.isOnline &&
+		getEffectiveToken()
+	) {
 		runSyncCycleSilently().catch(() => {})
 	}
 

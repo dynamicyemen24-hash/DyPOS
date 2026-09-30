@@ -33,7 +33,7 @@ import { normalizeArabic } from "@/utils/arabic"
 import { logger } from "@/utils/logger"
 import { useReducedMotion } from "@/composables/useReducedMotion"
 import { useMediaQuery } from "@/composables/useMediaQuery"
-import { endpoints } from "@/utils/apiEndpoints"
+import { isLinkEnabled } from "@/services/link-consent"
 import { userRepository } from "@/repositories/userRepository"
 
 /* ============================================================================
@@ -141,7 +141,6 @@ const hasErrors = computed(() => {
  * ============================================================================ */
 
 const isBrowser = typeof window !== "undefined"
-const OFFLINE_DETECTION_TIMEOUT_MS = 3000
 
 const isOfflineMode = ref(false)
 const offlineDetected = ref(false)
@@ -152,42 +151,10 @@ const log = logger.create("Register")
 async function detectOfflineMode() {
 	if (!isBrowser) return false
 
-	try {
-		const controller = new AbortController()
-		const timeoutId = setTimeout(
-			() => controller.abort(),
-			OFFLINE_DETECTION_TIMEOUT_MS,
-		)
-
-		const response = await fetch(endpoints.ping, {
-			method: "GET",
-			cache: "no-store",
-			credentials: "same-origin",
-			signal: controller.signal,
-		})
-
-		clearTimeout(timeoutId)
-
-		if (response.ok) {
-			log.info("Backend reachable — online mode")
-			return false
-		}
-
-		if (response.status === 503) {
-			log.info("Backend unavailable (503) — offline mode")
-			return true
-		}
-
-		log.warn(`Backend responded with ${response.status} — treating as offline`)
-		return true
-	} catch (error) {
-		if (error.name === "AbortError" || error.name === "TimeoutError") {
-			log.info("Backend ping timeout — offline mode")
-		} else {
-			log.info("Backend unreachable — offline mode", error?.message || error)
-		}
-		return true
-	}
+	// Standalone-first (user-mandated): no boot probe — pinging the backend
+	// to decide the mode was itself an undemanded connection. Pure local
+	// state: standalone until the user demands server linkage.
+	return !isLinkEnabled()
 }
 
 async function detectAndSetOfflineMode() {

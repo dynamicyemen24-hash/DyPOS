@@ -35,16 +35,98 @@
 							{{ statusLine }}
 						</p>
 					</div>
-					<Button
-						v-if="!isOffline && pending.length > 0"
-						:loading="syncing"
-						variant="solid"
-						class="flex-shrink-0 whitespace-nowrap w-full sm:w-auto text-sm"
-						@click="syncNow"
+				<Button
+					v-if="!isOffline && pending.length > 0"
+					:loading="syncing"
+					variant="solid"
+					class="flex-shrink-0 whitespace-nowrap w-full sm:w-auto text-sm"
+					@click="syncNow"
+				>
+					{{ __("مزامنة الآن") }}
+				</Button>
+			</div>
+
+			<!-- Linkage & automation — المتغيرات العامة التي يحددها المستخدم.
+				ترتيب الخبير: الوضع أولًا، ثم المفتاح الرئيسي، ثم المحركات،
+				ثم قطع الربط. لا شيء هنا يعمل وحده دون ضغطة أو تفعيل. -->
+			<div class="border rounded-lg p-3 sm:p-4 flex flex-col gap-3">
+				<div class="flex items-center justify-between gap-2">
+					<h4 class="font-semibold text-gray-900 text-sm">
+						{{ __("وضع الربط والأتمتة") }}
+					</h4>
+					<span
+						class="text-[11px] px-2 py-0.5 rounded-full flex-shrink-0"
+						:class="
+							linkMode === 'linked'
+								? 'bg-emerald-100 text-emerald-700'
+								: 'bg-gray-100 text-gray-600'
+						"
 					>
-						{{ __("مزامنة الآن") }}
-					</Button>
+						{{
+							linkMode === "linked" ? __("مرتبط") : __("مستقل — صفر اتصال")
+						}}
+					</span>
 				</div>
+				<p class="text-xs text-gray-600">
+					{{
+						linkMode === "linked"
+							? __("الشبكة تعمل فقط عند طلبك، أو حسب الأتمتة أدناه.")
+							: __("كل شيء يعمل على الجهاز. الربط لا يتم إلا بطلبك.")
+					}}
+				</p>
+				<div class="flex flex-wrap items-center gap-2">
+					<Button
+						variant="secondary"
+						class="text-xs"
+						@click="toggleAutomationMaster"
+					>
+						{{
+							autoMaster
+								? __("إيقاف الأتمتة")
+								: __("تفعيل المزامنة التلقائية")
+						}}
+					</Button>
+					<button
+						v-if="linkMode === 'linked'"
+						type="button"
+						class="text-xs text-red-600 hover:text-red-800 px-2 py-1"
+						@click="unlinkDevice"
+					>
+						{{ __("قطع الربط") }}
+					</button>
+				</div>
+				<div v-if="autoMaster" class="flex flex-col gap-2">
+					<label
+						v-for="trigger in triggerRows"
+						:key="trigger.key"
+						class="flex items-center justify-between gap-2 text-xs text-gray-700"
+					>
+						<span>{{ trigger.label }}</span>
+						<span class="flex items-center gap-1">
+							<select
+								:value="autoModes[trigger.key]"
+								class="rounded border border-gray-300 px-1.5 py-1 text-xs text-gray-900"
+								:aria-label="trigger.label"
+								@change="setTrigger(trigger.key, $event.target.value)"
+							>
+								<option value="off">{{ __("إيقاف") }}</option>
+								<option value="ask">{{ __("سؤال") }}</option>
+								<option value="auto">{{ __("تلقائي") }}</option>
+							</select>
+							<input
+								v-if="trigger.key === 'poll'"
+								:value="pollSec"
+								type="number"
+								min="5"
+								max="3600"
+								class="w-16 rounded border border-gray-300 px-1.5 py-1 text-xs text-gray-900"
+								:aria-label="__('الفاصل بالثواني')"
+								@change="savePollInterval($event.target.value)"
+							/>
+						</span>
+					</label>
+				</div>
+			</div>
 
 				<!-- Destinations -->
 				<div>
@@ -261,6 +343,18 @@ import {
 	setActiveDestinationId,
 } from "@/services/sync-destinations"
 import { loginDestination, pingDestination } from "@/services/sync-remote"
+import {
+	AUTO_MODES,
+	AUTO_TRIGGERS,
+	LINK_MODES,
+	LINK_REASONS,
+	getAutomation,
+	getLinkMode,
+	setAutomationMaster,
+	setLinkMode,
+	setPollIntervalSec,
+	setTriggerMode,
+} from "@/services/link-consent"
 
 const props = defineProps({
 	modelValue: Boolean,
@@ -300,9 +394,59 @@ const activeDest = computed(
 	() => destinations.value.find((d) => d.id === activeId.value) || null,
 )
 
+const TRIGGER_ROWS = [
+	{ key: AUTO_TRIGGERS.ON_RECONNECT, label: "عند عودة الشبكة" },
+	{ key: AUTO_TRIGGERS.POLL, label: "دورية كل" },
+	{ key: AUTO_TRIGGERS.INITIAL_PULL, label: "السحب الأولي للكتالوج" },
+	{ key: AUTO_TRIGGERS.PUSH_IMMEDIATE, label: "الدفع الفوري عند البيع" },
+	{ key: AUTO_TRIGGERS.STREAM, label: "إعادة اتصال التدفق اللحظي" },
+]
+
+const linkMode = ref(LINK_MODES.STANDALONE)
+const autoMaster = ref(false)
+const autoModes = ref({})
+const pollSec = ref(0)
+const triggerRows = TRIGGER_ROWS
+
+function loadLinkage() {
+	linkMode.value = getLinkMode()
+	const auto = getAutomation()
+	autoMaster.value = auto.mode === AUTO_MODES.AUTO
+	autoModes.value = {
+		[AUTO_TRIGGERS.ON_RECONNECT]: auto[AUTO_TRIGGERS.ON_RECONNECT],
+		[AUTO_TRIGGERS.POLL]: auto[AUTO_TRIGGERS.POLL],
+		[AUTO_TRIGGERS.INITIAL_PULL]: auto[AUTO_TRIGGERS.INITIAL_PULL],
+		[AUTO_TRIGGERS.PUSH_IMMEDIATE]: auto[AUTO_TRIGGERS.PUSH_IMMEDIATE],
+		[AUTO_TRIGGERS.STREAM]: auto[AUTO_TRIGGERS.STREAM],
+	}
+	pollSec.value = auto.pollIntervalSec || 0
+}
+
+function toggleAutomationMaster() {
+	const next = setAutomationMaster(!autoMaster.value)
+	autoMaster.value = next.mode === AUTO_MODES.AUTO
+	loadLinkage()
+}
+
+function setTrigger(key, mode) {
+	setTriggerMode(key, mode)
+	loadLinkage()
+}
+
+function savePollInterval(value) {
+	setPollIntervalSec(value)
+	loadLinkage()
+}
+
+function unlinkDevice() {
+	setLinkMode(LINK_MODES.STANDALONE, LINK_REASONS.REVOKED)
+	loadLinkage()
+	refresh()
+}
+
 const statusLine = computed(() => {
 	if (isOffline.value) {
-		return __("البيع مستمر محليًا — ستُزامَن عند عودة الشبكة")
+		return __("البيع مستمر محليًا — ستُزامَن عند طلبك من هنا")
 	}
 	const st = getDestinationState(activeId.value)
 	if (st.lastError) return st.lastError
@@ -365,6 +509,7 @@ function syncedElsewhere(invoice) {
 async function refresh() {
 	destinations.value = listDestinations()
 	activeId.value = getActiveDestinationId()
+	loadLinkage()
 	await loadPending()
 }
 

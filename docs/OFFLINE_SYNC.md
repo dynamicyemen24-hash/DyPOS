@@ -4,12 +4,12 @@ This document describes the offline invoice synchronization system in DyPOS, inc
 
 ## Overview
 
-DyPOS supports fully offline operation, allowing cashiers to continue creating invoices even when the network connection is unavailable. When connectivity is restored, pending invoices are automatically synchronized to the server.
+DyPOS supports fully offline operation, allowing cashiers to continue creating invoices even when the network connection is unavailable. The device is standalone-first: zero network without the user's demand. Synchronization runs only on explicit user demand (the «مزامنة الآن» Sync Center action, a server login, an explicit pull) or under automation the user enabled in the linkage variables (per-trigger `auto`, default `off`).
 
 ### Key Features
 
 - **Offline Invoice Creation**: Create invoices without network connectivity
-- **Automatic Sync**: Invoices sync automatically when back online
+- **User-Governed Sync**: No automatic sync on reconnect/boot/timers unless the user set that trigger to `auto` in the linkage variables (`POS/src/services/link-consent.js`); `ask` surfaces the pending count for the user to demand it
 - **Deduplication**: Unique offline IDs prevent duplicate invoice creation
 - **Retry Logic**: Failed syncs are retried with exponential backoff
 - **Local Stock Updates**: Stock levels are tracked locally during offline operation
@@ -92,10 +92,10 @@ User clicks "Submit" while offline
 └─────────────────────────────┘
 ```
 
-### 2. Syncing When Back Online
+### 2. Syncing On User Demand (or Consented Automation)
 
 ```
-Network connectivity restored
+User taps «مزامنة الآن» (or a trigger set to `auto` fires with linkage)
         │
         ▼
 ┌─────────────────────────────┐
@@ -107,6 +107,8 @@ Network connectivity restored
 │    - Submit to server       │
 │    - Mark as synced         │
 └─────────────────────────────┘
+NOTE: mere connectivity restoration is NOT demand — without the user's
+`auto` setting the queue waits for the explicit tap.
         │
         ▼
 ┌─────────────────────────────┐

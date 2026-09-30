@@ -1,7 +1,7 @@
 # AGENTS.md — Repo conventions for AI coding agents
 
 > This repo is Arabic-first (UI, messages, commit bodies) with English code.
-> Production: https://dypos.smartportssoft.com/ · Version single source: `1.41.2`
+> Production: https://dypos.smartportssoft.com/ · Version single source: `1.42.0`
 > (root `package.json` + `POS/package.json` + `server/package.json` + `server/lib/version.js`).
 
 ## Shell (Windows PowerShell 5.1 — win32)
@@ -56,14 +56,20 @@ manifest breaks both the build and any test that compiles CSS).
 6. **No secrets in repo**: tokens via env/secrets only; QZ keys stay under
    gitignored `server/uploads/qz/` (0600). Never commit `*.db`, `uploads/`, `dev-dist/`.
 7. **Arabic UX**: user-facing strings, errors, audit notes in Arabic.
-8. **Offline-First PWA (Installable)**: The POS MUST work 100% offline as an
-   installable mobile/desktop app. Zero network calls on startup.
+8. **Standalone-First PWA (Installable)**: The POS MUST work 100% offline as an
+   installable mobile/desktop app. Zero network calls on startup — and zero
+   network at any time without the user's demand or granted automation.
    - IndexedDB (Dexie) is the local database — all sales, stock, customers cached.
    - Service Worker precaches ALL assets (HTML, JS, CSS, fonts, images).
    - Background sync queue persists pending operations to IndexedDB.
    - Offline invoice numbering (POS-{branch}-{terminal}-{date}-{seq}).
    - Stock reservations prevent overselling across terminals offline.
-   - Auto-sync when backend reachesable (SQLite on server).
+   - Sync runs ONLY on explicit user demand (Sync Now, server login, explicit
+     pull) or per-trigger automation the user set to `auto` in the linkage
+     variables (`POS/src/services/link-consent.js`: `auto`/`ask`/`off`,
+     default `off`). No boot probe, no online-event auto-flush, no interval
+     poll, no auto-reconnect without that consent —
+     `POS/tests/standaloneBoot.test.js` fails the build on any of them.
    - `npm run build` produces installable PWA at `POS/dist/pos/`.
    - Cloudflare Pages deployment serves the PWA with proper headers.
 9. **No third-party runtime, no desk globals**: the runtime stack is

@@ -60,9 +60,6 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 	/** List of pending invoices for display */
 	const pendingInvoicesList = ref([])
 
-	/** Track previous offline state for detecting online/offline transitions */
-	let wasOffline = offlineState.isOffline
-
 	// =========================================================================
 	// TOAST NOTIFICATIONS
 	// =========================================================================
@@ -85,17 +82,11 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 		connectionQuality.value =
 			state.quality || offlineState.getConnectionQuality()
 
-		// Auto-sync when transitioning from offline to online
-		if (wasOffline && !nowOffline) {
-			log.info("Transition to online detected, auto-syncing pending invoices")
-			try {
-				await syncPending()
-			} catch (error) {
-				log.error("Auto-sync failed on reconnection", error)
-			}
-		}
-
-		wasOffline = nowOffline
+		// Standalone-first (user-mandated): the offline→online transition
+		// alone is NOT user demand, so it never syncs by itself. Flushing
+		// happens only via explicit demand (Sync Center «مزامنة الآن») or
+		// granted linkage consent (services/link-consent). The mirror above
+		// keeps the header badge honest either way.
 	})
 
 	// =========================================================================

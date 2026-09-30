@@ -61,6 +61,13 @@ import {
 	saveDestination,
 	setDestinationToken,
 } from "@/services/sync-destinations"
+import {
+	LINK_MODES,
+	LINK_REASONS,
+	getAutomation,
+	getLinkMode,
+	setLinkMode,
+} from "@/services/link-consent"
 
 const i18n = {
 	install(app) {
@@ -144,6 +151,62 @@ describe("SyncCenterDialog", () => {
 		const [dest, token] = syncPendingTo.mock.calls[0]
 		expect(dest.baseUrl).toBe("http://10.0.0.5:3001")
 		expect(token).toBe("tok")
+	})
+
+	describe("linkage & automation consent", () => {
+		it("shows standalone posture with zero automation by default", async () => {
+			const wrapper = openDialog()
+			await wrapper.vm.$nextTick()
+			await new Promise((r) => setTimeout(r, 30))
+			expect(wrapper.text()).toContain("وضع الربط والأتمتة")
+			expect(wrapper.text()).toContain("مستقل — صفر اتصال")
+			expect(getLinkMode()).toBe(LINK_MODES.STANDALONE)
+		})
+
+		it("the master toggle persists automation and reveals the triggers", async () => {
+			const wrapper = openDialog()
+			await wrapper.vm.$nextTick()
+			const toggle = wrapper
+				.findAll("button")
+				.filter((b) => b.text().includes("تفعيل المزامنة التلقائية"))
+			expect(toggle.length).toBeGreaterThan(0)
+			await toggle[0].trigger("click")
+			await wrapper.vm.$nextTick()
+			expect(getAutomation().mode).toBe("auto")
+			expect(wrapper.text()).toContain("عند عودة الشبكة")
+			expect(wrapper.text()).toContain("إيقاف الأتمتة")
+		})
+
+		it("a trigger select persists its mode (auto/ask/off)", async () => {
+			const wrapper = openDialog()
+			await wrapper.vm.$nextTick()
+			const toggle = wrapper
+				.findAll("button")
+				.filter((b) => b.text().includes("تفعيل المزامنة التلقائية"))
+			await toggle[0].trigger("click")
+			await wrapper.vm.$nextTick()
+			const selects = wrapper.findAll("select")
+			expect(selects.length).toBeGreaterThan(0)
+			await selects[0].setValue("ask")
+			await wrapper.vm.$nextTick()
+			expect(Object.values(getAutomation())).toContain("ask")
+		})
+
+		it("unlink revokes linkage from an explicit tap", async () => {
+			setLinkMode(LINK_MODES.LINKED, LINK_REASONS.SERVER_LOGIN)
+			const wrapper = openDialog()
+			await wrapper.vm.$nextTick()
+			await new Promise((r) => setTimeout(r, 30))
+			expect(wrapper.text()).toContain("مرتبط")
+			const unlink = wrapper
+				.findAll("button")
+				.filter((b) => b.text().includes("قطع الربط"))
+			expect(unlink.length).toBeGreaterThan(0)
+			await unlink[0].trigger("click")
+			await wrapper.vm.$nextTick()
+			expect(getLinkMode()).toBe(LINK_MODES.STANDALONE)
+			expect(wrapper.text()).toContain("مستقل — صفر اتصال")
+		})
 	})
 
 	it("form validates before saving (no junk destinations)", async () => {

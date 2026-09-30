@@ -35,6 +35,13 @@ import {
 	resolveScope,
 	EVENT_LOG_LIMIT,
 } from "@/stores/realtime"
+import {
+	AUTO_TRIGGERS,
+	LINK_MODES,
+	LINK_REASONS,
+	setLinkMode,
+	setTriggerMode,
+} from "@/services/link-consent"
 
 class FakeEventSource {
 	static instances = []
@@ -96,6 +103,7 @@ describe("RealtimeClient", () => {
 	beforeEach(() => {
 		FakeEventSource.instances.length = 0
 		vi.useRealTimers()
+		setLinkMode(LINK_MODES.STANDALONE, LINK_REASONS.REVOKED)
 	})
 
 	it("is disabled when no EventSource is available", () => {
@@ -115,6 +123,8 @@ describe("RealtimeClient", () => {
 			EventSourceCtor: FakeEventSource,
 			url: "http://h/api/realtime/events",
 			isOffline: () => offline.value,
+			// The test itself is the demand: explicit auto-consent.
+			allowAutoConnect: () => true,
 		})
 		client.connect()
 		expect(client.status).toBe("offline")
@@ -125,6 +135,28 @@ describe("RealtimeClient", () => {
 		expect(FakeEventSource.instances).toHaveLength(1)
 		FakeEventSource.instances[0].fireOpen()
 		expect(client.status).toBe("connected")
+		client.dispose()
+	})
+
+	it("refuses automatic reconnect while standalone (no consent)", () => {
+		const offline = { value: false }
+		const client = new RealtimeClient({
+			EventSourceCtor: FakeEventSource,
+			url: "http://h/api/realtime/events",
+			isOffline: () => offline.value,
+		})
+		client.connect()
+		// Explicit connect() is demand and still opens the stream.
+		expect(FakeEventSource.instances).toHaveLength(1)
+		FakeEventSource.instances[0].fireOpen()
+		expect(client.status).toBe("connected")
+		// A stream error while standalone parks the client offline with no
+		// backoff timer at all — retries would be undemanded connections.
+		FakeEventSource.instances[0].fireError()
+		expect(client.status).toBe("offline")
+		// And the online event alone must not rebuild anything.
+		window.dispatchEvent(new Event("online"))
+		expect(FakeEventSource.instances).toHaveLength(1)
 		client.dispose()
 	})
 
@@ -183,6 +215,7 @@ describe("RealtimeClient", () => {
 			url: "http://h/api/realtime/events",
 			getToken: token,
 			isOffline: () => false,
+			allowAutoConnect: () => true,
 		})
 		client.connect()
 		const es = FakeEventSource.instances[0]
@@ -238,6 +271,7 @@ describe("realtime store", () => {
 		FakeEventSource.instances.length = 0
 		resetRealtimeSync()
 		setActivePinia(createPinia())
+		setLinkMode(LINK_MODES.STANDALONE, LINK_REASONS.REVOKED)
 	})
 
 	it("logs events, bumps the matching scope and exposes invalidation versions", () => {
@@ -345,19 +379,32 @@ describe("realtime store", () => {
 		expect(FakeEventSource.instances[1].closed).toBe(true)
 	})
 
-	it("runs a silent sync cycle when the stream reconnects while online", async () => {
+	it("runs a silent sync cycle on reconnect only with on-reconnect auto", async () => {
 		const { syncState, runSyncCycleSilently } = await import(
 			"@/services/sync-manager"
 		)
+		// Standalone first: reconnect alone must not sync.
 		syncState.isOnline = true
+		runSyncCycleSilently.mockClear()
 		const store = useRealtimeStore()
-		const teardown = registerRealtimeSync({
+		let teardown = registerRealtimeSync({
 			EventSourceCtor: FakeEventSource,
 			url: "http://h/api/realtime/events",
 		})
 		FakeEventSource.instances[0].fireOpen()
-		expect(runSyncCycleSilently).toHaveBeenCalled()
+		expect(runSyncCycleSilently).not.toHaveBeenCalled()
 		expect(store.connectionState).toBe("connected")
+		teardown()
+
+		// Then with the user's automation consent: the cycle runs.
+		setLinkMode(LINK_MODES.LINKED, LINK_REASONS.SERVER_LOGIN)
+		setTriggerMode(AUTO_TRIGGERS.ON_RECONNECT, "auto")
+		teardown = registerRealtimeSync({
+			EventSourceCtor: FakeEventSource,
+			url: "http://h/api/realtime/events",
+		})
+		FakeEventSource.instances[1].fireOpen()
+		expect(runSyncCycleSilently).toHaveBeenCalled()
 		syncState.isOnline = false
 		teardown()
 	})

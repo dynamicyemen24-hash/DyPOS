@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { dirname, resolve } from "node:path"
+import { VERSION } from "../lib/version.js"
 
 // The repo root declares `"type": "commonjs"`, so a plain `import` of
 // worker-api.js would be loaded as CommonJS and die on its first `import`
@@ -37,7 +38,7 @@ test("edge health exposes the gateway release version and stays deterministic", 
   assert.equal(response.status, 200)
   const body = await response.json()
   assert.equal(body.status, "ok")
-  assert.equal(body.version, "1.41.2")
+  assert.equal(body.version, VERSION)
 })
 
 test("edge forwards authentication to the authoritative backend", async () => {

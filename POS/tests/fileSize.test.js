@@ -40,7 +40,12 @@ const CAPS = [
 	// 6255 → 6264: زر «التسويات» في رأس شاشة البيع (9 أسطر) الذي يفتح شاشة
 	// التسويات الجديدة في workScreens.js. رُفع السقف لأن الزرDead code كان
 	// أخطر من حجمه: شاشة تسويات موجودة بلا مدخل إليها. الاتجاه بعده نزول فقط.
-	["src/pages/POSSale.vue", 6264],
+	// 6279 → 6075: كتل Responsive/الحركة/الألوان القسرية/الطباعة (~204 أسطر،
+	// ومنها إصلاح catalog-actions للشاشات 420px) استُخرجت إلى
+	// styles/pages/pos-sale-responsive.css (نفس نمط styles/pages/login.css)
+	// مع `<style scoped src>` ثانٍ، فيُقاس الملفان معًا والاتجاه نزول فقط.
+	["src/pages/POSSale.vue", 6075],
+	["src/styles/pages/pos-sale-responsive.css", 193],
 	["src/components/settings/POSSettings.vue", 2092],
 	// 3406 → 3225 → 1706 → 2039:
 	//  - تهيئة بيئة التشغيل (~250 سطرًا) انتقلت إلى composables/useLoginRuntime.js
@@ -68,9 +73,14 @@ const CAPS = [
 	// (tests/itemListRegistry.test.js, 12 checks). The cap moves downward only.
 	["src/stores/itemSearch.js", 2561],
 	["src/stores/itemListRegistry.js", 178],
-	// 1188 → 1150: column layout and cell formatting moved to focused modules as
-	// the frozen-grid contract grew.
-	["src/components/work/WorkDataGrid.vue", 1150],
+	// 1188 → 1150 → 1145: column layout and cell formatting moved to focused modules as
+	// the frozen-grid contract grew; the narrow-screen contract (scrollable
+	// table + pinned key column, WCAG 2.5.8) then moved to
+	// workDataGrid.responsive.css so it has one named home and one test target
+	// (tests/workGridResponsive.test.js) instead of an @media block buried in a
+	// 1200-line SFC.
+	["src/components/work/WorkDataGrid.vue", 1145],
+	["src/components/work/workDataGrid.responsive.css", 72],
 ]
 
 const countLines = (relPath) => {

@@ -1,5 +1,13 @@
 /**
- * DyPOS single source of truth for the server version (C3) v1.41.2
+ * DyPOS single source of truth for the server version (C3) v1.42.0
+ *
+ * 1.42.0 -- standalone-first networking: zero connections without user
+ * demand or granted linkage consent (services/link-consent.js,
+ * auto/ask/off per trigger, default off), enforced by
+ * POS/tests/standaloneBoot.test.js; the API-upstream outage is now a
+ * deploy-time gate (`npm run upstream`) instead of a red heartbeat; the
+ * edge worker version is pinned to this single source by
+ * server/tests/worker-version.test.js.
  *
  * 1.41.2 -- the subscriber-#1 operational run is now a repeatable, measured
  * gate instead of a one-off: `npm run e2e:yaqoub` boots a real server and
@@ -22,5 +30,5 @@
  * Bumped with every change, as the deploy gate compares the live
  * /version.json against this number.
  */
-export const VERSION = '1.41.2';
+export const VERSION = '1.42.0';
 export default VERSION;

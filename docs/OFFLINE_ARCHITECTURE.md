@@ -7,7 +7,12 @@ UI → Application Services → Repositories → SQLite (local source of truth)
 ```
 
 DyPOS is **not** a runtime dependency. The POS must open, sell, and print
-with no network, no Frappe, no cloud.
+with no network, no Frappe, no cloud — and it must initiate zero
+connections on its own: every network movement happens only on explicit
+user demand (Sync Now, server login, explicit pull) or under automation
+the user enabled per-trigger in the linkage variables
+(`POS/src/services/link-consent.js`: `auto`/`ask`/`off`, default `off`).
+`ask` never transmits; it surfaces the pending count for the user to demand.
 
 ## Startup order (offline-first)
 
@@ -18,11 +23,14 @@ with no network, no Frappe, no cloud.
 5. Load terminal/device config (local, sync-optional)
 6. Render UI (Arabic RTL first paint)
 7. Initialize domain services
-8. Optionally probe backend (`/api/ping`) — failure = offline mode, never a blocker
-9. Queue sync operations for later
+8. Standalone by default — NO backend probe. Pinging to decide the mode was
+   itself an undemanded connection on every boot. Server reachability is
+   learned from the user's first demanded call, never probed for.
+9. Queue sync operations for later (flushed only on demand or consented automation)
 
 Forbidden at startup: `dypos.auth.get_logged_user`, `/api/method/*` Frappe
-whitelists, CSRF fetch, remote localization, remote device/features.
+whitelists, CSRF fetch, remote localization, remote device/features,
+any `/api/ping` or connectivity probe, any auto-sync/auto-connect.
 
 ## Layers
 

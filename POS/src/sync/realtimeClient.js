@@ -22,6 +22,7 @@
  * Exports: backoffDelay(), RealtimeClient, createRealtimeClient()
  */
 import { logger } from "@/utils/logger"
+import { AUTO_TRIGGERS, isAutoAllowed } from "@/services/link-consent"
 
 export const RT_MAX_RECONNECT_MS = 60_000
 
@@ -51,6 +52,10 @@ export class RealtimeClient {
 	 * @param {typeof EventSource} [options.EventSourceCtor] injectable for tests;
 	 *   `null` forces the disabled state
 	 * @param {() => boolean} [options.isOffline] overrides navigator.onLine
+	 * @param {() => boolean} [options.allowAutoConnect] gates every AUTOMATIC
+	 *   (re)connect — online-event and backoff loop. Defaults to the live
+	 *   linkage consent (standalone-first: no consent, no auto connection).
+	 *   Explicit connect() calls are user demand and stay ungated.
 	 * @param {string} [options.tenantId] active tenant marker (EventSource cannot
 	 *   set headers, so the server re-resolves the tenant from the JWT/cookie)
 	 */
@@ -80,9 +85,17 @@ export class RealtimeClient {
 			this.log.warn("EventSource unavailable — realtime disabled")
 		}
 
+		// البوابة الصريحة للاتصال التلقائي: افتراضيًا محرك `stream` كما
+		// يضبطه المستخدم (مع الربط)، وقابلة للحقن في الاختبارات.
+		this.allowAutoConnect =
+			typeof options.allowAutoConnect === "function"
+				? options.allowAutoConnect
+				: () => isAutoAllowed(AUTO_TRIGGERS.STREAM)
 		this._onOnline = () => {
 			if (this.disposed) return
 			if (this.calcOffline()) return
+			// عودة الشبكة وحدها ليست طلبًا: إعادة الاتصال فقط بموافقة.
+			if (!this.allowAutoConnect()) return
 			if (this.state === RT_STATE_OFFLINE) {
 				this.connect()
 			}
@@ -200,6 +213,11 @@ export class RealtimeClient {
 
 	_scheduleReconnect() {
 		if (this.disposed || this.timer) return
+		// حلقة إعادة الاتصال التلقائية اتصال متكرر: تتوقف بلا موافقة.
+		if (!this.allowAutoConnect()) {
+			this._goOffline()
+			return
+		}
 		const delay = backoffDelay(this.attempts)
 		this.log.warn(
 			"realtime reconnecting in %dms (attempt %d)",

@@ -20,7 +20,6 @@
  */
 import { computed, ref } from "vue"
 
-import { endpoints } from "@/utils/apiEndpoints"
 import { logger } from "@/utils/logger"
 import { ensureCSRFToken } from "@/utils/csrf"
 import { offlineWorker } from "@/utils/offline/workerClient"
@@ -28,15 +27,13 @@ import { sanitizeForInput } from "@/utils/securityHardening"
 import { enhancedLoginRateLimiter } from "@/utils/rateLimiterEnhanced"
 import { userRepository } from "@/repositories/userRepository"
 import { session } from "@/stores/session"
+import { isLinkEnabled } from "@/services/link-consent"
 
 const log = logger.create("LoginRuntime")
 
 /** حارس SSR/الاختبارات — نفس العقد المستعمل في `main.js` و`Register.vue`. */
 const isBrowser =
 	typeof window !== "undefined" && typeof document !== "undefined"
-
-/** مهلة فحص الخادم قبل افتراض وضع عدم الاتصال. */
-export const OFFLINE_DETECTION_TIMEOUT_MS = 3000
 
 /** الاسم الوحيد لمستأجر limiter المستعمل في كل مسار تسجيل الدخول. */
 export const loginRateLimiter = enhancedLoginRateLimiter
@@ -98,52 +95,20 @@ async function initializeOfflineWorker() {
 }
 
 /**
- * يفحص الخادم فعليًا قبل افتراض وضع عدم الاتصال.
+ * يحدّد وضع عدم الاتصال من الحالة المحلية فقط — بلا أي فحص شبكي.
  *
- * `navigator.onLine` وحدها تكذب: جهاز متصل بشبكة Wi-Fi بلا إنترنت،
- * فيُرجع `true`. الفحص هنا probe فعلي يُجيب الخادم أم لا.
+ * القرار القديم كان يـping الخادم في كل مرة: اتصال بسيرفر آخر دون أن
+ * يطلبه المستخدم. العقد الجديد (standalone-first): مستقل دائمًا حتى
+ * يطلب المستخدم الربط (دخول سيرفر، مزامنة الآن، مفتاح الربط)، فتُمنح
+ * الموافقة عبر services/link-consent. قابلية وصول السيرفر تُتعلم من
+ * الطلب نفسه — الفشل يعني الوضع المحلي، لا عائق أبدًا.
  *
- * @returns {Promise<boolean>} true = وضع عدم الاتصال
+ * @returns {Promise<boolean>} true = وضع عدم الاتصال (مستقل)
  */
 export async function detectOfflineMode() {
 	if (!isBrowser) return false
 
-	try {
-		const controller = new AbortController()
-		const timeoutId = setTimeout(
-			() => controller.abort(),
-			OFFLINE_DETECTION_TIMEOUT_MS,
-		)
-
-		const response = await fetch(endpoints.ping, {
-			method: "GET",
-			cache: "no-store",
-			credentials: "same-origin",
-			signal: controller.signal,
-		})
-
-		clearTimeout(timeoutId)
-
-		if (response.ok) {
-			log.info("Backend reachable — online mode")
-			return false
-		}
-
-		if (response.status === 503) {
-			log.info("Backend unavailable (503) — offline mode")
-			return true
-		}
-
-		log.warn(`Backend responded with ${response.status} — treating as offline`)
-		return true
-	} catch (error) {
-		if (error.name === "AbortError" || error.name === "TimeoutError") {
-			log.info("Backend ping timeout — offline mode")
-		} else {
-			log.info("Backend unreachable — offline mode", error?.message || error)
-		}
-		return true
-	}
+	return !isLinkEnabled()
 }
 
 /**
@@ -204,7 +169,9 @@ export function useLoginRuntime(options = {}) {
 
 	const isRuntimeReady = computed(
 		() =>
-			csrfReady.value &&
+			// Standalone-first: الدخول المحلي لا يحتاج CSRF (مصافحة سيرفر).
+			// اشتراطه كان سيحجب الكاشير المستقل خلف طلب لم يطلبه.
+			(csrfReady.value || !isLinkEnabled()) &&
 			sessionReady.value &&
 			(offlineReady.value || !showOfflineReadiness),
 	)
@@ -226,21 +193,28 @@ export function useLoginRuntime(options = {}) {
 			setRuntimeState("preparing")
 
 			try {
-				try {
-					await ensureCSRFToken()
-					csrfReady.value = true
-				} catch (error) {
+				// Standalone-first: مصافحة CSRF اتصال سيرفر — تُطلب فقط
+				// بموافقة ربط. الدخول المحلي يكتمل بدونها.
+				if (!isLinkEnabled()) {
 					csrfReady.value = false
-					log.warn("DyPOS runtime: CSRF preparation failed", error)
+					log.debug("Standalone — CSRF handshake deferred to demand")
+				} else {
+					try {
+						await ensureCSRFToken()
+						csrfReady.value = true
+					} catch (error) {
+						csrfReady.value = false
+						log.warn("DyPOS runtime: CSRF preparation failed", error)
 
-					if (!isOnline.value) {
-						setRuntimeState(
-							"degraded",
-							"سيتم استكمال التجهيز عند عودة الاتصال.",
-						)
-						return
+						if (!isOnline.value) {
+							setRuntimeState(
+								"degraded",
+								"سيتم استكمال التجهيز عند عودة الاتصال.",
+							)
+							return
+						}
+						throw error
 					}
-					throw error
 				}
 
 				if (showOfflineReadiness) {
@@ -279,6 +253,17 @@ export function useLoginRuntime(options = {}) {
 		} finally {
 			runtimePromise = null
 		}
+	}
+
+	/**
+	 * مصافحة السيرفر لطلب صريح (ضغطة دخول سيرفر): تُستدعى فقط عندما
+	 * يطلب المستخدم السيرفر فعلًا، لا عند عرض الشاشة. الفشل يرمي
+	 * ليحوّله مسار الدخول إلى رسالة عربية.
+	 * @returns {Promise<void>}
+	 */
+	async function prepareServerDemand() {
+		await ensureCSRFToken()
+		csrfReady.value = true
 	}
 
 	/**
@@ -335,6 +320,7 @@ export function useLoginRuntime(options = {}) {
 		// actions
 		setRuntimeState,
 		prepareRuntime,
+		prepareServerDemand,
 		detectAndSetOfflineMode,
 		handleOnline,
 		handleOffline,

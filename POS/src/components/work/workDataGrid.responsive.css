@@ -1,0 +1,72 @@
+/**
+ * Narrow-screen layout for the work data grid.
+ *
+ * Split out of `WorkDataGrid.vue` so the responsive contract has one named home
+ * and one test target — a `@media` block buried in a 1200-line SFC is a rule
+ * nobody reviews, and the file-size ratchet then treats it as growth.
+ *
+ * The desktop layout owns the horizontal axis with `overflow: hidden` and
+ * frozen panes. Carried onto a 360px phone the same model silently cropped every
+ * column past the viewport: a grid that screenshots fine and shows the cashier
+ * three of eight columns at the till. The honest narrow-screen answer is a
+ * scrollable table with the key column pinned.
+ */
+
+/* Cell padding and borders shared by desktop and narrow screens. */
+.work-data-grid__filter-cell {
+	padding: var(--dy-spacing-2, 8px) var(--dy-spacing-3, 12px);
+	border-inline-end: var(--dy-border-width-thin, 1px) solid
+		var(--dy-color-surface-border, #e2e8f0);
+	/* A thumb-sized filter cell: the touch layer raises this further on a
+	   coarse pointer, but the floor belongs here so a mouse-only narrow
+	   window is still usable. */
+	min-height: 44px;
+}
+
+.work-data-grid__filter-cell--selection {
+	width: 48px;
+}
+
+@media (max-width: 1023px) {
+	.work-data-grid__viewport {
+		/* A data grid on a 360px phone cannot fit: the honest behaviour is a
+		   scrollable table with the key column pinned, not a truncated one. */
+		overflow-x: auto;
+		overscroll-behavior-x: contain;
+		grid-template-columns: 1fr;
+		grid-template-areas: "main";
+	}
+
+	/* The frozen panes duplicate the leading and trailing columns. On a narrow
+	   screen that costs width the user needs, so they are dropped and the
+	   sticky cell below takes over the pinning job. */
+	.work-data-grid__frozen--left,
+	.work-data-grid__frozen--right {
+		display: none;
+	}
+
+	/* Keep the first column readable while the rest scrolls under it. */
+	.work-data-grid__td:first-child,
+	.work-data-grid__th:first-child {
+		position: sticky;
+		inset-inline-start: 0;
+		background: var(--dy-color-surface-base, #ffffff);
+		z-index: 5;
+		min-width: 160px;
+	}
+
+	/* A cell narrower than this truncates its own content to a few characters,
+	   which is worse than scrolling: give every column a readable floor and let
+	   the viewport scroll. */
+	.work-data-grid__td,
+	.work-data-grid__th {
+		min-width: 120px;
+	}
+
+	/* Filter cells follow the grid or the filter row shows a phantom column. */
+	.work-data-grid__filter-row {
+		grid-template-columns: 1fr;
+		grid-template-areas: "main";
+		overflow: hidden;
+	}
+}

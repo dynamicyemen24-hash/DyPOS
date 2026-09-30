@@ -26,5 +26,12 @@ binding = "dypos_db"
 database_name = "dypos-db"
 database_id = "fd8c365d-11a0-48af-906b-b4f302f36747"
 
-[vars]
-BACKEND_URL = "https://dypos-api.smartportssoft.com"
+# No [vars] BACKEND_URL here ON PURPOSE (secret-only contract): the single
+# checked-in value this file ever carried ("https://dypos-api.smartportssoft.com")
+# is listed in worker-edge-hosts.mjs#DYPOS_EDGE_HOSTS, so the edge's fail-closed
+# isSelfProxy guard answered every /api/* call with 503 UPSTREAM_MISCONFIGURED
+# on every deploy since 1.40.0 — enforced now by `npm run upstream`
+# (server/scripts/check-api-upstream.mjs + server/tests/api-upstream-config.test.js).
+# Point the edge at the real backend WITHOUT touching this file:
+#   npx wrangler secret put BACKEND_URL --config wrangler.api.toml
+# (then give that host a DNS record; see DEPLOYMENT_GUIDE.md «إحياء الـAPI الحيّ»).

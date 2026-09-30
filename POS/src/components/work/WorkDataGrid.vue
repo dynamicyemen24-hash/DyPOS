@@ -968,6 +968,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+@import "./workDataGrid.responsive.css";
 /* ============================================================================
    WorkDataGrid — Enterprise Data Grid (Odoo/SAP parity)
    ============================================================================ */
@@ -1006,19 +1007,13 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.work-data-grid__filter-cell {
-  padding: var(--dy-spacing-2, 8px) var(--dy-spacing-3, 12px);
-  border-inline-end: var(--dy-border-width-thin, 1px) solid var(--dy-color-surface-border, #e2e8f0);
-  min-height: 40px;
-}
-.work-data-grid__filter-cell--selection { width: 48px; }
-
 .work-data-grid__viewport {
   display: grid;
   grid-template-columns: var(--frozen-left-width, 0) 1fr var(--frozen-right-width, 0);
   grid-template-areas: "frozen-left main frozen-right";
   position: relative;
   overflow: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 .work-data-grid__frozen {

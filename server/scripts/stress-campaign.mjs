@@ -9,7 +9,8 @@
  *  C  Pay race ......... 10 concurrent full-pays — no overpay, 1 winner
  *  D  Stock accuracy ... +1000 then 100×qty2 sales — final must equal 800
  *  E  Mixed workload ... 300 ops across 7 endpoints — per-endpoint p95
- *  F  Security probes .. ADMIN escalation, bad token, 1.2MB body, 404, brute-force 429
+ *  F  Security probes .. ADMIN escalation, bad token, 2.5MB body (over the 2mb
+ *                       body-parser cap → 413), 404, brute-force 429
  *  G  Read-only replica  spawned child with DYPOS_READ_ONLY=1 — writes → 409
  *  S  Soak ............. 30s sustained invoices — zero errors, stable p95
  *
@@ -228,7 +229,11 @@ const pidD = await mkProd('D', 10);    // stock-accuracy phase
   // NOTE: GET probes pass `undefined` (never null) — fetch throws on GET-with-body.
   checks.badToken = await probe('GET', '/api/products', undefined, 'forged-token');
   checks.noToken = await probe('GET', '/api/products', undefined, undefined);
-  checks.bigBody = (await req('POST', '/api/invoices', { items: [{ productId: pidA, qty: 1 }], notes: 'x'.repeat(1_300_000) }, T)).status;
+  // Body limit is 2mb (server.js, raised from 1MB for 500-line invoices), so the
+  // probe must exceed it to exercise the 413 path — 1.3MB only reaches the
+  // zod `notes.max(1000)` rule and returns 400, which proves validation but
+  // not the DoS guard.
+  checks.bigBody = (await req('POST', '/api/invoices', { items: [{ productId: pidA, qty: 1 }], notes: 'x'.repeat(2_500_000) }, T)).status;
   checks.api404 = await probe('GET', '/api/does-not-exist', undefined, T);
   // 'Wrong1234' passes zod shape (8+ chars, letter+digit) so failures are genuine
   // 401s — 'wrong' (5 chars) would 400 at validation and never exercise passwords.

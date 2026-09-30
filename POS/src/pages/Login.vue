@@ -178,6 +178,7 @@ const {
 	isRateLimited,
 	setRuntimeState,
 	prepareRuntime,
+	prepareServerDemand,
 	detectAndSetOfflineMode,
 	handleOnline,
 	handleOffline,
@@ -453,33 +454,32 @@ async function submitLogin() {
 	authenticationCompleted.value = false
 
 	try {
-		if (!csrfReady.value && isOnline.value) {
-			await prepareRuntime()
-		}
+		// Standalone-first: the submit button IS the demand — no probe
+		// before it. Local login first (zero network); the server is
+		// attempted only when the local store misses these credentials.
+		// A server success grants linkage consent inside session.login.
+		const offlineResult = await attemptLocalLogin(
+			email.value.trim(),
+			password.value,
+		)
 
-		if (!offlineDetected.value) {
-			await detectAndSetOfflineMode()
-		}
-
-		if (isOfflineMode.value) {
-			const offlineResult = await attemptLocalLogin(
-				email.value.trim(),
-				password.value,
-			)
-
-			if (!offlineResult.success) {
-				// No throwing: the offline result is already user-shaped, and
-				// the catch block would overwrite it with a generic message.
-				loginError.value = offlineResult.error || "فشل تسجيل الدخول المحلي"
-				return
+		if (offlineResult.success) {
+			if (!offlineDetected.value) {
+				await detectAndSetOfflineMode()
 			}
 
 			completeAuthentication("offline_login")
 		} else {
+			// Explicit server demand: handshake first, then login.
+			await prepareServerDemand()
 			await session.login({
 				usr: sanitizeForInput(email.value.trim()),
 				pwd: sanitizeForInput(password.value),
 			})
+
+			if (!offlineDetected.value) {
+				await detectAndSetOfflineMode()
+			}
 
 			completeAuthentication("login")
 		}

@@ -1092,8 +1092,26 @@ const statusIcon = computed(() => {
 }
 
 @media (max-width: 980px) {
+	/* The operation strip carries the shift button — a real control the
+	   cashier must reach to open or settle the till. It used to be
+	   `display: none` here, which meant a tablet or phone had NO route to the
+	   shift workflow at all. It now collapses to the shift control alone: the
+	   branch/location readout drops to the offline banner and the status bar,
+	   and the actionable part survives. */
 	.dypos-header__operation {
+		display: flex;
+		gap: 8px;
+	}
+
+	/* The location readout is context, not control, and it has a home on the
+	   status bar below. */
+	.dypos-header__context-item,
+	.dypos-header__divider {
 		display: none;
+	}
+
+	.dypos-header__shift {
+		min-height: var(--dy-touch-min, 44px);
 	}
 
 	.dypos-header__main {
@@ -1117,8 +1135,17 @@ const statusIcon = computed(() => {
 		font-size: 14px;
 	}
 
+	/* The subtitle is the screen's own title (branch, register name, report
+	   name). Dropping it leaves a phone user with a logo and no idea which
+	   screen they are on, so it is clamped to one line instead of removed. */
 	.dypos-header__subtitle {
-		display: none;
+		display: block;
+		overflow: hidden;
+		max-width: 42ch;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: 11px;
+		line-height: 14px;
 	}
 
 	.dypos-header__connection {
@@ -1131,8 +1158,21 @@ const statusIcon = computed(() => {
 		display: none;
 	}
 
-	.dypos-header__cashier-info,
+	/* The cashier name stays: a shared till with two accounts needs the cashier
+	   to confirm whose shift they are about to charge. The chevron goes, the
+	   identity does not. */
+	.dypos-header__cashier-info {
+		display: flex;
+		max-width: 14ch;
+		overflow: hidden;
+	}
+
 	.dypos-header__cashier > svg {
+		display: none;
+	}
+
+	/* A hairline between icon buttons is spacing, not information. */
+	.dypos-header__actions-divider {
 		display: none;
 	}
 

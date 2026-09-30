@@ -1,0 +1,193 @@
+/* =============================================================================
+   POSSale — responsive / motion / print
+   =============================================================================
+   مُستخرج من `src/pages/POSSale.vue` لتُبقي الصفحة تحت سقف الحجم (البوابة
+   `tests/fileSize.test.js` تتحرك نزولًا فقط): كل `@media` للشاشات الضيقة
+   وحالات تقليل الحركة والألوان القسرية والطباعة تعيش هنا في بيت واحد مُسمّى،
+   وتُحمّل عبر `<style scoped src="@/styles/pages/pos-sale-responsive.css">`
+   في الصفحة (نفس نمط `styles/pages/login.css`).
+   ========================================================================== */
+
+/* =============================================================================
+   Responsive
+   ============================================================================= */
+
+@media (max-width: 1100px) {
+	.dy-pos-sale {
+		--sale-sidebar-width: 390px;
+	}
+
+	.dy-pos-sale__product-grid {
+		grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
+	}
+}
+
+@media (max-width: 900px) {
+	.dy-pos-sale__workspace {
+		grid-template-columns: 1fr;
+
+		overflow: auto;
+	}
+
+	.dy-pos-sale__catalog {
+		min-height: 52vh;
+	}
+
+	.dy-pos-sale__cart {
+		min-height: 48vh;
+
+		border-inline-start: 0;
+
+		border-top: 1px solid var(--dy-border);
+	}
+
+	.dy-pos-sale__cart-body {
+		min-height: 220px;
+	}
+}
+
+@media (max-width: 640px) {
+	.dy-pos-sale__catalog-toolbar {
+		padding-inline: 12px;
+	}
+
+	.dy-pos-sale__catalog-meta {
+		padding-inline: 12px;
+	}
+
+	.dy-pos-sale__product-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+
+		padding-inline: 12px;
+	}
+
+	.dy-pos-sale__product {
+		min-height: 165px;
+	}
+
+	.dy-pos-sale__product-image {
+		height: 90px;
+	}
+
+	.dy-pos-sale__cart-footer {
+		padding-bottom: max(12px, env(safe-area-inset-bottom));
+	}
+
+	.dy-pos-sale__payment-methods {
+		grid-template-columns: repeat(3, 1fr);
+	}
+
+	.dy-pos-sale__payment-methods button {
+		min-height: 68px;
+	}
+}
+
+@media (max-width: 420px) {
+	.dy-pos-sale__search-input {
+		min-height: 46px;
+
+		padding-inline-start: 40px;
+	}
+
+	.dy-pos-sale__shortcut {
+		display: none;
+	}
+
+	.dy-pos-sale__search-clear {
+		inset-inline-end: 8px;
+	}
+
+	/* The catalog actions (pick a customer, open returns) used to be
+       `display: none` here to save width. That removed two actions a cashier
+       needs during a sale, with no route to them at all — a returns request on
+       a 390px phone became impossible. The toolbar already wraps, so the
+       actions only need their own line, which `flex: 1 0 100%` requests; the
+       search field keeps its `flex: 1` and stays on the first row. */
+	.dy-pos-sale__catalog-actions {
+		display: flex;
+		flex: 1 0 100%;
+		justify-content: flex-start;
+		gap: 8px;
+		padding-bottom: var(--dy-space-2);
+	}
+
+	.dy-pos-sale__catalog-actions > * {
+		flex: 1 1 0;
+		min-height: var(--dy-touch-min, 44px);
+	}
+
+	.dy-pos-sale__product-grid {
+		gap: 7px;
+	}
+
+	.dy-pos-sale__product {
+		min-height: 150px;
+
+		padding: 8px;
+	}
+
+	.dy-pos-sale__product-image {
+		height: 76px;
+	}
+
+	.dy-pos-sale__item-total {
+		min-width: 60px;
+	}
+}
+
+/* =============================================================================
+   Reduced Motion
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+	.dy-pos-sale *,
+	.dy-pos-sale *::before,
+	.dy-pos-sale *::after {
+		animation-duration: 0.01ms !important;
+
+		animation-iteration-count: 1 !important;
+
+		transition-duration: 0.01ms !important;
+	}
+}
+
+/* =============================================================================
+   Forced Colors
+   ============================================================================= */
+
+@media (forced-colors: active) {
+	.dy-pos-sale__product,
+	.dy-pos-sale__search-input,
+	.dy-pos-sale__input,
+	.dy-pos-sale__cart-item,
+	.dy-pos-sale__dialog,
+	.dy-pos-sale__payment-methods button {
+		border-color: CanvasText;
+	}
+
+	.dy-pos-sale__product:focus-visible,
+	.dy-pos-sale__search-input:focus {
+		outline: 2px solid Highlight;
+	}
+}
+
+/* =============================================================================
+   Print
+   ============================================================================= */
+
+@media print {
+	.dy-pos-sale__catalog,
+	.dy-pos-sale__status,
+	.dy-pos-sale__notification {
+		display: none !important;
+	}
+
+	.dy-pos-sale__workspace {
+		display: block;
+	}
+
+	.dy-pos-sale__cart {
+		border: 0;
+		box-shadow: none;
+	}
+}

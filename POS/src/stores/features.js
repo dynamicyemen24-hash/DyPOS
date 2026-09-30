@@ -1,9 +1,10 @@
 /**
  * Features Store — feature-flag gate for the POS shell.
  *
- * Fetches the public-safe subset of server flags from /api/features on init
- * (5s network timeout). Failure/offline NEVER blocks the POS: every exposed
- * flag falls back to its documented default (ON) so cashiers keep working.
+ * Fetches the public-safe subset of server flags from /api/features ONLY with
+ * the user's linkage consent (standalone-first: init() serves documented
+ * defaults with zero network). Failure/offline NEVER blocks the POS: every
+ * exposed flag falls back to its documented default (ON) so cashiers work.
  *
  * `enabled(name)` is reactive: components call it inside `computed()` and the
  * value flips the moment init finishes (server truth) or a reconnect refetch
@@ -12,6 +13,11 @@
  */
 import { ref } from "vue"
 import { defineStore } from "pinia"
+import {
+	AUTO_TRIGGERS,
+	isAutoAllowed,
+	isLinkEnabled,
+} from "@/services/link-consent"
 
 /** Mirror of the server's exposed-flag defaults (server/lib/features.js). */
 export const OFFLINE_DEFAULTS = {
@@ -57,13 +63,26 @@ export const useFeaturesStore = defineStore("features", () => {
 	 * @returns {Promise<boolean>} true when server values are live
 	 */
 	function init() {
-		const epoch = ++initEpoch
-		const applyDefaults = () => {
-			features.value = { ...OFFLINE_DEFAULTS }
-			loaded.value = true
-			isOffline.value = true
-			lastError.value = new Error(OFFLINE_ERROR_MESSAGE)
+		// Standalone-first: fetching flags is a server connection — only with
+		// the user's linkage consent. Defaults stay ON; the shop never blocks.
+		// Explicit refresh() below is user demand and bypasses this gate.
+		if (!isLinkEnabled()) {
+			applyDefaultsShared()
+			return Promise.resolve(false)
 		}
+		return fetchServerFlags()
+	}
+
+	const applyDefaultsShared = () => {
+		features.value = { ...OFFLINE_DEFAULTS }
+		loaded.value = true
+		isOffline.value = true
+		lastError.value = new Error(OFFLINE_ERROR_MESSAGE)
+	}
+
+	function fetchServerFlags() {
+		const epoch = ++initEpoch
+		const applyDefaults = applyDefaultsShared
 		// Offline-first: radios say offline → defaults immediately, no fetch.
 		try {
 			if (typeof navigator !== "undefined" && navigator.onLine === false) {
@@ -121,8 +140,12 @@ export const useFeaturesStore = defineStore("features", () => {
 		return enabled(name)
 	}
 
+	/**
+	 * Explicit user demand (settings reload button): bypasses the linkage
+	 * gate — the click itself is the consent for this one fetch.
+	 */
 	function refresh() {
-		return init()
+		return fetchServerFlags()
 	}
 
 	let hookInstalled = false
@@ -136,7 +159,10 @@ export const useFeaturesStore = defineStore("features", () => {
 	function registerFeatureHooks() {
 		if (hookInstalled) return { installed: false, cleanup: null }
 		const onOnline = () => {
-			if (isOffline.value) void init()
+			// Reconnect alone is not user demand: refetch only when the user
+			// set the on-reconnect engine to `auto` (with linkage).
+			if (isOffline.value && isAutoAllowed(AUTO_TRIGGERS.ON_RECONNECT))
+				void init()
 		}
 		if (
 			typeof window !== "undefined" &&

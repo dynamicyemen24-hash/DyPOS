@@ -61,6 +61,7 @@ push إلى main (أو تشغيل يدوي)
    → npm ci (POS)                      مثبّت على POS/package-lock.json
    → npm run verify                    بوابة الجودة: vitest + lint + vue-tsc
    → npm ci (server) + npm run lint && contract && parity
+   → npm run upstream                  بوابة الأصل الخلفي: لا BACKEND_URL مدقق يحلّ للحافة نفسها (تمنع عودة 503)
    → npm run build:pages               base "/" + sw.js في جذر النطاق + مسح outDir
    → npm run size                      ميزانية الحزمة (gzip JS+CSS ≤ 900KB)
    → فحص التوكن + wrangler pages deploy POS/dist/pos --project-name=dypos-pos

@@ -349,10 +349,32 @@ function handlePageSizeChange() {
 @media (max-width: 640px) {
   .work-pagination { justify-content: center; }
   .work-pagination__info { order: -1; width: 100%; text-align: center; }
-  .work-pagination__controls { width: 100%; justify-content: center; }
-  .work-pagination__page-size { display: none; }
+  .work-pagination__controls {
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  /* The page-size control and the first/last jumps were hidden here to save
+     width. Both are controls, not decoration: a supervisor cannot change how
+     many rows a report loads, and cannot jump to the last page, on a phone.
+     They now wrap onto a second row at a thumb-sized height instead of
+     disappearing — the row below the pager has space for them. */
+  .work-pagination__page-size {
+    display: flex;
+    order: 1;
+    width: 100%;
+    justify-content: center;
+    min-height: var(--dy-touch-min, 44px);
+  }
+
   .work-pagination__btn--first,
-  .work-pagination__btn--last { display: none; }
+  .work-pagination__btn--last {
+    display: inline-flex;
+    min-width: var(--dy-touch-min, 44px);
+    min-height: var(--dy-touch-min, 44px);
+  }
 }
 
 /* Reduced Motion */

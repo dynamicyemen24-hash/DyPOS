@@ -51,9 +51,10 @@ import { retryAsync } from "./utils/network"
 
 import {
 	isCapabilityConstrained,
-	prefetchOnIdle,
 	startPerformanceMonitoring,
 } from "./utils/performance"
+
+import { isLinkEnabled, subscribeLinkConsent } from "./services/link-consent"
 
 import { applyThemeEarly } from "./composables/useAppTheme"
 import { enforceDefaultArabic } from "./composables/useLocale"
@@ -296,6 +297,12 @@ function startBuildVersionWatchdog() {
 	let notifiedVersion = null
 
 	const check = async () => {
+		// Standalone-first: the build stamp is compile-time truth. Polling it
+		// over the network without the user's linkage consent is a connection
+		// nobody demanded — linked devices still learn about deploys on time.
+		if (!isLinkEnabled()) {
+			return
+		}
 		try {
 			const response = await fetch("/assets/DyPOS/pos/version.json", {
 				method: "GET",
@@ -491,8 +498,13 @@ async function initializeCSRF() {
 		return false
 	}
 
-	// Offline-first: CSRF is only meaningful for same-origin server calls.
-	// Never spend startup time on it when the radios report offline.
+	// Standalone-first: CSRF is only meaningful for server calls the user
+	// demanded. No linkage consent → no handshake, local login needs none.
+	// (The old navigator.onLine check stays below as a second guard.)
+	if (!isLinkEnabled()) {
+		log.debug("Standalone — skipping CSRF initialization")
+		return false
+	}
 	try {
 		if (typeof navigator !== "undefined" && navigator.onLine === false) {
 			log.debug("Offline — skipping CSRF initialization")
@@ -650,6 +662,13 @@ async function initializeRealtime(bootstrapStore) {
 		return
 	}
 
+	// Standalone-first: opening a socket is a connection. Only a linked
+	// session (user-demanded server linkage) may hold one.
+	if (!isLinkEnabled()) {
+		log.debug("Standalone — realtime socket stays closed")
+		return
+	}
+
 	try {
 		if (!window.dypos) {
 			window.dypos = {}
@@ -674,6 +693,18 @@ async function initializeRealtime(bootstrapStore) {
 
 			log.info("Realtime connection initialized", {
 				siteName,
+			})
+
+			// سحب الموافقة يُسقط المقبس فورًا: لا نبض صامت بعده.
+			const { disconnectSocket } = await import("./socket")
+			subscribeLinkConsent((mode) => {
+				if (mode !== "linked" && typeof disconnectSocket === "function") {
+					try {
+						disconnectSocket()
+					} catch (error) {
+						log.debug("Socket revoke-disconnect failed", error)
+					}
+				}
 			})
 		}
 	} catch (error) {
@@ -763,17 +794,15 @@ function initializeDeviceAdaptation() {
    ============================================================================= */
 
 function initializeIdleWarmup() {
+	// Removed on purpose (standalone-first): the only warm-up target was an
+	// `/api/ping` connectivity probe — a network connection no user demanded.
+	// Linked sessions warm naturally on their first demanded call, and the
+	// function is kept so every existing call site stays valid.
 	if (!isBrowser || isCapabilityConstrained()) {
 		return
 	}
 
-	try {
-		void prefetchOnIdle(["/api/ping"]).catch((error) => {
-			log.debug("Idle connectivity warm-up failed", error)
-		})
-	} catch (error) {
-		log.debug("Idle warm-up unavailable", error)
-	}
+	log.debug("Idle warm-up: no prefetch targets (standalone-first)")
 }
 
 /* =============================================================================
@@ -865,6 +894,13 @@ function initializePlatformSync(user) {
 		return
 	}
 
+	// Standalone-first: the platform sync engine talks network. It starts
+	// only for a linked session — local logins sell fully offline.
+	if (!isLinkEnabled()) {
+		log.debug("Standalone — platform sync stays parked")
+		return
+	}
+
 	if (bootstrapState.platformSyncInitialized) {
 		return
 	}
@@ -910,7 +946,12 @@ async function initializeRealtimeSync() {
 
 		const { registerRealtimeSync } = await import("./stores/realtime")
 
-		const teardown = registerRealtimeSync({ tenantId })
+		// Standalone-first: an EventSource is a connection. The store honours
+		// `enabled: false` by staying pristine (no socket, no stream).
+		const teardown = registerRealtimeSync({
+			tenantId,
+			enabled: isLinkEnabled(),
+		})
 
 		if (typeof teardown === "function") {
 			bootstrapState.cleanup.push(teardown)
@@ -961,49 +1002,23 @@ function createDyPOSApplication() {
 }
 
 /* =============================================================================
-   Offline-first detection
+   Standalone-first mode (pure local — the boot probe was removed: pinging
+   the backend to decide the mode was itself an undemanded connection)
    ============================================================================= */
-
-const OFFLINE_DETECTION_TIMEOUT_MS = 3000
 
 let isOfflineMode = false
 
 async function detectOfflineMode() {
 	if (!isBrowser) return false
 
-	try {
-		const controller = new AbortController()
-		const timeoutId = setTimeout(
-			() => controller.abort(),
-			OFFLINE_DETECTION_TIMEOUT_MS,
-		)
-
-		const response = await fetch("/api/ping", {
-			method: "GET",
-			cache: "no-store",
-			credentials: "same-origin",
-			signal: controller.signal,
-		})
-
-		clearTimeout(timeoutId)
-
-		if (response.ok) {
-			log.info("Backend reachable — online mode")
-			return false
-		}
-
-		// Offline-first: any non-OK status (404 on static hosts, 503 from a
-		// down backend) means local mode. No warning spam at startup.
-		log.debug(`Backend unavailable (${response.status}) — offline mode`)
-		return true
-	} catch (error) {
-		if (error.name === "AbortError" || error.name === "TimeoutError") {
-			log.info("Backend ping timeout — offline mode")
-		} else {
-			log.info("Backend unreachable — offline mode", error?.message || error)
-		}
-		return true
-	}
+	// Standalone-first (user-mandated): deciding the mode by PINGING the
+	// backend was itself a network connection nobody demanded — on every
+	// boot, on every device. The mode is now pure local state: standalone
+	// until the user demands server linkage (server login, Sync Now, or the
+	// linkage toggle), which grants consent via services/link-consent.
+	// Server reachability is then learned from the demanded call itself —
+	// failure means local mode, never a blocker.
+	return !isLinkEnabled()
 }
 
 /**

@@ -6,6 +6,13 @@ import {
 	OFFLINE_DEFAULTS,
 	FETCH_TIMEOUT_MS,
 } from "@/stores/features"
+import {
+	AUTO_TRIGGERS,
+	LINK_MODES,
+	LINK_REASONS,
+	setLinkMode,
+	setTriggerMode,
+} from "@/services/link-consent"
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -28,11 +35,16 @@ function jsonFeatures(entries) {
 
 beforeEach(() => {
 	setActivePinia(createPinia())
+	localStorage.clear()
+	// The fetch tests below are the test's own demand: grant linkage the
+	// way a server login would. Standalone cases revoke it explicitly.
+	setLinkMode(LINK_MODES.LINKED, LINK_REASONS.SERVER_LOGIN)
 })
 
 afterEach(() => {
 	vi.useRealTimers()
 	vi.unstubAllGlobals()
+	setLinkMode(LINK_MODES.STANDALONE, LINK_REASONS.REVOKED)
 })
 
 describe("features store — offline-safe defaults", () => {
@@ -109,7 +121,9 @@ describe("features store — init from /api/features", () => {
 })
 
 describe("features store — hooks + refresh", () => {
-	it("registerFeatureHooks refetches on reconnect (offline → online) and is idempotent", async () => {
+	it("registerFeatureHooks refetches on reconnect only with on-reconnect auto", async () => {
+		// The test grants the automation the way the Sync Center toggle would.
+		setTriggerMode(AUTO_TRIGGERS.ON_RECONNECT, "auto")
 		let calls = 0
 		vi.stubGlobal(
 			"fetch",
@@ -138,6 +152,35 @@ describe("features store — hooks + refresh", () => {
 
 		first.cleanup()
 		expect(store.registerFeatureHooks().installed).toBe(true) // re-registrable after cleanup
+	})
+
+	it("reconnect alone never refetches without the auto trigger", async () => {
+		const fetchMock = vi.fn(() => Promise.reject(new Error("down")))
+		vi.stubGlobal("fetch", fetchMock)
+		const store = useFeaturesStore()
+		await store.init()
+		expect(fetchMock).toHaveBeenCalledTimes(1)
+
+		store.registerFeatureHooks()
+		window.dispatchEvent(new Event("online"))
+		await sleep(0)
+		await sleep(0)
+
+		expect(fetchMock).toHaveBeenCalledTimes(1)
+		expect(store.isOffline).toBe(true)
+	})
+
+	it("init performs zero fetch while standalone (defaults ON, shop open)", async () => {
+		setLinkMode(LINK_MODES.STANDALONE, LINK_REASONS.REVOKED)
+		const fetchMock = vi.fn(() => Promise.reject(new Error("down")))
+		vi.stubGlobal("fetch", fetchMock)
+		const store = useFeaturesStore()
+		const ok = await store.init()
+		expect(ok).toBe(false)
+		expect(fetchMock).not.toHaveBeenCalled()
+		expect(store.loaded).toBe(true)
+		expect(store.isOffline).toBe(true)
+		expect(store.enabled("PRINT_SPOOL")).toBe(true)
 	})
 
 	it("refresh() re-fetches and reflects a server-side toggle", async () => {

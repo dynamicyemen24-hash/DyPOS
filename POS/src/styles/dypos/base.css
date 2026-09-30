@@ -701,7 +701,89 @@ hr {
 	color-scheme: dark;
 }
 
-/* ============================================================================
+/* =============================================================================
+   27. TOUCH TARGETS (WCAG 2.5.8 / Apple HIG 44pt)
+   -----------------------------------------------------------------------------
+   The density tokens stay untouched on desktop, because a mouse does not need
+   44px to hit a target. A thumb does. `useDevice` already tags <body> with
+   `dypos-device-mobile` / `dypos-device-tablet`, so this layer needs no new
+   JavaScript and no per-component work: it raises every interactive surface to
+   the minimum comfortable touch size exactly where a finger is driving.
+
+   Why this is a stylesheet rule and not a component prop: the alternative is
+   every screen re-deciding its own minimum height, which is how a 32px button
+   on the settings page and a 48px one on the sale page coexist in one product.
+   One rule, one floor, enforced for every control — including the ones written
+   later.
+   ============================================================================ */
+
+:root {
+	/* The floor a finger needs, and the gap that keeps adjacent targets from
+	   reading as one target (WCAG 2.5.8 also asks for spacing, not just size). */
+	--dy-touch-min: 44px;
+	--dy-touch-gap: 8px;
+}
+
+@media (pointer: coarse), (hover: none) {
+	.dy-btn,
+	.dy-btn-sm,
+	.dy-btn-md,
+	.dy-btn-lg,
+	.dy-btn-xl,
+	.dy-btn-icon {
+		/* `height` is overridden with `auto` on purpose: pinning both would
+		   clip the label on a screen reader's larger text setting. */
+		height: auto;
+		min-height: var(--dy-touch-min);
+		padding-inline: var(--dy-space-4);
+	}
+
+	/* Icon-only controls need the square, or a wide label looks stretched. */
+	.dy-btn-icon {
+		padding-inline: 0;
+		aspect-ratio: 1;
+	}
+
+	/* Row-shaped controls (list rows, grid cells, nav items) get the same floor
+	   so a data table is as tappable as a button. */
+	.dy-list-row,
+	.dy-nav-item,
+	.dy-tab {
+		min-height: var(--dy-touch-min);
+	}
+
+	/* Checkboxes and radio buttons are the smallest targets in any POS: they
+	   sit under a thumb. */
+	.dy-checkbox,
+	.dy-radio,
+	.dy-switch {
+		min-width: var(--dy-touch-min);
+		min-height: var(--dy-touch-min);
+	}
+
+	/* Select and text inputs on a phone must not trigger the iOS zoom: a
+	   computed font-size under 16px makes the viewport jump on focus. */
+	.dy-input,
+	.dy-select,
+	.dy-textarea,
+	input,
+	select,
+	textarea {
+		font-size: max(1rem, var(--dy-text-base));
+		min-height: var(--dy-touch-min);
+	}
+}
+
+@media (pointer: coarse), (hover: none) {
+	/* A thumb never hovers, so a hover-only affordance is a dead affordance:
+	   reveal hover-revealed actions on tap instead. */
+	.dy-hover-reveal {
+		opacity: 1;
+		visibility: visible;
+	}
+}
+
+/* =============================================================================
    26. REDUCED MOTION
    ============================================================================ */
 

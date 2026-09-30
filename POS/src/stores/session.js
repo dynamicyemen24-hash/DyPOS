@@ -51,6 +51,11 @@ import {
 	getPhysicalStockMap,
 } from "@/services/stock-reservations"
 import { nextOfflineInvoiceNumber } from "@/services/offline-numbering"
+import {
+	LINK_REASONS,
+	isLinkEnabled,
+	setLinkMode,
+} from "@/services/link-consent"
 
 const log = logger.create("SessionStore")
 
@@ -140,6 +145,11 @@ export const useSessionStore = defineStore("session", () => {
 
 		await lowSession.login.submit({ email: usr, password: pwd })
 
+		// The user explicitly demanded the server (typed credentials +
+		// pressed login): grant linkage consent. Local/PIN logins never
+		// pass through here, so they stay fully standalone.
+		setLinkMode("linked", LINK_REASONS.SERVER_LOGIN)
+
 		// Load persisted platform sync auth so the offline engine has tokens.
 		await initPlatformAuth().catch(() => {})
 
@@ -209,11 +219,15 @@ export const useSessionStore = defineStore("session", () => {
 		lastError.value = null
 
 		try {
-			// 1. Platform sync auth
+			// 1. Platform sync auth (local read; no network by itself)
 			await initPlatformAuth().catch(() => {})
 
-			// 2. Initial data (idempotent — reuses the bootstrap store cache)
-			const data = await bootstrapStore.loadInitialData()
+			// 2. Initial data (idempotent — reuses the bootstrap store cache).
+			// Standalone-first: one server call the user never demanded is
+			// still one too many — local logins bootstrap from device state.
+			const data = isLinkEnabled()
+				? await bootstrapStore.loadInitialData()
+				: null
 
 			// 3. POS context (tenant / branch / terminal / profile)
 			resolveTerminalId()
@@ -226,11 +240,15 @@ export const useSessionStore = defineStore("session", () => {
 			// 4. Permission preload (non-blocking, optimistic defaults served meanwhile)
 			void loadPermissions()
 
-			// 5. Shift state (offline-safe — cached copy used on failure)
-			try {
-				await shiftComposable.checkOpeningShift.submit()
-			} catch (error) {
-				log.warn("Shift check degraded (offline fallback used)", error)
+			// 5. Shift state (offline-safe — cached copy used on failure).
+			// Standalone-first: the check is a server call; local logins
+			// read the device shift copy instead of demanding the network.
+			if (isLinkEnabled()) {
+				try {
+					await shiftComposable.checkOpeningShift.submit()
+				} catch (error) {
+					log.warn("Shift check degraded (offline fallback used)", error)
+				}
 			}
 
 			// 6. Sync manager (poll + connectivity listeners)

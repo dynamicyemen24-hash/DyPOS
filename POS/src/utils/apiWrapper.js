@@ -34,7 +34,7 @@ function isDefinitelyOffline() {
 
 function offlineError(method) {
 	const err = new Error(
-		"لا يوجد اتصال بالإنترنت — سيُحفظ العمل محليًا ويُزامَن لاحقًا",
+		"لا يوجد اتصال بالإنترنت — سيُحفظ العمل محليًا ويُزامَن عند طلبك",
 	)
 	err.code = "OFFLINE"
 	err.status = 0

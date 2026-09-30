@@ -66,6 +66,15 @@ jobs:
         working-directory: server
         run: npm run lint && npm run contract && npm run parity
 
+      # Shift-left for the UPSTREAM_MISCONFIGURED outage (red since 1.40.0):
+      # a checked-in BACKEND_URL that resolves to the edge itself must fail the
+      # deploy HERE, not as a red heartbeat 15 minutes later. The upstream is a
+      # wrangler secret (never in repo); this gate proves the repo carries no
+      # dead default that could re-clobber it.
+      - name: API upstream config gate
+        working-directory: server
+        run: npm run upstream
+
       # نفس البناء الذي يخدم الإنتاج: base "/" و sw.js في جذر النطاق، ويمسح
       # outDir أولًا فلا تتراكم قطع قديمة في قائمة precache (انظر pruneStaleAssetsPlugin).
       - name: Build frontend (version-pinned, no timestamps)
@@ -175,7 +184,9 @@ jobs:
           echo "::error::dypos-api Worker deploy FAILED. The token must include Workers Scripts:Edit and, when the route is changed or first created, Zone Workers Routes:Edit. Verify the account ID and re-run the workflow after updating CLOUDFLARE_API_TOKEN."
 
       # `/api/*` يخدمه Worker مستقل اسمه `dypos-api` (wrangler.api.toml)، وهو
-      # يجيب `/api/ping` بنفسه ولا يمرّر إلى Express ولا يقرأ BACKEND_URL.
+      # بروكسي fail-closed إلى BACKEND_URL (سر wrangler، لا قيمة مدققة):
+      # أي BACKEND_URL يحلّ إلى الحافة نفسها يرد 503 UPSTREAM_MISCONFIGURED
+      # بدل حلقة طلبات — انظر بوابة npm run upstream أعلاه.
 
       # Optional cache purge — only when the zone id secret is provided
       # (Pages on a custom domain normally picks up instantly; kept for belt

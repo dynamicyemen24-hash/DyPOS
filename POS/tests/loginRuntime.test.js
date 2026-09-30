@@ -10,7 +10,7 @@
  * `isBrowser` — are asserted at the bottom: a future refactor that drops
  * either one must fail here, not in a customer's shop.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import {
 	detectOfflineMode,
@@ -19,6 +19,11 @@ import {
 	log,
 	sanitizeForInput,
 } from "../src/composables/useLoginRuntime.js"
+import {
+	LINK_MODES,
+	LINK_REASONS,
+	setLinkMode,
+} from "../src/services/link-consent.js"
 
 describe("useLoginRuntime — exported bindings", () => {
 	it("defines `log` with the four levels the login screen calls", () => {
@@ -48,63 +53,35 @@ describe("useLoginRuntime — exported bindings", () => {
 	})
 })
 
-describe("detectOfflineMode", () => {
-	const originalFetch = global.fetch
-
-	beforeEach(() => {
-		global.fetch = vi.fn()
+describe("detectOfflineMode — pure local, zero network", () => {
+	it("is standalone without linkage consent", async () => {
+		setLinkMode(LINK_MODES.STANDALONE, LINK_REASONS.REVOKED)
+		// The probe era is over: deciding the mode by pinging the backend
+		// was itself an undemanded connection on every boot.
+		await expect(detectOfflineMode()).resolves.toBe(true)
 	})
 
-	afterEach(() => {
-		global.fetch = originalFetch
-		vi.restoreAllMocks()
-	})
-
-	it("reports online when the backend answers 200", async () => {
-		global.fetch.mockResolvedValue({ ok: true, status: 200 })
-
+	it("leaves standalone mode only through granted linkage", async () => {
+		setLinkMode(LINK_MODES.STANDALONE, LINK_REASONS.REVOKED)
+		await expect(detectOfflineMode()).resolves.toBe(true)
+		setLinkMode(LINK_MODES.LINKED, LINK_REASONS.SERVER_LOGIN)
 		await expect(detectOfflineMode()).resolves.toBe(false)
+		setLinkMode(LINK_MODES.STANDALONE, LINK_REASONS.REVOKED)
 	})
 
-	it("reports offline on 503 (server up but degraded)", async () => {
-		global.fetch.mockResolvedValue({ ok: false, status: 503 })
-
-		await expect(detectOfflineMode()).resolves.toBe(true)
-	})
-
-	it("reports offline on a non-503 error status", async () => {
-		global.fetch.mockResolvedValue({ ok: false, status: 502 })
-
-		await expect(detectOfflineMode()).resolves.toBe(true)
-	})
-
-	it("reports offline when fetch throws (device has no network)", async () => {
-		global.fetch.mockRejectedValue(new TypeError("Failed to fetch"))
-
-		await expect(detectOfflineMode()).resolves.toBe(true)
-	})
-
-	it("reports offline when the ping times out", async () => {
-		const abort = Object.assign(new Error("aborted"), {
-			name: "AbortError",
-		})
-		global.fetch.mockRejectedValue(abort)
-
-		await expect(detectOfflineMode()).resolves.toBe(true)
-	})
-
-	it("probes the ping endpoint with a no-store, same-origin GET", async () => {
-		global.fetch.mockResolvedValue({ ok: true, status: 200 })
-
-		await detectOfflineMode()
-
-		const [url, options] = global.fetch.mock.calls[0]
-		expect(url).toMatch(/\/ping$/)
-		expect(options.method).toBe("GET")
-		// A cached ping would report a stale "online" on a dead terminal.
-		expect(options.cache).toBe("no-store")
-		expect(options.credentials).toBe("same-origin")
-		// Without an abort signal the 3s timeout in the source is unenforceable.
-		expect(options.signal).toBeInstanceOf(AbortSignal)
+	it("never calls fetch while deciding the mode", async () => {
+		const originalFetch = global.fetch
+		const spy = vi.fn(async () => ({ ok: true, status: 200 }))
+		global.fetch = spy
+		try {
+			setLinkMode(LINK_MODES.STANDALONE, LINK_REASONS.REVOKED)
+			await detectOfflineMode()
+			setLinkMode(LINK_MODES.LINKED, LINK_REASONS.SERVER_LOGIN)
+			await detectOfflineMode()
+			expect(spy).not.toHaveBeenCalled()
+		} finally {
+			global.fetch = originalFetch
+		}
+		setLinkMode(LINK_MODES.STANDALONE, LINK_REASONS.REVOKED)
 	})
 })

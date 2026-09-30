@@ -17,6 +17,11 @@ import { logger } from "@/utils/logger"
 import { RealtimeClient } from "@/sync/realtimeClient"
 import { syncState, runSyncCycleSilently } from "@/services/sync-manager"
 import { getEffectiveToken } from "@/services/sync-auth"
+import {
+	AUTO_TRIGGERS,
+	isAutoAllowed,
+	subscribeLinkConsent,
+} from "@/services/link-consent"
 
 export const EVENT_LOG_LIMIT = 100
 
@@ -94,8 +99,9 @@ export const useRealtimeStore = defineStore("realtime", () => {
 			if (status === "connected") {
 				connectedAt.value = new Date().toISOString()
 				// A freshly-connected stream means we may have missed pushes while
-				// offline — let the reconciliation pass catch up quietly.
-				if (syncState.isOnline) {
+				// offline — let the reconciliation pass catch up quietly, but
+				// only when the user set on-reconnect to `auto` (with linkage).
+				if (syncState.isOnline && isAutoAllowed(AUTO_TRIGGERS.ON_RECONNECT)) {
 					runSyncCycleSilently().catch(() =>
 						log.warn("post-reconnect sync cycle failed"),
 					)
@@ -146,6 +152,7 @@ export const useRealtimeStore = defineStore("realtime", () => {
 })
 
 let activeClient = null
+let offConsentRelease = null
 
 /**
  * App entry point: build the SSE client, connect, and wire it into the store.
@@ -182,11 +189,26 @@ export function registerRealtimeSync(options = {}) {
 	store.attach(client)
 	client.connect()
 
-	return () => disconnectActive()
+	// سحب الموافقة = قطع التدفق فورًا: لا إعادة اتصال صامتة بعدها.
+	offConsentRelease = subscribeLinkConsent((mode) => {
+		if (mode !== "linked") disconnectActive()
+	})
+
+	return () => {
+		disconnectActive()
+	}
 }
 
 function disconnectActive() {
 	syncStarted = false
+	if (typeof offConsentRelease === "function") {
+		try {
+			offConsentRelease()
+		} catch {
+			/* ignore */
+		}
+		offConsentRelease = null
+	}
 	if (activeClient) {
 		activeClient.dispose()
 		activeClient = null
