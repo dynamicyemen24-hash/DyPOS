@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.42.5] - 2026-10-01 — إعادة هندسة هوية شاشة الدخول
+
+### Changed
+- وضع شعار DyPOS وبطاقة الشركة ورابط موقعها في شريط علوي متجاوب يظهر على
+  الهاتف وسطح المكتب، مع إبقاء بطاقة الشركة كاملة دون قص.
+- نقل تفضيلات اللغة والسمة إلى الشريط العلوي مع الحفاظ على أهداف لمس مناسبة
+  ودعم RTL/LTR.
+- الإبقاء على نموذج المصادقة وحالات الجلسة والأمان دون إدخال مكتبة واجهات
+  متنافسة.
+
+### Verified
+- اجتازت بوابات POS وبناء Cloudflare Pages وفحوص العقد والمخطط والأصل الخلفي.
+
 ## [1.42.4] - 2026-10-01 — تحسين تجربة تسجيل الدخول
 
 ### Changed

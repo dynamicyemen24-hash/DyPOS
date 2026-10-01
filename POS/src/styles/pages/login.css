@@ -4,30 +4,16 @@
    ============================================================================= */
 
 .dy-login {
-	/*
-	 * العرض نفسه يتغيّر بتغيّر الشاشة: 480px كان يضيّق حقلَي الدخول على
-	 * الشاشات المتوسطة ويجعل سطر «الخيارات» يلتفّ. 520px يمنح حقل الرمز
-	 * المتباعد (`letter-spacing: 0.4em`) مساحة دون أن يتزاحم الزر.
-	 */
-	--login-content-width: 520px;
-
 	position: relative;
 	display: grid;
 
-	/*
-	 * مناطق صريحة بدل التوزيع التلقائي.
-	 *
-	 * شريط «عدم الاتصال» ابن مباشر لهذه الشبكة. بدون مناطق، كان يملأ الخلية
-	 * (1,1) فيزاح لوحة الهوية إلى العمود الثاني ولوحة النموذج إلى الصف
-	 * الثاني — أي أن التخطيط ينهار في الحالة التي يجب أن تصمد فيها الشاشة
-	 * على أي حال. الصف الأول `auto` يطوى إلى صفر حين لا يكون الشريط موجودًا،
-	 * فلا يدفع أي شيء.
-	 */
-	grid-template-columns: minmax(360px, 0.9fr) minmax(520px, 1.1fr);
-	grid-template-rows: auto minmax(0, 1fr);
+	/* The optional offline banner collapses without displacing the masthead. */
+	grid-template-columns: minmax(0, 1fr);
+	grid-template-rows: auto auto minmax(0, 1fr);
 	grid-template-areas:
-		"banner banner"
-		"brand panel";
+		"banner"
+		"brand"
+		"panel";
 
 	min-height: 100vh;
 	min-height: 100dvh;
@@ -64,30 +50,12 @@
 
 	position: relative;
 	display: flex;
-	min-height: 100%;
-	overflow: hidden;
-
-	/*
-	 * الخلفية ملكٌ حصري لهذه القاعدة — والصورة ليست جزءًا منها.
-	 *
-	 * كان المكوّن يمرّر `brandBackground` نمطًا مضمّنًا يضع تدرّجًا فوق
-	 * `smart-ports-og.jpg` بـ`background-size: cover`. لكن الصورة بطاقة نشر
-	 * تطبع داخلها اسم الشركة وشعارها وشعاراتها الأربع؛ الـcover يقصّها على
-	 * لوحة طولية فيخرج نصف الكلمات مبتورًا («الذكية للبرمجيا…» و«Smart Ports
-	 * Softw…») تحت عنوان حي آخر — نصّان يتشابكان ولا واحد منهما مقروء.
-	 *
-	 * الآن: تدرّج لوني نقي للوحة، والصورة صارت عنصرًا مؤطّرًا داخلها
-	 * (`.dy-login__brand-card`). البوابة في `tests/designTokens.test.js`
-	 * تمنع أي `url(...)` هنا، وتمنع المكوّن من إعادة رسم خلفية مضمّنة.
-	 */
-	background: linear-gradient(
-		158deg,
-		rgb(var(--dy-brand-c-800)) 0%,
-		rgb(var(--dy-brand-c-900)) 44%,
-		rgb(var(--dy-brand-c-950)) 100%
-	);
-
-	color: white;
+	justify-content: center;
+	min-width: 0;
+	padding: 10px clamp(16px, 3vw, 40px);
+	border-block-end: 1px solid var(--dy-border-soft);
+	background: var(--dy-surface);
+	color: var(--dy-text);
 }
 
 .dy-login__brand-overlay {
@@ -107,101 +75,109 @@
 }
 
 .dy-login__brand-content {
-	position: relative;
-	z-index: 1;
-
-	display: flex;
-	flex: 1;
-	flex-direction: column;
-
+	display: grid;
+	width: min(100%, 1440px);
+	min-height: 86px;
+	grid-template-columns: auto minmax(120px, 1fr) auto auto;
+	align-items: center;
 	justify-content: space-between;
-
-	min-height: 100%;
-
-	padding: max(48px, env(safe-area-inset-top)) clamp(40px, 6vw, 88px)
-		max(40px, env(safe-area-inset-bottom));
+	gap: 16px clamp(16px, 2vw, 32px);
 }
 
 .dy-login__logo-shell {
-	display: inline-flex;
-	width: fit-content;
-
-	/*
-	 * `DyPOSLogo.png` is 512×512 with the icon printed on a WHITE ground, so a
-	 * translucent shell behind it could never be seen — the shell *is* the tile.
-	 * At 14×18px padding over a 176px image it measured 206px tall and pushed
-	 * the identity card past the fold on a 1440×900 viewport.
-	 */
-	padding: 8px;
-
-	border: 1px solid rgb(255 255 255 / 0.5);
-
+	display: grid;
+	width: 54px;
+	height: 54px;
+	place-items: center;
+	overflow: hidden;
+	padding: 4px;
+	border: 1px solid var(--dy-border-soft);
 	border-radius: var(--dy-radius-xl);
-
 	background: white;
-
-	box-shadow: 0 16px 32px rgb(var(--dy-brand-c-950) / 0.45);
 }
 
 .dy-login__logo {
 	display: block;
-	width: 112px;
-	height: auto;
+	width: 100%;
+	height: 100%;
 	object-fit: contain;
 }
 
-/* =============================================================================
-   Identity card — the company image, framed instead of stretched
-   =============================================================================
-   `smart-ports-og.jpg` is a 1200×630 *sharing card*: white ground, logo, the
-   company name in two scripts, a tagline and four badges — all baked into the
-   pixels. Used as a `cover` background on a tall panel it can only ever show
-   fragments of that typography, cut mid-word, underneath the live headline.
-
-   Presented as an artifact instead: a glass plaque holding the whole card at
-   its native aspect ratio. The white ground of the JPEG becomes the point
-   (a crisp plaque on the deep brand gradient), `object-fit: contain` guarantees
-   no crop, and the intrinsic `width`/`height` on the element keep the layout
-   from shifting while it decodes.
-   ========================================================================== */
+/* Keep the company's identity card intact and linked in the top masthead. */
 
 .dy-login__brand-card {
-	position: relative;
-
-	/* `vh` is not decoration: the panel is viewport-height and clips its
-	   overflow, so an unconstrained card would be cut off on a 1366×768
-	   laptop. The card yields height before the layout yields legibility. */
-	width: min(100%, 440px, 42vh);
-
+	width: min(100%, 240px);
 	margin: 0;
+	grid-column: 2;
+	justify-self: center;
+}
 
-	padding: 10px;
+.dy-login__brand-logo,
+.dy-login__brand-card-link {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--dy-radius-lg);
+}
 
-	border: 1px solid rgb(255 255 255 / 0.2);
-	border-radius: var(--dy-radius-2xl);
+.dy-login__brand-logo:focus-visible,
+.dy-login__brand-card-link:focus-visible {
+	outline: var(--dy-focus-width) solid var(--dy-focus-color);
+	outline-offset: var(--dy-focus-offset);
+}
 
-	background: rgb(255 255 255 / 0.1);
-	backdrop-filter: blur(20px) saturate(1.35);
-	-webkit-backdrop-filter: blur(20px) saturate(1.35);
+.dy-login__brand-card-link {
+	overflow: hidden;
+	background: white;
+}
 
-	box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.24), 0 24px 48px
-		rgb(var(--dy-brand-c-950) / 0.5);
+.dy-login__brand-card-link img {
+	transition: transform 160ms ease;
+}
+
+.dy-login__brand-card-link:hover img {
+	transform: scale(1.025);
 }
 
 .dy-login__brand-card img {
 	display: block;
-
 	width: 100%;
 	height: auto;
 	aspect-ratio: 1200 / 630;
-
 	object-fit: contain;
-
 	border-radius: calc(var(--dy-radius-2xl) - 10px);
-
-	/* The JPEG's own ground is white; without this the letterboxing that
-	   `contain` can introduce would read as a dirty edge. */
 	background: white;
+}
+
+.dy-login__brand-company {
+	display: flex;
+	justify-content: flex-end;
+	flex-wrap: wrap;
+	gap: 6px;
+	justify-self: end;
+	margin: 0;
+	color: var(--dy-text-muted);
+	font-size: 0.72rem;
+	white-space: nowrap;
+}
+
+.dy-login__context {
+	flex-wrap: wrap;
+	margin-block-end: var(--dy-space-5);
+}
+
+.dy-login__context-item {
+	border-color: var(--dy-border-soft);
+	background: var(--dy-surface-soft);
+	color: var(--dy-text-secondary);
+}
+
+.dy-login__context-item svg {
+	color: var(--dy-text-muted);
+}
+
+.dy-login__context-label {
+	max-width: 220px;
 }
 
 .dy-login__brand-copy {
@@ -389,26 +365,25 @@
 	grid-area: panel;
 
 	display: flex;
-	align-items: stretch;
+	align-items: center;
 	justify-content: center;
 
 	min-width: 0;
-	min-height: 100%;
+	min-height: 0;
 
 	/* الهوامش الآمنة تخصّ الصفحة لا البطاقة: البطاقة تُزاح عن الحواف بيقين
 	   ١٦px، بينما الحافة نفسها يجب أن تبقى ملتصقة بحدّ الشاشة على iOS. */
-	padding: max(16px, env(safe-area-inset-top)) 16px
-		max(16px, env(safe-area-inset-bottom));
+	padding: clamp(24px, 4vh, 48px) 16px max(24px, env(safe-area-inset-bottom));
 
 	overflow: auto;
 
 	/* توهّج عريض في الزاوية العليا من جهة البطاقة: يوجّه العين من الهوية
 	   الداكنة إلى النموذج دون أن يضيف لونًا عابرًا. */
 	background: radial-gradient(
-		85% 55% at 78% 4%,
-		rgb(var(--dy-brand-c-500) / 0.08),
-		transparent 62%
-	);
+			70% 45% at 50% 0%,
+			rgb(var(--dy-brand-c-500) / 0.07),
+			transparent 68%
+		), var(--dy-surface-soft);
 }
 
 .dy-login__panel-inner {
@@ -418,7 +393,7 @@
 	/* يقصّ شريط التقدّم على زوايا البطاقة الدائرية بدل أن يفيض فوقها. */
 	overflow: hidden;
 
-	width: min(100%, var(--login-content-width));
+	width: min(100%, 560px);
 
 	padding: clamp(28px, 3.2vw, 44px);
 
@@ -1320,12 +1295,7 @@
    Responsive
    ============================================================================= */
 
-/*
- * On desktop, the brand rail remains a viewport-height composition while the
- * longer form scrolls independently. The previous min-height-only grid grew
- * both columns to the form's full content height and pushed the brand plaque
- * below the fold on common laptop screens.
- */
+/* The masthead stays fixed while a long sign-in form scrolls independently. */
 @media (min-width: 901px) {
 	.dy-login {
 		height: 100vh;
@@ -1346,35 +1316,36 @@
 
 @media (max-width: 1100px) {
 	.dy-login {
-		grid-template-columns:
-			minmax(320px, 0.75fr)
-			minmax(480px, 1.25fr);
-	}
-
-	.dy-login__brand-content {
-		padding-inline: 40px;
-	}
-
-	.dy-login__brand-title {
-		font-size: 3rem;
+		grid-template-columns: minmax(0, 1fr);
 	}
 }
 
 @media (max-width: 900px) {
 	.dy-login {
-		display: block;
-
 		height: auto;
-		overflow: auto;
+		min-height: 100vh;
+		min-height: 100dvh;
+		overflow: visible;
 	}
 
 	.dy-login__brand {
-		display: none;
+		padding-inline: 16px;
+	}
+
+	.dy-login__brand-content {
+		min-height: 76px;
+		grid-template-columns: auto minmax(120px, 1fr) auto;
+		gap: 12px;
+	}
+
+	.dy-login__brand-card {
+		width: min(100%, 190px);
+		grid-column: 2;
 	}
 
 	.dy-login__panel {
-		min-height: 100vh;
-		min-height: 100dvh;
+		min-height: 0;
+		overflow: visible;
 	}
 
 	.dy-login__panel-inner {
@@ -1383,21 +1354,49 @@
 		padding: clamp(24px, 6vw, 34px);
 	}
 
-	.dy-login__mobile-logo {
-		display: block;
-
-		margin-bottom: 28px;
+	.dy-login__brand-company {
+		grid-column: 3;
+		font-size: 0.66rem;
 	}
 
-	.dy-login__mobile-logo img {
-		display: block;
-
-		width: 148px;
-		height: auto;
+	.dy-login__preferences {
+		grid-column: 1 / -1;
+		justify-content: center;
 	}
 }
 
 @media (max-width: 560px) {
+	.dy-login__brand {
+		padding-inline: 12px;
+	}
+
+	.dy-login__brand-content {
+		min-height: 70px;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 8px 12px;
+	}
+
+	.dy-login__logo-shell {
+		width: 46px;
+		height: 46px;
+	}
+
+	.dy-login__brand-card {
+		width: min(100%, 170px);
+		grid-column: 2;
+		justify-self: center;
+	}
+
+	.dy-login__brand-company {
+		grid-column: 1 / -1;
+		justify-self: center;
+	}
+
+	.dy-login__preferences {
+		grid-column: 1 / -1;
+		justify-content: center;
+	}
+
 	.dy-login__title {
 		font-size: 2rem;
 	}

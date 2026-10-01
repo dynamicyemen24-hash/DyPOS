@@ -27,6 +27,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { FeatherIcon } from "dypos-ui"
 
 import { endpoints } from "@/utils/apiEndpoints"
+import { COMPANY_WEBSITE, COMPANY_WEBSITE_LABEL } from "@/utils/brand"
 
 import DyPOSLogo from "@/assets/DyPOSLogo.png"
 import smartPortsBg from "@/assets/smart-ports-og.jpg"
@@ -985,103 +986,49 @@ function goToRegister() {
              Brand / Context Panel
              =============================================================== -->
 
-        <section class="dy-login__brand" :aria-label="__('هوية DyPOS')">
-            <div class="dy-login__brand-overlay" />
+		<section class="dy-login__brand" :aria-label="__('هوية DyPOS')">
+			<div class="dy-login__brand-content">
+				<a
+					class="dy-login__brand-logo"
+					:href="COMPANY_WEBSITE"
+					target="_blank"
+					rel="noopener noreferrer"
+					:aria-label="COMPANY_WEBSITE_LABEL"
+				>
+					<span class="dy-login__logo-shell">
+						<img
+							:src="DyPOSLogo"
+							alt="DyPOS"
+							class="dy-login__logo"
+							width="112"
+							height="112"
+							decoding="async"
+						/>
+					</span>
+				</a>
 
-            <div class="dy-login__brand-content">
-                <div class="dy-login__logo-shell">
-                    <img
-                        :src="DyPOSLogo"
-                        alt="DyPOS"
-                        class="dy-login__logo"
-                        width="112"
-                        height="112"
-                        decoding="async"
-                    />
-                </div>
+				<figure class="dy-login__brand-card">
+					<a
+						class="dy-login__brand-card-link"
+						:href="COMPANY_WEBSITE"
+						target="_blank"
+						rel="noopener noreferrer"
+						:aria-label="COMPANY_WEBSITE_LABEL"
+					>
+						<img
+							:src="smartPortsBg"
+							:alt="__('شركة المنافذ الذكية للبرمجيات — Smart Ports Software')"
+							width="1200"
+							height="630"
+							decoding="async"
+						/>
+					</a>
+				</figure>
 
-                <div class="dy-login__brand-copy">
-                    <span class="dy-login__eyebrow">
-                        <span class="dy-login__eyebrow-dot" aria-hidden="true" />
-
-                        {{ __('نقطة البيع الذكية') }}
-                    </span>
-
-                    <h1 class="dy-login__brand-title">
-                        {{ __('بيع أسرع.') }}
-                        <br />
-                        {{ __('تشغيل أذكى.') }}
-                    </h1>
-
-                    <p class="dy-login__brand-description">
-                        {{ __('تجربة نقطة بيع احترافية مصممة للتشغيل اليومي السريع والموثوق.') }}
-                    </p>
-                </div>
-
-                <!-- بطاقة الهوية: الصورة مؤطّرة داخل اللوحة، لا ممدودة خلفها.
-                     الصورة بطاقة نشر 1200×630 تحمل نصوصًا مطبوعة داخلها، وجدول
-                     `cover` كان يقصّها إلى شظايا كلمات غير مقروءة («الذكية
-                     للبرمجيا…» / «Smart Ports Softw…») متضاربة مع العنوان الحي
-                     فوقها. هنا تظهر كاملة داخل إطار زجاجي: رشيقة ومقروءة. -->
-                <figure class="dy-login__brand-card">
-                    <img
-                        :src="smartPortsBg"
-                        :alt="__('شركة المنافذ الذكية للبرمجيات — Smart Ports Software')"
-                        width="1200"
-                        height="630"
-                        decoding="async"
-                    />
-                </figure>
-
-                <!-- Tenant / Branch / POS context -->
-
-                <div
-                    v-if="
-                        showTenantContext &&
-                        contextItems.length
-                    "
-                    class="dy-login__context"
-                    :aria-label="__('سياق التشغيل')"
-                >
-                    <div
-                        v-for="item in contextItems"
-                        :key="`${item.icon}-${item.label}`"
-                        class="dy-login__context-item"
-                    >
-                        <span class="dy-login__context-icon" aria-hidden="true">
-                            <FeatherIcon
-                                :name="item.icon"
-                                :size="16"
-                            />
-                        </span>
-
-                        <span
-                            class="dy-login__context-label"
-                        >
-                            {{ item.label }}
-                        </span>
-                    </div>
-                </div>
-
-                <div class="dy-login__brand-footer">
-                    <span>
-                        {{ __('تشغيل مؤسسي') }}
-                    </span>
-
-                    <span class="dy-login__brand-dot" aria-hidden="true" />
-
-                    <span>
-                        {{ __('جاهز للتوسع') }}
-                    </span>
-
-                    <span class="dy-login__brand-dot" aria-hidden="true" />
-
-                    <span>
-                        {{ __('عربي أولاً') }}
-                    </span>
-                </div>
-            </div>
-        </section>
+				<CompanyFooter class="dy-login__brand-company" />
+				<LoginAppearanceBar compact class="dy-login__preferences" />
+			</div>
+		</section>
 
         <!-- =================================================================
              Authentication Panel
@@ -1101,19 +1048,24 @@ function goToRegister() {
                     <span class="dy-login__progress-bar" />
                 </div>
 
+				<div
+					v-if="showTenantContext && contextItems.length"
+					class="dy-login__context"
+					:aria-label="__('سياق التشغيل')"
+				>
+					<div
+						v-for="item in contextItems"
+						:key="`${item.icon}-${item.label}`"
+						class="dy-login__context-item"
+					>
+						<FeatherIcon :name="item.icon" :size="15" aria-hidden="true" />
+						<span class="dy-login__context-label">{{ item.label }}</span>
+					</div>
+				</div>
+
                 <!-- Header -->
 
                 <header class="dy-login__header">
-                    <div class="dy-login__mobile-logo">
-                        <img
-                            :src="DyPOSLogo"
-                            alt="DyPOS"
-                            width="148"
-                            height="54"
-                            decoding="async"
-                        />
-                    </div>
-
                     <div>
                         <span class="dy-login__section-label">
                             {{ __('تسجيل الدخول') }}
@@ -1854,14 +1806,6 @@ function goToRegister() {
                     </a>
                 </p>
 
-                <!-- Display preferences — language + theme, before sign-in.
-                     The bar owns its styles; this page only places it. -->
-
-                <LoginAppearanceBar />
-
-                <!-- Footer — اسم الشركة + رابط موقعها الرسمي -->
-
-                <CompanyFooter class="dy-login__footer" />
             </div>
         </section>
 

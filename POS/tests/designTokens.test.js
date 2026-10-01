@@ -949,6 +949,12 @@ describe("login viewport layout", () => {
 		expect(LOGIN_CSS_FILE).toMatch(
 			/@media\s*\(max-width:\s*900px\)[\s\S]*?\.dy-login\s*\{[^}]*height:\s*auto;/,
 		)
+		expect(LOGIN_CSS_FILE).toMatch(
+			/@media\s*\(max-width:\s*900px\)[\s\S]*?\.dy-login__brand\s*\{[^}]*padding-inline:/,
+		)
+		expect(LOGIN_CSS_FILE).not.toMatch(
+			/@media\s*\(max-width:\s*900px\)[\s\S]*?\.dy-login__brand\s*\{[^}]*display:\s*none/,
+		)
 	})
 })
 
@@ -965,8 +971,7 @@ describe("the identity image is framed, never stretched behind live text", () =>
 	it("the brand backdrop is a pure gradient owned by the stylesheet", () => {
 		const body = stripComments(ruleBody(LOGIN_CSS_FILE, ".dy-login__brand {"))
 		expect(body, "the rule still exists").not.toBe("")
-		expect(body).toMatch(/background:\s*linear-gradient/)
-		// No photo may be the panel background: this one carries type.
+		expect(body).toMatch(/background:\s*var\(--dy-surface\)/)
 		expect(body).not.toMatch(/url\(/)
 		expect(body).not.toMatch(/background-size:\s*cover/)
 
@@ -999,19 +1004,20 @@ describe("the identity image is framed, never stretched behind live text", () =>
 		)
 	})
 
-	it("the brand footer sits on a scrim, not on the photo", () => {
-		const body = stripComments(
-			ruleBody(LOGIN_CSS_FILE, ".dy-login__brand-footer {"),
+	it("keeps the company image and safe website link in the login masthead", () => {
+		const login = read(SRC, "pages", "Login.vue")
+		const masthead = login.slice(
+			login.indexOf('<section class="dy-login__brand"'),
+			login.indexOf(
+				"</section>",
+				login.indexOf('<section class="dy-login__brand"'),
+			),
 		)
-		expect(
-			body,
-			"the gradient behind this line is accent-driven, so the contrast " +
-				"cannot be left to the accent in force",
-		).toMatch(/background:\s*rgb\(var\(--dy-brand-c-950\)/)
-		// And the label must be strong enough on top of that scrim.
-		const alpha = body.match(/color:\s*rgb\(255 255 255 \/ ([\d.]+)\)/)
-		expect(alpha, "the footer sets an explicit white alpha").not.toBeNull()
-		expect(Number(alpha[1])).toBeGreaterThanOrEqual(0.7)
+		expect(masthead).toMatch(/<figure class="dy-login__brand-card">/)
+		expect(masthead).toMatch(/:href="COMPANY_WEBSITE"/)
+		expect(masthead).toMatch(/target="_blank"/)
+		expect(masthead).toMatch(/rel="noopener noreferrer"/)
+		expect(masthead).toContain("<CompanyFooter")
 	})
 
 	/*

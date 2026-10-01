@@ -1,5 +1,5 @@
 /**
- * DyPOS single source of truth for the server version (C3) v1.42.4
+ * DyPOS single source of truth for the server version (C3) v1.42.5
  *
  * 1.42.0 -- standalone-first networking: zero connections without user
  * demand or granted linkage consent (services/link-consent.js,
@@ -30,5 +30,5 @@
  * Bumped with every change, as the deploy gate compares the live
  * /version.json against this number.
  */
-export const VERSION = '1.42.4';
+export const VERSION = '1.42.5';
 export default VERSION;

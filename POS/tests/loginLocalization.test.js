@@ -170,7 +170,7 @@ describe("login surface — the wiring the feature depends on", () => {
 		expect(page).toContain(
 			'import LoginAppearanceBar from "@/components/common/LoginAppearanceBar.vue"',
 		)
-		expect(page).toMatch(/<LoginAppearanceBar\s*\/>/)
+		expect(page).toMatch(/<LoginAppearanceBar\b[^>]*\/>/)
 		expect(page).toContain(
 			'import LoginSessionTimeoutDialog from "@/components/common/LoginSessionTimeoutDialog.vue"',
 		)

@@ -28,6 +28,10 @@ import { FeatherIcon } from "dypos-ui"
 import { __ } from "@/utils/translation"
 import { useLoginPreferences } from "@/composables/useLoginPreferences"
 
+defineProps({
+	compact: { type: Boolean, default: false },
+})
+
 /**
  * تسميات السِمة: المفاتيح العربية نفسها، فتُترجَم من قاموس اللغة الحالي
  * بلا قاموس خاص بهذه الشاشة.
@@ -81,6 +85,7 @@ async function onLocaleChange(event) {
 <template>
 	<div
 		class="dy-login-prefs"
+		:class="{ 'dy-login-prefs--compact': compact }"
 		role="group"
 		:aria-label="__('تفضيلات العرض')"
 	>
@@ -186,6 +191,44 @@ async function onLocaleChange(event) {
 	margin-block-start: 22px;
 	padding-block-start: 18px;
 	border-block-start: 1px solid var(--dy-border-soft);
+}
+
+.dy-login-prefs--compact {
+	align-items: center;
+	gap: 8px 16px;
+	margin-block-start: 0;
+	padding-block-start: 0;
+	border-block-start: 0;
+}
+
+.dy-login-prefs--compact .dy-login-prefs__field {
+	flex-direction: row;
+	align-items: center;
+	gap: 8px;
+}
+
+.dy-login-prefs--compact .dy-login-prefs__field:nth-child(2) {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	align-items: center;
+}
+
+.dy-login-prefs--compact .dy-login-prefs__field:nth-child(2) .dy-login-prefs__label {
+	grid-column: 1;
+	grid-row: 1;
+}
+
+.dy-login-prefs--compact .dy-login-prefs__field:nth-child(2) .dy-login-prefs__options {
+	grid-column: 2;
+	grid-row: 1;
+}
+
+.dy-login-prefs--compact .dy-login-prefs__select {
+	min-height: 44px;
+}
+
+.dy-login-prefs--compact .dy-login-prefs__option-face {
+	min-height: 40px;
 }
 
 .dy-login-prefs__field {
@@ -320,9 +363,61 @@ async function onLocaleChange(event) {
 		flex-direction: column;
 	}
 
+	.dy-login-prefs--compact {
+		align-items: center;
+		flex-direction: row;
+		flex-wrap: wrap;
+	}
+
+	.dy-login-prefs--compact .dy-login-prefs__field {
+		flex-direction: row;
+		align-items: center;
+		min-width: 0;
+		gap: 0;
+	}
+
+	.dy-login-prefs--compact .dy-login-prefs__field:first-child {
+		flex: 1 1 120px;
+	}
+
+	.dy-login-prefs--compact .dy-login-prefs__field:nth-child(2) {
+		display: flex;
+		position: relative;
+		flex: 1 1 215px;
+	}
+
+	.dy-login-prefs--compact .dy-login-prefs__label {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+	}
+
 	.dy-login-prefs__select,
 	.dy-login-prefs__options {
 		inline-size: 100%;
+	}
+
+	.dy-login-prefs--compact .dy-login-prefs__select {
+		inline-size: auto;
+		min-inline-size: 0;
+		flex: 1 1 auto;
+		padding-inline: 8px 28px;
+	}
+
+	.dy-login-prefs--compact .dy-login-prefs__options {
+		inline-size: auto;
+		min-inline-size: 0;
+		flex: 1 1 auto;
+		justify-content: space-between;
+	}
+
+	.dy-login-prefs--compact .dy-login-prefs__option-face {
+		min-height: 44px;
+		padding-inline: 7px;
+		font-size: 0.82rem;
 	}
 
 	.dy-login-prefs__option {
