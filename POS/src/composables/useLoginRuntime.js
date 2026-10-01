@@ -240,7 +240,7 @@ export function useLoginRuntime(options = {}) {
 					offlineReady.value = true
 				}
 
-				setRuntimeState("ready", "بيئة التشغيل جاهزة.")
+				setRuntimeState("ready", "")
 			} catch (error) {
 				setRuntimeState("failed", "تعذر تجهيز البيئة الآمنة لتسجيل الدخول.")
 				runtimeError.value = error

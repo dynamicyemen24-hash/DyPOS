@@ -115,4 +115,8 @@ describe("build config integrity", () => {
 		// Every import must use the alias, never a deep path into the kit.
 		expect(viteConfig).toContain("find: /^dypos-ui$/")
 	})
+
+	it("production preview does not proxy built assets to the dev server", () => {
+		expect(viteConfig).toMatch(/preview:\s*\{\s*proxy:\s*\{\s*\}/)
+	})
 })

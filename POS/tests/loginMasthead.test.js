@@ -8,18 +8,26 @@ const loginStyles = read("src/styles/pages/login.css")
 const preferences = read("src/components/common/LoginAppearanceBar.vue")
 
 describe("login masthead", () => {
-	it("places the company identity, safe links, and display preferences above sign-in", () => {
+	it("keeps the masthead compact and presents the company artwork at showcase scale", () => {
 		expect(login).toContain('<section class="dy-login__brand"')
 		expect(login).toContain('<figure class="dy-login__brand-card">')
-		expect(login).toContain(
-			'<LoginAppearanceBar compact class="dy-login__preferences" />',
+		expect(login).toMatch(
+			/<LoginAppearanceBar\s+compact\s+class="dy-login__preferences"\s*\/>/,
 		)
-		expect(login.indexOf('<section class="dy-login__brand"')).toBeLessThan(
-			login.indexOf('<section class="dy-login__panel"'),
+		expect(login).toMatch(/<section\s+class="dy-login__showcase"/)
+		expect(login.indexOf('<section class="dy-login__panel"')).toBeLessThan(
+			login.indexOf('class="dy-login__showcase"'),
 		)
 		expect(loginStyles).toMatch(
-			/grid-template-areas:\s*"banner"\s*"brand"\s*"panel"/,
+			/grid-template-areas:\s*"banner banner"\s*"brand brand"\s*"panel showcase"/,
 		)
+		expect(loginStyles).toMatch(
+			/\.dy-login\[dir="ltr"\]\s*\{[\s\S]*?grid-template-areas:\s*"banner banner"\s*"brand brand"\s*"showcase panel"/,
+		)
+		expect(loginStyles).toMatch(
+			/\.dy-login__brand-card\s*\{\s*width:\s*min\(100%, 720px\)/,
+		)
+		expect(loginStyles).toContain("grid-template-areas:")
 		expect(preferences).toMatch(
 			/\.dy-login-prefs--compact \.dy-login-prefs__option-face\s*\{\s*min-height:\s*44px/,
 		)

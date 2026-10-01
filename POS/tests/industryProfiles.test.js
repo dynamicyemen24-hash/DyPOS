@@ -36,6 +36,9 @@ describe("industry profiles", () => {
 	it("suggests an activity from Arabic onboarding text", () => {
 		expect(suggestIndustryProfile("محل خياطة وتطريز").id).toBe("tailoring")
 		expect(suggestIndustryProfile("ورشة ميكانيكا سيارات").id).toBe("workshop")
+		expect(suggestIndustryProfile("سوق خضار وفواكه ووسيط").id).toBe(
+			"produce-market",
+		)
 	})
 
 	it("composes multiple activities with platform defaults", () => {
@@ -57,5 +60,11 @@ describe("industry profiles", () => {
 			expect.arrayContaining(["catalog", "customers", "appointments"]),
 		)
 		expect(modules.map((module) => module.id)).not.toContain("production")
+		const marketModules = getEnabledCommerceModules(
+			composeCapabilities(["produce-market"]),
+		)
+		expect(marketModules.map((module) => module.id)).toContain(
+			"third-party-sales",
+		)
 	})
 })

@@ -6,6 +6,8 @@ const ROOT = process.cwd()
 const read = (rel) => readFileSync(join(ROOT, rel), "utf8")
 
 const main = read("src/main.js")
+const device = read("src/composables/useDevice.js")
+const saasSettings = read("src/stores/saasSettings.js")
 const loginRuntime = read("src/composables/useLoginRuntime.js")
 const syncManager = read("src/services/sync-manager.js")
 const features = read("src/stores/features.js")
@@ -32,6 +34,20 @@ describe("standalone boot — zero network without user demand", () => {
 
 	it("the login runtime never probes the backend to decide offline mode", () => {
 		expect(loginRuntime).not.toContain("fetch(endpoints.ping")
+	})
+
+	it("device adaptation uses the server only in a linked session", () => {
+		expect(device).toMatch(
+			/if\s*\(isLinkEnabled\(\)\s*&&\s*navigator\.onLine\s*!==\s*false\)/,
+		)
+	})
+
+	it("tenant branding is loaded only after explicit server linkage", () => {
+		expect(main).toMatch(
+			/if\s*\(isLinkEnabled\(\)\)\s*\{\s*void saasStore\.loadSaaSConfig\(\)/,
+		)
+		expect(main).toContain("subscribeLinkConsent((mode)")
+		expect(saasSettings).toContain('methodCall("dypos.client.get_value"')
 	})
 
 	it("every automatic network trigger is gated on link consent", () => {

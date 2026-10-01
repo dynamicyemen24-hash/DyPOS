@@ -298,6 +298,7 @@
 	--dy-surface-soft: var(--dy-surface-hover);
 	--dy-surface-strong: var(--dy-surface-active);
 	--dy-bg-hover: var(--dy-surface-hover);
+	--dy-bg-subtle: var(--dy-surface-hover);
 	--dy-brand-contrast: var(--dy-text-on-brand);
 	--dy-accent-contrast: var(--dy-primary-contrast);
 	--dy-accent-c-500: var(--dy-brand-c-500);

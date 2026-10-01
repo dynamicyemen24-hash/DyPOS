@@ -46,6 +46,8 @@ const ROUTE_NAMES = Object.freeze({
 	WORK_SCREENS: "WorkScreens",
 	SETTINGS: "Settings",
 	OPENING_BALANCES: "OpeningBalances",
+	THIRD_PARTY_SALES: "ThirdPartySales",
+	SELF_CHECKOUT: "SelfCheckout",
 })
 
 const ROUTE_TITLES = Object.freeze({
@@ -59,6 +61,8 @@ const ROUTE_TITLES = Object.freeze({
 	[ROUTE_NAMES.WORK_SCREENS]: "شاشات العمل",
 	[ROUTE_NAMES.SETTINGS]: "الإعدادات العامة",
 	[ROUTE_NAMES.OPENING_BALANCES]: "الأرصدة الافتتاحية",
+	[ROUTE_NAMES.THIRD_PARTY_SALES]: "البيع بالنيابة",
+	[ROUTE_NAMES.SELF_CHECKOUT]: "الكاشير الذاتي",
 	landing: "DyPOS",
 	[ROUTE_NAMES.NOT_FOUND]: "صفحة غير موجودة",
 })
@@ -240,6 +244,38 @@ const routes = [
 		path: "/opening-balances",
 		name: ROUTE_NAMES.OPENING_BALANCES,
 		component: () => import("@/pages/OpeningBalancesPage.vue"),
+		meta: {
+			[ROUTE_META.requiresAuth]: true,
+		},
+	},
+
+	{
+		path: "/third-party-sales",
+		name: ROUTE_NAMES.THIRD_PARTY_SALES,
+		component: () => import("@/pages/ThirdPartySalesPage.vue"),
+		meta: {
+			[ROUTE_META.requiresAuth]: true,
+		},
+	},
+
+	/**
+	 * الكاشير الذاتي — شاشة مستقلة تمامًا.
+	 *
+	 * لا `requiresOpenShift`: الكشك لا يفتح وردية ولا ينهيها، والفاتورة
+	 * تُقفل على نفسها (رقم محلي `SC-…` + طابور). ربطها بالوردية كان
+	 * سيمنع شاشة تعمل أصلًا بلا موظف.
+	 *
+	 * لا `WorkShell`: واجهة زبون على جهاز لمس، لا شاشة موظف — انظر
+	 * `components/selfCheckout/SelfCheckoutScreen.vue`.
+	 */
+	{
+		path: "/self-checkout",
+		name: ROUTE_NAMES.SELF_CHECKOUT,
+		// عبر الحزمة (barrel) لا الملف مباشرة: هو المدخل المُعلن للكاشير
+		// الذاتي، وكل أداة ذكية تُضاف لاحقًا تُصدَّر منه. استيراد الملف
+		// مباشرة هنا كان سيترك `index.js` بلا مستورد = شجرة ميتة.
+		component: () =>
+			import("@/components/selfCheckout").then((m) => m.SelfCheckoutScreen),
 		meta: {
 			[ROUTE_META.requiresAuth]: true,
 		},

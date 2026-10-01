@@ -28,6 +28,7 @@ import { FeatherIcon } from "dypos-ui"
 
 import { endpoints } from "@/utils/apiEndpoints"
 import { COMPANY_WEBSITE, COMPANY_WEBSITE_LABEL } from "@/utils/brand"
+import { translationVersion } from "@/utils/translation"
 
 import DyPOSLogo from "@/assets/DyPOSLogo.png"
 import smartPortsBg from "@/assets/smart-ports-og.jpg"
@@ -319,36 +320,36 @@ const runtimeStatus = computed(() => {
 		RUNTIME_STATUS_BY_STATE[runtimeState.value] ??
 		RUNTIME_STATUS_BY_STATE.unknown
 
-	return { ...row, label: __(row.label) }
+	return row
 })
 
 /** تفاصيل التشغيل: صفّ واحد لكل إشارة، والقالب يرسمها بـ`v-for`. */
 const runtimeDetails = computed(() => [
-	{ label: __("الاتصال"), value: isOnline.value ? __("متصل") : __("غير متصل") },
+	{ label: "الاتصال", value: isOnline.value ? "متصل" : "غير متصل" },
 	{
-		label: __("الحماية"),
-		value: csrfReady.value ? __("جاهزة") : __("قيد التجهيز"),
+		label: "الحماية",
+		value: csrfReady.value ? "جاهزة" : "قيد التجهيز",
 	},
 	{
-		label: __("الجلسة"),
-		value: sessionReady.value ? __("جاهزة") : __("غير مهيأة"),
+		label: "الجلسة",
+		value: sessionReady.value ? "جاهزة" : "غير مهيأة",
 	},
 	{
-		label: __("التشغيل دون اتصال"),
-		value: offlineReady.value ? __("جاهز") : __("غير جاهز"),
+		label: "التشغيل دون اتصال",
+		value: offlineReady.value ? "جاهز" : "غير جاهز",
 	},
 ])
 
 const submitLabel = computed(() => {
 	if (isSubmitting.value) {
-		return __("جاري تسجيل الدخول...")
+		return "جاري تسجيل الدخول..."
 	}
 
 	if (authenticationCompleted.value) {
-		return __("تم تسجيل الدخول")
+		return "تم تسجيل الدخول"
 	}
 
-	return __("تسجيل الدخول")
+	return "تسجيل الدخول"
 })
 
 const contextTenantName = computed(
@@ -408,10 +409,8 @@ const isMobile = useMediaQuery("(max-width: 768px)")
 const { isDark } = useAppTheme()
 
 /*
- * `locale`/`dir` مربوطان على جذر الصفحة عمدًا: القاموس نفسه ليس تفاعليًا
- * (`window.translatedMessages`)، فبدون رابط تفاعلي على هذه الصفحة لا تُعاد
- * الرسمة عند تغيير اللغة — ولأن `en` و`id` كلاهما LTR، فالتبديل بينهما كان
- * سيترك النص العربي على الشاشة. سطران يربطان الاتجاه ولغة الصفحة أيضًا.
+ * `locale`/`dir` مربوطان على جذر الصفحة، وإصدار القاموس يفرض إعادة الرسم
+ * بعد اكتمال تحميل الترجمة لأن `window.translatedMessages` غير تفاعلي.
  */
 const { locale: preferencesLocale, dir: preferencesDir } = useLoginPreferences()
 
@@ -430,10 +429,10 @@ const passwordStrength = computed(() => {
 	if (/[^A-Za-z0-9]/.test(pwd)) score++
 
 	if (score <= 2)
-		return { level: score, label: __("ضعيف"), color: "var(--dy-crimson-600)" }
+		return { level: score, label: "ضعيف", color: "var(--dy-crimson-600)" }
 	if (score <= 3)
-		return { level: score, label: __("متوسط"), color: "var(--dy-amber-600)" }
-	return { level: score, label: __("قوي"), color: "var(--dy-mint-600)" }
+		return { level: score, label: "متوسط", color: "var(--dy-amber-600)" }
+	return { level: score, label: "قوي", color: "var(--dy-mint-600)" }
 })
 
 /* ============================================================================
@@ -697,9 +696,9 @@ const pinError = ref("")
 const pinSetupError = ref("")
 
 /** نصوص زر «إنشاء رمز دخول سريع» المعطّل: تلميح الفأرة قصير، والاسم الميسّر (aria-label) يشرح سبب التعطيل. */
-const PIN_DEVICE_HINT = __("اضبط رمز دخول سريع لهذا الجهاز")
-const PIN_EMAIL_TOO_SHORT = __("أدخل بريدك أولًا")
-const PIN_EMAIL_REQUIRED = __("أدخل بريدك الإلكتروني أولًا لتمكين إنشاء رمز PIN")
+const PIN_DEVICE_HINT = "اضبط رمز دخول سريع لهذا الجهاز"
+const PIN_EMAIL_TOO_SHORT = "أدخل بريدك أولًا"
+const PIN_EMAIL_REQUIRED = "أدخل بريدك الإلكتروني أولًا لتمكين إنشاء رمز PIN"
 
 /** هل واجهة PIN معروضة بدل نموذج كلمة المرور؟ */
 const pinModeActive = ref(false)
@@ -971,6 +970,7 @@ function goToRegister() {
 		}"
 		:dir="preferencesDir"
 		:lang="preferencesLocale"
+		:data-translation-version="translationVersion"
 	>
 		<!-- Offline Indicator -->
 		<div
@@ -1007,26 +1007,13 @@ function goToRegister() {
 					</span>
 				</a>
 
-				<figure class="dy-login__brand-card">
-					<a
-						class="dy-login__brand-card-link"
-						:href="COMPANY_WEBSITE"
-						target="_blank"
-						rel="noopener noreferrer"
-						:aria-label="COMPANY_WEBSITE_LABEL"
-					>
-						<img
-							:src="smartPortsBg"
-							:alt="__('شركة المنافذ الذكية للبرمجيات — Smart Ports Software')"
-							width="1200"
-							height="630"
-							decoding="async"
-						/>
-					</a>
-				</figure>
-
-				<CompanyFooter class="dy-login__brand-company" />
-				<LoginAppearanceBar compact class="dy-login__preferences" />
+				<CompanyFooter
+					class="dy-login__brand-company"
+				/>
+				<LoginAppearanceBar
+					compact
+					class="dy-login__preferences"
+				/>
 			</div>
 		</section>
 
@@ -1103,13 +1090,13 @@ function goToRegister() {
 
                     <div class="dy-login__runtime-content">
                         <strong>
-                            {{ runtimeStatus.label }}
+                            {{ __(runtimeStatus.label) }}
                         </strong>
 
                         <span
                             v-if="runtimeMessage"
                         >
-                            {{ runtimeMessage }}
+                            {{ __(runtimeMessage) }}
                         </span>
                     </div>
 
@@ -1388,7 +1375,7 @@ function goToRegister() {
                                 :style="{ color: passwordStrength.color }"
                                 aria-live="polite"
                             >
-                                {{ passwordStrength.label }}
+                                {{ __(passwordStrength.label) }}
                             </span>
                         </div>
 
@@ -1554,7 +1541,7 @@ function goToRegister() {
                             aria-hidden="true"
                         />
 
-                        {{ submitLabel }}
+                        {{ __(submitLabel) }}
                     </DyButton>
                 </form>
 
@@ -1592,8 +1579,8 @@ function goToRegister() {
                         type="button"
                         class="dy-login__link-button"
                         :disabled="!email"
-                        :title="email ? PIN_DEVICE_HINT : PIN_EMAIL_TOO_SHORT"
-                        :aria-label="email ? PIN_DEVICE_HINT : PIN_EMAIL_REQUIRED"
+                        :title="__(email ? PIN_DEVICE_HINT : PIN_EMAIL_TOO_SHORT)"
+                        :aria-label="__(email ? PIN_DEVICE_HINT : PIN_EMAIL_REQUIRED)"
                         @click="showPinSetup = true"
                     >
                         <FeatherIcon
@@ -1777,10 +1764,10 @@ function goToRegister() {
                             v-for="detail in runtimeDetails"
                             :key="detail.label"
                         >
-                            <span>{{ detail.label }}</span>
+                            <span>{{ __(detail.label) }}</span>
 
                             <strong>
-                                {{ detail.value }}
+                                {{ __(detail.value) }}
                             </strong>
                         </div>
                     </div>
@@ -1807,6 +1794,29 @@ function goToRegister() {
                 </p>
 
             </div>
+        </section>
+
+        <section
+        	class="dy-login__showcase"
+        	:aria-label="__('شركة المنافذ الذكية للبرمجيات — Smart Ports Software')"
+        >
+        	<figure class="dy-login__brand-card">
+        		<a
+        			class="dy-login__brand-card-link"
+        			:href="COMPANY_WEBSITE"
+        			target="_blank"
+        			rel="noopener noreferrer"
+        			:aria-label="COMPANY_WEBSITE_LABEL"
+        		>
+        			<img
+        				:src="smartPortsBg"
+        				:alt="__('شركة المنافذ الذكية للبرمجيات — Smart Ports Software')"
+        				width="1200"
+        				height="630"
+        				decoding="async"
+        			/>
+        		</a>
+        	</figure>
         </section>
 
         <!-- =================================================================

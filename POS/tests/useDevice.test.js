@@ -1,10 +1,41 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+const toastMocks = vi.hoisted(() => ({ showWarning: vi.fn() }))
+
+vi.mock("@/composables/useToast", () => ({
+	useToast: () => toastMocks,
+}))
 
 import {
 	classifyViewport,
 	initDeviceAdaptation,
 	isLowSpec,
 } from "@/composables/useDevice"
+
+const hardwareKeys = ["connection", "deviceMemory", "hardwareConcurrency"]
+const hardwareDescriptors = new Map()
+
+beforeEach(() => {
+	toastMocks.showWarning.mockClear()
+	window.__DYPOS_DEVICE_INIT__ = false
+	localStorage.removeItem("DyPOS_link_consent")
+	for (const key of hardwareKeys) {
+		hardwareDescriptors.set(
+			key,
+			Object.getOwnPropertyDescriptor(navigator, key),
+		)
+	}
+})
+
+afterEach(() => {
+	window.__DYPOS_DEVICE_INIT__ = false
+	for (const key of hardwareKeys) {
+		const descriptor = hardwareDescriptors.get(key)
+		if (descriptor) Object.defineProperty(navigator, key, descriptor)
+		else delete navigator[key]
+	}
+	hardwareDescriptors.clear()
+})
 
 describe("classifyViewport (pure)", () => {
 	it("narrow screens are mobile", () => {
@@ -26,6 +57,30 @@ describe("classifyViewport (pure)", () => {
 		expect(classifyViewport(1280, 0)).toBe("desktop")
 		expect(classifyViewport(1920, 0)).toBe("desktop")
 		expect(classifyViewport(1920, 10)).toBe("desktop")
+	})
+})
+
+describe("device adaptation feedback", () => {
+	it("keeps low-resource adaptation quiet and local", async () => {
+		Object.defineProperty(navigator, "connection", {
+			configurable: true,
+			value: { saveData: true, effectiveType: "4g" },
+		})
+		Object.defineProperty(navigator, "hardwareConcurrency", {
+			configurable: true,
+			value: 2,
+		})
+		Object.defineProperty(navigator, "deviceMemory", {
+			configurable: true,
+			value: 1,
+		})
+		const fetch = vi.fn()
+		vi.stubGlobal("fetch", fetch)
+
+		await initDeviceAdaptation({ notify: true })
+
+		expect(fetch).not.toHaveBeenCalled()
+		expect(toastMocks.showWarning).not.toHaveBeenCalled()
 	})
 })
 

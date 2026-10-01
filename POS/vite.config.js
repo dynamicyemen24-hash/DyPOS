@@ -520,4 +520,7 @@ export default defineConfig({
 			},
 		},
 	},
+	preview: {
+		proxy: {},
+	},
 })

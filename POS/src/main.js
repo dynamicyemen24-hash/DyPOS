@@ -991,7 +991,16 @@ function createDyPOSApplication() {
 	app.use(translationPlugin)
 
 	const saasStore = useSaaSStore()
-	saasStore.loadSaaSConfig()
+	if (isLinkEnabled()) {
+		void saasStore.loadSaaSConfig()
+	} else {
+		const unsubscribe = subscribeLinkConsent((mode) => {
+			if (mode !== "linked") return
+			unsubscribe()
+			void saasStore.loadSaaSConfig()
+		})
+		bootstrapState.cleanup.push(unsubscribe)
+	}
 
 	/**
 	 * Global UI components

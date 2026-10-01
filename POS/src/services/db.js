@@ -80,6 +80,14 @@ class DyPOSDb extends Dexie {
 			users:
 				"++id, email, full_name, phone, company, role, password_hash, created_at, updated_at, [email+password_hash]",
 		})
+
+		// v5: offline-first third-party market sales and append-only events
+		this.version(5).stores({
+			thirdPartySales:
+				"&id, createdAt, saleDate, status, ownerId, intermediaryId, buyerId, syncStatus, [status+createdAt]",
+			thirdPartySaleEvents:
+				"&id, saleId, eventType, createdAt, syncStatus, [saleId+createdAt]",
+		})
 	}
 }
 

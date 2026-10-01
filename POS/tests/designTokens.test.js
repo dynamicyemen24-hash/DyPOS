@@ -1004,7 +1004,7 @@ describe("the identity image is framed, never stretched behind live text", () =>
 		)
 	})
 
-	it("keeps the company image and safe website link in the login masthead", () => {
+	it("keeps the masthead compact and links the full company artwork in its showcase", () => {
 		const login = read(SRC, "pages", "Login.vue")
 		const masthead = login.slice(
 			login.indexOf('<section class="dy-login__brand"'),
@@ -1013,11 +1013,18 @@ describe("the identity image is framed, never stretched behind live text", () =>
 				login.indexOf('<section class="dy-login__brand"'),
 			),
 		)
-		expect(masthead).toMatch(/<figure class="dy-login__brand-card">/)
-		expect(masthead).toMatch(/:href="COMPANY_WEBSITE"/)
-		expect(masthead).toMatch(/target="_blank"/)
-		expect(masthead).toMatch(/rel="noopener noreferrer"/)
 		expect(masthead).toContain("<CompanyFooter")
+		expect(masthead).not.toContain("dy-login__brand-card")
+
+		const showcaseStart = login.indexOf('class="dy-login__showcase"')
+		const showcase = login.slice(
+			showcaseStart,
+			login.indexOf("</section>", showcaseStart),
+		)
+		expect(showcase).toMatch(/<figure class="dy-login__brand-card">/)
+		expect(showcase).toMatch(/:href="COMPANY_WEBSITE"/)
+		expect(showcase).toMatch(/target="_blank"/)
+		expect(showcase).toMatch(/rel="noopener noreferrer"/)
 	})
 
 	/*

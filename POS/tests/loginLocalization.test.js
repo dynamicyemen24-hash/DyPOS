@@ -34,6 +34,7 @@ const SURFACE = [
 	"src/components/common/LoginSessionTimeoutDialog.vue",
 	"src/components/common/LoginSessionLockDialog.vue",
 	"src/composables/useLoginPreferences.js",
+	"src/composables/useLoginRuntime.js",
 ]
 
 const LOCALES = ["en", "id", "pt-br"]
@@ -157,6 +158,21 @@ describe("login surface — the wiring the feature depends on", () => {
 		expect(page).not.toMatch(/\sdir="rtl"/)
 		expect(page).toContain(':dir="preferencesDir"')
 		expect(page).toContain(':lang="preferencesLocale"')
+		expect(page).toContain(':data-translation-version="translationVersion"')
+	})
+
+	it("translates cached computed labels at render time when the locale changes", () => {
+		for (const expression of [
+			"__(runtimeStatus.label)",
+			"__(detail.label)",
+			"__(detail.value)",
+			"__(submitLabel)",
+			"__(passwordStrength.label)",
+			"__(email ? PIN_DEVICE_HINT : PIN_EMAIL_REQUIRED)",
+		]) {
+			expect(page).toContain(expression)
+		}
+		expect(page).not.toContain("label: __(row.label)")
 	})
 
 	it("drives the dark panel from the app theme, not the OS media query", () => {

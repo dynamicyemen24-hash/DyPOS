@@ -1,4 +1,4 @@
-﻿/**
+/**
  * DyPOS Auth — JWT middleware v1.31.0 (production-hardened for scale)
  * - Non-blocking bcrypt (async) so login storms don't stall the event loop
  * - jti-based sessions with revocation check (logout / forced rotation)
@@ -106,8 +106,12 @@ export function hashApiKey(raw) {
   return crypto.createHash('sha256').update(String(raw)).digest('hex');
 }
 
-function resolveApiKey(req) {
-  const raw = String(req.headers['x-api-key'] || '').trim();
+/**
+ * Resolve a machine key by its raw secret. Only the SHA-256 hash is ever
+ * stored, so a leaked database row cannot be replayed against this.
+ */
+export function lookupApiKey(rawSecret) {
+  const raw = String(rawSecret || '').trim();
   if (!raw || raw.length > 128) return null;
   let row = null;
   try {
@@ -124,39 +128,56 @@ function resolveApiKey(req) {
   return row;
 }
 
+function resolveApiKey(req) {
+  return lookupApiKey(req.headers['x-api-key']);
+}
+
+/** Attach an api_keys row as the request identity (shared by both key paths). */
+function attachApiKey(req, next, apiRow) {
+  req.user = {
+    id: `key:${apiRow.id}`, username: `apikey:${apiRow.name}`, role: apiRow.role,
+    tenantId: apiRow.tenant_id || null, apiKeyId: apiRow.id, isApiKey: true,
+  };
+  req.token = null;
+  req.apiKey = apiRow;
+  return next();
+}
+
 /** Express middleware — attaches req.user + enforces revocation */
 export function authMiddleware(req, res, next) {
   // Machine keys first (no JWT parsing cost for ERP traffic).
   const apiRow = resolveApiKey(req);
   if (apiRow) {
-    req.user = {
-      id: `key:${apiRow.id}`, username: `apikey:${apiRow.name}`, role: apiRow.role,
-      tenantId: apiRow.tenant_id || null, apiKeyId: apiRow.id, isApiKey: true,
-    };
-    req.token = null;
-    req.apiKey = apiRow;
-    return next();
+    return attachApiKey(req, next, apiRow);
   }
   const token = extractToken(req);
   if (!token) {
     return res.status(401).json({ error: 'غير مصرح — تسجيل الدخول مطلوب' });
   }
+  let decoded;
   try {
-    const decoded = verifyToken(token);
-    // Revocation check (single indexed lookup on token_hash)
-    try {
-      const sess = db.prepare('SELECT revoked FROM user_sessions WHERE id=? OR token_hash=? LIMIT 1')
-        .get(decoded.jti || '', tokenHash(token));
-      if (sess && Number(sess.revoked) === 1) {
-        return res.status(401).json({ error: 'تم تسجيل الخروج — سجل الدخول مجددًا' });
-      }
-    } catch { /* if sessions table missing, allow token through */ }
-    req.user = decoded;
-    req.token = token;
-    next();
+    decoded = verifyToken(token);
   } catch (_e) {
+    // Not a session JWT — it may still be a machine key presented the way the
+    // POS presents its subscriber sync key (`Authorization: Bearer <key>`,
+    // POS/src/services/sync-protocol.js). Previously only `X-API-Key` was read,
+    // so a key issued for sync 401'd on the exact path it exists to serve.
+    // Sessions keep priority: a JWT never falls through to the key table.
+    const keyRow = lookupApiKey(token);
+    if (keyRow) return attachApiKey(req, next, keyRow);
     return res.status(401).json({ error: 'رمز غير صالح أو منتهي الصلاحية' });
   }
+  // Revocation check (single indexed lookup on token_hash)
+  try {
+    const sess = db.prepare('SELECT revoked FROM user_sessions WHERE id=? OR token_hash=? LIMIT 1')
+      .get(decoded.jti || '', tokenHash(token));
+    if (sess && Number(sess.revoked) === 1) {
+      return res.status(401).json({ error: 'تم تسجيل الخروج — سجل الدخول مجددًا' });
+    }
+  } catch { /* if sessions table missing, allow token through */ }
+  req.user = decoded;
+  req.token = token;
+  return next();
 }
 
 /** Role guard */

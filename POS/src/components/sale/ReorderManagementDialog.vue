@@ -309,7 +309,11 @@ async function loadReorderData() {
 
 async function saveReorderPoint(row) {
 	const reorderPoint = Number(draftReorderPoints[row.id])
-	if (!Number.isFinite(reorderPoint) || reorderPoint < 0 || reorderPoint > 1_000_000) {
+	if (
+		!Number.isFinite(reorderPoint) ||
+		reorderPoint < 0 ||
+		reorderPoint > 1_000_000
+	) {
 		showError("يجب أن يكون حد إعادة الطلب رقمًا بين 0 و1,000,000.")
 		return
 	}
@@ -399,7 +403,16 @@ function exportReorderList() {
 
 function exportReorderRow(row) {
 	const csv = [
-		["code", "name", "warehouse", "available_qty", "reorder_point", "suggested_qty", "unit_cost", "status"],
+		[
+			"code",
+			"name",
+			"warehouse",
+			"available_qty",
+			"reorder_point",
+			"suggested_qty",
+			"unit_cost",
+			"status",
+		],
 		[
 			row.code,
 			row.name,
@@ -439,7 +452,7 @@ watch([searchQuery, filterCategory, warehouseFilter], () => {
 })
 
 watch(show, (val) => {
-	if (val) 	if (show.value) searchTimer = setTimeout(loadReorderData, 250)
+	if (val) if (show.value) searchTimer = setTimeout(loadReorderData, 250)
 })
 
 watch(

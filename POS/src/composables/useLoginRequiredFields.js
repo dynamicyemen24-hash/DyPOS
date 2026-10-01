@@ -1,14 +1,15 @@
 import { computed, ref } from "vue"
 
-export function useLoginRequiredFields({ email, password, emailInput, passwordInput }) {
+export function useLoginRequiredFields({
+	email,
+	password,
+	emailInput,
+	passwordInput,
+}) {
 	const attempted = ref(false)
 
-	const emailMissing = computed(
-		() => attempted.value && !email.value.trim(),
-	)
-	const passwordMissing = computed(
-		() => attempted.value && !password.value,
-	)
+	const emailMissing = computed(() => attempted.value && !email.value.trim())
+	const passwordMissing = computed(() => attempted.value && !password.value)
 
 	function validate() {
 		attempted.value = true

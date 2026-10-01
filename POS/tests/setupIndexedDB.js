@@ -15,4 +15,4 @@
  *
  * It is dev-only: the shipped PWA gets IndexedDB from the browser.
  */
-import "fake-indexeddb/auto";
+import "fake-indexeddb/auto"

@@ -15,6 +15,7 @@
 import { ref, computed } from "vue"
 
 import { useToast } from "./useToast"
+import { isLinkEnabled } from "@/services/link-consent"
 import { isSaveDataMode, isLowEndDevice } from "@/utils/performance"
 
 const BODY_PREFIX = "dypos-device-"
@@ -129,35 +130,34 @@ export async function initDeviceAdaptation(options = {}) {
 		trackViewport()
 
 		// Server view of this UA (cheap, same-origin, cached per session reload).
-		// Offline-first: skip entirely when radios report offline.
-		try {
-			if (typeof navigator !== "undefined" && navigator.onLine === false) {
-				throw new Error("offline — skipping device probe")
-			}
-			const res = await fetch("/api/device", {
-				method: "GET",
-				cache: "no-store",
-				credentials: "same-origin",
-				headers: { Accept: "application/json" },
-			})
-			if (res.ok) {
-				const data = await res.json()
-				if (data?.device?.type && data.device.type !== "unknown") {
-					serverClass.value = data.device.type
+		// Standalone sessions rely on local signals and never probe the server.
+		if (isLinkEnabled() && navigator.onLine !== false) {
+			try {
+				const res = await fetch("/api/device", {
+					method: "GET",
+					cache: "no-store",
+					credentials: "same-origin",
+					headers: { Accept: "application/json" },
+				})
+				if (res.ok) {
+					const data = await res.json()
+					if (data?.device?.type && data.device.type !== "unknown") {
+						serverClass.value = data.device.type
+					}
+					if (Array.isArray(data?.warnings)) {
+						serverWarnings.value = data.warnings
+						summary.warnings.push(...data.warnings)
+					}
 				}
-				if (Array.isArray(data?.warnings)) {
-					serverWarnings.value = data.warnings
-					summary.warnings.push(...data.warnings)
-				}
+			} catch {
+				// Local signals still provide device adaptation when the server is unavailable.
 			}
-		} catch {
-			// Offline / origin unreachable: local signals alone still adapt.
 		}
 
 		summary.deviceType = deviceType.value
 		applyBodyClasses(summary.deviceType, isLowSpec.value)
 
-		// Warn the cashier only about things that actually block selling.
+		// Only server-reported critical conditions need cashier attention.
 		if (notify) {
 			const { showWarning } = useToast()
 			const seen = new Set()
@@ -168,16 +168,6 @@ export async function initDeviceAdaptation(options = {}) {
 			}
 			for (const w of serverWarnings.value) {
 				if (w.level === "critical") push(w.message)
-			}
-			if (isLowSpec.value) {
-				const hw = readHardwareBudget()
-				push(
-					hw.saveData ||
-						hw.effectiveType === "slow-2g" ||
-						hw.effectiveType === "2g"
-						? "الشبكة بطيئة — تم تقليل الجلب المسبق. البيع يعمل طبيعيًا."
-						: "مواصفات الجهاز منخفضة — تم تفعيل الوضع الخفيف تلقائيًا.",
-				)
 			}
 		}
 	} catch {

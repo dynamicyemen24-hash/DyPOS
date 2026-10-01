@@ -6,6 +6,7 @@
  * Seeds REAL, production-grade master data:
  * - Tenant RGT (enterprise) + organization + 3 branches + warehouses
  * - 6 users with REAL bcrypt hashes (cost 12, repo standard)
+ * - a subscriber sync key for /api/sync (hash stored, secret printed once)
  * - 64-SKU Arabic-first cosmetics & perfumes catalog
  * - Opening stock per warehouse, customers, fiscal year, sequences, ZATCA
  *
@@ -14,19 +15,26 @@
  * - FK-SAFE: upserts use INSERT ... ON CONFLICT DO UPDATE (never DELETE),
  *   so rows referenced by stock_levels / invoice_items are updated in place
  *   and their stable ids survive (INSERT OR REPLACE would violate RESTRICT).
- * - IDEMPOTENT: fixed UUIDs/codes → safe to re-run.
+ * - IDEMPOTENT: fixed UUIDs/codes → safe to re-run. Existing accounts keep
+ *   their password hash and an existing sync key is never reissued, so a
+ *   re-run cannot invalidate a credential already handed out.
+ * - NO SECRETS IN REPO: passwords are generated per account (or pinned via
+ *   DYPOS_ROYAL_PW_<USERNAME>) and printed once. Never commit them.
  *
  * Run AFTER migrations:  npm run migrate && npm run seed:royal
- *
- * NOTE: credentials are printed to the console ONCE at the end.
- * Rotate the admin password after first login (must_change_password=1).
  */
 
 import { DatabaseSync } from 'node:sqlite';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes, createHash } from 'node:crypto';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
 
-const db = new DatabaseSync('./data/dypos.db');
+const HERE = dirname(fileURLToPath(import.meta.url));
+// Same resolution as db/schema.js, so a rehearsal can target a scratch DB
+// (DYPOS_DB_PATH=… ) instead of the live one.
+const DB_PATH = process.env.DYPOS_DB_PATH || join(HERE, '..', 'data', 'dypos.db');
+const db = new DatabaseSync(DB_PATH);
 const uuid = () => randomUUID();
 
 /**
@@ -46,6 +54,7 @@ function upsert(table, key, row) {
 }
 
 const now = () => new Date().toISOString();
+const issued = []; // [[username, password, fullName, role], ...]
 
 // ── Fixed IDs (subscriber #1: reproducible + idempotent) ──
 const TENANT_ID = '00000000-0000-0000-0000-000000000001';
@@ -60,15 +69,30 @@ const WH_MARIB = 'W-01';
 const BUSINESS_NAME = 'رويال العالمية لتجارة أدوات التجميل والعطور';
 const BUSINESS_NAME_EN = 'Royal Global Cosmetics & Perfumes Trading';
 
-// username → [password, fullName, role, mustChange]
+// username → [fullName, role, mustChange]
+// Passwords are NOT here on purpose — see passwordFor().
 const USERS = [
-  ['admin', 'Royal#2026#Adm1n', 'مدير النظام العام', 'ADMIN', 1],
-  ['sanaa.manager', 'Royal#2026#Mgr1', 'مدير فرع صنعاء', 'MANAGER', 0],
-  ['sanaa.cashier', 'Royal#2026#Pos1', 'كاشير صنعاء الأول', 'CASHIER', 0],
-  ['sanaa.cashier2', 'Royal#2026#Pos2', 'كاشير صنعاء الثاني', 'CASHIER', 0],
-  ['aden.cashier', 'Royal#2026#Pos3', 'كاشير عدن', 'CASHIER', 0],
-  ['marib.cashier', 'Royal#2026#Pos4', 'كاشير مأرب', 'CASHIER', 0],
+  ['admin', 'مدير النظام العام', 'ADMIN', 1],
+  ['sanaa.manager', 'مدير فرع صنعاء', 'MANAGER', 0],
+  ['sanaa.cashier', 'كاشير صنعاء الأول', 'CASHIER', 0],
+  ['sanaa.cashier2', 'كاشير صنعاء الثاني', 'CASHIER', 0],
+  ['aden.cashier', 'كاشير عدن', 'CASHIER', 0],
+  ['marib.cashier', 'كاشير مأرب', 'CASHIER', 0],
 ];
+
+/**
+ * A password for a brand-new account. Never read from the repo (invariant #6):
+ * a strong random secret is generated per account, and an operator may pin one
+ * via DYPOS_ROYAL_PW_<USERNAME> (dots become underscores), e.g.
+ * DYPOS_ROYAL_PW_ADMIN. Only the bcrypt hash reaches the database; the clear
+ * value is printed once, at the end, and never stored.
+ */
+function passwordFor(username) {
+  const envKey = `DYPOS_ROYAL_PW_${username.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
+  const supplied = String(process.env[envKey] || '');
+  if (supplied.length >= 12) return supplied;
+  return `${randomBytes(15).toString('base64url')}Aa1!`;
+}
 
 // [code, name_en, name_ar, price(SAR), uom, category, brand]
 const CATALOG = [
@@ -191,20 +215,45 @@ try {
   }
 
   // 4. Users (REAL bcrypt hashes, cost 12 = repo standard)
+  // An EXISTING account keeps its password hash. The seed advertises itself as
+  // idempotent, and re-hashing on every run would silently rotate a credential
+  // the operator has already distributed — so a re-run updates the profile only.
   console.log('  → Users (bcrypt)...');
-  for (const [username, password, fullName, role, mustChange] of USERS) {
+  for (const [username, fullName, role, mustChange] of USERS) {
     const existing = db.prepare('SELECT id FROM users WHERE username=?').get(username);
-    upsert('users', 'username', {
-      id: existing?.id || uuid(),
-      username,
-      password_hash: bcrypt.hashSync(password, 12),
-      full_name: fullName,
-      role,
-      tenant_id: TENANT_ID,
-      is_active: 1,
-      must_change_password: mustChange,
-      created_at: now(),
-    });
+    if (existing) {
+      db.prepare(
+        'UPDATE users SET full_name=?, role=?, tenant_id=?, is_active=1, must_change_password=? WHERE username=?',
+      ).run(fullName, role, TENANT_ID, mustChange, username);
+      continue;
+    }
+    const password = passwordFor(username);
+    issued.push([username, password, fullName, role]);
+    db.prepare(
+      'INSERT INTO users (id,username,password_hash,full_name,role,tenant_id,is_active,must_change_password,created_at) VALUES (?,?,?,?,?,?,1,?,?)',
+    ).run(uuid(), username, bcrypt.hashSync(password, 12), fullName, role, TENANT_ID, mustChange, now());
+  }
+
+  // 4c. Subscriber sync key — the terminals authenticate to /api/sync with it.
+  //   Only the SHA-256 hash is stored (middleware/auth.js look up by hash), the
+  //   raw secret is printed once. Exists = preserved, so re-running never
+  //   invalidates a key already installed in the field.
+  const SYNC_KEY_NAME = 'royal-global-sync';
+  let rawSyncKey = null;
+  if (db.prepare('SELECT id FROM api_keys WHERE name=? AND tenant_id=?').get(SYNC_KEY_NAME, TENANT_ID)) {
+    console.log('    sync key already issued — preserved');
+  } else {
+    rawSyncKey = `dypos_${randomBytes(24).toString('hex')}`;
+    db.prepare(
+      'INSERT INTO api_keys (id,name,key_prefix,key_hash,role,scopes,tenant_id,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
+    // role ADMIN is the real gate: POST /api/sync/push is ADMIN/MANAGER-only.
+    // `scopes` is recorded for the operator but is NOT enforced anywhere — the
+    // effective control is `role` (middleware/auth.js requireRole).
+    ).run(
+      uuid(), SYNC_KEY_NAME, rawSyncKey.slice(0, 12),
+      createHash('sha256').update(rawSyncKey).digest('hex'),
+      'ADMIN', JSON.stringify(['sync']), TENANT_ID, 'seed:royal', now(),
+    );
   }
 
   // 4b. Purge dead demo accounts (dummy hashes from the legacy seed —
@@ -313,8 +362,18 @@ try {
   }
   console.log(`  products(tenant RGT):`, db.prepare(`SELECT COUNT(*) as c FROM products WHERE tenant_id=?`).get(TENANT_ID).c);
 
-  console.log('\n🔑 Credentials (rotate admin after first login):');
-  for (const [u, p, name, role] of USERS) console.log(`  ${role.padEnd(7)} ${u.padEnd(15)} ${p}  (${name})`);
+  console.log('\n🔑 Credentials issued by THIS run (shown once — store them now):');
+  if (issued.length === 0) {
+    console.log('  (none — every account already existed, so existing passwords were kept)');
+  }
+  for (const [u, p, name, role] of issued) console.log(`  ${role.padEnd(7)} ${u.padEnd(15)} ${p}  (${name})`);
+
+  if (rawSyncKey) {
+    console.log('\n🔑 Subscriber sync key (shown once — the POS needs it for sync):');
+    console.log(`  ${rawSyncKey}`);
+    console.log('  POS → Sync → cloud destination → paste as the credential.');
+    console.log('  It authenticates as `Authorization: Bearer <key>`.');
+  }
 
 } catch (e) {
   try { db.exec('ROLLBACK'); } catch { /* already rolled back */ }

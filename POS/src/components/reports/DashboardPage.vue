@@ -50,26 +50,35 @@
         </div>
       </section>
 
-      <div class="dashboard-shortcuts" aria-label="اختصارات التشغيل">
-        <div class="dashboard-shortcut">
+      <section class="dashboard-shortcuts" aria-label="اختصارات التشغيل والحالة">
+        <button
+          type="button"
+          class="dashboard-shortcut dashboard-shortcut--action"
+          aria-label="فتح لوحة التنفيذيين ومؤشرات المتجر"
+          @click="dashboardId = 'executive-dashboard'"
+        >
           <span class="dashboard-shortcut__icon dashboard-shortcut__icon--blue">
             <FeatherIcon name="bar-chart-2" :size="17" aria-hidden="true" />
           </span>
-          <span><strong>نظرة اليوم</strong><small>المبيعات والمؤشرات في تبويب التنفيذيين</small></span>
-        </div>
-        <div class="dashboard-shortcut">
+          <span><strong>مؤشرات المتجر</strong><small>افتح لوحة التنفيذيين لمراجعة الأداء</small></span>
+        </button>
+        <div class="dashboard-shortcut" aria-label="البيع دون اتصال">
           <span class="dashboard-shortcut__icon dashboard-shortcut__icon--green">
             <FeatherIcon name="wifi-off" :size="17" aria-hidden="true" />
           </span>
-          <span><strong>جاهز للعمل دون اتصال</strong><small>تستمر المبيعات محليًا وتزامنها عند الطلب</small></span>
+          <span><strong>البيع دون اتصال</strong><small>تُحفظ المبيعات محليًا؛ وتبدأ المزامنة عند الطلب</small></span>
         </div>
-        <div class="dashboard-shortcut">
+        <router-link
+          class="dashboard-shortcut dashboard-shortcut--action"
+          :to="{ name: 'WorkScreens', query: { screen: 'invoices' } }"
+          aria-label="فتح شاشة الفواتير"
+        >
           <span class="dashboard-shortcut__icon dashboard-shortcut__icon--amber">
-            <FeatherIcon name="zap" :size="17" aria-hidden="true" />
+            <FeatherIcon name="file-text" :size="17" aria-hidden="true" />
           </span>
-          <span><strong>بيع أسرع</strong><small>الاقتراحات الذكية تتعلم من مبيعات متجرك</small></span>
-        </div>
-      </div>
+          <span><strong>الفواتير</strong><small>راجع عمليات البيع وسجل الفواتير</small></span>
+        </router-link>
+      </section>
 
       <RecentInvoicesWidget :key="`recent-${period.refreshKey}`" />
       <div
@@ -110,6 +119,7 @@ import WorkToolbar from "@/components/work/WorkToolbar.vue"
 import WorkTabs from "@/components/work/WorkTabs.vue"
 import WorkFilters from "@/components/work/WorkFilters.vue"
 import { goToPOS, goToStockManagement } from "@/router"
+import { resolveDashboardId } from "./dashboards/core/dashboardTab"
 
 const ARABIC_TITLES = {
 	"executive-dashboard": "لوحة التنفيذيين",
@@ -146,7 +156,11 @@ const dashboardTabs = computed(() =>
 
 const dashboardId = computed({
 	get() {
-		return route.query?.tab || "executive-dashboard"
+		return resolveDashboardId(
+			route.query?.tab,
+			dashboardTabs.value.map((tab) => tab.id),
+			"executive-dashboard",
+		)
 	},
 	set(val) {
 		router.replace({ query: { ...route.query, tab: val } })
@@ -223,8 +237,8 @@ function onFiltersReset() {
 }
 
 onMounted(() => {
-	if (!route.query?.tab) {
-		router.replace({ query: { ...route.query, tab: "executive-dashboard" } })
+	if (route.query?.tab !== dashboardId.value) {
+		router.replace({ query: { ...route.query, tab: dashboardId.value } })
 	}
 })
 </script>
@@ -316,6 +330,27 @@ onMounted(() => {
 	border: 1px solid #e2e8f0;
 	border-radius: 13px;
 	background: #fff;
+}
+
+.dashboard-shortcut--action {
+	width: 100%;
+	color: inherit;
+	font: inherit;
+	text-align: start;
+	text-decoration: none;
+	cursor: pointer;
+	transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.dashboard-shortcut--action:hover {
+	border-color: #93c5fd;
+	box-shadow: 0 4px 12px rgb(15 23 42 / 8%);
+	transform: translateY(-1px);
+}
+
+.dashboard-shortcut--action:focus-visible {
+	outline: 3px solid #2563eb;
+	outline-offset: 2px;
 }
 
 .dashboard-shortcut > span:last-child {

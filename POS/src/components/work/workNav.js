@@ -24,6 +24,13 @@ export const WORK_NAV_SECTIONS = Object.freeze([
 				to: { name: "WorkScreens", query: { screen: "invoices" } },
 				icon: "file-text",
 			},
+			{
+				id: "third-party-sales",
+				label: "البيع بالنيابة",
+				to: { name: "ThirdPartySales" },
+				icon: "repeat",
+				capability: "third_party_sale",
+			},
 		],
 	},
 	{

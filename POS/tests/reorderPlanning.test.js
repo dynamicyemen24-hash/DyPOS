@@ -1,8 +1,8 @@
 import {
 	buildReorderPlan,
 	summarizeReorderPlan,
-} from "@/components/sale/reorderPlanning";
-import { describe, expect, it } from "vitest";
+} from "@/components/sale/reorderPlanning"
+import { describe, expect, it } from "vitest"
 
 describe("reorder planning", () => {
 	it("suggests only the shortage to the configured point using available stock", () => {
@@ -27,7 +27,7 @@ describe("reorder planning", () => {
 				},
 			],
 			"Main",
-		);
+		)
 
 		expect(items[0]).toMatchObject({
 			id: "low",
@@ -36,29 +36,29 @@ describe("reorder planning", () => {
 			suggested_qty: 5,
 			unit_cost: 4,
 			status: "suggested",
-		});
-		expect(items[1].status).toBe("ok");
+		})
+		expect(items[1].status).toBe("ok")
 		expect(summarizeReorderPlan(items)).toEqual({
 			belowReorder: 0,
 			suggested: 1,
 			reorderValue: 20,
-		});
-	});
+		})
+	})
 
 	it("does not invent a threshold for unconfigured products", () => {
 		const items = buildReorderPlan(
 			[{ id: "unset", stock_qty: 0, reorder_point: 0 }],
 			"Main",
-		);
+		)
 
-		expect(items[0].status).toBe("unconfigured");
-		expect(items[0].suggested_qty).toBe(0);
+		expect(items[0].status).toBe("unconfigured")
+		expect(items[0].suggested_qty).toBe(0)
 		expect(summarizeReorderPlan(items)).toEqual({
 			belowReorder: 0,
 			suggested: 0,
 			reorderValue: 0,
-		});
-	});
+		})
+	})
 
 	it("treats fully reserved and out-of-stock items as below threshold", () => {
 		const items = buildReorderPlan(
@@ -72,13 +72,13 @@ describe("reorder planning", () => {
 				},
 			],
 			"Main",
-		);
+		)
 
 		expect(items[0]).toMatchObject({
 			available_qty: 0,
 			suggested_qty: 5,
 			status: "below_reorder",
-		});
-		expect(summarizeReorderPlan(items).reorderValue).toBe(10);
-	});
-});
+		})
+		expect(summarizeReorderPlan(items).reorderValue).toBe(10)
+	})
+})

@@ -25,6 +25,7 @@ export const CAPABILITIES = Object.freeze({
 	LEDGER: "ledger",
 	WORKFLOW: "workflow",
 	DEVICE_IOT: "device_iot",
+	THIRD_PARTY_SALE: "third_party_sale",
 	OFFLINE: "offline",
 })
 
@@ -48,6 +49,7 @@ export const CAPABILITY_LABELS = Object.freeze({
 	[CAPABILITIES.LEDGER]: "الحسابات",
 	[CAPABILITIES.WORKFLOW]: "سير العمل",
 	[CAPABILITIES.DEVICE_IOT]: "الأجهزة",
+	[CAPABILITIES.THIRD_PARTY_SALE]: "البيع بالنيابة والتسويات",
 	[CAPABILITIES.OFFLINE]: "العمل دون اتصال",
 })
 
@@ -60,6 +62,7 @@ export const CAPABILITY_META = Object.freeze({
 	[CAPABILITIES.WORKFLOW]: { tier: "workflow", icon: "git-branch" },
 	[CAPABILITIES.LEDGER]: { tier: "core", icon: "book-open" },
 	[CAPABILITIES.OFFLINE]: { tier: "platform", icon: "wifi-off" },
+	[CAPABILITIES.THIRD_PARTY_SALE]: { tier: "workflow", icon: "repeat" },
 })
 
 export const COMMERCE_MODULES = Object.freeze([
@@ -109,6 +112,12 @@ export const COMMERCE_MODULES = Object.freeze([
 		icon: "truck",
 		capabilities: [CAPABILITIES.DELIVERY],
 	},
+	{
+		id: "third-party-sales",
+		label: "البيع بالنيابة",
+		icon: "repeat",
+		capabilities: [CAPABILITIES.THIRD_PARTY_SALE],
+	},
 ])
 
 const CAPABILITY_DEPENDENCIES = Object.freeze({
@@ -119,6 +128,11 @@ const CAPABILITY_DEPENDENCIES = Object.freeze({
 	[CAPABILITIES.PRESCRIPTION]: [CAPABILITIES.PRODUCT, CAPABILITIES.CUSTOMER],
 	[CAPABILITIES.COMMISSION]: [CAPABILITIES.CUSTOMER],
 	[CAPABILITIES.DELIVERY]: [CAPABILITIES.CUSTOMER],
+	[CAPABILITIES.THIRD_PARTY_SALE]: [
+		CAPABILITIES.CUSTOMER,
+		CAPABILITIES.COMMISSION,
+		CAPABILITIES.LEDGER,
+	],
 })
 
 const profile = (id, name, description, capabilities, keywords = []) =>
@@ -255,6 +269,20 @@ export const INDUSTRY_PROFILES = Object.freeze([
 			CAPABILITIES.LEDGER,
 		],
 		["مخبز", "حلويات", "مطعم", "غذاء"],
+	),
+	profile(
+		"produce-market",
+		"سوق الخضار والفواكه والوساطة",
+		"بيع بالنيابة عن المالك أو المورد مع العمولة وتسوية المستحقات.",
+		[
+			CAPABILITIES.PRODUCT,
+			CAPABILITIES.CUSTOMER,
+			CAPABILITIES.WEIGHING,
+			CAPABILITIES.COMMISSION,
+			CAPABILITIES.THIRD_PARTY_SALE,
+			CAPABILITIES.LEDGER,
+		],
+		["سوق خضار", "فواكه", "وسيط", "سوق مركزي", "مزاد"],
 	),
 ])
 
