@@ -1,282 +1,163 @@
-# DyPOS Startup Sequence
+# DyPOS Startup Sequence (offline-first)
 
-This document describes the initialization flow of the DyPOS frontend application, from initial page load to fully interactive state.
+This document describes the initialization flow of the DyPOS frontend, from
+page load to interactive state. The governing contract is
+`docs/OFFLINE_ARCHITECTURE.md` and invariant 8 in `AGENTS.md`: **startup
+performs zero network requests**. Every step below runs from local storage;
+anything that can touch the network is behind `isLinkEnabled()`
+(`POS/src/services/link-consent.js`, default `standalone`).
 
 ## Overview
 
-The application follows an optimized startup sequence designed for:
-- **Fast time-to-interactive** via parallel operations
-- **Offline support** with PWA service worker
-- **Secure API calls** with CSRF token management
-- **Reduced API calls** via bootstrap data preloading
-
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        Application Startup                          │
+│                     Application Startup (all local)                 │
 ├─────────────────────────────────────────────────────────────────────┤
-│  1. PWA Service Worker Registration (async, non-blocking)          │
-│  2. Vue App Configuration (plugins, global components)             │
-│  3. Authentication (CSRF + User - parallel)                        │
-│  4. Bootstrap Data Preload (non-blocking)                          │
-│  5. Router Registration & App Mount                                │
-│  6. Scheduled CSRF Refresh (every 30 min)                          │
+│  1. Service Worker registration (after window.load, non-blocking)   │
+│  2. Vue app configuration (plugins, global components)              │
+│  3. Local session resolution — NO network request                   │
+│  4. CSRF initialization — SKIPPED unless linked (isLinkEnabled)     │
+│  5. Router registration & app mount (Arabic RTL first paint)        │
+│  6. Local Dexie DB open + migrations                                │
+│  7. Bootstrap preload — background, non-blocking, failure-tolerant  │
+│  8. Consent-gated subsystems (platform sync, realtime, SSE)         │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-## Detailed Sequence
+There is no parallel "CSRF + user fetch" phase. A user fetch must never
+gate POS startup (`POS/src/main.js`: *"Local session + cookies are
+authoritative. No network request is made here"*).
 
-### 1. PWA Service Worker Registration
+## Detailed sequence
+
+### 1. Service Worker registration
 
 **File:** `POS/src/main.js`
 
-The service worker enables offline functionality and caching. Registration happens after the `window.load` event to avoid blocking initial render.
+Registration happens after `window.load`, dynamically imported, so it never
+blocks first paint. The SW precaches the full asset set, which is what makes
+the next boot network-free.
 
 ```javascript
-if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-        import("virtual:pwa-register").then(({ registerSW }) => {
-            registerSW({
-                immediate: true,
-                onNeedRefresh: () => { /* New content available */ },
-                onOfflineReady: () => { /* App ready for offline use */ },
-            })
-        })
-    }, { passive: true })
+window.addEventListener("load", () => {
+    import("virtual:pwa-register").then(({ registerSW }) => {
+        registerSW({ immediate: true, onNeedRefresh, onOfflineReady })
+    })
+}, { passive: true })
+```
+
+### 2. Vue app configuration
+
+**File:** `POS/src/main.js`
+
+`createApp` + Pinia + resource/pageMeta/translation plugins and the global
+`dypos-ui` components are registered before any async work.
+
+### 3. Session resolution — local only
+
+**Files:** `POS/src/main.js`, `POS/src/data/session.js`
+
+The local session (`sessionUser()` / `sessionRole()`) and the auth cookies
+are read from local state. Offline, the last session is valid for the device
+and the POS renders straight to the register screen. No
+`dypos.auth.get_logged_user`, no `userResource.fetch()` on the boot path.
+
+### 4. CSRF — consent-gated, not a boot step
+
+**File:** `POS/src/main.js` (`initializeCSRF`), `POS/src/utils/csrf.js`
+
+```javascript
+if (!isLinkEnabled()) {
+    log.debug("Standalone - skipping CSRF initialization")
+    return
 }
 ```
 
-**Key points:**
-- Uses `{ passive: true }` for better scroll performance
-- Dynamic import reduces initial bundle size
-- Non-blocking - app continues loading in parallel
+CSRF only matters for server calls, so it is fetched only when the user has
+granted linkage. The 30-minute refresh timer (`bootstrapState.csrfRefreshTimer`)
+is registered inside the same guarded path — there is **no unconditional
+interval refresh** at startup.
 
-### 2. Vue App Configuration
+### 5. Router & mount
 
-**File:** `POS/src/main.js`
+`app.use(router)` then `app.mount("#app")`; initial navigation uses the
+local session (register screen vs. login screen). First paint is Arabic RTL.
 
-The Vue application is configured with plugins and global components before any async operations.
+### 6. Local DB
 
-```javascript
-const app = createApp(App)
-const pinia = createPinia()
+Dexie/IndexedDB opens and migrates locally. It is the source of truth for
+sales, stock, customers, sync queue and print spool.
 
-// Plugins
-app.use(pinia)              // State management
-app.use(resourcesPlugin)    // dypos-ui resources
-app.use(pageMetaPlugin)     // Page meta tags
-app.use(translationPlugin)  // i18n support
+### 7. Bootstrap preload (background, optional)
 
-// Global components (available in all templates without import)
-app.component("Button", Button)
-app.component("Dialog", Dialog)
-app.component("Input", Input)
-// ... etc
-```
+**File:** `POS/src/main.js` (`preloadBootstrapData`), `POS/src/stores/bootstrap.js`
 
-**Global components registered:**
-- `Button`, `TextInput`, `Input`, `FormControl`
-- `ErrorMessage`, `Dialog`, `Alert`, `Badge`
+Runs *after* mount, in the background, and every failure path continues
+normally: *"Bootstrap preload failed; application continues normally"*.
+Local mirrors (`methodGetListWithSource` → `local`) already carry the data
+the screens need, so a missing backend changes the provenance badge, not the
+screen.
 
-### 3. Authentication (Parallel Loading)
+> The legacy `DyPOS/api/bootstrap.py` endpoint referenced by older revisions
+> of this document existed only in `legacy/pos_next` and is not part of the
+> running system.
 
-**Files:** `POS/src/main.js`, `POS/src/utils/csrf.js`
+### 8. Consent-gated subsystems
 
-CSRF token initialization and user authentication run **in parallel** for faster startup (~200-300ms savings).
+Each of these checks `isLinkEnabled()` and stays closed in standalone mode:
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                    Authentication Phase                       │
-├──────────────────────────────────────────────────────────────┤
-│                                                              │
-│   ┌─────────────────────┐     ┌─────────────────────┐       │
-│   │   CSRF Promise      │     │   User Promise      │       │
-│   ├─────────────────────┤     ├─────────────────────┤       │
-│   │ 1. Check cookie     │     │ 1. Fetch user data  │       │
-│   │ 2. Fetch if missing │     │ 2. Set session      │       │
-│   │ 3. Sync to worker   │     │                     │       │
-│   └─────────────────────┘     └─────────────────────┘       │
-│            │                           │                     │
-│            └───────────┬───────────────┘                     │
-│                        ▼                                     │
-│              Promise.all([csrf, user])                       │
-│                        │                                     │
-│                        ▼                                     │
-│              session.user = user                             │
-│                                                              │
-└──────────────────────────────────────────────────────────────┘
-```
+| Subsystem | Standalone behavior | File |
+| --- | --- | --- |
+| Platform sync engine | parked | `POS/src/main.js` `initPlatformSync` |
+| Realtime socket (socket.io) | "realtime socket stays closed" | `POS/src/main.js` `initializeRealtime` |
+| SSE / realtime sync store | `enabled: isLinkEnabled()` | `POS/src/main.js` |
+| Build-version watchdog | polls only when linked | `POS/src/main.js` `startBuildVersionWatchdog` |
+| Feature-flag bootstrap | skipped; local defaults remain ON | `POS/src/main.js` |
+| Network monitor / server ping | must not start without consent | `POS/src/utils/offline/offlineState.js` |
 
-**CSRF Token Flow:**
-1. Check for existing token in cookie
-2. If missing, fetch from server via `ensureCSRFToken()`
-3. Sync token to offline worker for authenticated requests
-4. Register callback for token refresh events
+## What is forbidden at startup
 
-**User Authentication Flow:**
-1. Fetch user resource via `userResource.fetch()`
-2. On success, extract session user
-3. On failure, user remains logged out (guest mode)
+From `docs/OFFLINE_ARCHITECTURE.md`, verbatim:
 
-### 4. Bootstrap Data Preload
+> Forbidden at startup: `dypos.auth.get_logged_user`, `/api/method/*`
+> whitelists, CSRF fetch, remote localization, remote device/features,
+> any `/api/ping` or connectivity probe, any auto-sync/auto-connect.
 
-**Files:** `POS/src/stores/bootstrap.js`, `DyPOS/api/bootstrap.py`
+Enforced by `POS/tests/standaloneBoot.test.js`, which scans every module
+under `src/**` for un-gated network triggers and fails the build.
 
-After authentication, the app preloads essential data in a single API call instead of multiple sequential calls.
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│                   Bootstrap API Response                      │
-├──────────────────────────────────────────────────────────────┤
-│  {                                                           │
-│    "success": true,                                          │
-│    "locale": "ar",              // User's language           │
-│    "shift": { ... },            // Active POS shift          │
-│    "pos_profile": { ... },      // POS Profile settings      │
-│    "pos_settings": { ... },     // DyPOS settings         │
-│    "payment_methods": [...]     // Available payments        │
-│  }                                                           │
-└──────────────────────────────────────────────────────────────┘
-```
-
-**Performance benefit:** ~300-500ms faster initial load by avoiding:
-- Separate locale fetch
-- Separate shift check
-- Separate POS profile load
-- Separate settings load
-- Separate payment methods fetch
-
-**Non-blocking:** Bootstrap runs in the background via dynamic import to not delay app mount.
-
-```javascript
-if (user) {
-    import("./stores/bootstrap")
-        .then(({ useBootstrapStore }) => {
-            useBootstrapStore().loadInitialData()
-        })
-}
-```
-
-### 5. Router & App Mount
-
-**File:** `POS/src/main.js`
-
-After authentication completes, the router is registered and the app is mounted.
-
-```javascript
-app.use(router)
-app.mount("#app")
-```
-
-The router uses the session state to determine initial navigation (login page vs. POS page).
-
-### 6. Scheduled CSRF Refresh
-
-**File:** `POS/src/main.js`
-
-CSRF tokens expire, so the app refreshes them every 30 minutes while running.
-
-```javascript
-setInterval(async () => {
-    await ensureCSRFToken({ forceRefresh: true, silent: true })
-    await syncCSRFTokenToWorker()
-}, 30 * 60 * 1000)
-```
-
-## Data Flow: Bootstrap → Stores
-
-Other stores check bootstrap data before making their own API calls:
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                       Store Data Loading                            │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│   ┌─────────────────┐                                               │
-│   │ Bootstrap Store │                                               │
-│   │ (Single API)    │                                               │
-│   └────────┬────────┘                                               │
-│            │                                                        │
-│            ▼                                                        │
-│   ┌─────────────────────────────────────────────────────────────┐  │
-│   │              Other Stores Check Bootstrap First              │  │
-│   ├─────────────────────────────────────────────────────────────┤  │
-│   │                                                             │  │
-│   │  posSettingsStore.loadSettings():                           │  │
-│   │    1. Check bootstrapStore.getPreloadedPOSSettings()        │  │
-│   │    2. If found → use preloaded data                         │  │
-│   │    3. If not → fallback to API call                         │  │
-│   │                                                             │  │
-│   │  useLocale.initLocale():                                    │  │
-│   │    1. Check bootstrapStore.getPreloadedLocale()             │  │
-│   │    2. If found → apply locale immediately                   │  │
-│   │    3. If not → fallback to API call                         │  │
-│   │                                                             │  │
-│   └─────────────────────────────────────────────────────────────┘  │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-## Lazy Loading Strategies
-
-Some data is intentionally **not** loaded at startup to reduce initial load time:
-
-| Data | When Loaded | Reason |
-|------|-------------|--------|
-| Countries list | CreateCustomerDialog opens | Large dataset, rarely needed |
-| Item images | Item visible in viewport | Network optimization |
-| Translations | Language change | Only needed for non-default locale |
-
-## Offline Worker Integration
-
-The offline worker requires the CSRF token for authenticated requests. Token sync happens:
-
-1. **At startup** - After CSRF token initialization
-2. **On refresh** - When token is refreshed (via callback)
-3. **On schedule** - Every 30 minutes with the refresh cycle
-
-```javascript
-// Register callback for token refresh events
-onCSRFTokenRefresh((newToken) => {
-    offlineWorker.setCSRFToken(newToken)
-})
-```
-
-## Performance Timeline
-
-Typical startup timeline on fast connection:
+## Performance timeline (local boot)
 
 ```
 0ms    ─┬─ Page load begins
         │
 50ms   ─┼─ Service worker registration starts (async)
         │
-100ms  ─┼─ Vue app configured
+100ms  ─┼─ Vue app configured, local session resolved
         │
-150ms  ─┼─ CSRF + User fetch starts (parallel)
+150ms  ─┼─ App mounts — Arabic RTL first paint
         │
-350ms  ─┼─ Auth complete, app mounts
+200ms  ─┼─ Dexie open + migrations
         │
-400ms  ─┼─ Bootstrap preload starts (background)
-        │
-600ms  ─┴─ Bootstrap complete, all data ready
+300ms  ─┴─ Interactive (no request has left the device)
 ```
 
-## Error Handling
+## Error handling
 
-Each phase has graceful fallbacks:
-
-| Phase | Failure Behavior |
+| Phase | Failure behavior |
 |-------|------------------|
-| Service Worker | App works without offline support |
-| CSRF Token | Retries on first API call |
-| User Auth | Redirects to login page |
-| Bootstrap | Individual stores make their own API calls |
+| Service worker | App still runs; SW registration failure is non-fatal |
+| Local session | Missing/invalid → login screen (still no network) |
+| CSRF | Not attempted unless linked; retried on first linked call |
+| Bootstrap preload | Logged at debug; stores fall back to local mirror |
+| Backend absent | Provenance shows `local` / `unavailable` — never a fake empty list |
 
-## Related Files
+## Related files
 
-- `POS/src/main.js` - Main entry point
-- `POS/src/utils/csrf.js` - CSRF token management
-- `POS/src/stores/bootstrap.js` - Bootstrap store
-- `POS/src/data/session.js` - Session management
-- `POS/src/data/user.js` - User resource
-- `DyPOS/api/bootstrap.py` - Bootstrap API endpoint
+- `POS/src/main.js` — entry point and every consent gate above
+- `POS/src/services/link-consent.js` — the consent contract
+- `POS/src/utils/csrf.js` — CSRF management (linked mode only)
+- `POS/src/stores/bootstrap.js` — background bootstrap
+- `POS/src/data/session.js` — local session
+- `docs/OFFLINE_ARCHITECTURE.md` — the architecture this sequence implements
+- `POS/tests/standaloneBoot.test.js` — the gate that keeps it true

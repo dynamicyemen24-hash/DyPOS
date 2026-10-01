@@ -195,14 +195,14 @@
         {{ __("اختصارات لوحة المفاتيح") }}
       </h4>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-        <ShortcutKey key="Ctrl+N" desc="صفحة جديدة" />
-        <ShortcutKey key="Ctrl+S" desc="حفظ" />
-        <ShortcutKey key="Ctrl+F" desc="بحث" />
-        <ShortcutKey key="Esc" desc="إلغاء" />
-        <ShortcutKey key="Enter" desc="تأكيد" />
-        <ShortcutKey key="Tab" desc="الحقل التالي" />
-        <ShortcutKey key="Shift+Tab" desc="الحقل السابق" />
-        <ShortcutKey key="Ctrl+P" desc="طباعة" />
+        <ShortcutKey combo="Ctrl+N" desc="صفحة جديدة" />
+        <ShortcutKey combo="Ctrl+S" desc="حفظ" />
+        <ShortcutKey combo="Ctrl+F" desc="بحث" />
+        <ShortcutKey combo="Esc" desc="إلغاء" />
+        <ShortcutKey combo="Enter" desc="تأكيد" />
+        <ShortcutKey combo="Tab" desc="الحقل التالي" />
+        <ShortcutKey combo="Shift+Tab" desc="الحقل السابق" />
+        <ShortcutKey combo="Ctrl+P" desc="طباعة" />
       </div>
     </div>
 
@@ -222,6 +222,10 @@ import { ref, computed } from "vue"
 import { DEFAULT_CURRENCY } from "@/utils/currency"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
+// StepCard/ShortcutKey are not globally registered — without these imports the
+// whole steps + shortcuts sections of this page rendered as unknown elements.
+import StepCard from "./StepCard.vue"
+import ShortcutKey from "./ShortcutKey.vue"
 
 const props = defineProps({
 	warehouses: { type: Array, default: () => [] },

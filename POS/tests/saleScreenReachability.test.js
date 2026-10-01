@@ -5,7 +5,11 @@ import { join } from "node:path"
 const ROOT = process.cwd()
 const read = (rel) => readFileSync(join(ROOT, rel), "utf8")
 
-const sale = `${read("src/pages/POSSale.vue")}\n${read("src/styles/pages/pos-sale-responsive.css")}`
+const sale = [
+	read("src/pages/POSSale.vue"),
+	read("src/styles/pages/pos-sale-responsive.css"),
+	read("src/styles/pages/pos-sale-accessibility.css"),
+].join("\n")
 
 /**
  * The sale screen is the screen the whole product lives on, and a phone is a

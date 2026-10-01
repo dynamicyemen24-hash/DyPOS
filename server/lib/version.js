@@ -30,5 +30,5 @@
  * Bumped with every change, as the deploy gate compares the live
  * /version.json against this number.
  */
-export const VERSION = '1.42.1';
+export const VERSION = '1.42.2';
 export default VERSION;

@@ -5,15 +5,15 @@
 ### POS client
 Responsible for cashier UX, local IndexedDB state, offline pending operations, local search and presentation.
 
-Not authoritative for final invoice issuance, server identity, legal tax configuration, cross-device inventory truth or payment settlement.
+Not authoritative for the *cloud* record, server identity, legal tax configuration, cross-device inventory truth or payment settlement. **While offline the local ledger is authoritative for that device** — a sale, return or shift completes locally and the server reconciles it at sync. The local session authorizes offline mutations, which are re-validated on sync.
 
 ### Edge/Cloudflare
 Responsible for TLS/routing/static delivery/request correlation and controlled forwarding.
 
 The edge compatibility worker must never impersonate an authenticated user or claim a write succeeded when no authoritative write occurred.
 
-### Authoritative backend
-Responsible for authentication/session, authorization/tenant isolation, financial commits, inventory mutation, invoice issuance, tax-profile application, sync acknowledgement, idempotency, audit events and reconciliation.
+### Authoritative backend (sync tier — optional)
+Responsible for authentication/session, authorization/tenant isolation, financial commits, inventory mutation, invoice issuance, tax-profile application, sync acknowledgement, idempotency, audit events and reconciliation — **whenever a backend is in the path**. Offline commits are local and become server-authoritative only after sync validation; the backend is never required to boot, sell, return, print or report on a device.
 
 ### Database
 Responsible for durable state, constraints, uniqueness, transactions, audit retention and backup/restore.

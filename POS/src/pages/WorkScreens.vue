@@ -61,6 +61,7 @@
  */
 import { computed, onMounted, ref, watch } from "vue"
 import { useRoute, useRouter } from "vue-router"
+import { getActivePinia } from "pinia"
 
 // The kit's documented entry point (`@/components/work`) — one import keeps the
 // barrel, the permission helpers and the design tokens in the graph instead of
@@ -74,6 +75,7 @@ import {
 } from "@/components/work"
 import { flatWorkNav } from "@/components/work/workNav"
 import { WORK_SCREENS, workScreenById } from "@/data/workScreens"
+import { useIndustryProfileStore } from "@/stores/industryProfile"
 import { logger } from "@/utils/logger"
 import { sessionRole } from "@/data/session"
 
@@ -96,7 +98,13 @@ const screen = computed(() => workScreenById(screenId.value))
  * sections: passing sections left every icon undefined, because the shell
  * renders `item.icon` per entry.
  */
-const navItems = flatWorkNav()
+const industry = getActivePinia() ? useIndustryProfileStore() : null
+const navItems = computed(() =>
+	flatWorkNav().filter(
+		(item) =>
+			!item.capability || !industry || industry.hasCapability(item.capability),
+	),
+)
 const tabs = WORK_SCREENS.map((entry) => ({
 	id: entry.id,
 	label: entry.label,

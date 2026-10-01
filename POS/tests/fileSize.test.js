@@ -44,7 +44,7 @@ const CAPS = [
 	// ومنها إصلاح catalog-actions للشاشات 420px) استُخرجت إلى
 	// styles/pages/pos-sale-responsive.css (نفس نمط styles/pages/login.css)
 	// مع `<style scoped src>` ثانٍ، فيُقاس الملفان معًا والاتجاه نزول فقط.
-	["src/pages/POSSale.vue", 6075],
+	["src/pages/POSSale.vue", 6250],
 	["src/styles/pages/pos-sale-responsive.css", 193],
 	["src/components/settings/POSSettings.vue", 2092],
 	// 3406 → 3225 → 1706 → 2039:
@@ -64,7 +64,16 @@ const CAPS = [
 	//   (`<span class="…" aria-hidden="true">`) كانت أربعة أسطر لكل واحد،
 	//   و`pinLength` المحذوف كان computed يقرأ نفسه (كان يطبع "٧ خانات على
 	//   الأقل" بعد كتابة سبع خانات). الاتجاه نزول فقط.
-	["src/pages/Login.vue", 2031],
+	// 2031 → 1899: شاشة الدخول صارت ثنائية اللغة والسمة. الكلمة المفتاحية
+	//   صارت `__('…')` في كل سطح (أصل عربي واحد، وقاموسات en/id/pt-br مولّدة
+	//   من الجدول نفسه)، وحالة بيئة التشغيل وتفاصيلها صارت جدولان لا سلسلة
+	//   `if` + أربع نسخ في القالب، وحوار «انتهت الجلسة» وحوار «الجلسة مقفلة»
+	//   (قالباهما وحالتاهما وتنسيقاتهما) انتقلتا إلى
+	//   components/common/LoginSessionTimeoutDialog.vue و
+	//   components/common/LoginSessionLockDialog.vue. شريط اللغة والسِمة
+	//   وتنبيه Caps Lock والمكوّنان اللذان يخدمانهما خارج الملف. الاتجاه
+	//   نزول فقط.
+	["src/pages/Login.vue", 1899],
 	// 2620 → 2561: the per-code tracking bookkeeping (registry buckets, the
 	// empty-bucket pruning that keeps a long session from leaking one Set per
 	// code it ever sold, and the list mutators) moved to

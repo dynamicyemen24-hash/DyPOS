@@ -1,24 +1,34 @@
-﻿<template>
+<template>
   <Transition name="fade">
     <div
       v-if="show"
       class="fixed inset-0 bg-black bg-opacity-50 z-[300]"
       @click.self="handleClose"
     >
+      <!-- The import button only ever calls fileInput.click(); without this
+           element the whole import flow silently did nothing. -->
+      <input
+        ref="fileInput"
+        type="file"
+        accept=".csv,.json,text/csv,application/json"
+        class="sr-only"
+        data-testid="stock-import-file"
+        @change="handleFileSelect"
+      />
       <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="w-full max-w-4xl h-[90vh] max-h-[90vh] bg-white shadow-xl rounded-xl overflow-hidden flex flex-col">
           <!-- Header -->
           <div class="flex items-center justify-between border-b px-4 py-3 bg-gray-50">
             <div class="flex items-center gap-2">
               <FeatherIcon name="clipboard-list" class="w-5 h-5 text-indigo-600" />
-              <h2 class="text-lg font-semibold text-gray-900">{{ __("Ø§Ù„Ø¬Ø±Ø¯ Ø§Ù„ÙØ¹Ù„ÙŠ Ù„Ù„Ù…Ø®Ø²ÙˆÙ†") }}</h2>
+              <h2 class="text-lg font-semibold text-gray-900">{{ __("الجرد الفعلي للمخزون") }}</h2>
             </div>
             <div class="flex items-center gap-2">
               <span class="text-sm text-gray-500">
-                {{ __("Ø§Ù„Ø¹Ù…Ù„Ø©") }}: {{ selectedCurrency }}
+                {{ __("العملة") }}: {{ selectedCurrency }}
               </span>
               <span class="text-sm text-gray-500">
-                {{ __("ÙˆØ­Ø¯Ø© Ø§Ù„Ù‚ÙŠØ§Ø³") }}: {{ selectedUom }}
+                {{ __("وحدة القياس") }}: {{ selectedUom }}
               </span>
               <Button variant="ghost" size="sm" @click="handleClose" icon="x" />
             </div>
@@ -26,7 +36,7 @@
 
           <!-- Two-page Navigation -->
           <div class="border-b px-4">
-            <nav class="flex gap-1" role="tablist" aria-label="ØµÙØ­Ø§Øª Ø§Ù„Ø¬Ø±Ø¯">
+            <nav class="flex gap-1" role="tablist" aria-label="صفحات الجرد">
               <button
                 v-for="page in pages"
                 :key="page.value"
@@ -49,7 +59,7 @@
           </div>
 
           <!-- Page Content -->
-          <div class="flex-1 overflow-hidden">
+          <div class="relative flex-1 overflow-hidden">
             <Transition name="fade" mode="out-in">
               <div
                 v-if="activePage === 'instructions'"
@@ -90,6 +100,90 @@
                 />
               </div>
             </Transition>
+
+            <!-- Import preview: handleFileSelect fills previewData, but
+                 nothing rendered it before — the import button had no UI. -->
+            <div
+              v-if="previewData"
+              class="absolute inset-x-0 bottom-0 max-h-[60%] flex flex-col border-t-2 border-indigo-500 bg-white shadow-2xl"
+              data-testid="stock-import-preview"
+            >
+              <div
+                class="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2 bg-indigo-50"
+              >
+                <div class="flex items-center gap-2 text-sm">
+                  <FeatherIcon name="file-text" class="w-4 h-4 text-indigo-600" />
+                  <span class="font-medium text-gray-900">
+                    {{ selectedFile ? selectedFile.name : __("معاينة الاستيراد") }}
+                  </span>
+                  <Badge theme="green">{{ validCount }} {{ __("صالح") }}</Badge>
+                  <Badge v-if="invalidCount" theme="red"
+                  >{{ invalidCount }} {{ __("خطأ") }}</Badge>
+                </div>
+                <div class="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" @click="clearPreview">
+                    {{ __("إلغاء") }}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    :loading="importing"
+                    :disabled="!validCount"
+                    @click="dryRunImport"
+                  >
+                    {{ __("معاينة") }}
+                  </Button>
+                  <Button
+                    variant="solid"
+                    size="sm"
+                    :loading="importing"
+                    :disabled="!validCount"
+                    @click="executeImport"
+                  >
+                    {{ __("تنفيذ الاستيراد") }}
+                  </Button>
+                </div>
+              </div>
+
+              <div class="flex-1 overflow-auto">
+                <table class="w-full text-xs">
+                  <thead
+                    class="sticky top-0 bg-gray-50 text-right text-gray-500"
+                  >
+                    <tr>
+                      <th class="px-3 py-2 font-medium">#</th>
+                      <th class="px-3 py-2 font-medium">{{ __("الصنف") }}</th>
+                      <th class="px-3 py-2 font-medium">{{ __("المستودع") }}</th>
+                      <th class="px-3 py-2 font-medium">{{ __("الكمية") }}</th>
+                      <th class="px-3 py-2 font-medium">{{ __("الوحدة") }}</th>
+                      <th class="px-3 py-2 font-medium">{{ __("التكلفة") }}</th>
+                      <th class="px-3 py-2 font-medium">{{ __("الحالة") }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="row in previewData"
+                      :key="row.index"
+                      class="border-t"
+                      :class="row.valid ? '' : 'bg-red-50'"
+                    >
+                      <td class="px-3 py-1.5 text-gray-400">{{ row.index + 1 }}</td>
+                      <td class="px-3 py-1.5 font-mono">{{ row.product_code }}</td>
+                      <td class="px-3 py-1.5 font-mono">{{ row.warehouse_id }}</td>
+                      <td class="px-3 py-1.5">{{ qtyText(row.qty, row.uom) }}</td>
+                      <td class="px-3 py-1.5">{{ row.uom }}</td>
+                      <td class="px-3 py-1.5">
+                        {{ moneyText(row.unit_cost, row.currency) }}
+                      </td>
+                      <td class="px-3 py-1.5">
+                        <Badge v-if="row.valid" theme="green">{{ __("صالح") }}</Badge>
+                        <span v-else class="text-red-600">{{ row.error }}</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -98,32 +192,15 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from "vue"
-import { Badge, Button, FeatherIcon, LoadingIndicator } from "dypos-ui"
+import { ref, computed } from "vue"
+import { Badge, Button, FeatherIcon } from "dypos-ui"
 import { useToast } from "@/composables/useToast"
-import { apiGet, apiPost, apiPostRaw, apiDownload } from "@/utils/restApi"
+import { apiPost, apiPostRaw, apiDownload } from "@/utils/restApi"
 import { logger } from "@/utils/logger"
-import {
-	formatMoney,
-	formatQty,
-	downloadBlob,
-	formatDateTime,
-} from "@/utils/uom"
-import {
-	PRICING_POLICIES,
-	TAX_RULES,
-	ROUNDING_RULES,
-	VALUATION_METHODS,
-	INVENTORY_POLICIES,
-	SALES_POLICIES,
-	PURCHASE_POLICIES,
-	ZATCA_CONFIG,
-} from "@/utils/uom"
+import { formatMoney, formatQty, downloadBlob } from "@/utils/uom"
 
 import InstructionsPage from "./StockCountInstructionsPage.vue"
 import ItemsTablePage from "./StockCountItemsTablePage.vue"
-import StepCard from "./StepCard.vue"
-import ShortcutKey from "./ShortcutKey.vue"
 import { getCurrencySymbol } from "@/utils/currency"
 import { usePOSSettingsStore } from "@/stores/posSettings"
 
@@ -137,7 +214,7 @@ const props = defineProps({
 
 const emit = defineEmits(["update:modelValue"])
 
-const { showSuccess, showError, showInfo } = useToast()
+const { showSuccess, showError } = useToast()
 
 const show = computed({
 	get: () => props.modelValue,
@@ -150,10 +227,10 @@ const activePage = ref("instructions")
 const pages = [
 	{
 		value: "instructions",
-		label: "ØªØ¹Ù„ÙŠÙ…Ø§Øª Ø§Ù„Ø¬Ø±Ø¯",
+		label: "تعليمات الجرد",
 		icon: "book-open",
 	},
-	{ value: "items", label: "Ø¬Ø¯ÙˆÙ„ Ø§Ù„Ø£ØµÙ†Ø§Ù", icon: "clipboard-list" },
+	{ value: "items", label: "جدول الأصناف", icon: "clipboard-list" },
 ]
 
 // Multi-currency & UoM support.
@@ -164,80 +241,80 @@ const currencies = ref([
 	{
 		code: configuredCurrency,
 		symbol: getCurrencySymbol(),
-		name: "Ø¹Ù…Ù„Ø© Ø§Ù„Ù…Ù†Ø´Ø£Ø©",
+		name: "عملة المنشأة",
 		rate: 1,
 		isBase: true,
 	},
-	{ code: "SAR", symbol: "Ø±.Ø³", name: "Ø±ÙŠØ§Ù„ Ø³Ø¹ÙˆØ¯ÙŠ", rate: 1 },
-	{ code: "USD", symbol: "$", name: "Ø¯ÙˆÙ„Ø§Ø± Ø£Ù…Ø±ÙŠÙƒÙŠ", rate: 3.75 },
-	{ code: "EUR", symbol: "â‚¬", name: "ÙŠÙˆØ±Ùˆ", rate: 4.05 },
-	{ code: "EGP", symbol: "Ø¬.Ù…", name: "Ø¬Ù†ÙŠÙ‡ Ù…ØµØ±ÙŠ", rate: 0.077 },
+	{ code: "SAR", symbol: "ر.س", name: "ريال سعودي", rate: 1 },
+	{ code: "USD", symbol: "$", name: "دولار أمريكي", rate: 3.75 },
+	{ code: "EUR", symbol: "€", name: "يورو", rate: 4.05 },
+	{ code: "EGP", symbol: "ج.م", name: "جنيه مصري", rate: 0.077 },
 ])
 
 const uoms = ref([
 	{
 		code: "PCS",
-		name: "Ù‚Ø·Ø¹Ø©",
-		nameAr: "Ù‚Ø·Ø¹Ø©",
+		name: "قطعة",
+		nameAr: "قطعة",
 		factor: 1,
 		isBase: true,
 		type: "count",
 	},
 	{
 		code: "BOX",
-		name: "ØµÙ†Ø¯ÙˆÙ‚",
-		nameAr: "ØµÙ†Ø¯ÙˆÙ‚",
+		name: "صندوق",
+		nameAr: "صندوق",
 		factor: 12,
 		type: "count",
 	},
 	{
 		header: "CTN",
-		name: "ÙƒØ±ØªÙˆÙ†",
-		nameAr: "ÙƒØ±ØªÙˆÙ†",
+		name: "كرتون",
+		nameAr: "كرتون",
 		factor: 24,
 		type: "count",
 	},
 	{
 		code: "KG",
-		name: "ÙƒÙŠÙ„ÙˆØºØ±Ø§Ù…",
-		nameAr: "ÙƒØ¬Ù…",
+		name: "كيلوغرام",
+		nameAr: "كجم",
 		factor: 1,
 		type: "weight",
 	},
 	{
 		code: "G",
-		name: "Ø¬Ø±Ø§Ù…",
-		nameAr: "Ø¬Ù…",
+		name: "جرام",
+		nameAr: "جم",
 		factor: 0.001,
 		type: "weight",
 	},
-	{ code: "M", name: "Ù…ØªØ±", nameAr: "Ù…ØªØ±", factor: 1, type: "length" },
+	{ code: "M", name: "متر", nameAr: "متر", factor: 1, type: "length" },
 	{
 		code: "CM",
-		name: "Ø³Ù†ØªÙŠÙ…ØªØ±",
-		nameAr: "Ø³Ù…",
+		name: "سنتيمتر",
+		nameAr: "سم",
 		factor: 0.01,
 		type: "length",
 	},
-	{ code: "L", name: "Ù„ØªØ±", nameAr: "Ù„ØªØ±", factor: 1, type: "volume" },
+	{ code: "L", name: "لتر", nameAr: "لتر", factor: 1, type: "volume" },
 	{
 		code: "ML",
-		name: "Ù…Ù„ÙŠÙ„ØªØ±",
-		nameAr: "Ù…Ù„",
+		name: "مليلتر",
+		nameAr: "مل",
 		factor: 0.001,
 		type: "volume",
 	},
 	{
 		code: "M2",
-		name: "Ù…ØªØ± Ù…Ø±Ø¨Ø¹",
-		nameAr: "Ù…Â²",
+		name: "متر مربع",
+		nameAr: "م²",
 		factor: 1,
 		type: "area",
 	},
 	{
 		code: "M3",
-		name: "Ù…ØªØ± Ù…ÙƒØ¹Ø¨",
-		nameAr: "Ù…Â³",
+		name: "متر مكعب",
+		nameAr: "م³",
 		factor: 1,
 		type: "volume",
 	},
@@ -256,33 +333,36 @@ const selectedUomObj = computed(
 	() => uoms.value.find((u) => u.code === selectedUom.value) || uoms.value[0],
 )
 
-// Loading states
-const loading = ref(false)
-const exporting = ref(false)
-
-// For import functionality
+// Import flow: the dialog owns the hidden <input type="file">, the parsed
+// rows (`previewData`) and the commit buttons rendered in the preview panel.
 const fileInput = ref(null)
 const previewData = ref(null)
 const importing = ref(false)
+const exporting = ref(false)
 const selectedFile = ref(null)
+const validCount = computed(
+	() => (previewData.value || []).filter((r) => r.valid).length,
+)
+const invalidCount = computed(
+	() => (previewData.value || []).filter((r) => !r.valid).length,
+)
+
+/**
+ * `formatQty`/`formatMoney` from `@/utils/uom` take the lookup tables as a
+ * THIRD argument and throw without them; binding them straight into the
+ * template (arity 1/2) is a crash on every previewed row. These wrappers supply
+ * the dialog's own UoM/currency lists.
+ */
+function qtyText(qty, uomCode) {
+	return formatQty(qty, uomCode, uoms.value)
+}
+
+function moneyText(amount, currencyCode) {
+	return formatMoney(amount, currencyCode, currencies.value)
+}
 
 // Export options
 const exportFormat = ref("csv")
-const exportColumns = ref([
-	"product_id",
-	"product_code",
-	"product_name",
-	"warehouse_id",
-	"warehouse_name",
-	"qty",
-	"reserved_qty",
-	"available_qty",
-	"uom",
-	"currency",
-	"unit_cost",
-	"stock_value",
-	"updated_at",
-])
 
 const availableColumns = [
 	"product_id",
@@ -306,77 +386,53 @@ const availableColumns = [
 
 const exportColumnsModel = ref([...availableColumns])
 
-// History
-const importExportHistory = ref([])
-const historyLoading = ref(false)
-
-// Watch for currency/UoM changes to convert displayed values
-watch([selectedCurrency, selectedUom], () => {
-	// Items will auto-update via computed properties
-})
-
 function handleClose() {
 	show.value = false
 }
 
-// Download template
-function downloadImportTemplate() {
-	const headers = [
-		"product_code",
-		"warehouse_id",
-		"qty",
-		"uom",
-		"currency",
-		"unit_cost",
-		"reason",
-		"reference",
-		"batch_number",
-		"expiry_date",
-	]
-	// The template's currency column must match the CONFIGURED currency, or an
-	// EGP shop downloads a template pre-filled with SAR rows.
-	const cur = selectedCurrency.value
-	const csv = [
-		headers.join(","),
-		`PROD-001,W-01,100,PCS,${cur},25.50,Opening Balance,OB-2024-001,BATCH-001,2025-12-31`,
-		`PROD-002,W-01,50,BOX,${cur},15.75,Opening Balance,OB-2024-002,BATCH-002,2025-06-30`,
-		`PROD-003,W-02,25,KG,${cur},120.00,Transfer In,TRF-001,,`,
-	].join("\n")
-	downloadBlob(csv, "text/csv", "stock_count_import_template.csv")
+// File handling
+/**
+ * `Blob.text()` is not implemented everywhere (older WebViews, jsdom), and a
+ * POS reader may be handed a file from a USB stick by a very old browser.
+ * FileReader is the universal fallback rather than an unhandled rejection.
+ */
+function readFileText(file) {
+	if (typeof file.text === "function") return file.text()
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader()
+		reader.onload = () => resolve(String(reader.result ?? ""))
+		reader.onerror = () => reject(reader.error || new Error("read failed"))
+		reader.readAsText(file)
+	})
 }
 
-// File handling
-function handleFileSelect(event) {
+async function handleFileSelect(event) {
 	const file = event.target.files?.[0]
 	if (!file) return
 
 	selectedFile.value = file
 	previewData.value = null
 
-	if (file.type === "application/json" || file.name.endsWith(".json")) {
-		file.text().then((text) => {
-			try {
-				const data = JSON.parse(text)
-				previewData.value = validateRows(Array.isArray(data) ? data : [data])
-			} catch (e) {
-				showError("Invalid JSON file")
-			}
-		})
-	} else {
-		file
-			.text()
-			.then((text) => {
-				previewData.value = validateRows(parseCsv(text))
-			})
-			.catch((err) => {
-				showError(`ÙØ´Ù„ ØªØ­Ù„ÙŠÙ„ CSV: ${err.message}`)
-			})
+	const isJson =
+		file.type === "application/json" || /\.json$/i.test(file.name || "")
+	try {
+		const text = await readFileText(file)
+		if (isJson) {
+			const data = JSON.parse(text)
+			previewData.value = validateRows(Array.isArray(data) ? data : [data])
+		} else {
+			previewData.value = validateRows(parseCsv(text))
+		}
+	} catch (err) {
+		showError(
+			isJson ? "ملف JSON غير صالح" : `فشل تحليل CSV: ${err.message || err}`,
+		)
 	}
 }
 
 function parseCsv(text) {
 	const rows = []
-	const lines = String(text).replace(/^ï»¿/, "").split(/\r?\n/)
+	const lines = String(text).replace(/^﻿/, "").split(/\r?\n/)
 	if (!lines.length) return rows
 	const headers = splitCsvLine(lines[0]).map((h) => h.trim())
 	for (let i = 1; i < lines.length; i++) {
@@ -498,10 +554,10 @@ async function executeExport() {
 			mime,
 			`stock_count_${selectedCurrency.value}_${selectedUom.value}_${Date.now()}.${ext}`,
 		)
-		showSuccess("ØªÙ… ØªØµØ¯ÙŠØ± Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ø¬Ø±Ø¯ Ø¨Ù†Ø¬Ø§Ø­")
+		showSuccess("تم تصدير بيانات الجرد بنجاح")
 	} catch (error) {
 		log.error("Export failed", error)
-		showError(error.message || "ÙØ´Ù„ Ø§Ù„ØªØµØ¯ÙŠØ±")
+		showError(error.message || "فشل التصدير")
 	} finally {
 		exporting.value = false
 	}
@@ -509,31 +565,6 @@ async function executeExport() {
 
 async function handleImportClick() {
 	if (fileInput.value) fileInput.value.click()
-}
-
-async function loadHistory() {
-	historyLoading.value = true
-	try {
-		const jobs = await apiGet("/export/jobs", {
-			kind: "export",
-			entity: "stock",
-		})
-		importExportHistory.value = (
-			Array.isArray(jobs) ? jobs : jobs?.jobs || []
-		).map((j) => ({
-			id: j.id,
-			created_at: j.created_at || j.createdAt,
-			kind: "export",
-			entity: j.entity || "stock",
-			count: j.count ?? j.rows ?? 0,
-			status: j.status || "PENDING",
-			user: j.user || j.created_by || "-",
-		}))
-	} catch (error) {
-		log.error("Failed to load history", error)
-	} finally {
-		historyLoading.value = false
-	}
 }
 
 // Import functions (kept from original)
@@ -547,10 +578,10 @@ async function dryRunImport() {
 			JSON.stringify(validRows),
 			"application/json",
 		)
-		showSuccess(`Ù…Ø¹Ø§ÙŠÙ†Ø© Ù†Ø§Ø¬Ø­Ø©: ${validRows.length} ØµÙ ØµØ§Ù„Ø­`)
+		showSuccess(`معاينة ناجحة: ${validRows.length} صف صالح`)
 	} catch (error) {
 		log.error("Dry run failed", error)
-		showError(error.message || "ÙØ´Ù„Øª Ø§Ù„Ù…Ø¹Ø§ÙŠÙ†Ø©")
+		showError(error.message || "فشلت المعاينة")
 	} finally {
 		importing.value = false
 	}
@@ -574,13 +605,13 @@ async function executeImport() {
 		const validRows = previewData.value.filter((r) => r.valid).map(toApiRow)
 		const result = await apiPost("/import/stock", validRows)
 		showSuccess(
-			`ØªÙ… Ø§Ù„Ø§Ø³ØªÙŠØ±Ø§Ø¯: ${result.created ?? 0} Ø¬Ø¯ÙŠØ¯ØŒ ${result.updated ?? 0} Ù…Ø­Ø¯Ø«`,
+			`تم الاستيراد: ${result.created ?? 0} جديد، ${result.updated ?? 0} محدث`,
 		)
 		previewData.value = null
 		if (fileInput.value) fileInput.value.value = ""
 	} catch (error) {
 		log.error("Import failed", error)
-		showError(error.message || "ÙØ´Ù„ Ø§Ù„Ø§Ø³ØªÙŠØ±Ø§Ø¯")
+		showError(error.message || "فشل الاستيراد")
 	} finally {
 		importing.value = false
 	}

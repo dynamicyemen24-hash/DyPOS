@@ -112,6 +112,7 @@
 	/* خلفيات ناعمة للهوية */
 	--dy-primary-soft: var(--dy-accent-soft);
 	--dy-primary-softer: var(--dy-accent-subtle);
+	--dy-primary-subtle: var(--dy-accent-subtle);
 
 	/* النص/الأيقونة فوق primary */
 	--dy-primary-contrast: var(--dy-accent-foreground);

@@ -42,6 +42,7 @@ export const productSchema = z.object({
   barcode: z.string().trim().max(64).optional(),
   unitPrice: z.number().min(0).max(1_000_000).optional(),
   cost: z.number().min(0).max(1_000_000).optional(),
+  reorderPoint: z.number().min(0).max(1_000_000).optional(),
   taxRate: z.number().min(0).max(100).optional(),
   uom: z.string().trim().max(20).optional(),
   category: z.string().trim().max(64).optional(),

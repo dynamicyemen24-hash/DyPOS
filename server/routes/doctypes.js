@@ -27,6 +27,7 @@ export const DOCTYPES = {
       stock_uom: 'uom', image: 'image', item_group: 'category', brand: 'brand',
       barcode: 'barcode', disabled: 'is_active', is_stock_item: 'is_stock_item',
       valuation_rate: 'cost_price', standard_rate: 'unit_price',
+      reorder_point: 'reorder_point',
     },
     mapRow(r) {
       return {
@@ -35,6 +36,7 @@ export const DOCTYPES = {
         brand: r.brand || '', barcode: r.barcode || '',
         disabled: r.is_active === 0 ? 1 : 0, is_stock_item: r.is_stock_item ?? 1,
         valuation_rate: r.cost_price ?? 0, standard_rate: r.unit_price ?? 0,
+        reorder_point: r.reorder_point ?? 0,
         unit_price: r.unit_price ?? 0, cost_price: r.cost_price ?? 0,
         category: r.category || '', uom: r.uom || 'Unit', is_active: r.is_active,
         stock_qty: r.stock_qty ?? 0,

@@ -26,8 +26,6 @@ const props = defineProps({
 	},
 })
 
-const slots = useSlots()
-
 const numberColor = computed(() => `step-card-${props.color}`)
 const iconColor = computed(() => `step-card-${props.color}`)
 </script>

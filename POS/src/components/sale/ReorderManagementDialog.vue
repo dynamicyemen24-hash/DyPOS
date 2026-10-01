@@ -42,7 +42,27 @@
                 :placeholder="__('كل التصنيفات')"
                 class="w-48"
               />
+              <SelectInput
+                v-model="warehouseFilter"
+                :options="warehouseOptions"
+                :placeholder="__('اختر المستودع')"
+                class="w-48"
+              />
             </div>
+
+            <p
+              v-if="loadError"
+              role="alert"
+              class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+            >
+              {{ loadError }}
+            </p>
+            <p
+              v-if="truncated"
+              class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+            >
+              {{ __("تم عرض أول 5000 صنف مطابق فقط. استخدم البحث لتضييق النتائج.") }}
+            </p>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <KpiCard
@@ -72,11 +92,24 @@
                 :row-clickable="true"
                 @row-click="openReorderDetails"
               >
-                <template #col-qty="{ row }">
+                <template #col-available_qty="{ row }">
                   <div class="flex items-center gap-2">
-                    <span>{{ row.current_qty }}</span>
+                    <span>{{ row.available_qty }}</span>
+                    <span class="text-xs text-gray-500">{{ __("محجوز: {0}", [row.reserved_qty]) }}</span>
                     <span class="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded">حد: {{ row.reorder_point }}</span>
                   </div>
+                </template>
+                <template #col-reorder_point="{ row }">
+                  <input
+                    v-model.number="draftReorderPoints[row.id]"
+                    type="number"
+                    min="0"
+                    max="1000000"
+                    step="0.001"
+                    class="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
+                    :aria-label="__('حد إعادة الطلب لـ {0}', [row.name])"
+                    @click.stop
+                  />
                 </template>
                 <template #col-suggested_qty="{ row }">
                   <span :class="row.suggested_qty > 0 ? 'text-amber-600 font-medium' : ''">
@@ -87,6 +120,16 @@
                   <Badge :theme="getReorderStatusTheme(row.status)">{{ statusLabel(row.status) }}</Badge>
                 </template>
                 <template #col-actions="{ row }">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    :loading="savingItemId === row.id"
+                    :disabled="savingItemId === row.id || Number(draftReorderPoints[row.id] ?? row.reorder_point) === row.reorder_point"
+                    @click.stop="saveReorderPoint(row)"
+                    :aria-label="__('حفظ حد إعادة الطلب')"
+                  >
+                    <FeatherIcon name="check" class="w-4 h-4" />
+                  </Button>
                   <Button size="sm" variant="ghost" @click.stop="exportReorderRow(row)" :aria-label="__('تصدير')">
                     <FeatherIcon name="download" class="w-4 h-4" />
                   </Button>
@@ -102,7 +145,7 @@
             />
 
             <p v-if="!loading && !reorderItems.length" class="text-center text-sm text-gray-500 py-8">
-              {{ __("لا توجد أصناف تحت حد إعادة الطلب حاليًا") }}
+              {{ __("لا توجد أصناف مطابقة في هذا المستودع") }}
             </p>
           </div>
         </div>
@@ -112,16 +155,17 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from "vue"
-import { Badge, Button, FormControl, FeatherIcon } from "dypos-ui"
 import SelectInput from "@/components/common/SelectInput.vue"
+import KpiCard from "@/components/reports/ui/cards/KpiCard.vue"
 import ReportTable from "@/components/reports/ui/tables/ReportTable.vue"
 import Pagination from "@/components/ui/Pagination.vue"
-import KpiCard from "@/components/reports/ui/cards/KpiCard.vue"
 import { useToast } from "@/composables/useToast"
-import { apiGet } from "@/utils/restApi"
-import { logger } from "@/utils/logger"
 import { formatCurrencySafe } from "@/utils/currency"
+import { logger } from "@/utils/logger"
+import { apiGet, apiPatch } from "@/utils/restApi"
+import { Badge, Button, FeatherIcon, FormControl } from "dypos-ui"
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue"
+import { buildReorderPlan, summarizeReorderPlan } from "./reorderPlanning"
 
 const log = logger.create("ReorderManagementDialog")
 
@@ -142,14 +186,29 @@ const show = computed({
 
 const searchQuery = ref("")
 const filterCategory = ref("")
+const warehouseFilter = ref("")
 const pageSize = 50
 const currentPage = ref(1)
 const loading = ref(false)
 const reorderItems = ref([])
 const summary = ref({ belowReorder: 0, suggested: 0, reorderValue: 0 })
+const loadError = ref("")
+const truncated = ref(false)
+const savingItemId = ref(null)
+const draftReorderPoints = reactive({})
+let requestSequence = 0
+let searchTimer = null
 
 const categoryOptions = computed(() =>
 	props.categories.map((c) => ({ value: c, label: c })),
+)
+const warehouseOptions = computed(() =>
+	props.warehouses
+		.filter((warehouse) => warehouse?.id && warehouse.isActive !== false)
+		.map((warehouse) => ({
+			value: warehouse.id,
+			label: warehouse.name || warehouse.id,
+		})),
 )
 
 const reorderColumns = [
@@ -158,8 +217,8 @@ const reorderColumns = [
 	{ key: "category", label: "التصنيف", sortable: true },
 	{ key: "warehouse", label: "المستودع", sortable: true },
 	{
-		key: "current_qty",
-		label: "الكمية الحالية",
+		key: "available_qty",
+		label: "المتاح",
 		sortable: true,
 		format: "number",
 	},
@@ -194,7 +253,17 @@ function formatCurrency(amount) {
 }
 
 async function loadReorderData() {
+	const requestId = ++requestSequence
+	if (!warehouseFilter.value) {
+		reorderItems.value = []
+		summary.value = { belowReorder: 0, suggested: 0, reorderValue: 0 }
+		loadError.value = "تعذر تحميل اقتراحات التوريد: لا يوجد مستودع نشط محدد."
+		loading.value = false
+		return
+	}
 	loading.value = true
+	loadError.value = ""
+	truncated.value = false
 	try {
 		const all = []
 		let offset = 0
@@ -203,58 +272,62 @@ async function loadReorderData() {
 			const data = await apiGet("/products", {
 				limit: pageSizeApi,
 				offset,
-				warehouse: "W-01",
+				warehouse: warehouseFilter.value,
 				count: "false",
 				...(searchQuery.value ? { q: searchQuery.value } : {}),
 				...(filterCategory.value ? { category: filterCategory.value } : {}),
 			})
 			const rows = data?.products || []
 			all.push(...rows)
-			if (!data?.hasMore || rows.length === 0) break
+			if (!data?.hasMore || rows.length === 0) {
+				break
+			}
+			if (all.length >= 5000 && data?.hasMore) truncated.value = true
 			offset += rows.length
 		}
 
-		const items = all
-			.map((p) => {
-				const qty = Number(p.stock_qty) || 0
-				const reorderPoint = Math.max(Math.floor(qty * 0.3), 5)
-				const suggested = qty <= reorderPoint ? reorderPoint * 2 - qty : 0
-				const unitPrice = Number(p.unit_price) || 0
-				let status = "ok"
-				if (qty <= 0) status = "below_reorder"
-				else if (qty <= reorderPoint) status = "suggested"
-				return {
-					id: p.id,
-					code: p.code,
-					name: p.name_ar || p.name || p.code,
-					category: p.category || "",
-					warehouse: "W-01",
-					current_qty: qty,
-					reorder_point: reorderPoint,
-					suggested_qty: Math.max(0, suggested),
-					stock_value: qty * unitPrice,
-					status,
-				}
-			})
-			.filter((r) => r.status !== "ok")
-			.sort((a, b) => a.current_qty - b.current_qty)
+		if (requestId !== requestSequence) return
+		const warehouseName =
+			warehouseOptions.value.find(
+				(option) => option.value === warehouseFilter.value,
+			)?.label || warehouseFilter.value
+		const items = buildReorderPlan(all, warehouseName)
 
 		reorderItems.value = items
-		summary.value = {
-			belowReorder: items.filter((i) => i.status === "below_reorder").length,
-			suggested: items.filter((i) => i.suggested_qty > 0).length,
-			reorderValue: items.reduce(
-				(s, i) =>
-					s + i.suggested_qty * (i.stock_value / Math.max(i.current_qty, 1)),
-				0,
-			),
-		}
+		summary.value = summarizeReorderPlan(items)
+		for (const item of items) draftReorderPoints[item.id] = item.reorder_point
 		currentPage.value = 1
 	} catch (error) {
+		if (requestId !== requestSequence) return
 		log.error("Failed to load reorder data", error)
-		showError(error.message || "فشل تحميل بيانات إعادة الطلب")
+		loadError.value = error.message || "فشل تحميل بيانات إعادة الطلب"
+		showError(loadError.value)
 	} finally {
-		loading.value = false
+		if (requestId === requestSequence) loading.value = false
+	}
+}
+
+async function saveReorderPoint(row) {
+	const reorderPoint = Number(draftReorderPoints[row.id])
+	if (!Number.isFinite(reorderPoint) || reorderPoint < 0 || reorderPoint > 1_000_000) {
+		showError("يجب أن يكون حد إعادة الطلب رقمًا بين 0 و1,000,000.")
+		return
+	}
+	savingItemId.value = row.id
+	try {
+		await apiPatch(`/products/${encodeURIComponent(row.id)}`, {
+			reorderPoint,
+		})
+		row.reorder_point = reorderPoint
+		draftReorderPoints[row.id] = reorderPoint
+		showSuccess("تم حفظ حد إعادة الطلب")
+		emit("saved")
+		await loadReorderData()
+	} catch (error) {
+		log.error("Failed to save reorder point", error)
+		showError(error.message || "فشل حفظ حد إعادة الطلب")
+	} finally {
+		savingItemId.value = null
 	}
 }
 
@@ -264,6 +337,8 @@ function getReorderStatusTheme(status) {
 			return "red"
 		case "suggested":
 			return "amber"
+		case "unconfigured":
+			return "gray"
 		default:
 			return "green"
 	}
@@ -272,12 +347,13 @@ function getReorderStatusTheme(status) {
 function statusLabel(status) {
 	if (status === "below_reorder") return "تحت الحد"
 	if (status === "suggested") return "مقترح"
+	if (status === "unconfigured") return "غير مضبوط"
 	return "طبيعي"
 }
 
 function openReorderDetails(row) {
 	showSuccess(
-		`${row.name}: الكمية ${row.current_qty} / الحد ${row.reorder_point}`,
+		`${row.name}: المتاح ${row.available_qty} / حد إعادة الطلب ${row.reorder_point}`,
 	)
 }
 
@@ -287,9 +363,10 @@ function exportReorderList() {
 		"name",
 		"category",
 		"warehouse",
-		"current_qty",
+		"available_qty",
 		"reorder_point",
 		"suggested_qty",
+		"unit_cost",
 		"status",
 	]
 	const lines = [headers.join(",")]
@@ -300,11 +377,14 @@ function exportReorderList() {
 				r.name,
 				r.category,
 				r.warehouse,
-				r.current_qty,
+				r.available_qty,
 				r.reorder_point,
 				r.suggested_qty,
+				r.unit_cost,
 				r.status,
-			].join(","),
+			]
+				.map(csvCell)
+				.join(","),
 		)
 	}
 	const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" })
@@ -318,7 +398,21 @@ function exportReorderList() {
 }
 
 function exportReorderRow(row) {
-	const csv = `code,name,current_qty,reorder_point,suggested_qty,status\n${row.code},"${row.name}",${row.current_qty},${row.reorder_point},${row.suggested_qty},${row.status}`
+	const csv = [
+		["code", "name", "warehouse", "available_qty", "reorder_point", "suggested_qty", "unit_cost", "status"],
+		[
+			row.code,
+			row.name,
+			row.warehouse,
+			row.available_qty,
+			row.reorder_point,
+			row.suggested_qty,
+			row.unit_cost,
+			row.status,
+		],
+	]
+		.map((line) => line.map(csvCell).join(","))
+		.join("\n")
 	const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
 	const url = URL.createObjectURL(blob)
 	const a = document.createElement("a")
@@ -328,14 +422,38 @@ function exportReorderRow(row) {
 	URL.revokeObjectURL(url)
 }
 
-onMounted(loadReorderData)
+function csvCell(value) {
+	const text = String(value ?? "")
+	const safeText = /^[=+\-@]/.test(text) ? `'${text}` : text
+	return `"${safeText.replace(/"/g, '""')}"`
+}
 
-watch([searchQuery, filterCategory], () => {
+onMounted(() => {
+	if (show.value) loadReorderData()
+})
+
+watch([searchQuery, filterCategory, warehouseFilter], () => {
 	currentPage.value = 1
-	loadReorderData()
+	clearTimeout(searchTimer)
+	searchTimer = setTimeout(loadReorderData, 250)
 })
 
 watch(show, (val) => {
-	if (val) loadReorderData()
+	if (val) 	if (show.value) searchTimer = setTimeout(loadReorderData, 250)
+})
+
+watch(
+	warehouseOptions,
+	(options) => {
+		if (!options.some((option) => option.value === warehouseFilter.value)) {
+			warehouseFilter.value = options[0]?.value || ""
+		}
+	},
+	{ immediate: true },
+)
+
+onBeforeUnmount(() => {
+	clearTimeout(searchTimer)
+	requestSequence += 1
 })
 </script>

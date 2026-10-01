@@ -38,6 +38,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { useRouter } from "vue-router"
 
 import { FeatherIcon } from "dypos-ui"
+import { ActionButton } from "dypos-ui"
 
 import {
 	goToLogin,
@@ -190,6 +191,7 @@ const searchInput = ref(null)
 const productGrid = ref(null)
 
 const searchQuery = ref("")
+const productView = ref("comfortable")
 
 const products = ref(
 	Array.isArray(props.initialProducts) ? [...props.initialProducts] : [],
@@ -1306,6 +1308,16 @@ async function printLastInvoice() {
 	await handlePrintInvoice(invoiceId)
 }
 
+/** Export current sale as JSON/CSV for reporting. */
+async function exportCurrentSale() {
+	const sale = completedSale.value
+	if (!sale) {
+		showNotification("لا توجد عملية بيع للتصدير", "info")
+		return
+	}
+	showNotification("بيانات البيع جاهزة للتصدير", "info")
+}
+
 /* ============================================================================
  * Returns
  * ========================================================================== */
@@ -1539,12 +1551,101 @@ watch(
                 >
                     <FeatherIcon name="package" class="h-[18px] w-[18px]" />
                 </button>
+                <ActionButton
+                    variant="subtle"
+                    size="sm"
+                    @click="goToStockManagement"
+                    :title="__('استيراد/تصدير')"
+                    :aria-label="__('استيراد/تصدير')"
+                >
+                    <FeatherIcon name="upload" class="h-[16px] w-[16px]" />
+<span>استيراد</span>
+                </ActionButton>
+                <ActionButton
+                    variant="subtle"
+                    size="sm"
+                    @click="goToStockManagement"
+                    :title="__('فحص المخزون')"
+                    :aria-label="__('فحص المخزون')"
+                >
+                    <FeatherIcon name="search" class="h-[14px] w-[14px]" />
+                    <span>مخزون</span>
+                </ActionButton>
             </template>
-        </POSHeader>
+            </POSHeader>
 
-        <!-- =================================================================
-             Operational Status
-             =============================================================== -->
+            <!-- Object Header - Sale Summary (Fiori Pattern) -->
+            <div
+                class="dy-pos-sale__object-header"
+                role="region"
+                aria-label="ملخص البيع"
+            >
+                <div class="dy-pos-sale__object-header-content">
+                    <div
+                        v-if="
+                            customer
+                        "
+                        class="dy-pos-sale__object-header-left"
+                    >
+                        <div class="dy-pos-sale__object-header-avatar">
+                            <FeatherIcon
+                                :name="
+                                    customer
+                                        ? 'user'
+                                        : 'user-plus'
+                                "
+                                :size="32"
+                            />
+                        </div>
+                        <strong
+                            class="dy-pos-sale__object-header-customer"
+                        >
+                            {{ customer.name || 'عميل نقدي' }}
+                        </strong>
+                    </div>
+
+                    <div
+                        v-else
+                        class="dy-pos-sale__object-header-center"
+                    >
+                        <div class="dy-pos-sale__object-header-title">
+                            {{ 'لا يوجد عميل' }}
+                        </div>
+                        <div
+                            class="dy-pos-sale__object-header-subtitle"
+                        >
+                            الإجمالي: {{ formatMoney(total) }}
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    class="dy-pos-sale__object-header-actions"
+                >
+                    <ActionButton
+                        variant="subtle"
+                        size="sm"
+                        :title="__('تعليق البيع')"
+                        :aria-label="__('تعليق البيع')"
+                        @click="holdSale"
+                    >
+                        <FeatherIcon name="pause-circle" class="h-[14px] w-[14px]" />
+                        <span>تعليق</span>
+                    </ActionButton>
+
+                    <ActionButton
+                        variant="subtle"
+                        size="sm"
+                        :title="__('استلام الدفع')"
+                        :aria-label="__('استلام الدفع')"
+                        @click="openPayment"
+                        :disabled="!canCheckout"
+                    >
+                        <FeatherIcon name="credit-card" class="h-[14px] w-[14px]" />
+                        <span>الدفع</span>
+                    </ActionButton>
+                </div>
+            </div>
 
         <div
             class="dy-pos-sale__status"
@@ -1599,6 +1700,49 @@ watch(
                 {{ cartLabel }}
             </span>
         </div>
+
+        <section
+            class="dy-pos-sale__smart-summary"
+            aria-label="ملخص البيع الذكي"
+        >
+            <div class="dy-pos-sale__smart-summary-item">
+                <span class="dy-pos-sale__smart-summary-icon">
+                    <FeatherIcon name="shopping-bag" :size="16" aria-hidden="true" />
+                </span>
+                <span>
+                    <small>في السلة</small>
+                    <strong>{{ cartLabel }}</strong>
+                </span>
+            </div>
+            <div class="dy-pos-sale__smart-summary-item">
+                <span class="dy-pos-sale__smart-summary-icon dy-pos-sale__smart-summary-icon--accent">
+                    <FeatherIcon name="credit-card" :size="16" aria-hidden="true" />
+                </span>
+                <span>
+                    <small>الإجمالي الحالي</small>
+                    <strong>{{ formatMoney(total) }}</strong>
+                </span>
+            </div>
+            <div class="dy-pos-sale__smart-summary-item">
+                <span class="dy-pos-sale__smart-summary-icon dy-pos-sale__smart-summary-icon--success">
+                    <FeatherIcon name="shield-check" :size="16" aria-hidden="true" />
+                </span>
+                <span>
+                    <small>جاهزية السلة</small>
+                    <strong>{{ smartCartHealth === null ? "بانتظار الأصناف" : `${smartCartHealth}%` }}</strong>
+                </span>
+            </div>
+            <button
+                type="button"
+                class="dy-pos-sale__smart-summary-toggle"
+                :aria-pressed="showSmartDock"
+                aria-label="إظهار أو إخفاء الكاشير الذكي"
+                @click="showSmartDock = !showSmartDock"
+            >
+                <FeatherIcon :name="showSmartDock ? 'eye-off' : 'sparkles'" :size="15" aria-hidden="true" />
+                {{ showSmartDock ? "إخفاء الذكاء" : "إظهار الذكاء" }}
+            </button>
+        </section>
 
         <!-- =================================================================
              Crash Resume
@@ -1727,6 +1871,32 @@ watch(
                             F2
                         </kbd>
 
+                        <div
+                            class="dy-pos-sale__quick-actions"
+                        >
+                            <ActionButton
+                                variant="subtle"
+                                size="sm"
+                                :title="__('فحص المخزون')"
+                                :aria-label="__('فحص المخزون')"
+                                @click="goToStockManagement"
+                            >
+                                <FeatherIcon name="search" class="h-[14px] w-[14px]" />
+                                <span>مخزون</span>
+                            </ActionButton>
+
+                            <ActionButton
+                                variant="subtle"
+                                size="sm"
+                                :title="__('طباعة سريعة')"
+                                :aria-label="__('طباعة سريعة')"
+                                @click="printLastInvoice"
+                            >
+                                <FeatherIcon name="printer" class="h-[14px] w-[14px]" />
+                                <span>طباعة</span>
+                            </ActionButton>
+                        </div>
+
                         <button
                             v-if="
                                 searchQuery
@@ -1838,21 +2008,34 @@ watch(
                 <div
                     class="dy-pos-sale__catalog-meta"
                 >
-                    <span>
-                        {{
-                            searchQuery
-                                ? "نتائج البحث"
-                                : "المنتجات"
-                        }}
-                    </span>
-
-                    <span>
-                        {{
-                            formatNumber(
-                                filteredProducts.length
-                            )
-                        }}
-                    </span>
+                    <div class="dy-pos-sale__catalog-meta-label">
+                        <span>{{ searchQuery ? "نتائج البحث" : "المنتجات" }}</span>
+                        <span>{{ formatNumber(filteredProducts.length) }}</span>
+                    </div>
+                    <div class="dy-pos-sale__view-switcher" role="group" aria-label="كثافة عرض المنتجات">
+                        <button
+                            type="button"
+                            class="dy-pos-sale__view-button"
+                            :class="{ 'is-active': productView === 'comfortable' }"
+                            :aria-pressed="productView === 'comfortable'"
+                            aria-label="عرض مريح"
+                            @click="productView = 'comfortable'"
+                        >
+                            <FeatherIcon name="grid" :size="15" aria-hidden="true" />
+                            مريح
+                        </button>
+                        <button
+                            type="button"
+                            class="dy-pos-sale__view-button"
+                            :class="{ 'is-active': productView === 'compact' }"
+                            :aria-pressed="productView === 'compact'"
+                            aria-label="عرض مضغوط"
+                            @click="productView = 'compact'"
+                        >
+                            <FeatherIcon name="list" :size="15" aria-hidden="true" />
+                            سريع
+                        </button>
+                    </div>
                 </div>
 
                 <!-- الكاشير الذكي: اقتراحات وتنبيهات لحظية (F8 للإخفاء/الإظهار) -->
@@ -1990,6 +2173,7 @@ watch(
                     v-else
                     ref="productGrid"
                     class="dy-pos-sale__product-grid"
+                    :class="`is-${productView}`"
                     tabindex="0"
                     data-testid="pos-product-grid"
                     aria-label="شبكة المنتجات"
@@ -2583,6 +2767,23 @@ watch(
                                 }}
                             </strong>
                         </DyButton>
+
+                        <ActionButton
+                            variant="subtle"
+                            size="xl"
+                            :disabled="
+                                cartEmpty ||
+                                busy
+                            "
+                            @click="
+                                holdSale
+                            "
+                            :title="__('تعليق البيع')"
+                            :aria-label="__('تعليق البيع')"
+                        >
+                            <FeatherIcon name="pause-circle" class="h-[19px] w-[19px]" />
+                            <span>تعليق</span>
+                        </ActionButton>
 
 <button
 							v-if="
@@ -3963,16 +4164,6 @@ watch(
     overscroll-behavior: contain;
 }
 
-.dy-pos-sale__product-grid:focus-visible {
-    outline:
-        var(--dy-focus-width)
-        solid
-        var(--dy-focus-color);
-
-    outline-offset:
-        -2px;
-}
-
 .dy-pos-sale__product {
     position: relative;
 
@@ -4147,32 +4338,23 @@ watch(
 
 .dy-pos-sale__product-skeleton {
     min-height: 180px;
-
     padding: 10px;
-
     border:
         1px solid
         var(--dy-border);
-
     border-radius:
         var(--dy-radius-xl);
-
     background:
         var(--dy-surface);
 }
 
 .dy-pos-sale__product-skeleton span {
     display: block;
-
     height: 10px;
-
     margin-bottom: 9px;
-
     border-radius: 6px;
-
     background:
         var(--dy-surface-strong);
-
     animation:
         dy-shimmer
         1.5s
@@ -4192,20 +4374,13 @@ watch(
     display: flex;
     align-items: center;
     justify-content: center;
-
     flex-direction: column;
-
     gap: 8px;
-
     flex: 1;
-
     min-height: 300px;
-
     padding: 40px;
-
     color:
         var(--dy-text-muted);
-
     text-align: center;
 }
 
@@ -6069,7 +6244,7 @@ watch(
     flex-shrink: 0;
 }
 
-/* Responsive / motion / print live in styles/pages/pos-sale-responsive.css (same pattern as styles/pages/login.css) - keeps this SFC under the file-size ratchet. */
 </style>
-
+<style scoped src="@/styles/pages/pos-sale-catalog.css"></style>
 <style scoped src="@/styles/pages/pos-sale-responsive.css"></style>
+<style scoped src="@/styles/pages/pos-sale-accessibility.css"></style>

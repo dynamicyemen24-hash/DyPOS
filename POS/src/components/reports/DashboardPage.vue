@@ -29,6 +29,48 @@
     </template>
 
     <div>
+      <section class="dashboard-welcome" aria-labelledby="dashboard-welcome-title">
+        <div class="dashboard-welcome__content">
+          <span class="dashboard-welcome__eyebrow">
+            <FeatherIcon name="sunrise" :size="15" aria-hidden="true" />
+            {{ todayLabel }}
+          </span>
+          <h2 id="dashboard-welcome-title">مرحبًا بك في مركز التشغيل</h2>
+          <p>تابع أداء متجرك واتخذ الخطوة التالية من مكان واحد.</p>
+        </div>
+        <div class="dashboard-welcome__actions">
+          <button type="button" class="dashboard-action dashboard-action--primary" @click="goToPOS">
+            <FeatherIcon name="shopping-cart" :size="17" aria-hidden="true" />
+            بدء بيع جديد
+          </button>
+          <button type="button" class="dashboard-action" @click="goToStockManagement">
+            <FeatherIcon name="package" :size="17" aria-hidden="true" />
+            فحص المخزون
+          </button>
+        </div>
+      </section>
+
+      <div class="dashboard-shortcuts" aria-label="اختصارات التشغيل">
+        <div class="dashboard-shortcut">
+          <span class="dashboard-shortcut__icon dashboard-shortcut__icon--blue">
+            <FeatherIcon name="bar-chart-2" :size="17" aria-hidden="true" />
+          </span>
+          <span><strong>نظرة اليوم</strong><small>المبيعات والمؤشرات في تبويب التنفيذيين</small></span>
+        </div>
+        <div class="dashboard-shortcut">
+          <span class="dashboard-shortcut__icon dashboard-shortcut__icon--green">
+            <FeatherIcon name="wifi-off" :size="17" aria-hidden="true" />
+          </span>
+          <span><strong>جاهز للعمل دون اتصال</strong><small>تستمر المبيعات محليًا وتزامنها عند الطلب</small></span>
+        </div>
+        <div class="dashboard-shortcut">
+          <span class="dashboard-shortcut__icon dashboard-shortcut__icon--amber">
+            <FeatherIcon name="zap" :size="17" aria-hidden="true" />
+          </span>
+          <span><strong>بيع أسرع</strong><small>الاقتراحات الذكية تتعلم من مبيعات متجرك</small></span>
+        </div>
+      </div>
+
       <RecentInvoicesWidget :key="`recent-${period.refreshKey}`" />
       <div
         v-for="tab in dashboardTabs"
@@ -57,6 +99,7 @@
 <script setup>
 import { ref, computed, reactive, watch, onMounted } from "vue"
 import { useRoute, useRouter } from "vue-router"
+import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
 import { DASHBOARD_REGISTRY } from "./dashboards/index"
 import { provideDashboardPeriod } from "./dashboards/core/useDashboardSource"
@@ -66,7 +109,7 @@ import WorkShell from "@/components/work/WorkShell.vue"
 import WorkToolbar from "@/components/work/WorkToolbar.vue"
 import WorkTabs from "@/components/work/WorkTabs.vue"
 import WorkFilters from "@/components/work/WorkFilters.vue"
-import { goToPOS } from "@/router"
+import { goToPOS, goToStockManagement } from "@/router"
 
 const ARABIC_TITLES = {
 	"executive-dashboard": "لوحة التنفيذيين",
@@ -128,6 +171,13 @@ watch(
 	{ immediate: true },
 )
 const pageSubtitle = ref("الذكاء التجاري والتحليلات")
+const todayLabel = computed(() =>
+	new Intl.DateTimeFormat("ar-SA", {
+		weekday: "long",
+		day: "numeric",
+		month: "long",
+	}).format(new Date()),
+)
 
 const breadcrumbs = computed(() => [
 	{ label: "الرئيسية", to: { name: "POSSale" } },
@@ -180,6 +230,159 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.dashboard-welcome {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24px;
+	margin-bottom: 18px;
+	padding: 24px 28px;
+	border: 1px solid #dbeafe;
+	border-radius: 18px;
+	background: linear-gradient(115deg, #eff6ff 0%, #f8fafc 58%, #ecfeff 100%);
+}
+
+.dashboard-welcome__eyebrow {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	color: #2563eb;
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.dashboard-welcome h2 {
+	margin: 8px 0 4px;
+	color: #0f172a;
+	font-size: 24px;
+	font-weight: 800;
+}
+
+.dashboard-welcome p {
+	margin: 0;
+	color: #475569;
+	font-size: 13px;
+}
+
+.dashboard-welcome__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 9px;
+}
+
+.dashboard-action {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	min-height: 42px;
+	padding: 0 15px;
+	border: 1px solid #cbd5e1;
+	border-radius: 10px;
+	background: #fff;
+	color: #334155;
+	font-size: 13px;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.dashboard-action:hover {
+	border-color: #93c5fd;
+	background: #f8fafc;
+}
+
+.dashboard-action--primary {
+	border-color: #2563eb;
+	background: #2563eb;
+	color: #fff;
+}
+
+.dashboard-action--primary:hover {
+	background: #1d4ed8;
+}
+
+.dashboard-shortcuts {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 12px;
+	margin-bottom: 22px;
+}
+
+.dashboard-shortcut {
+	display: flex;
+	align-items: center;
+	gap: 11px;
+	min-height: 68px;
+	padding: 12px 14px;
+	border: 1px solid #e2e8f0;
+	border-radius: 13px;
+	background: #fff;
+}
+
+.dashboard-shortcut > span:last-child {
+	display: grid;
+	gap: 3px;
+}
+
+.dashboard-shortcut strong {
+	color: #1e293b;
+	font-size: 12px;
+}
+
+.dashboard-shortcut small {
+	color: #64748b;
+	font-size: 11px;
+	line-height: 1.45;
+}
+
+.dashboard-shortcut__icon {
+	display: grid;
+	flex: 0 0 34px;
+	width: 34px;
+	height: 34px;
+	place-items: center;
+	border-radius: 10px;
+}
+
+.dashboard-shortcut__icon--blue {
+	background: #dbeafe;
+	color: #2563eb;
+}
+
+.dashboard-shortcut__icon--green {
+	background: #dcfce7;
+	color: #16a34a;
+}
+
+.dashboard-shortcut__icon--amber {
+	background: #fef3c7;
+	color: #d97706;
+}
+
+@media (max-width: 760px) {
+	.dashboard-welcome {
+		align-items: stretch;
+		flex-direction: column;
+		padding: 20px;
+	}
+
+	.dashboard-welcome h2 {
+		font-size: 20px;
+	}
+
+	.dashboard-welcome__actions,
+	.dashboard-action {
+		width: 100%;
+	}
+
+	.dashboard-action {
+		justify-content: center;
+	}
+
+	.dashboard-shortcuts {
+		grid-template-columns: 1fr;
+	}
+}
+
 /* Ensure proper tab panel visibility */
 :host ::deep div[hidden] {
   display: none !important;

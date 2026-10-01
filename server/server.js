@@ -24,6 +24,7 @@ dotenv.config();
 import { migrate, db, checkDbHealth, } from './db/schema.js';
 import { assertDbModeSupported, describeDbMode, IS_READ_ONLY_REPLICA } from './db/mode.js';
 import { authMiddleware, isProduction } from './middleware/auth.js';
+import uploadsRouter from './middleware/uploads.js';
 import requirePrimary from './middleware/requirePrimary.js';
 import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
@@ -501,10 +502,8 @@ app.get('/admin', (_req, res) => {
 // Serve POS frontend (SPA) — Vite builds to POS/dist/pos
 const posDist = resolve(process.env.DYPOS_FRONTEND_DIST || join(__dirname, '..', 'POS', 'dist', 'pos'));
 // Method-router file uploads (upload_file method) → /uploads/*
-const uploadsDir = join(__dirname, 'uploads');
-if (existsSync(uploadsDir)) {
-  app.use('/uploads', express.static(uploadsDir, { maxAge: '1y', etag: true, index: false }));
-}
+// Auth-gated + image-extension allowlist + kill-switch CSP; see middleware/uploads.js.
+app.use('/uploads', uploadsRouter(join(__dirname, 'uploads')));
 if (existsSync(posDist)) {
   app.use(express.static(posDist, { maxAge: '1y', etag: true, index: false }));
   // Express 4+5 compatible SPA fallback (no '*' pattern)

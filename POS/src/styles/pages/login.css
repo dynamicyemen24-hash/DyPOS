@@ -38,9 +38,21 @@
 	background: var(--dy-surface-soft);
 	color: var(--dy-text);
 
+	/*
+	 * السمة اللغوية للخط.
+	 *
+	 * `--dy-font-arabic` يبدأ بـCairo: حروفه اللاتينية (Sign in, Wrong PIN)
+	 * أعرض وأثقل قليلًا، وهو فرق يُرى في حقل PIN المتباعد. عند `dir="ltr"`
+	 * ننتقل إلى `--dy-font-english` — وهو الخط نفسه الذي تستعمله بقية
+	 * شاشات التطبيق، فلا يُرسم نص لاتيني واحد بخط عربي.
+	 */
 	font-family: var(--dy-font-arabic);
 
 	isolation: isolate;
+}
+
+.dy-login[dir="ltr"] {
+	font-family: var(--dy-font-english);
 }
 
 /* =============================================================================
@@ -1304,102 +1316,6 @@
 }
 
 /* =============================================================================
-   Session Lock
-   ============================================================================= */
-
-.dy-login__lock {
-	position: fixed;
-	z-index: var(--dy-z-modal);
-
-	inset: 0;
-
-	display: grid;
-	place-items: center;
-
-	padding: var(--dy-space-6);
-
-	background: rgb(var(--dy-brand-c-950) / 0.72);
-
-	backdrop-filter: blur(10px);
-	-webkit-backdrop-filter: blur(10px);
-}
-
-.dy-login__lock-card {
-	width: min(100%, 420px);
-
-	padding: 28px;
-
-	border: 1px solid var(--dy-border);
-
-	border-radius: var(--dy-radius-2xl);
-
-	background: var(--dy-surface);
-
-	box-shadow: var(--dy-elevation-5);
-
-	text-align: center;
-
-	animation: dy-pop-in var(--dy-dur-moderate) var(--dy-ease-emphasized);
-}
-
-.dy-login__lock-icon {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-
-	width: 48px;
-	height: 48px;
-
-	margin-bottom: var(--dy-space-4);
-
-	border-radius: 14px;
-
-	background: rgb(var(--dy-brand-c-500) / 0.1);
-
-	color: var(--dy-accent);
-}
-
-.dy-login__lock-card h2 {
-	margin: 0;
-
-	color: var(--dy-text-strong);
-
-	font-size: 1.2rem;
-	font-weight: 800;
-}
-
-.dy-login__lock-card p {
-	margin: var(--dy-space-3) 0 var(--dy-space-6);
-
-	color: var(--dy-text-secondary);
-
-	font-size: 0.85rem;
-	line-height: 1.8;
-}
-
-/* Lock unlock form — the button used to submit nothing, so the card now
-   carries a real password field with its own inline validation message. */
-
-.dy-login__lock-form {
-	display: flex;
-	flex-direction: column;
-	gap: var(--dy-space-2);
-	text-align: start;
-}
-
-.dy-login__lock-form .dy-login__field-error {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-
-	margin: 0;
-}
-
-.dy-login__lock-submit {
-	margin-top: var(--dy-space-3);
-}
-
-/* =============================================================================
    Responsive
    ============================================================================= */
 
@@ -1511,8 +1427,7 @@
 	.dy-login__runtime,
 	.dy-login__error,
 	.dy-login__security,
-	.dy-login__panel-inner,
-	.dy-login__lock-card {
+	.dy-login__panel-inner {
 		border-color: CanvasText;
 	}
 
@@ -1562,8 +1477,7 @@
 	.dy-login__security,
 	.dy-login__footer,
 	.dy-login__register,
-	.dy-login__progress,
-	.dy-login__lock {
+	.dy-login__progress {
 		display: none !important;
 	}
 
@@ -1621,114 +1535,6 @@
 		color: var(--dy-text-strong);
 		font-size: 0.8rem;
 	}
-}
-
-/* =============================================================================
-   Session Timeout Warning
-   ============================================================================= */
-
-.dy-login__timeout {
-	position: fixed;
-	inset: 0;
-	z-index: var(--dy-z-toast);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-
-	padding: var(--dy-space-5);
-
-	background: rgb(var(--dy-brand-c-950) / 0.62);
-
-	backdrop-filter: blur(6px);
-	-webkit-backdrop-filter: blur(6px);
-}
-
-/*
- * `<Transition name="dy-fade">` wrapped this dialog and nothing in the repo
- * defined a single `.dy-fade-*` class, so the transition resolved to nothing
- * and the dialog simply blinked. Vue's four classes are the whole contract:
- * two for the active window, two for the ends.
- */
-.dy-fade-enter-active,
-.dy-fade-leave-active {
-	transition: opacity var(--dy-dur-moderate) var(--dy-ease-standard), transform
-		var(--dy-dur-moderate) var(--dy-ease-emphasized);
-}
-
-.dy-fade-enter-from,
-.dy-fade-leave-to {
-	opacity: 0;
-
-	transform: translateY(10px) scale(0.98);
-}
-
-.dy-login__timeout-card {
-	width: min(100%, 420px);
-
-	padding: 24px;
-
-	border: 1px solid var(--dy-border);
-
-	border-radius: var(--dy-radius-xl);
-
-	background: var(--dy-surface);
-
-	box-shadow: var(--dy-elevation-5);
-
-	text-align: center;
-
-	animation: dy-pop-in var(--dy-dur-moderate) var(--dy-ease-emphasized);
-}
-
-.dy-login__timeout-card h3 {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 8px;
-	margin: 0;
-	color: var(--dy-text-strong);
-	font-size: 1.1rem;
-	font-weight: 800;
-}
-
-.dy-login__timeout-card p {
-	margin: 12px 0;
-	color: var(--dy-text-secondary);
-	font-size: 0.9rem;
-	line-height: 1.8;
-}
-
-.dy-login__timeout-actions {
-	display: flex;
-	gap: 12px;
-	justify-content: center;
-	margin-top: 16px;
-}
-
-.dy-login__timeout-logout {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-
-	min-height: var(--dy-touch-min);
-
-	padding: 8px 16px;
-	border: 1px solid var(--dy-border);
-	border-radius: var(--dy-radius-lg);
-	background: transparent;
-	color: var(--dy-text-secondary);
-	font: inherit;
-	font-size: 0.85rem;
-	cursor: pointer;
-	transition: background-color var(--dy-dur-fast) var(--dy-ease-standard),
-		border-color var(--dy-dur-fast) var(--dy-ease-standard), color
-		var(--dy-dur-fast) var(--dy-ease-standard);
-}
-
-.dy-login__timeout-logout:hover {
-	background: var(--dy-surface);
-	border-color: var(--dy-crimson-500);
-	color: var(--dy-crimson-600);
 }
 
 /* =============================================================================
@@ -1866,11 +1672,6 @@
 	background: rgb(var(--dy-amber-c-500) / 0.12);
 	border-color: rgb(var(--dy-amber-c-500) / 0.3);
 	color: var(--dy-amber-400);
-}
-
-.dy-login--dark .dy-login__timeout-card {
-	background: var(--dy-surface);
-	box-shadow: var(--dy-elevation-5);
 }
 
 /* =============================================================================
@@ -2065,6 +1866,25 @@
 	margin: 0;
 
 	color: var(--dy-text-muted);
+	font-size: 0.76rem;
+	line-height: 1.6;
+}
+
+/*
+ * تلميح Caps Lock.
+ *
+ * لون `warning` لا لون الخطأ: القفلة ليست فشلًا، والرسالة تختفي بمجرد
+ * إطفائها. `margin-block-start` وحده: الحقل يتبعه مباشرة، والهوامش
+ * الأفقية (margin) تُفسد المحاذاة في الاتجاه المعاكس.
+ */
+.dy-login__caps-hint {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--dy-space-1);
+
+	margin-block-start: var(--dy-space-1);
+
+	color: var(--dy-warning, var(--dy-amber-600));
 	font-size: 0.76rem;
 	line-height: 1.6;
 }

@@ -171,6 +171,14 @@ async function initDB() {
 let serverOnline = true
 let manualOffline = false
 let csrfToken = null // CSRF token passed from main thread
+/**
+ * موافقة الربط — يدفعها الخيط الرئيسي (هذا السياق لا يملك localStorage، فقراءتها
+ * منه تعطي دائمًا `standalone`). الافتراضي `false`: العامل يقلّد الوضع المستقل
+ * حتى تصل الموافقة صراحة، فلا استطلاع شبكة في الإقلاع.
+ */
+let linkConsent = false
+/** مؤقّت استطلاع السيرفر — لا يُسلَّح أبدًا دون موافقة ربط. */
+let serverPingTimer = null
 
 // Display mode: controlled by POS Settings "Show Variants as Items" (default: off)
 // true = variants shown directly, templates hidden
@@ -340,6 +348,8 @@ function getMetrics() {
 
 // Ping server to check connectivity
 async function pingServer() {
+	// البوابة: لا fetch في الوضع المستقل — نُبقي آخر حالة معروفة كما هي.
+	if (!linkConsent) return serverOnline
 	try {
 		const controller = new AbortController()
 		const timeoutId = setTimeout(() => controller.abort(), 3000)
@@ -355,6 +365,34 @@ async function pingServer() {
 	} catch (error) {
 		serverOnline = false
 		return false
+	}
+}
+
+/**
+ * شغّل استطلاع السيرفر الدوري — يُستدعى فقط عند منح الموافقة.
+ * idempotent: نداء مكرر لا يضاعف المؤقّت.
+ */
+function startServerPingLoop() {
+	if (serverPingTimer) return
+	serverPingTimer = setInterval(async () => {
+		// سحب الموافقة أثناء العمل يوقف الحلقة عند الدورة التالية.
+		if (!linkConsent) {
+			stopServerPingLoop()
+			return
+		}
+		const isOnline = await pingServer()
+		self.postMessage({
+			type: "SERVER_STATUS_CHANGE",
+			payload: { serverOnline: isOnline, manualOffline },
+		})
+	}, 30000)
+}
+
+/** أوقف استطلاع السيرفر الدوري فورًا (سحب الموافقة / إنهاء العامل). */
+function stopServerPingLoop() {
+	if (serverPingTimer) {
+		clearInterval(serverPingTimer)
+		serverPingTimer = null
 	}
 }
 
@@ -1601,6 +1639,13 @@ async function performStockSync() {
 		return
 	}
 
+	// بوابة الموافقة: مزامنة المخزون fetch إلى السيرفر — مستقل بلا ربط لا يرسلها
+	// ولو كان المستخدم قد فعّل المؤقّت قبل سحب الموافقة.
+	if (!linkConsent) {
+		log.debug("Stock sync skipped: no link consent")
+		return
+	}
+
 	try {
 		stockSyncRunning = true
 		const startTime = Date.now()
@@ -1754,6 +1799,35 @@ self.onmessage = async (event) => {
 				csrfToken = payload.token
 				result = { success: true }
 				break
+
+			/**
+			 * موافقة الربط — القناة الوحيدة التي يسمح بها العامل بالشبكة.
+			 * المنح يشغّل الاستطلاع ويفحص مرة واحدة؛ السحب يوقف المؤقّت ويعيد
+			 * الحالة للافتراضي (بلا سيرفر معروف) بدل الاحتفاظ بمعرفة قديمة.
+			 * إعادة إرسال الموافقة دون تغيير لا تطلق ping — لا طلب بلا سبب.
+			 */
+			case "SET_LINK_CONSENT": {
+				const next = payload?.enabled === true
+				const changed = next !== linkConsent
+				const granted = next && changed
+				linkConsent = next
+				if (linkConsent) {
+					startServerPingLoop()
+				} else {
+					stopServerPingLoop()
+					if (changed) serverOnline = true
+				}
+				let isOnline = serverOnline
+				if (granted) isOnline = await pingServer()
+				if (changed) {
+					self.postMessage({
+						type: "SERVER_STATUS_CHANGE",
+						payload: { serverOnline: isOnline, manualOffline },
+					})
+				}
+				result = { success: true, linkConsent, serverOnline: isOnline }
+				break
+			}
 
 			case "PING_SERVER":
 				result = await pingServer()
@@ -1963,21 +2037,14 @@ async function initialize() {
 		await initDB()
 		log.info("Database ready")
 
-		// Start periodic server ping (every 30 seconds)
-		setInterval(async () => {
-			const isOnline = await pingServer()
-			self.postMessage({
-				type: "SERVER_STATUS_CHANGE",
-				payload: { serverOnline: isOnline, manualOffline },
-			})
-		}, 30000)
-
-		// Initial ping
-		const isOnline = await pingServer()
-
+		/**
+		 * لا استطلاع في الإقلاع: مؤقّت 30 ثانية وping فوري عند الـ boot كانا
+		 * يخرقان صفر-شبكة قبل أن يعلم أحد بالموافقة. الموافقة تصل لاحقًا عبر
+		 * SET_LINK_CONSENT (الخيط الرئيسي) وتبدأ الاستطلاع حينها.
+		 */
 		self.postMessage({
 			type: "WORKER_READY",
-			payload: { serverOnline: isOnline, manualOffline },
+			payload: { serverOnline, manualOffline, linkConsent },
 		})
 
 		log.success("Offline worker initialized and ready")

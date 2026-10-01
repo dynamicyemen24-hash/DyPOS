@@ -183,6 +183,14 @@ function applyEarlyApplicationState() {
 
 if (isBrowser) {
 	applyEarlyApplicationState()
+
+	// Apply design system CSS variables for theming
+	try {
+		const { applyCSSVariables } = await import("@/styles/design-tokens.js")
+		applyCSSVariables("dy")
+	} catch (error) {
+		log.warn("Design token initialization deferred", error)
+	}
 }
 
 /* =============================================================================

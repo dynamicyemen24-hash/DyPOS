@@ -4,6 +4,7 @@ import {
 	formatOfflineInvoiceNumber,
 	nextOfflineInvoiceNumber,
 	peekSequence,
+	scopedSequenceKey,
 	sequenceKey,
 	toYyyymmdd,
 } from "@/services/offline-numbering"
@@ -99,5 +100,80 @@ describe("offline numbering — الترقيم الأوفلاين المنظم",
 		await nextOfflineInvoiceNumber({ date, store })
 		expect(await peekSequence(yyyymmdd, store)).toBe(2)
 		expect(sequenceKey(yyyymmdd)).toBe("offlineInvoiceSeq:20260915")
+	})
+
+	// ── استقلالية الترقيم على مستوى كل نقطة بيع ──────────────────────────
+
+	it("كل فرع/طرفية على نفس الجهاز له عداد مستقل لا يتقاطع", async () => {
+		const date = new Date("2026-09-15T10:00:00")
+		const a1 = await nextOfflineInvoiceNumber({
+			branch: "RYD",
+			terminal: "T01",
+			date,
+			store,
+		})
+		const b1 = await nextOfflineInvoiceNumber({
+			branch: "AUH",
+			terminal: "T09",
+			date,
+			store,
+		})
+		const a2 = await nextOfflineInvoiceNumber({
+			branch: "RYD",
+			terminal: "T01",
+			date,
+			store,
+		})
+
+		expect(a1.seq).toBe(1)
+		expect(b1.seq).toBe(1)
+		expect(a2.seq).toBe(2)
+		expect(a1.invoiceNumber).not.toBe(b1.invoiceNumber)
+	})
+
+	it("مفتاح العداد يحمل الفرع والطرفية والتاريخ", () => {
+		expect(
+			scopedSequenceKey("20260915", { branch: "RYD", terminal: "T03" }),
+		).toBe("offlineInvoiceSeq:RYD:T03:20260915")
+		expect(
+			scopedSequenceKey("20260915", { branch: "BR", terminal: "T1" }),
+		).toBe("offlineInvoiceSeq:BR:T1:20260915")
+	})
+
+	it("وراثة العداد القديم: لا يعيد رقمًا سلّمه الجهاز قبل التحديث", async () => {
+		// جهاز سلّم 42 رقمًا بالصيغة القديمة (عداد عام بالتاريخ فقط)
+		await store.settings.put({
+			key: sequenceKey("20260915"),
+			value: 42,
+		})
+		const { seq } = await nextOfflineInvoiceNumber({
+			branch: "RYD",
+			terminal: "T03",
+			date: new Date("2026-09-15T10:00:00"),
+			store,
+		})
+		expect(seq).toBe(43)
+	})
+
+	it("نطاق لم يستخدم العداد القديم يبدأ من الصفر ولا يتأثر بفروع أخرى", async () => {
+		await store.settings.put({
+			key: sequenceKey("20260915"),
+			value: 10,
+		})
+		const legacy = await nextOfflineInvoiceNumber({
+			date: new Date("2026-09-15T10:00:00"),
+			store,
+		})
+		expect(legacy.seq).toBe(11)
+		// نطاق آخر يرث القيمة القديمة أيضًا (لا تكرار، والفجوة مقبولة)
+		const other = await nextOfflineInvoiceNumber({
+			branch: "AUH",
+			terminal: "T09",
+			date: new Date("2026-09-15T10:00:00"),
+			store,
+		})
+		expect(other.seq).toBe(11)
+		// ورقائمه مختلفة لأن الفرع/الطرفية مختلفتان
+		expect(other.invoiceNumber).not.toBe(legacy.invoiceNumber)
 	})
 })

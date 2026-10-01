@@ -15,6 +15,7 @@
  */
 
 import { logger } from "../logger"
+import { isLinkEnabled, subscribeLinkConsent } from "@/services/link-consent"
 
 const log = logger.create("OfflineState")
 
@@ -70,10 +71,16 @@ class NetworkMonitor {
 		this._backoffMultiplier = 1
 		this._tabVisible = true
 		this._broadcastChannel = null
+		this._consentWired = false
 	}
 
 	/**
 	 * Start monitoring network connectivity
+	 *
+	 * Starting the monitor is NOT a licence to talk to the network: in the
+	 * default standalone mode no ping is issued and no timer is armed. The
+	 * browser `online`/`offline` and visibility listeners stay live (they are
+	 * local signals, zero requests) so the UI keeps tracking the real link.
 	 */
 	start() {
 		if (this._isMonitoring) return
@@ -81,14 +88,47 @@ class NetworkMonitor {
 		this._isMonitoring = true
 		this._initBroadcastChannel()
 		this._initVisibilityListener()
+		this._wireConsent()
 
-		// Initial ping
-		this._performPing()
+		// صفر طلبات شبكة دون موافقة ربط صريحة.
+		if (isLinkEnabled()) {
+			// Initial ping + adaptive interval (linked mode only)
+			this._performPing()
+			this._scheduleNextPing()
+			log.info("Network monitor started")
+		} else {
+			log.info(
+				"Network monitor started in standalone mode — server pings await link consent",
+			)
+		}
+	}
 
-		// Start adaptive interval
-		this._scheduleNextPing()
+	/**
+	 * اربط الموافقة بالمحرك (مرة واحدة): المنح يشغّل الاستطلاع، والسحب يوقفه
+	 * فورًا ويلغي المؤقّت — لا استطلاع تلقائي بعد سحب الموافقة.
+	 */
+	_wireConsent() {
+		if (this._consentWired) return
+		this._consentWired = true
+		subscribeLinkConsent((mode) => {
+			if (!this._isMonitoring) return
+			if (mode === "linked") {
+				// تسليح المؤقّت فقط: المنح يعيد الاستطلاع في دورته التالية،
+				// لا بـ fetch متزامن في لحظة الكتابة نفسها.
+				this._scheduleNextPing()
+			} else {
+				this._haltPinging()
+				log.info("Link consent revoked — server pings stopped")
+			}
+		})
+	}
 
-		log.info("Network monitor started")
+	/** أوقف مؤقّت الاستطلاع دون إيقاف مراقبة الإشارة المحلية. */
+	_haltPinging() {
+		if (this._pingIntervalId) {
+			clearTimeout(this._pingIntervalId)
+			this._pingIntervalId = null
+		}
 	}
 
 	/**
@@ -97,10 +137,7 @@ class NetworkMonitor {
 	stop() {
 		this._isMonitoring = false
 
-		if (this._pingIntervalId) {
-			clearTimeout(this._pingIntervalId)
-			this._pingIntervalId = null
-		}
+		this._haltPinging()
 
 		if (this._broadcastChannel) {
 			this._broadcastChannel.close()
@@ -217,7 +254,11 @@ class NetworkMonitor {
 
 		if (this._pingIntervalId) {
 			clearTimeout(this._pingIntervalId)
+			this._pingIntervalId = null
 		}
+
+		// المؤقّت استطلاع تلقائي: لا يُسلَّح دون موافقة ربط.
+		if (!isLinkEnabled()) return
 
 		const interval = this._getNextInterval()
 		this._pingIntervalId = setTimeout(() => this._performPing(), interval)
@@ -228,6 +269,13 @@ class NetworkMonitor {
 	 */
 	async _performPing() {
 		if (!this._isMonitoring) return
+
+		// البوابة المطلقة: لا طلب شبكة في الوضع المستقل مهما كان مسار الاستدعاء
+		// (إقلاع، ظهور تبويب، حدث online، موافقة مُسحبَة في منتصف الدورة).
+		if (!isLinkEnabled()) {
+			this._haltPinging()
+			return
+		}
 
 		// Skip if manual offline mode
 		if (offlineState._manualOffline) {
@@ -341,7 +389,10 @@ class NetworkMonitor {
 	async checkNow() {
 		if (this._pingIntervalId) {
 			clearTimeout(this._pingIntervalId)
+			this._pingIntervalId = null
 		}
+		// طلب صريح من المستخدم/الواجهة — لا يتجاوز بوابة الموافقة.
+		if (!isLinkEnabled()) return
 		await this._performPing()
 	}
 

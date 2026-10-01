@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.42.0] - 2026-09-30 — التشغيل المستقل أولًا ومتغيرات الربط العامة
+
+### Added
+- **`POS/src/services/link-consent.js`**: عقد الربط كاملًا — الأوضاع
+  `auto`/`ask`/`off` لكل مُشغِّل (الافتراضي `off`)، مع `subscribeLinkConsent`
+  لإيقاف/تشغيل المحركات لحظيًا. لا طلب شبكة قبل الموافقة.
+- بوابة `POS/tests/standaloneBoot.test.js`: تفشل البناء عند أي فحص إقلاع أو
+  دفع تلقائي أو مؤقّت استطلاع أو إعادة اتصال بلا موافقة.
+- `npm run upstream`: بوابة وقت النشر لانقطاع API بدل heartbeat أحمر.
+
+### Changed
+- `POS/src/main.js`: إزالة فحص الإقلاع نهائيًا — وضع المستقل حالة محلية
+  خالصة (`isLinkEnabled()`)؛ CSRF والـsocket والمزامنة المنصة و.realtime SSE
+  وكل watchdog خلف الموافقة.
+- تثبيت إصدار الحافة للمصدر الوحيد (`server/lib/version.js`) عبر
+  `server/tests/worker-version.test.js`.
+
+### Docs
+- دستور **Offline-First المطلق**: `AGENTS.md` الثابت 8 ينص صراحةً على أن
+  الخادم اختياري وحصري للمزامنة، وأن أي ميزة/شاشة/بيع/طباعة/تقرير لا يجوز
+  أن يُعلَّق على توفره؛ أُضيفت NFR-OFF-001…004 إلى
+  `docs/FUNCTIONAL_NONFUNCTIONAL_REQUIREMENTS.md`، وأُعيدت كتابة
+  `docs/STARTUP_SEQUENCE.md` على تدفق الإقلاع المحلي الفعلي، وأُضيف قسم
+  `Server is optional (sync-only)` إلى `docs/OFFLINE_ARCHITECTURE.md`.
+
+### Gates
+`server 569/569 (173 مجموعة)` · `POS 1136/1136 (83 ملفًا)` · `parity ok` ·
+`method contract OK` · `biome 0 errors`.
+
 ## [1.41.2] - 2026-09-30 — التشغيل النهائي باسم المشترك رقم 1، وسداد ديون مُقاسة
 
 ### Added — `npm run e2e:yaqoub`: 17 فحصًا تشغيليًا باسم المدير البشري نفسه

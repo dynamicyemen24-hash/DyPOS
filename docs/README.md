@@ -23,19 +23,29 @@ Welcome to the DyPOS documentation directory. This folder contains comprehensive
 ### Roadmap
 - **[V2_PLAN.md](V2_PLAN.md)** - خطة الإصدار الثاني (ZATCA، لوحة التحليل، KDS، الدفعات الرقمية، Offline 2.0، الموثوقية)
 
-### Architecture
-- **[STARTUP_SEQUENCE.md](STARTUP_SEQUENCE.md)** - Application initialization flow
-  - PWA service worker registration
-  - Parallel authentication (CSRF + User)
-  - Bootstrap data preloading
-  - Performance optimizations
-  - Offline worker integration
+### Architecture (constitution — read first)
+- **[OFFLINE_ARCHITECTURE.md](OFFLINE_ARCHITECTURE.md)** - دستور Offline-First
+  - المبدأ: الخادم اختياري وحصري للمزامنة
+  - `Server is optional (sync-only)` — ما يفعله الخادم وما لا يفعله أبدًا
+  - تسلسل الإقلاع المحلي والمحظورات عند الإقلاع
+- **[FUNCTIONAL_NONFUNCTIONAL_REQUIREMENTS.md](FUNCTIONAL_NONFUNCTIONAL_REQUIREMENTS.md)** - المواصفة النظامية
+  - المتطلبات الوظيفية (بيع، مخزون، دفعات، مزامنة، ضرائب، تدقيق)
+  - NFR-OFF-001…004 — توفّر العمل دون شبكة (P0 مطلق)
+  - بوابات القبول في الإنتاج
+- **[COMPLIANCE_AND_STANDARDS_MATRIX.md](COMPLIANCE_AND_STANDARDS_MATRIX.md)** - مصفوفة المعايير
+- **[OFFLINE_ARCHITECTURE note]** سلامة النزاهة دون اتصال (معرّفات عمليات مستقرة)
+
+- **[STARTUP_SEQUENCE.md](STARTUP_SEQUENCE.md)** - Application initialization flow (offline-first)
+  - Local session resolution — no network request
+  - CSRF only when linked (`isLinkEnabled()`)
+  - Bootstrap data preloading (background, failure-tolerant)
+  - Consent-gated subsystems (sync, realtime, SSE, watchdog)
 
 - **[OFFLINE_SYNC.md](OFFLINE_SYNC.md)** - Offline invoice synchronization system
   - Architecture overview
   - Deduplication mechanism (offline_id)
   - Data flow diagrams
-  - API reference
+  - API reference (server/routes/method.js)
   - IndexedDB schema
   - Troubleshooting guide
 

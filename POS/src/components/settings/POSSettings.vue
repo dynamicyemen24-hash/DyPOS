@@ -1227,11 +1227,11 @@
 							</div>
 						</div>
 
-						<!-- Appearance Settings Section -->
 						<div
 							v-if="activeTab === 'appearance'"
 							class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
 						>
+							<IndustryProfilePicker class="m-6" />
 							<div :class="appearanceSectionClasses.header">
 								<div class="flex items-center justify-between">
 									<div class="flex items-center gap-3">
@@ -1533,6 +1533,7 @@
 import CheckboxField from "@/components/settings/CheckboxField.vue"
 import NumberField from "@/components/settings/NumberField.vue"
 import SelectField from "@/components/settings/SelectField.vue"
+import IndustryProfilePicker from "@/components/settings/IndustryProfilePicker.vue"
 import { useToast } from "@/composables/useToast"
 import { Button, call, createResource } from "dypos-ui"
 import { computed, onMounted, onUnmounted, ref, watch } from "vue"

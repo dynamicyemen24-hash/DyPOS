@@ -12,11 +12,14 @@ the regional display helpers that ship with it.
 
 ## Principles
 
-- **Financial truth is server-authoritative.** Every price/tax/total rendered
-  by the client is DISPLAY-ONLY. The crash draft stores the cashier's WORKING
-  state (items, quantities, payment-panel fields) — never an authoritative
-  total. On submit, the server recomputes pricing exactly as it would for any
-  other sale, so a resumed draft produces an identical, validated invoice.
+- **The same money rule computes the truth, online or offline.**
+  `server/lib/money.js#computeLineMinor` (mirrored in `POS/src/utils/money.js`)
+  is the single implementation — a resumed draft produces an identical,
+  validated invoice because the identical rule ran on the device. When a
+  backend is in the path, the server **recomputes on sync** and the two are
+  required to agree; offline, no server is needed for the total to be valid.
+  The crash draft stores the cashier's WORKING state (items, quantities,
+  payment-panel fields), never a rendered total.
 - **Never block the cashier.** The draft layer is fully offline-safe and never
   throws; a draft that fails validation is quietly discarded.
 - **Never double-prompt.** Crash-resume and the existing live-cart autosave
@@ -202,8 +205,9 @@ Wire the Intl formatters wherever raw `.toFixed()` / date strings are shown:
 - `formatDecimal` for quantities, `formatDate`/`formatDateTime` for stamps.
 - `normalizeNumeric` on the cashier keypad: folds `١٬٢٣٤٬٥٦٧٫٨٩` → `1234567.89`.
 - `resolveTaxDisplay` + `TAX_PROFILES` for inclusive/exclusive tax labels.
-  **These are presentation previews only — authoritative totals always arrive
-  from the server on submit.**
+  **These are presentation previews only - the total comes from the single
+  money rule, computed locally offline and re-validated server-side on sync
+  when a backend is in the path.**
 
 ---
 

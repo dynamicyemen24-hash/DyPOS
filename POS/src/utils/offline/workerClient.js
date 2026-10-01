@@ -6,6 +6,7 @@
 
 import { logger } from "../logger"
 import { offlineState } from "./offlineState"
+import { isLinkEnabled, subscribeLinkConsent } from "@/services/link-consent"
 
 const log = logger.create("OfflineWorker")
 
@@ -70,6 +71,9 @@ class OfflineWorkerClient {
 						serverOnline: payload.serverOnline,
 						manualOffline: payload.manualOffline || false,
 					})
+					// دفع الموافقة الحالية: العامل لا يملك localStorage، فيفترض
+					// `standalone` حتى يخبره الخيط الرئيسي بغير ذلك.
+					this.syncLinkConsent()
 					log.success("Offline worker ready", {
 						serverOnline: payload.serverOnline,
 					})
@@ -433,6 +437,19 @@ class OfflineWorkerClient {
 	}
 
 	// API Methods
+	/**
+	 * ادفع حالة الموافقة للعامل (لا يملك localStorage). نداء آمن بلا موافقة —
+	 * رسالة واحدة بلا fetch، والعامل هو من يقرر إن أطلق الاستطلاع.
+	 */
+	syncLinkConsent() {
+		if (!this.worker || this.workerCrashed) return Promise.resolve(false)
+		return this.sendMessage("SET_LINK_CONSENT", {
+			enabled: isLinkEnabled(),
+		})
+			.then(() => true)
+			.catch(() => false)
+	}
+
 	async pingServer() {
 		return this.sendMessage("PING_SERVER")
 	}
@@ -679,4 +696,9 @@ export const offlineWorker = new OfflineWorkerClient()
 // Initialize worker on import
 if (typeof window !== "undefined") {
 	offlineWorker.init()
+	// أي تغيّر في الموافقة يصل للعامل فورًا: المنح يشغّل الاستطلاع، والسحب
+	// يوقفه — الطرفان لا يبدؤان استطلاعًا بأثر يد واحد.
+	subscribeLinkConsent(() => {
+		void offlineWorker.syncLinkConsent()
+	})
 }

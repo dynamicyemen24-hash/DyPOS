@@ -10,125 +10,185 @@
 
 export const tokens = Object.freeze({
 	// ============================================================================
-	// COLOR — Semantic, accessible, RTL-aware
+	// COLOR — Semantic, accessible, RTL-aware, multi-design-system support
 	// ============================================================================
 	color: Object.freeze({
-		// Brand
-		brand: {
-			50: "#ecfdf5",
-			100: "#d1fae5",
-			200: "#a7f3d0",
-			300: "#6ee7b7",
-			400: "#34d399",
-			500: "#10b981", // Primary
-			600: "#059669", // Primary hover
-			700: "#047857",
-			800: "#065f46",
-			900: "#064e3b",
-			950: "#022c22",
-		},
-
-		// Semantic: Surface (backgrounds)
-		surface: {
-			base: "#ffffff", // Card, modal, panel
-			raised: "#ffffff", // Elevated surfaces
-			overlay: "#f8fafc", // Hover/active states
-			sunken: "#f1f5f9", // Input backgrounds
-			border: "#e2e8f0", // Dividers, borders
-			borderStrong: "#cbd5e1",
-		},
-
-		// Semantic: Text (WCAG AA contrast on surface.base)
-		text: {
-			primary: "#0f172a", // Headings, primary content
-			secondary: "#334155", // Body text
-			muted: "#64748b", // Captions, placeholders
-			disabled: "#94a3b8", // Disabled text
-			inverse: "#ffffff", // On dark/brand backgrounds
-			link: "#059669", // Links
-			linkHover: "#047857",
-		},
-
-		// Semantic: Status (color + accessible text pair)
-		status: {
-			info: {
-				bg: "#eff6ff",
-				border: "#bfdbfe",
-				text: "#1e40af",
-				icon: "#3b82f6",
-				weak: "#dbeafe",
-			},
-			success: {
-				bg: "#f0fdf4",
-				border: "#bbf7d0",
-				text: "#166534",
-				icon: "#10b981",
-				weak: "#dcfce7",
-			},
-			warning: {
-				bg: "#fffbeb",
-				border: "#fde68a",
-				text: "#92400e",
-				icon: "#f59e0b",
-				weak: "#fef3c7",
-			},
-			danger: {
-				bg: "#fef2f2",
-				border: "#fecaca",
-				text: "#991b1b",
-				icon: "#ef4444",
-				weak: "#fee2e2",
+		// --- SAP Fiori Design System Palette ---
+		fiori: {
+			// Fiori base colors (SAP standard)
+			blue: "#0066C4", // SAP Fiori Primary
+			lightBlue: "#007AC1",
+			darkBlue: "#0055A4",
+			silver: "#C1C1C1",
+			lightSilver: "#EBEBEB",
+			darkSilver: "#9B9B9B",
+			white: "#FFFFFF",
+			black: "#000000",
+			// High contrast support
+			highContrast: {
+				bg: "#000000",
+				fg: "#FFFFFF",
 			},
 		},
 
-		// Interactive states
-		interactive: {
-			primary: {
-				bg: "#059669",
-				bgHover: "#047857",
-				bgActive: "#065f46",
-				bgDisabled: "#a7f3d0",
-				text: "#ffffff",
-				textDisabled: "#ffffff",
+		// --- Material Design 3 Palette ---
+		m3: {
+			// M3 Primary colors
+			primary: "#1867C0", // M3 Primary
+			primaryContainer: "#E3F2FD",
+			onPrimary: "#FFFFFF",
+			onPrimaryContainer: "#0D47A1",
+			secondary: "#4FC3F7",
+			onSecondary: "#1A237E",
+			surface: "#FFFFFF",
+			onSurface: "#1A1A1A",
+			surfaceVariant: "#F2F2F2",
+			onSurfaceVariant: "#4A4A4A",
+			error: "#CF6679",
+			onError: "#FFFFFF",
+			errorContainer: "#EF9A9A",
+			onErrorContainer: "#7B1F20",
+		},
+
+		// --- Legacy / Base Palette (kept for backward compatibility) ---
+		base: {
+			// Brand
+			brand: {
+				50: "#ecfdf5",
+				100: "#d1fae5",
+				200: "#a7f3d0",
+				300: "#6ee7b7",
+				400: "#34d399",
+				500: "#10b981", // Primary
+				600: "#059669", // Primary hover
+				700: "#047857",
+				800: "#065f46",
+				900: "#064e3b",
+				950: "#022c22",
 			},
-			secondary: {
-				bg: "transparent",
-				bgHover: "#f1f5f9",
-				bgActive: "#e2e8f0",
-				bgDisabled: "transparent",
-				text: "#334155",
-				textDisabled: "#94a3b8",
-				border: "#e2e8f0",
-				borderHover: "#059669",
+
+			// Semantic: Surface (backgrounds)
+			surface: {
+				base: "#ffffff", // Card, modal, panel
+				raised: "#ffffff", // Elevated surfaces
+				overlay: "#f8fafc", // Hover/active states
+				sunken: "#f1f5f9", // Input backgrounds
+				border: "#e2e8f0", // Dividers, borders
+				borderStrong: "#cbd5e1",
 			},
-			ghost: {
-				bg: "transparent",
-				bgHover: "#f1f5f9",
-				bgActive: "#e2e8f0",
-				text: "#334155",
-				textDisabled: "#94a3b8",
+
+			// Semantic: Text (WCAG AA contrast on surface.base)
+			text: {
+				primary: "#0f172a", // Headings, primary content
+				secondary: "#334155", // Body text
+				muted: "#64748b", // Captions, placeholders
+				disabled: "#94a3b8", // Disabled text
+				inverse: "#ffffff", // On dark/brand backgrounds
+				link: "#059669", // Links
+				linkHover: "#047857",
 			},
-			danger: {
-				bg: "#ef4444",
-				bgHover: "#dc2626",
-				bgActive: "#b91c1c",
-				bgDisabled: "#fca5a5",
-				text: "#ffffff",
+
+			// Semantic: Status (color + accessible text pair)
+			status: {
+				info: {
+					bg: "#eff6ff",
+					border: "#bfdbfe",
+					text: "#1e40af",
+					icon: "#3b82f6",
+					weak: "#dbeafe",
+				},
+				success: {
+					bg: "#f0fdf4",
+					border: "#bbf7d0",
+					text: "#166534",
+					icon: "#10b981",
+					weak: "#dcfce7",
+				},
+				warning: {
+					bg: "#fffbeb",
+					border: "#fde68a",
+					text: "#92400e",
+					icon: "#f59e0b",
+					weak: "#fef3c7",
+					primarySubtle:
+						"bg-[var(--dy-primary-subtle)] text-[var(--dy-primary)] hover:bg-[var(--dy-primary)]",
+				},
+				danger: {
+					bg: "#fef2f2",
+					border: "#fecaca",
+					text: "#991b1b",
+					icon: "#ef4444",
+					weak: "#fee2e2",
+				},
+			},
+
+			// Interactive states
+			interactive: {
+				primary: {
+					bg: "#059669",
+					bgHover: "#047857",
+					bgActive: "#065f46",
+					bgDisabled: "#a7f3d0",
+					text: "#ffffff",
+					textDisabled: "#ffffff",
+					"--dy-primary-subtle": "#e2e8f0",
+				},
+				secondary: {
+					bg: "transparent",
+					bgHover: "#f1f5f9",
+					bgActive: "#e2e8f0",
+					bgDisabled: "transparent",
+					text: "#334155",
+					textDisabled: "#94a3b8",
+					border: "#e2e8f0",
+					borderHover: "#059669",
+				},
+				ghost: {
+					bg: "transparent",
+					bgHover: "#f1f5f9",
+					bgActive: "#e2e8f0",
+					text: "#334155",
+					textDisabled: "#94a3b8",
+				},
+				danger: {
+					bg: "#ef4444",
+					bgHover: "#dc2626",
+					bgActive: "#b91c1c",
+					bgDisabled: "#fca5a5",
+					text: "#ffffff",
+				},
+			},
+
+			// Focus ring (WCAG 2.4.7)
+			focus: {
+				ring: "#059669",
+				ringOffset: "#ffffff",
+				ringWidth: "2px",
+				ringOffsetWidth: "2px",
+			},
+
+			// Overlay / modal backdrop
+			overlay: {
+				backdrop: "rgba(15, 23, 42, 0.4)",
+				scrim: "rgba(0, 0, 0, 0.5)",
 			},
 		},
 
-		// Focus ring (WCAG 2.4.7)
-		focus: {
-			ring: "#059669",
-			ringOffset: "#ffffff",
-			ringWidth: "2px",
-			ringOffsetWidth: "2px",
-		},
-
-		// Overlay / modal backdrop
-		overlay: {
-			backdrop: "rgba(15, 23, 42, 0.4)",
-			scrim: "rgba(0, 0, 0, 0.5)",
+		// ============================================================================
+		// THEME SWITCHING — Active theme and CSS custom properties
+		// ============================================================================
+		theme: {
+			name: "dypos", // current theme: "dypos" | "fiori" | "m3"
+			mode: "light", // "light" | "dark" | "auto"
+			// Theme switch generates CSS vars for the active theme
+			switch: (newTheme) => {
+				const themeMap = {
+					fiori: "fiori",
+					m3: "m3",
+					dypos: "base",
+				}
+				document.documentElement.dataset.theme = themeMap[newTheme] || "dypos"
+			},
 		},
 	}),
 

@@ -15,6 +15,7 @@
 export { default as Alert } from "./src/components/Alert.vue"
 export { default as Badge } from "./src/components/Badge.vue"
 export { default as Button } from "./src/components/Button.vue"
+export { default as ActionButton } from "./src/components/ActionButton.vue"
 export { default as Card } from "./src/components/Card.vue"
 export { default as Checkbox } from "./src/components/Checkbox.vue"
 export { default as Dialog } from "./src/components/Dialog.vue"

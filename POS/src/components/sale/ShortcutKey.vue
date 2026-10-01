@@ -1,6 +1,6 @@
 <template>
   <div class="shortcut-key">
-    <kbd>{{ key }}</kbd>
+    <kbd>{{ combo }}</kbd>
     <span>{{ desc }}</span>
   </div>
 </template>
@@ -8,8 +8,10 @@
 <script setup>
 import { t } from "@/utils/translation"
 
+// `key` is a reserved Vue prop name — declaring it makes the prop never bind,
+// so <kbd> rendered empty. The shortcut combo has to be called something else.
 const props = defineProps({
-	key: { type: String, required: true },
+	combo: { type: String, required: true },
 	desc: { type: String, required: true },
 })
 </script>

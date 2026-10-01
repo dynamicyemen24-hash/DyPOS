@@ -33,6 +33,9 @@ import smartPortsBg from "@/assets/smart-ports-og.jpg"
 
 import ShiftOpeningDialog from "@/components/ShiftOpeningDialog.vue"
 import CompanyFooter from "@/components/common/CompanyFooter.vue"
+import LoginAppearanceBar from "@/components/common/LoginAppearanceBar.vue"
+import LoginSessionLockDialog from "@/components/common/LoginSessionLockDialog.vue"
+import LoginSessionTimeoutDialog from "@/components/common/LoginSessionTimeoutDialog.vue"
 import DyButton from "@/components/ui/DyButton.vue"
 import PasswordStrengthBar from "@/components/reports/dashboards/core/PasswordStrengthBar.vue"
 
@@ -55,6 +58,9 @@ import { useSecondsRemaining } from "@/composables/useSecondsRemaining"
 import { useRememberedEmail } from "@/composables/useRememberedEmail"
 import { useReducedMotion } from "@/composables/useReducedMotion"
 import { useMediaQuery } from "@/composables/useMediaQuery"
+import { useAppTheme } from "@/composables/useAppTheme"
+import { useLoginPreferences } from "@/composables/useLoginPreferences"
+import { useCapsLock } from "@/composables/useCapsLock"
 import {
 	useLoginRuntime,
 	attemptLocalLogin,
@@ -72,6 +78,7 @@ import {
 } from "@/composables/usePinAuthRules"
 
 import { cleanupUserSession, normalizeAuthError } from "@/utils/auth"
+import { __ } from "@/utils/translation"
 import {
 	handleAuthFailure,
 	handleAuthSuccess,
@@ -89,9 +96,18 @@ import {
 /** مدة الجلسة قبل التحذير — نفس القيمة التي يمررها useSessionTimeout. */
 const SESSION_DURATION_MS = 30 * 60 * 1000
 
-/** رسالة القفل بصيغة واحدة، ومكان واحد للعدّ التنازلي. */
+/**
+ * رسالة القفل بصيغة واحدة، ومكان واحد للعدّ التنازلي.
+ *
+ * `{0}` بدل `${…}`: النص المصدري العربي هو مفتاح القاموس، وحين تُترجَم
+ * الرسالة ينتقل الرقم معها (`Waiting 30 seconds` لا `30 Waiting seconds`).
+ */
 function rateLimitMessage(retryAfterMs) {
-	return `محاولات كثيرة جدًا. انتظر ${Math.ceil(Number(retryAfterMs || 0) / 1000)} ثانية ثم حاول مرة أخرى.`
+	const seconds = String(Math.ceil(Number(retryAfterMs || 0) / 1000))
+
+	return __("محاولات كثيرة جدًا. انتظر {0} ثانية ثم حاول مرة أخرى.", {
+		0: seconds,
+	})
 }
 
 /* ============================================================================
@@ -136,7 +152,12 @@ const emit = defineEmits(["authenticated", "ready", "error"])
  * Session Lock
  * ========================================================================== */
 
-const { isLocked: sessionLocked, unlock: unlockSession } = useSessionLock()
+/*
+ * القفل نفسه (الحقل، الخطأ، زر الفتح) في `LoginSessionLockDialog` — وهي
+ * حالة شاشة مستقلة تستهلك `useSessionLock` نفسه. هنا نحتاج القفل فقط
+ * لتعتيم اللوحة خلفه.
+ */
+const { isLocked: sessionLocked } = useSessionLock()
 
 /* ============================================================================
  * Form State
@@ -151,6 +172,9 @@ const emailInput = ref(null)
 const passwordInput = ref(null)
 
 const loginForm = ref(null)
+
+/** تلميح Caps Lock: يُحدَّث من الحدث نفسه، لا بمراقب دائم للمستند. */
+const { capsLockOn, trackCapsLock } = useCapsLock()
 
 /* ============================================================================
  * Runtime State
@@ -199,7 +223,7 @@ const sessionTimeout = useSessionTimeout({
 	onLogout: () => {
 		cleanupUserSession()
 		handleSessionExpiry()
-		loginError.value = "انتهت الجلسة. يرجى تسجيل الدخول مرة أخرى."
+		loginError.value = __("انتهت الجلسة. يرجى تسجيل الدخول مرة أخرى.")
 	},
 })
 
@@ -285,56 +309,65 @@ const canSubmit = computed(() => {
 	)
 })
 
+/*
+ * حالة بيئة التشغيل: جدول لا سلسلة `if`.
+ *
+ * كان كل حالة تُعيد كائنًا جديدًا من 39 سطرًا، وأربع تفاصيل اتصال في
+ * القالب كانت أربع نسخ من نفس البنية. الحالتان الآن صفّان في جدول واحد،
+ * والتسميات مفاتيح القاموس العربي: يتغيّر النص مع اللغة، ويبقى المنطق
+ * كما هو، ولا يمكن لصفّ أن يخرج عن شكل البنية الذي يرسمه القالب.
+ */
+const RUNTIME_STATUS_BY_STATE = {
+	failed: {
+		type: "error",
+		icon: "alert-circle",
+		label: "تعذر تجهيز بيئة التشغيل",
+	},
+	degraded: {
+		type: "warning",
+		icon: "wifi-off",
+		label: "سيتم المتابعة بوضع اتصال محدود",
+	},
+	ready: { type: "success", icon: "check-circle", label: "بيئة التشغيل جاهزة" },
+	preparing: { type: "info", icon: "loader", label: "جاري تجهيز بيئة التشغيل" },
+	unknown: { type: "neutral", icon: "shield", label: "بيئة التشغيل" },
+}
+
 const runtimeStatus = computed(() => {
-	if (runtimeState.value === "failed") {
-		return {
-			type: "error",
-			icon: "alert-circle",
-			label: "تعذر تجهيز بيئة التشغيل",
-		}
-	}
+	const row =
+		RUNTIME_STATUS_BY_STATE[runtimeState.value] ??
+		RUNTIME_STATUS_BY_STATE.unknown
 
-	if (runtimeState.value === "degraded") {
-		return {
-			type: "warning",
-			icon: "wifi-off",
-			label: "سيتم المتابعة بوضع اتصال محدود",
-		}
-	}
-
-	if (runtimeState.value === "ready") {
-		return {
-			type: "success",
-			icon: "check-circle",
-			label: "بيئة التشغيل جاهزة",
-		}
-	}
-
-	if (runtimeState.value === "preparing") {
-		return {
-			type: "info",
-			icon: "loader",
-			label: "جاري تجهيز بيئة التشغيل",
-		}
-	}
-
-	return {
-		type: "neutral",
-		icon: "shield",
-		label: "بيئة التشغيل",
-	}
+	return { ...row, label: __(row.label) }
 })
+
+/** تفاصيل التشغيل: صفّ واحد لكل إشارة، والقالب يرسمها بـ`v-for`. */
+const runtimeDetails = computed(() => [
+	{ label: __("الاتصال"), value: isOnline.value ? __("متصل") : __("غير متصل") },
+	{
+		label: __("الحماية"),
+		value: csrfReady.value ? __("جاهزة") : __("قيد التجهيز"),
+	},
+	{
+		label: __("الجلسة"),
+		value: sessionReady.value ? __("جاهزة") : __("غير مهيأة"),
+	},
+	{
+		label: __("التشغيل دون اتصال"),
+		value: offlineReady.value ? __("جاهز") : __("غير جاهز"),
+	},
+])
 
 const submitLabel = computed(() => {
 	if (isSubmitting.value) {
-		return "جاري تسجيل الدخول..."
+		return __("جاري تسجيل الدخول...")
 	}
 
 	if (authenticationCompleted.value) {
-		return "تم تسجيل الدخول"
+		return __("تم تسجيل الدخول")
 	}
 
-	return "تسجيل الدخول"
+	return __("تسجيل الدخول")
 })
 
 const contextTenantName = computed(
@@ -381,8 +414,25 @@ const contextItems = computed(() => {
  * ============================================================================ */
 
 const reducedMotion = useReducedMotion()
-const prefersDark = useMediaQuery("(prefers-color-scheme: dark)")
 const isMobile = useMediaQuery("(max-width: 768px)")
+
+/*
+ * السمة تتبع اختيار المستخدم، لا تفضيل نظام التشغيل وحده.
+ *
+ * كان `prefersDark` (استعلام وسائط) يقود صنف `dy-login--dark`، فكان جهازٌ
+ * اختار سمة فاتحة على نظام داكن يعرض لوحة الدخول داكنةً بينما تبقى بقية
+ * التطبيق فاتحة. `isDark` هو السمة المحسومة التي يطبّقها `useAppTheme` على
+ * `<html data-theme>`، فنطابقها بدل تخمينها من نظام التشغيل.
+ */
+const { isDark } = useAppTheme()
+
+/*
+ * `locale`/`dir` مربوطان على جذر الصفحة عمدًا: القاموس نفسه ليس تفاعليًا
+ * (`window.translatedMessages`)، فبدون رابط تفاعلي على هذه الصفحة لا تُعاد
+ * الرسمة عند تغيير اللغة — ولأن `en` و`id` كلاهما LTR، فالتبديل بينهما كان
+ * سيترك النص العربي على الشاشة. سطران يربطان الاتجاه ولغة الصفحة أيضًا.
+ */
+const { locale: preferencesLocale, dir: preferencesDir } = useLoginPreferences()
 
 /* ============================================================================
  * Password Strength
@@ -399,10 +449,10 @@ const passwordStrength = computed(() => {
 	if (/[^A-Za-z0-9]/.test(pwd)) score++
 
 	if (score <= 2)
-		return { level: score, label: "ضعيف", color: "var(--dy-crimson-600)" }
+		return { level: score, label: __("ضعيف"), color: "var(--dy-crimson-600)" }
 	if (score <= 3)
-		return { level: score, label: "متوسط", color: "var(--dy-amber-600)" }
-	return { level: score, label: "قوي", color: "var(--dy-mint-600)" }
+		return { level: score, label: __("متوسط"), color: "var(--dy-amber-600)" }
+	return { level: score, label: __("قوي"), color: "var(--dy-mint-600)" }
 })
 
 /* ============================================================================
@@ -564,7 +614,7 @@ async function bootstrapAuthenticatedSession() {
 	} catch (error) {
 		log.error("DyPOS session bootstrap failed", error)
 
-		loginError.value = "تم تسجيل الدخول، لكن تعذر تجهيز جلسة نقطة البيع."
+		loginError.value = __("تم تسجيل الدخول، لكن تعذر تجهيز جلسة نقطة البيع.")
 
 		emit("error", error)
 	}
@@ -646,49 +696,6 @@ function handleShiftCancel() {
 	shiftDialogOpen.value = false
 }
 
-/* ============================================================================
- * Session Recovery
- * ========================================================================== */
-
-const unlockPassword = ref("")
-const unlockError = ref("")
-const unlocking = ref(false)
-
-/**
- * فتح الجلسة المقفلة.
- *
- * `unlock()` تتحقق من كلمة المرور على الخادم (أو من الكاش المخزّن محلياً)،
- * فالزر القديم كان يناديها بلا وسيط — أي زر يرسم ولا يفعل شيئاً. الآن صار
- * خلفه حقل كلمة مرور حقيقي ورسالة خطأ من الـ composable نفسه.
- */
-async function handleSessionLock() {
-	if (unlocking.value) return
-
-	if (!unlockPassword.value) {
-		unlockError.value = "أدخل كلمة المرور لفتح الجلسة."
-		return
-	}
-
-	unlocking.value = true
-	unlockError.value = ""
-
-	try {
-		const result = await unlockSession(unlockPassword.value)
-
-		if (result?.success) {
-			unlockPassword.value = ""
-			return
-		}
-
-		unlockError.value = result?.error || "تعذر فتح الجلسة. حاول مرة أخرى."
-	} catch (error) {
-		log.warn("DyPOS session unlock failed", error)
-		unlockError.value = "تعذر فتح الجلسة. حاول مرة أخرى."
-	} finally {
-		unlocking.value = false
-	}
-}
-
 async function cleanup() {
 	try {
 		await cleanupUserSession?.()
@@ -709,9 +716,9 @@ const pinError = ref("")
 const pinSetupError = ref("")
 
 /** نصوص زر «إنشاء رمز دخول سريع» المعطّل: تلميح الفأرة قصير، والاسم الميسّر (aria-label) يشرح سبب التعطيل. */
-const PIN_DEVICE_HINT = "اضبط رمز دخول سريع لهذا الجهاز"
-const PIN_EMAIL_TOO_SHORT = "أدخل بريدك أولًا"
-const PIN_EMAIL_REQUIRED = "أدخل بريدك الإلكتروني أولًا لتمكين إنشاء رمز PIN"
+const PIN_DEVICE_HINT = __("اضبط رمز دخول سريع لهذا الجهاز")
+const PIN_EMAIL_TOO_SHORT = __("أدخل بريدك أولًا")
+const PIN_EMAIL_REQUIRED = __("أدخل بريدك الإلكتروني أولًا لتمكين إنشاء رمز PIN")
 
 /** هل واجهة PIN معروضة بدل نموذج كلمة المرور؟ */
 const pinModeActive = ref(false)
@@ -765,8 +772,9 @@ const pinConfirmInput = ref(null)
 
 async function handlePinLogin() {
 	if (!pinAvailable.value) {
-		pinError.value =
-			"لم يتم إعداد كود PIN بعد. يرجى تسجيل الدخول بكلمة المرور أولاً."
+		pinError.value = __(
+			"لم يتم إعداد كود PIN بعد. يرجى تسجيل الدخول بكلمة المرور أولاً.",
+		)
 		return
 	}
 
@@ -779,7 +787,7 @@ async function handlePinLogin() {
 		// بعده. العقد يُفحص هنا صراحةً.
 		const result = await attemptPinLogin(pinCode.value)
 		if (!result?.success) {
-			pinError.value = result?.error || "كود PIN غير صحيح"
+			pinError.value = result?.error || __("كود PIN غير صحيح")
 			return
 		}
 
@@ -788,7 +796,7 @@ async function handlePinLogin() {
 		await bootstrapAuthenticatedSession()
 	} catch (error) {
 		authenticationCompleted.value = false
-		pinError.value = error?.message || "كود PIN غير صحيح"
+		pinError.value = error?.message || __("كود PIN غير صحيح")
 		log.warn("DyPOS PIN authentication failed", error)
 		emit("error", error)
 	} finally {
@@ -814,7 +822,7 @@ async function handlePinSetup() {
 	const saved = await storePin(pinCode.value, email.value.trim(), PIN_EXPIRY_MS)
 
 	if (!saved) {
-		pinSetupError.value = "فشل إعداد كود PIN"
+		pinSetupError.value = __("فشل إعداد كود PIN")
 		log.error("DyPOS PIN setup failed")
 		return
 	}
@@ -972,9 +980,10 @@ function goToRegister() {
 			'dy-login--offline': isOfflineMode,
 			'dy-login--mobile': isMobile,
 			'dy-login--reduced-motion': reducedMotion,
-			'dy-login--dark': prefersDark,
+			'dy-login--dark': isDark,
 		}"
-		dir="rtl"
+		:dir="preferencesDir"
+		:lang="preferencesLocale"
 	>
 		<!-- Offline Indicator -->
 		<div
@@ -984,13 +993,13 @@ function goToRegister() {
 			aria-live="polite"
 		>
 			<FeatherIcon name="wifi-off" :size="16" aria-hidden="true" />
-			<span>وضع عدم الاتصال — سيتم تسجيل الدخول محليًا</span>
+			<span>{{ __('وضع عدم الاتصال — سيتم تسجيل الدخول محليًا') }}</span>
 		</div>
         <!-- =================================================================
              Brand / Context Panel
              =============================================================== -->
 
-        <section class="dy-login__brand" aria-label="هوية DyPOS">
+        <section class="dy-login__brand" :aria-label="__('هوية DyPOS')">
             <div class="dy-login__brand-overlay" />
 
             <div class="dy-login__brand-content">
@@ -1009,18 +1018,17 @@ function goToRegister() {
                     <span class="dy-login__eyebrow">
                         <span class="dy-login__eyebrow-dot" aria-hidden="true" />
 
-                        نقطة البيع الذكية
+                        {{ __('نقطة البيع الذكية') }}
                     </span>
 
                     <h1 class="dy-login__brand-title">
-                        بيع أسرع.
+                        {{ __('بيع أسرع.') }}
                         <br />
-                        تشغيل أذكى.
+                        {{ __('تشغيل أذكى.') }}
                     </h1>
 
                     <p class="dy-login__brand-description">
-                        تجربة نقطة بيع احترافية مصممة
-                        للتشغيل اليومي السريع والموثوق.
+                        {{ __('تجربة نقطة بيع احترافية مصممة للتشغيل اليومي السريع والموثوق.') }}
                     </p>
                 </div>
 
@@ -1032,7 +1040,7 @@ function goToRegister() {
                 <figure class="dy-login__brand-card">
                     <img
                         :src="smartPortsBg"
-                        alt="شركة المنافذ الذكية للبرمجيات — Smart Ports Software"
+                        :alt="__('شركة المنافذ الذكية للبرمجيات — Smart Ports Software')"
                         width="1200"
                         height="630"
                         decoding="async"
@@ -1047,7 +1055,7 @@ function goToRegister() {
                         contextItems.length
                     "
                     class="dy-login__context"
-                    aria-label="سياق التشغيل"
+                    :aria-label="__('سياق التشغيل')"
                 >
                     <div
                         v-for="item in contextItems"
@@ -1071,19 +1079,19 @@ function goToRegister() {
 
                 <div class="dy-login__brand-footer">
                     <span>
-                        تشغيل مؤسسي
+                        {{ __('تشغيل مؤسسي') }}
                     </span>
 
                     <span class="dy-login__brand-dot" aria-hidden="true" />
 
                     <span>
-                        جاهز للتوسع
+                        {{ __('جاهز للتوسع') }}
                     </span>
 
                     <span class="dy-login__brand-dot" aria-hidden="true" />
 
                     <span>
-                        عربي أولاً
+                        {{ __('عربي أولاً') }}
                     </span>
                 </div>
             </div>
@@ -1122,15 +1130,15 @@ function goToRegister() {
 
                     <div>
                         <span class="dy-login__section-label">
-                            تسجيل الدخول
+                            {{ __('تسجيل الدخول') }}
                         </span>
 
                         <h2 class="dy-login__title">
-                            مرحبًا بك
+                            {{ __('مرحبًا بك') }}
                         </h2>
 
                         <p class="dy-login__subtitle">
-                            سجّل الدخول للمتابعة إلى نقطة البيع.
+                            {{ __('سجّل الدخول للمتابعة إلى نقطة البيع.') }}
                         </p>
                     </div>
                 </header>
@@ -1175,9 +1183,9 @@ function goToRegister() {
                         type="button"
                         class="dy-login__runtime-action"
                         @click="prepareRuntime"
-                        aria-label="إعادة محاولة الاتصال بالخادم"
+                        :aria-label="__('إعادة محاولة الاتصال بالخادم')"
                     >
-                        إعادة المحاولة
+                        {{ __('إعادة المحاولة') }}
                     </button>
                 </section>
 
@@ -1198,13 +1206,13 @@ function goToRegister() {
 
                     <div class="dy-login__rate-limit-content">
                         <strong>
-                            تم قفل المؤقت
+                            {{ __('تم قفل المؤقت') }}
                         </strong>
 
                         <span>
-                            المحاولة بعد
+                            {{ __("المحاولة بعد") }}
                             {{ retryAfterSeconds }}
-                            ثانية
+                            {{ __("ثانية") }}
                         </span>
                     </div>
                 </div>
@@ -1227,7 +1235,7 @@ function goToRegister() {
 
                     <div class="dy-login__error-content">
                         <strong>
-                            تعذر تسجيل الدخول
+                            {{ __('تعذر تسجيل الدخول') }}
                         </strong>
 
                         <span>
@@ -1238,8 +1246,8 @@ function goToRegister() {
                     <button
                         type="button"
                         class="dy-login__error-close"
-                        aria-label="إغلاق رسالة الخطأ"
-                        title="إغلاق"
+                        :aria-label="__('إغلاق رسالة الخطأ')"
+                        :title="__('إغلاق')"
                         @click="clearLoginError"
                     >
                         <FeatherIcon
@@ -1271,7 +1279,7 @@ function goToRegister() {
                             for="dypos-pin-code"
                             class="dy-login__label"
                         >
-                            {{ pinAvailable ? "كود الدخول السريع" : "لا يوجد رمز محفوظ" }}
+                            {{  pinAvailable ? "__('كود الدخول السريع')" : "__('لا يوجد رمز محفوظ')"  }}
                         </label>
 
                         <div
@@ -1323,8 +1331,12 @@ function goToRegister() {
                             v-else
                             class="dy-login__hint"
                         >
-                            أدخل رمز الدخول السريع (من {{ PIN_MIN_LENGTH }} إلى
-                            {{ PIN_MAX_LENGTH }} خانات)
+                            {{
+                                __("أدخل رمز الدخول السريع (من {0} إلى {1} خانات)", {
+                                    0: String(PIN_MIN_LENGTH),
+                                    1: String(PIN_MAX_LENGTH),
+                                })
+                            }}
                         </p>
                     </div>
 
@@ -1343,16 +1355,16 @@ function goToRegister() {
                             :size="18"
                             aria-hidden="true"
                         />
-                        دخول سريع
+                        {{ __('دخول سريع') }}
                     </DyButton>
 
                     <button
                         type="button"
                         class="dy-login__link-button"
                         @click="exitPinMode"
-                        aria-label="العودة لتسجيل الدخول بكلمة المرور"
+                        :aria-label="__('العودة لتسجيل الدخول بكلمة المرور')"
                     >
-                        الدخول بكلمة المرور
+                        {{ __('الدخول بكلمة المرور') }}
                     </button>
                 </form>
 
@@ -1372,7 +1384,7 @@ function goToRegister() {
                             for="dypos-login-email"
                             class="dy-login__label"
                         >
-                            البريد الإلكتروني
+                            {{ __('البريد الإلكتروني') }}
                         </label>
 
                         <div
@@ -1411,7 +1423,7 @@ function goToRegister() {
                             aria-live="polite"
                         >
                             <FeatherIcon name="alert-circle" :size="14" aria-hidden="true" />
-                            البريد الإلكتروني مطلوب
+                            {{ __('البريد الإلكتروني مطلوب') }}
                         </span>
                     </div>
 
@@ -1425,7 +1437,7 @@ function goToRegister() {
                                 for="dypos-login-password"
                                 class="dy-login__label"
                             >
-                                كلمة المرور
+                                {{ __('كلمة المرور') }}
                             </label>
 
                             <span
@@ -1442,7 +1454,7 @@ function goToRegister() {
                             v-if="password.value"
                             :password="password"
                             :show-label="false"
-                            aria-label="قوة كلمة المرور"
+                            :aria-label="__('قوة كلمة المرور')"
                         />
 
                         <div
@@ -1468,12 +1480,14 @@ function goToRegister() {
                                 "
                                 autocomplete="current-password"
                                 dir="ltr"
-                                placeholder="أدخل كلمة المرور"
+                                :placeholder="__('أدخل كلمة المرور')"
                                 :disabled="isSubmitting"
                                 required
                                 :aria-invalid="!!(!password.value && isSubmitting)"
                                 aria-describedby="dypos-login-password-error"
                                 @input="clearLoginError"
+                                @keydown="trackCapsLock"
+                                @keyup="trackCapsLock"
                             />
 
                             <button
@@ -1481,8 +1495,8 @@ function goToRegister() {
                                 class="dy-login__password-toggle"
                                 :aria-label="
                                     showPassword
-                                        ? 'إخفاء كلمة المرور'
-                                        : 'إظهار كلمة المرور'
+                                        ? __('إخفاء كلمة المرور')
+                                        : __('إظهار كلمة المرور')
                                 "
                                 :aria-pressed="showPassword"
                                 :disabled="isSubmitting"
@@ -1510,7 +1524,26 @@ function goToRegister() {
                             aria-live="polite"
                         >
                             <FeatherIcon name="alert-circle" :size="14" aria-hidden="true" />
-                            كلمة المرور مطلوبة
+                            {{ __('كلمة المرور مطلوبة') }}
+                        </span>
+
+                        <!-- Caps Lock: يُقرأ من الحدث لا من مؤقّت، ويختفي فور
+                             إطفائه. وسم `aria-live="polite"` كي يسمعه قارئ
+                             الشاشة أثناء الكتابة دون مقاطعة التركيز. -->
+
+                        <span
+                            v-if="capsLockOn"
+                            class="dy-login__caps-hint"
+                            role="status"
+                            aria-live="polite"
+                        >
+                            <FeatherIcon
+                                name="alert-circle"
+                                :size="14"
+                                aria-hidden="true"
+                            />
+
+                            {{ __("Caps Lock مُفعّل") }}
                         </span>
                     </div>
 
@@ -1535,7 +1568,7 @@ function goToRegister() {
                             />
 
                             <span>
-                                تذكر البريد الإلكتروني
+                                {{ __('تذكر البريد الإلكتروني') }}
                             </span>
                         </label>
 
@@ -1544,7 +1577,7 @@ function goToRegister() {
                             class="dy-login__forgot"
                             @click.prevent="goToForgotPassword"
                         >
-                            نسيت كلمة المرور؟
+                            {{ __('نسيت كلمة المرور؟') }}
                         </a>
                     </div>
 
@@ -1601,14 +1634,14 @@ function goToRegister() {
                         type="button"
                         class="dy-login__link-button"
                         @click="enterPinMode"
-                        aria-label="التبديل لتسجيل الدخول السريع برمز PIN"
+                        :aria-label="__('التبديل لتسجيل الدخول السريع برمز PIN')"
                     >
                         <FeatherIcon
                             name="zap"
                             :size="15"
                             aria-hidden="true"
                         />
-                        دخول سريع برمز PIN
+                        {{ __('دخول سريع برمز PIN') }}
                     </button>
 
                     <button
@@ -1625,7 +1658,7 @@ function goToRegister() {
                             :size="15"
                             aria-hidden="true"
                         />
-                        إنشاء رمز دخول سريع
+                        {{ __('إنشاء رمز دخول سريع') }}
                     </button>
 
                     <button
@@ -1633,9 +1666,9 @@ function goToRegister() {
                         type="button"
                         class="dy-login__link-button dy-login__link-button--quiet"
                         @click="handleClearPin"
-                        aria-label="إلغاء رمز الدخول السريع المحفوظ"
+                        :aria-label="__('إلغاء رمز الدخول السريع المحفوظ')"
                     >
-                        إلغاء الرمز
+                        {{ __('إلغاء الرمز') }}
                     </button>
                 </div>
 
@@ -1652,12 +1685,15 @@ function goToRegister() {
                         id="dypos-pin-setup-title"
                         class="dy-login__pin-setup-title"
                     >
-                        إنشاء رمز دخول سريع
+                        {{ __('إنشاء رمز دخول سريع') }}
                     </h3>
 
                     <p class="dy-login__hint">
-                        يُحفظ الرمز مشفّرًا على هذا الجهاز فقط، ويصالح
-                        {{ PIN_EXPIRY_MS / 60000 }} دقيقة. لا يمكن استعادته إن فُقد.
+                        {{
+                            __("يُحفظ الرمز مشفّرًا على هذا الجهاز فقط، ويصالح {0} دقيقة. لا يمكن استعادته إن فُقد.", {
+                                0: String(PIN_EXPIRY_MS / 60000),
+                            })
+                        }}
                     </p>
 
                     <form
@@ -1670,7 +1706,7 @@ function goToRegister() {
                                 for="dypos-pin-new"
                                 class="dy-login__label"
                             >
-                                الرمز الجديد
+                                {{ __('الرمز الجديد') }}
                             </label>
 
                             <input
@@ -1692,7 +1728,7 @@ function goToRegister() {
                                 for="dypos-pin-confirm"
                                 class="dy-login__label"
                             >
-                                تأكيد الرمز
+                                {{ __('تأكيد الرمز') }}
                             </label>
 
                             <input
@@ -1731,16 +1767,16 @@ function goToRegister() {
                                 size="sm"
                                 :disabled="pinCode.length < PIN_MIN_LENGTH"
                             >
-                                حفظ الرمز
+                                {{ __('حفظ الرمز') }}
                             </DyButton>
 
                             <button
                                 type="button"
                                 class="dy-login__link-button"
                                 @click="cancelPinSetup"
-                        aria-label="إلغاء إعداد رمز PIN"
+                        :aria-label="__('إلغاء إعداد رمز PIN')"
                     >
-                                إلغاء
+                                {{ __('إلغاء') }}
                             </button>
                         </div>
                     </form>
@@ -1750,7 +1786,7 @@ function goToRegister() {
 
                 <aside
                     class="dy-login__security"
-                    aria-label="معلومات الأمان والتشغيل"
+                    :aria-label="__('معلومات الأمان والتشغيل')"
                 >
                     <div class="dy-login__security-main">
                         <span class="dy-login__security-icon" aria-hidden="true">
@@ -1762,11 +1798,11 @@ function goToRegister() {
 
                         <div>
                             <strong>
-                                جلسة تشغيل آمنة
+                                {{ __('جلسة تشغيل آمنة') }}
                             </strong>
 
                             <span>
-                                تتم حماية الاتصال وتهيئة الجلسة قبل بدء التشغيل.
+                                {{ __('تتم حماية الاتصال وتهيئة الجلسة قبل بدء التشغيل.') }}
                             </span>
                         </div>
                     </div>
@@ -1783,62 +1819,25 @@ function goToRegister() {
                         "
                         :aria-label="
                             showRuntimeDetails
-                                ? 'إخفاء تفاصيل الاتصال'
-                                : 'عرض تفاصيل الاتصال'
+                                ? __('إخفاء تفاصيل الاتصال')
+                                : __('عرض تفاصيل الاتصال')
                         "
                     >
-                        التفاصيل
+                        {{ __('التفاصيل') }}
                     </button>
 
                     <div
                         v-if="showRuntimeDetails"
                         class="dy-login__details"
                     >
-                        <div>
-                            <span>الاتصال</span>
+                        <div
+                            v-for="detail in runtimeDetails"
+                            :key="detail.label"
+                        >
+                            <span>{{ detail.label }}</span>
 
                             <strong>
-                                {{
-                                    isOnline
-                                        ? "متصل"
-                                        : "غير متصل"
-                                }}
-                            </strong>
-                        </div>
-
-                        <div>
-                            <span>الحماية</span>
-
-                            <strong>
-                                {{
-                                    csrfReady
-                                        ? "جاهزة"
-                                        : "قيد التجهيز"
-                                }}
-                            </strong>
-                        </div>
-
-                        <div>
-                            <span>الجلسة</span>
-
-                            <strong>
-                                {{
-                                    sessionReady
-                                        ? "جاهزة"
-                                        : "غير مهيأة"
-                                }}
-                            </strong>
-                        </div>
-
-                        <div>
-                            <span>التشغيل دون اتصال</span>
-
-                            <strong>
-                                {{
-                                    offlineReady
-                                        ? "جاهز"
-                                        : "غير جاهز"
-                                }}
+                                {{ detail.value }}
                             </strong>
                         </div>
                     </div>
@@ -1846,62 +1845,28 @@ function goToRegister() {
 
                 <!-- Session Timeout Warning -->
 
-                <Transition name="dy-fade">
-                    <div
-                        v-if="showSessionWarning"
-                        class="dy-login__timeout"
-                        role="alertdialog"
-                        aria-modal="true"
-                        aria-labelledby="dy-timeout-title"
-                    >
-                        <div class="dy-login__timeout-card">
-                            <h3 id="dy-timeout-title">
-                                <FeatherIcon
-                                    name="clock"
-                                    :size="20"
-                                    aria-hidden="true"
-                                />
-                                ستنتهي الجلسة قريباً
-                            </h3>
-
-                            <p>
-                                يتبقى
-                                {{ sessionSecondsLeft }}
-                                ثانية. هل تريد تمديد الجلسة؟
-                            </p>
-
-                            <div class="dy-login__timeout-actions">
-                                <DyButton
-                                    variant="primary"
-                                    size="sm"
-                                    :loading="isExtendingSession"
-                                    @click="extendSession()"
-                                >
-                                    تمديد الجلسة
-                                </DyButton>
-
-                                <button
-                                    type="button"
-                                    class="dy-login__timeout-logout"
-                                    @click="dismissWarning"
-                                    aria-label="تسجيل الخروج وإنهاء الجلسة"
-                                >
-                                    تسجيل الخروج
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </Transition>
+                <LoginSessionTimeoutDialog
+                    :show="showSessionWarning"
+                    :seconds="sessionSecondsLeft"
+                    :extending="isExtendingSession"
+                    @extend="extendSession"
+                    @dismiss="dismissWarning"
+                />
 
                 <!-- Register — كان ابنًا مباشرًا للشبكة بلا تنسيق، فيقع في
                      الصف الثاني تحت لوحة الهوية الداكنة. -->
 
                 <p class="dy-login__register">
-                    ليس لديك حساب؟
+                    {{ __('ليس لديك حساب؟') }}
                     <a href="/account/register" @click.prevent="goToRegister">
-                        سجّل الآن
+                        {{ __('سجّل الآن') }}
                     </a>
                 </p>
+
+                <!-- Display preferences — language + theme, before sign-in.
+                     The bar owns its styles; this page only places it. -->
+
+                <LoginAppearanceBar />
 
                 <!-- Footer — اسم الشركة + رابط موقعها الرسمي -->
 
@@ -1923,97 +1888,11 @@ function goToRegister() {
         />
 
         <!-- =================================================================
-             Session Lock
-             =============================================================== -->
+         Session Lock — القالب وحالته في مكوّنه (نفس سبب حوار انتهاء
+         الجلسة: ملف الأنماط بنطاقه لا يصل إلى عنصر في ملف آخر).
+         =============================================================== -->
 
-        <div
-            v-if="sessionLocked"
-            class="dy-login__lock"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="dypos-lock-title"
-        >
-            <div class="dy-login__lock-card">
-                <div
-                    class="dy-login__lock-icon"
-                    aria-hidden="true"
-                >
-                    <FeatherIcon
-                        name="lock"
-                        :size="22"
-                    />
-                </div>
-
-                <h2 id="dypos-lock-title">
-                    الجلسة مقفلة
-                </h2>
-
-                <p>
-                    تم قفل جلسة التشغيل لحماية بيانات نقطة البيع.
-                </p>
-
-                <form
-                    class="dy-login__lock-form"
-                    novalidate
-                    @submit.prevent="handleSessionLock"
-                >
-                    <label
-                        for="dypos-unlock-password"
-                        class="dy-login__label"
-                    >
-                        كلمة المرور
-                    </label>
-
-                    <div class="dy-login__input-wrap">
-                        <FeatherIcon
-                            name="lock"
-                            :size="18"
-                            class="dy-login__input-icon"
-                            aria-hidden="true"
-                        />
-
-                        <input
-                            id="dypos-unlock-password"
-                            v-model="unlockPassword"
-                            class="dy-login__input"
-                            type="password"
-                            autocomplete="current-password"
-                            dir="ltr"
-                            placeholder="أدخل كلمة المرور"
-                            :disabled="unlocking"
-                            :aria-invalid="!!unlockError"
-                            aria-describedby="dypos-unlock-error"
-                        />
-                    </div>
-
-                    <p
-                        v-if="unlockError"
-                        id="dypos-unlock-error"
-                        class="dy-login__field-error"
-                        role="alert"
-                        aria-live="assertive"
-                    >
-                        <FeatherIcon
-                            name="alert-circle"
-                            :size="14"
-                            aria-hidden="true"
-                        />
-                        {{ unlockError }}
-                    </p>
-
-                    <DyButton
-                        type="submit"
-                        variant="primary"
-                        size="lg"
-                        :loading="unlocking"
-                        :disabled="unlocking"
-                        class="dy-login__lock-submit"
-                    >
-                        فتح الجلسة
-                    </DyButton>
-                </form>
-            </div>
-        </div>
+        <LoginSessionLockDialog />
     </main>
 </template>
 

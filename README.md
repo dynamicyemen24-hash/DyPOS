@@ -1,4 +1,4 @@
-# DyPOS v1.41.2
+# DyPOS v1.42.0
 
 [![CI](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/ci.yml/badge.svg)](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/ci.yml)
 [![Deploy](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/deploy-cloudflare.yml/badge.svg)](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/deploy-cloudflare.yml)
@@ -30,13 +30,13 @@
 
 ---
 
-## 🏷️ الإصدار الحالي: v1.41.2 (Production Ready)
+## 🏷️ الإصدار الحالي: v1.42.0 (Production Ready)
 
 | المكون | الإصدار | الحالة |
 |----------|---------|--------|
-| **Frontend (Vue 3 + Vite + PWA)** | 1.36.0 | ✅ Production |
-| **Backend (Node.js + Express + SQLite/Postgres)** | 1.36.0 | ✅ Production |
-| **PWA / Service Worker** | v1.3.0 | ✅ Active |
+| **Frontend (Vue 3 + Vite + PWA)** | 1.42.0 | ✅ Production |
+| **Backend (Node.js + Express + SQLite/Postgres)** | 1.42.0 | ✅ Production |
+| **PWA / Service Worker** | precache 102 assets | ✅ Active |
 | **Offline Sync Engine** | Chunked + Idempotent | ✅ Verified |
 
 **روابط رسمية:**
@@ -50,15 +50,15 @@
 
 | معيار | النتيجة | التفاصيل |
 |--------|---------|-----------|
-| **اختبارات الواجهة الأمامية** | 1028/1028 ✅ | Vitest + jsdom + Vue Test Utils |
-| **اختبارات الخادم** | 463/463 ✅ | Node.js test runner + SQLite |
+| **اختبارات الواجهة الأمامية** | 1136/1136 ✅ | Vitest + jsdom + Vue Test Utils |
+| **اختبارات الخادم** | 569/569 ✅ | Node.js test runner + SQLite |
 | **التدقيق الأمني (Biome)** | 0 تحذيرات ✅ | Frontend + Backend |
 | **فحص التبعيات (npm audit)** | High+ ✅ | CI gate مفعل — ثغرتان متوسطتان في `echarts` المتداخلة بـ `dypos-ui` مقبولتان رسميًا: غير موجودتين في حزمة الإنتاج (tree-shaken، مثبت بالبناء) وإصلاحهما يتطلب كسرًا رئيسيًا |
 | **Content Security Policy** | Strict ✅ | بدون `unsafe-inline`، Hash-based |
 | **Request Tracing** | مفعل ✅ | `X-Request-Id` عبر السلسلة الكاملة |
 | **Multi-Tenant Isolation** | Row-level ✅ | 404 على الوصول عبر المستأجرين |
 | **Idempotency** | Fail-closed ✅ | الفواتير لا تُسجل صامتاً |
-| **PWA Precaching** | 80 asset ✅ | 4.4 MB / Workbox |
+| **PWA Precaching** | 102 asset ✅ | Workbox |
 
 ---
 
@@ -83,7 +83,7 @@
 * المرتجعات
 * إدارة الوردية
 * العمل عند انقطاع الإنترنت
-* المزامنة التلقائية بعد عودة الاتصال
+* مزامنة عند طلب المستخدم أو بموافقة الربط (`auto`)
 
 ---
 
@@ -228,7 +228,7 @@ DyPOS **نظام مستقل ولا يفرض نظامًا خارجيًا محدد
 يعتمد DyPOS على مفهوم **Offline-First** لتقليل تأثير انقطاع الإنترنت على التشغيل اليومي.
 
 * يمكن لنقطة البيع مواصلة العمليات المدعومة محليًا
-* مزامنة البيانات تلقائيًا عند عودة الاتصال
+* مزامنة البيانات عند طلب المستخدم أو بموافقة الربط (`auto`)
 * محرك مزامنة مقسم (Chunked) مع معالجة تضارب
 * ديدوبليكيشن (Idempotency) على مستوى الفاتورة
 
@@ -283,7 +283,7 @@ DyPOS **نظام مستقل ولا يفرض نظامًا خارجيًا محدد
 | **Backend** | Node.js 22+, Express, SQLite / Postgres, Zod |
 | **Auth** | JWT + HttpOnly Cookies + CSRF |
 | **Real-time** | Server-Sent Events (SSE) |
-| **Testing** | Vitest (1028 tests), Node test runner (463 tests) |
+| **Testing** | Vitest (1136 tests), Node test runner (569 tests) |
 | **Lint/Format** | Biome (zero warnings) |
 | **CI/CD** | GitHub Actions + Cloudflare Pages |
 | **Observability** | Pino structured logs, Request-ID tracing |
@@ -295,7 +295,7 @@ DyPOS **نظام مستقل ولا يفرض نظامًا خارجيًا محدد
 ### Cloudflare Pages (Production)
 ```bash
 # البناء المحلي
-cd POS && yarn build
+cd POS && npm run build
 
 # تجميع موقع Pages
 node scripts/build-pages-site.mjs --out .pages-site
@@ -307,12 +307,16 @@ npx wrangler pages deploy .pages-site --project-name=dypos-pos --branch=main
 ### التحقق بعد النشر
 ```bash
 curl https://dypos.smartportssoft.com/assets/DyPOS/pos/version.json
-# {"version":"1.41.2","build":"<generated-by-CI>",...}
+# {"version":"1.42.0","build":"<generated-by-CI>",...}
 ```
 
 ---
 
-## 🔐 متطلبات تشغيل الخادم
+## 🔐 خادم المزامنة (اختياري)
+
+**النقطة تعمل بدونه بالكامل.** الخادم مخصّص للمزامنة والتقارير السحابية فقط —
+لا شاشة ولا بيع ولا طباعة ولا تقرير معلّق على توفره. المتطلبات التالية تنطبق
+فقط على تهيئة خادم المزامنة:
 
 * **Node.js** ≥ 22.5.0
 * **SQLite** (مضمن) أو **PostgreSQL** ≥ 14

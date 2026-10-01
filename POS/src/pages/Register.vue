@@ -19,6 +19,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from "vue"
 
 import { FeatherIcon } from "dypos-ui"
+import { ActionButton } from "dypos-ui"
 
 import DyPOSLogo from "@/assets/DyPOSLogo.png"
 import smartPortsBg from "@/assets/smart-ports-og.jpg"
@@ -945,6 +946,17 @@ onUnmounted(() => {
 
 						{{ isSubmitting ? 'جاري التسجيل...' : 'إنشاء الحساب' }}
 					</DyButton>
+
+					<ActionButton
+						variant="subtle"
+						size="lg"
+						@click="goToLogin"
+						:title="__('عودة للتسجيل الدخول')"
+						:aria-label="__('عودة للتسجيل الدخول')"
+					>
+						<FeatherIcon name="arrow-left" class="h-[16px] w-[16px]" />
+						<span>عودة للتسجيل</span>
+					</ActionButton>
 				</form>
 
 				<!-- Footer — اسم الشركة + رابط موقعها الرسمي -->

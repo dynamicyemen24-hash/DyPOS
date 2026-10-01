@@ -1,13 +1,32 @@
 import { Router } from 'express';
 import db from '../db/schema.js';
 import { syncCounter } from '../middleware/metrics.js';
-import { assertTenantScope, resolveTenantFilter } from '../lib/tenant.js';
+import { assertTenantScope, resolveTenantFilter, tenantContext } from '../lib/tenant.js';
 
 const router = Router();
 
+// Branch scope for a read: the caller may name its branch (X-Branch-Id /
+// ?branch=). It is VALIDATED against the hierarchy — an unknown or foreign
+// branch is a 404/403, never a silent passthrough that would leak another
+// branch's rows. Omitted branch = tenant-wide (legacy single-branch setups
+// keep working, and a scoped caller still never sees another tenant).
+function resolveBranchFilter(req, tenantId) {
+  const { branchId } = tenantContext(req);
+  if (!branchId) return null;
+  const br = db.prepare('SELECT id, org_id, tenant_id FROM branches WHERE id=? AND is_active=1').get(branchId);
+  if (!br) throw Object.assign(new Error('الفرع غير موجود أو موقف'), { statusCode: 404 });
+  if (tenantId && br.tenant_id && String(br.tenant_id) !== String(tenantId)) {
+    throw Object.assign(new Error('غير مصرح بالوصول لهذا الفرع'), { statusCode: 403 });
+  }
+  return branchId;
+}
+
 // GET /api/sync/pull — checkpoint-based pull for ERP (?entity=PRODUCT|STOCK|INVOICE…)
-// Tenant-scoped (v16): a scoped caller sees its own rows + legacy NULL rows;
-// cross-tenant rows are never returned (same rule as assertRecordTenant).
+// Tenant-scoped (v16) and branch-scoped (v29): a terminal pulls its own
+// tenant's rows for its own branch (plus legacy NULL rows), so branches
+// never receive each other's changes and each branch has its own cursor
+// region. Cross-tenant rows are never returned (same rule as
+// assertRecordTenant).
 router.get('/pull', (req, res) => {
   const checkpoint = Math.max(parseInt(req.query.checkpoint, 10) || 0, 0);
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 500, 1), 2000);
@@ -19,15 +38,29 @@ router.get('/pull', (req, res) => {
   } catch (e) {
     return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
   }
+  let scopeBranch = null;
+  try {
+    scopeBranch = resolveBranchFilter(req, scopeTenant);
+  } catch (e) {
+    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
+  }
   const params = [checkpoint, 'PENDING'];
   let sql = 'SELECT * FROM sync_log WHERE id>? AND status=?';
   if (scopeTenant) { sql += ' AND (tenant_id=? OR tenant_id IS NULL)'; params.push(scopeTenant); }
+  if (scopeBranch) { sql += ' AND (branch_id=? OR branch_id IS NULL)'; params.push(scopeBranch); }
   if (entity) { sql += ' AND entity_type=?'; params.push(entity); }
   sql += ' ORDER BY id ASC LIMIT ?';
   params.push(limit);
   const rows = db.prepare(sql).all(...params);
   const newCheckpoint = rows.length ? rows[rows.length - 1].id : checkpoint;
-  return res.json({ changes: rows, checkpoint: newCheckpoint, hasMore: rows.length === limit, entity: entity || null });
+  return res.json({
+    changes: rows,
+    checkpoint: newCheckpoint,
+    hasMore: rows.length === limit,
+    entity: entity || null,
+    branch: scopeBranch || null,
+    tenant: scopeTenant || null,
+  });
 });
 
 // POST /api/sync/push — bounded batch, per-item isolation (one bad row ≠ failed batch)
@@ -55,8 +88,11 @@ router.post('/push', (req, res) => {
   const all = [...changes, ...normalized];
   if (all.length > 1000) return res.status(400).json({ error: 'الدفعة تتجاوز 1000 عنصر' });
   let pushTenant = null;
+  let pushBranch = null;
   try {
-    pushTenant = assertTenantScope(req).tenantId;
+    const scope = assertTenantScope(req);
+    pushTenant = scope.tenantId;
+    pushBranch = scope.branchId;
   } catch (e) {
     return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
   }
@@ -105,8 +141,9 @@ router.post('/push', (req, res) => {
         if (ch.id != null) {
           db.prepare(`UPDATE sync_log SET status='SYNCED',synced_at=datetime('now'),
             tenant_id=COALESCE(tenant_id, ?),
+            branch_id=COALESCE(branch_id, ?),
             idempotency_key=CASE WHEN ?<>'' THEN ? ELSE idempotency_key END
-            WHERE id=?`).run(pushTenant, idemKey, idemKey || null, ch.id);
+            WHERE id=?`).run(pushTenant, pushBranch, idemKey, idemKey || null, ch.id);
         }
         results.push({ id: ch.id, status: 'SYNCED' });
         try { syncCounter.labels('in', 'ok').inc(); } catch { /* ignore */ }
@@ -133,10 +170,25 @@ router.post('/push', (req, res) => {
   return res.json({ results, synced: results.filter(r => r.status === 'SYNCED').length, failed: results.filter(r => r.status === 'FAILED').length });
 });
 
-// GET /api/sync/checkpoint
-router.get('/checkpoint', (_req, res) => {
-  const last = db.prepare('SELECT MAX(id) as checkpoint FROM sync_log').get();
-  return res.json({ checkpoint: last?.checkpoint || 0 });
+// GET /api/sync/checkpoint — scoped like the pull it precedes.
+// A tenant/branch must never adopt another scope's cursor: returning the
+// global MAX(id) would let a fresh branch skip every change queued before
+// it existed. The answer is the max id INSIDE the caller's own scope.
+router.get('/checkpoint', (req, res) => {
+  let scopeTenant = null;
+  let scopeBranch = null;
+  try {
+    scopeTenant = resolveTenantFilter(req).tenantId;
+    scopeBranch = resolveBranchFilter(req, scopeTenant);
+  } catch (e) {
+    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
+  }
+  const params = [];
+  let sql = 'SELECT MAX(id) as checkpoint FROM sync_log WHERE 1=1';
+  if (scopeTenant) { sql += ' AND (tenant_id=? OR tenant_id IS NULL)'; params.push(scopeTenant); }
+  if (scopeBranch) { sql += ' AND (branch_id=? OR branch_id IS NULL)'; params.push(scopeBranch); }
+  const last = db.prepare(sql).get(...params);
+  return res.json({ checkpoint: last?.checkpoint || 0, tenant: scopeTenant || null, branch: scopeBranch || null });
 });
 
 export default router;

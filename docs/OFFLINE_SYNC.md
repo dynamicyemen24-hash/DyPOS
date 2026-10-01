@@ -45,18 +45,16 @@ DyPOS supports fully offline operation, allowing cashiers to continue creating i
                                     │ HTTP API
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                           Backend (Frappe/DyPOS)                       │
+│                    Backend (Express + SQLite) — optional                │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│  ┌──────────────────┐    ┌──────────────────────────────────────────┐   │
-│  │  invoices.py     │───▶│  Offline Invoice Sync (DocType)          │   │
-│  │  - submit_invoice│    │  - offline_id (unique)                   │   │
-│  │  - check_synced  │    │  - sales_invoice                         │   │
-│  └──────────────────┘    │  - pos_profile                           │   │
-│                          │  - customer                               │   │
-│                          │  - synced_at                              │   │
-│                          └──────────────────────────────────────────┘   │
+│  ┌──────────────────────────┐   ┌────────────────────────────────────┐  │
+│  │ routes/method.js         │──▶│ idempotency ledger (SQLite)        │  │
+│  │  - submit_invoice        │   │  - key = offline_id                │  │
+│  │  - check_offline_..._synced│  │  - canonical result replayed       │  │
+│  └──────────────────────────┘   └────────────────────────────────────┘  │
 │                                                                          │
+│  Every write stays tenant-scoped; the sync tier reconciles, never gates. │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -168,7 +166,7 @@ This ID is:
 1. Generated client-side using `crypto.randomUUID()`
 2. Stored in IndexedDB with the invoice
 3. Sent to the server during sync
-4. Tracked in the `Offline Invoice Sync` doctype
+4. Used as the idempotency key in the server's idempotency ledger
 
 ### Three Layers of Protection
 
@@ -187,24 +185,23 @@ if (syncStatus.synced) {
 
 #### Layer 2: Server-Side Idempotency Check
 
-The `submit_invoice` API checks for existing `offline_id` before creating:
+`DyPOS.api.invoices.submit_invoice` (`server/routes/method.js`) maps
+`offline_id` onto the idempotency key before creating anything:
 
-```python
-if offline_id:
-    existing_sync = dypos.db.get_value(
-        "Offline Invoice Sync",
-        {"offline_id": offline_id},
-        ["name", "sales_invoice"],
-        as_dict=True
-    )
-    if existing_sync:
-        # Return existing invoice instead of creating duplicate
-        return existing_invoice_details
+```js
+// server/routes/method.js — submit_invoice
+idempotencyKey: data.idempotencyKey || source.idempotencyKey || params.idempotencyKey
+  || data.offline_id || source.offline_id || params.offline_id || '',
 ```
 
-#### Layer 3: Unique Database Constraint
+A retried push with the same key returns the canonical original result
+instead of creating a second sale.
 
-The `Offline Invoice Sync` doctype has a unique constraint on `offline_id`, preventing duplicate records at the database level.
+#### Layer 3: Idempotency ledger constraint
+
+The server-side idempotency ledger holds one row per key, so the database
+itself refuses a second write for the same `offline_id` — no duplicate can
+be committed even under concurrent retries.
 
 ## File Structure
 
@@ -213,17 +210,17 @@ POS/src/utils/offline/
 ├── uuid.js           # Shared UUID generation
 ├── sync.js           # Main sync logic
 ├── db.js             # IndexedDB schema
-└── offlineState.js   # Connectivity state management
+└── offlineState.js   # Connectivity state management (consent-gated)
 
 POS/src/workers/
 └── offline.worker.js # Background processing
 
-DyPOS/api/
-└── invoices.py       # Server-side API
+server/routes/method.js
+└── DyPOS.api.invoices.submit_invoice          # dedupe via offline_id
+└── DyPOS.api.invoices.check_offline_invoice_synced
 
-DyPOS/DyPOS/doctype/offline_invoice_sync/
-├── offline_invoice_sync.json  # DocType definition
-└── offline_invoice_sync.py    # DocType class
+server/routes/invoices.js
+└── REST create/return path (same money rule)
 ```
 
 ## API Reference
@@ -279,46 +276,31 @@ const result = await checkOfflineIdSynced("pos_offline_abc123...")
 #### `check_offline_invoice_synced(offline_id)`
 Checks if an offline invoice was already synced.
 
-```python
-# Endpoint: /api/method/DyPOS.api.invoices.check_offline_invoice_synced
-# Method: POST
-# Params: offline_id (string)
-# Returns: { synced: bool, sales_invoice: string|null }
+```
+Endpoint: /api/method/DyPOS.api.invoices.check_offline_invoice_synced
+Method:   POST
+Params:   offline_id (string)
+Returns:  { synced: bool, sales_invoice: string|null }
 ```
 
 #### `submit_invoice(invoice, data)`
 Submits an invoice with offline deduplication support.
 
-```python
-# Endpoint: /api/method/DyPOS.api.invoices.submit_invoice
-# Method: POST
-# Params:
-#   - invoice: Invoice data (with optional offline_id)
-#   - data: Additional data
-# Returns: Invoice details or existing invoice if duplicate
+```
+Endpoint: /api/method/DyPOS.api.invoices.submit_invoice
+Method:   POST
+Params:   invoice (json, optional offline_id) · data (json)
+Returns:  invoice details — or the canonical existing invoice on replay
 ```
 
-### DocType: Offline Invoice Sync
+### Server-side idempotency (no DocType, no Frappe)
 
-#### Static Methods
-
-```python
-from DyPOS.DyPOS.doctype.offline_invoice_sync.offline_invoice_sync import (
-    OfflineInvoiceSync,
-)
-
-# Create a sync record
-OfflineInvoiceSync.create_sync_record(
-    offline_id="pos_offline_abc123...",
-    sales_invoice="ACC-SINV-2024-00001",
-    pos_profile="POS Profile 1",
-    customer="John Doe"
-)
-
-# Check if synced
-result = OfflineInvoiceSync.is_synced("pos_offline_abc123...")
-# Returns: { synced: True, sales_invoice: "ACC-SINV-2024-00001" }
-```
+The legacy `Offline Invoice Sync` DocType lived in `legacy/pos_next` and is
+not part of the running system. Deduplication is enforced by the idempotency
+ledger in SQLite: `offline_id` **is** the idempotency key
+(`server/routes/method.js` → `createOrFinalizeSale`), so a replay returns
+the original document and the ledger's uniqueness makes a second write
+impossible.
 
 ## IndexedDB Schema
 

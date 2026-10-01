@@ -35,6 +35,7 @@ export const WORK_NAV_SECTIONS = Object.freeze([
 				label: "المخزون",
 				to: { name: "StockManagement" },
 				icon: "package",
+				capability: "product",
 			},
 			{
 				id: "reports",

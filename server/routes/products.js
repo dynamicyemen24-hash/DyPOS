@@ -104,7 +104,7 @@ router.get('/', ah(async (req, res) => {
       db.prepare(`SELECT COUNT(*) as c FROM products p ${w}`).get(...ps)) : null;
     const rows = observeDb('products.list', () =>
       db.prepare(
-        `SELECT p.*, COALESCE(s.qty,0) as stock_qty FROM products p LEFT JOIN stock_levels s ON p.id=s.product_id AND s.warehouse_id=? ${w} ORDER BY ${sortSql} ${orderDir} LIMIT ? OFFSET ?`
+        `SELECT p.*, COALESCE(s.qty,0) as stock_qty, COALESCE(s.reserved_qty,0) as reserved_qty FROM products p LEFT JOIN stock_levels s ON p.id=s.product_id AND s.warehouse_id=? ${w} ORDER BY ${sortSql} ${orderDir} LIMIT ? OFFSET ?`
       ).all(warehouse, ...ps, limit, offset));
     const total = wantCount ? countRow?.c || 0 : null;
     return { products: rows, total, limit, offset, hasMore: rows.length === limit };
@@ -128,7 +128,7 @@ router.get('/', ah(async (req, res) => {
 router.get('/:id', (req, res) => {
   const id = String(req.params.id).slice(0, 64);
   const warehouse = String(req.query.warehouse || 'W-01').slice(0, 32);
-  const row = db.prepare('SELECT p.*, COALESCE(s.qty,0) as stock_qty FROM products p LEFT JOIN stock_levels s ON p.id=s.product_id AND s.warehouse_id=? WHERE p.id=?').get(warehouse, id);
+  const row = db.prepare('SELECT p.*, COALESCE(s.qty,0) as stock_qty, COALESCE(s.reserved_qty,0) as reserved_qty FROM products p LEFT JOIN stock_levels s ON p.id=s.product_id AND s.warehouse_id=? WHERE p.id=?').get(warehouse, id);
   if (!row) return res.status(404).json({ error: 'الصنف غير موجود' });
   try {
     assertRecordTenant(req, row);
@@ -152,8 +152,8 @@ router.post('/', requireRole('ADMIN', 'MANAGER'), validate(productSchema), ah(as
   const id = uuid();
   const code = String(b.code || `PRD-${Date.now()}`).trim().slice(0, 64);
   try {
-    db.prepare(`INSERT INTO products (id,code,name,name_ar,barcode,unit_price,cost,tax_rate,uom,image,category,brand,tenant_id,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .run(id, code, String(b.name).trim().slice(0, 200), String(b.nameAr || '').trim().slice(0, 200), String(b.barcode || '').trim().slice(0, 64) || null, Number(b.unitPrice) || 0, Number(b.cost) || 0, b.taxRate != null ? Number(b.taxRate) : defaultTaxRate(), String(b.uom || 'Unit').trim().slice(0, 20), String(b.image || '').trim().slice(0, 500), String(b.category || '').trim().slice(0, 64), String(b.brand || '').trim().slice(0, 64), scope.tenantId, req.user?.username || null);
+    db.prepare(`INSERT INTO products (id,code,name,name_ar,barcode,unit_price,cost,reorder_point,tax_rate,uom,image,category,brand,tenant_id,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(id, code, String(b.name).trim().slice(0, 200), String(b.nameAr || '').trim().slice(0, 200), String(b.barcode || '').trim().slice(0, 64) || null, Number(b.unitPrice) || 0, Number(b.cost) || 0, Number(b.reorderPoint) || 0, b.taxRate != null ? Number(b.taxRate) : defaultTaxRate(), String(b.uom || 'Unit').trim().slice(0, 20), String(b.image || '').trim().slice(0, 500), String(b.category || '').trim().slice(0, 64), String(b.brand || '').trim().slice(0, 64), scope.tenantId, req.user?.username || null);
   } catch (e) {
     if (/UNIQUE/i.test(String(e.message))) return res.status(409).json({ error: 'الكود أو الباركود مستخدم مسبقًا' });
     throw e;
@@ -180,8 +180,8 @@ router.put('/:id', requireRole('ADMIN', 'MANAGER'), validate(productSchema), ah(
     return res.status(code).json({ error: code === 404 ? 'الصنف غير موجود' : String(e.message).slice(0, 200) });
   }
   const before = db.prepare('SELECT name,unit_price FROM products WHERE id=?').get(id);
-  db.prepare(`UPDATE products SET name=?,name_ar=?,barcode=?,unit_price=?,cost=?,tax_rate=?,uom=?,image=?,category=?,brand=?,is_active=?,updated_by=?,updated_at=datetime('now') WHERE id=?`)
-    .run(String(b.name || '').trim().slice(0, 200), String(b.nameAr || '').trim().slice(0, 200), String(b.barcode || '').trim().slice(0, 64) || null, Number(b.unitPrice) || 0, Number(b.cost) || 0, b.taxRate != null ? Number(b.taxRate) : defaultTaxRate(), String(b.uom || 'Unit').trim().slice(0, 20), String(b.image || '').trim().slice(0, 500), String(b.category || '').trim().slice(0, 64), String(b.brand || '').trim().slice(0, 64), b.isActive !== false ? 1 : 0, req.user?.username || null, id);
+  db.prepare(`UPDATE products SET name=?,name_ar=?,barcode=?,unit_price=?,cost=?,reorder_point=?,tax_rate=?,uom=?,image=?,category=?,brand=?,is_active=?,updated_by=?,updated_at=datetime('now') WHERE id=?`)
+    .run(String(b.name || '').trim().slice(0, 200), String(b.nameAr || '').trim().slice(0, 200), String(b.barcode || '').trim().slice(0, 64) || null, Number(b.unitPrice) || 0, Number(b.cost) || 0, Number(b.reorderPoint) || 0, b.taxRate != null ? Number(b.taxRate) : defaultTaxRate(), String(b.uom || 'Unit').trim().slice(0, 20), String(b.image || '').trim().slice(0, 500), String(b.category || '').trim().slice(0, 64), String(b.brand || '').trim().slice(0, 64), b.isActive !== false ? 1 : 0, req.user?.username || null, id);
   await cacheDel('products');
   req.audit?.('product.update', { productId: id });
   recordTrail(req, { entity: 'PRODUCT', entityId: id, action: 'UPDATE', before, after: { name: b.name, unitPrice: b.unitPrice } });
@@ -195,7 +195,7 @@ router.patch('/:id', requireRole('ADMIN', 'MANAGER'), validate(productPatchSchem
   const id = String(req.params.id).slice(0, 64);
   const existing = db.prepare('SELECT * FROM products WHERE id=?').get(id);
   if (!existing) return res.status(404).json({ error: 'الصنف غير موجود' });
-  const map = { code: 'code', name: 'name', nameAr: 'name_ar', barcode: 'barcode', unitPrice: 'unit_price', cost: 'cost', taxRate: 'tax_rate', uom: 'uom', image: 'image', category: 'category', brand: 'brand' };
+  const map = { code: 'code', name: 'name', nameAr: 'name_ar', barcode: 'barcode', unitPrice: 'unit_price', cost: 'cost', reorderPoint: 'reorder_point', taxRate: 'tax_rate', uom: 'uom', image: 'image', category: 'category', brand: 'brand' };
   const sets = [];
   const params = [];
   for (const [api, col] of Object.entries(map)) {
@@ -204,7 +204,7 @@ router.patch('/:id', requireRole('ADMIN', 'MANAGER'), validate(productPatchSchem
     if (api === 'code') v = String(v).trim().slice(0, 64);
     if (['name', 'nameAr', 'uom', 'category', 'brand'].includes(api)) v = String(v).trim().slice(0, api === 'name' || api === 'nameAr' ? 200 : api === 'uom' ? 20 : 64);
     if (api === 'barcode' || api === 'image') v = String(v).trim().slice(0, api === 'barcode' ? 64 : 500) || null;
-    if (['unitPrice', 'cost', 'taxRate'].includes(api)) v = Number(v) || 0;
+    if (['unitPrice', 'cost', 'reorderPoint', 'taxRate'].includes(api)) v = Number(v) || 0;
     sets.push(`${col}=?`); params.push(v);
   }
   if (b.isActive !== undefined) { sets.push('is_active=?'); params.push(b.isActive !== false ? 1 : 0); }

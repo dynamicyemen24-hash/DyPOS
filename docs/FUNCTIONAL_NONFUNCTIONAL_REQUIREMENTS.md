@@ -24,7 +24,7 @@ A requirement is not complete because a UI exists. It needs an observable behavi
 | ID | Priority | Requirement | Acceptance evidence |
 |---|---|---|---|
 | FR-SEC-001 | P0 | The system SHALL authenticate users and fail closed when credentials/session are invalid or expired. | API auth tests + negative tests |
-| FR-SEC-002 | P0 | Authorization SHALL be evaluated server-side for every protected mutation and sensitive read. | RBAC/integration tests |
+| FR-SEC-002 | P0 | Authorization SHALL be evaluated server-side for every protected mutation and sensitive read when a backend is in the path; offline mutations SHALL be authorized by the local session and re-validated at sync. | RBAC/integration tests |
 | FR-SEC-003 | P0 | A bound tenant user SHALL NOT read/write another tenant's records by ID, query, header, body, cursor, sync payload or bulk endpoint. | Cross-tenant regression suite |
 | FR-SEC-004 | P0 | Tenant context SHALL be derived from trusted identity/session and validated against explicit client scope. | Tenant spoof tests |
 | FR-SEC-005 | P0 | Administrative/global integration planes SHALL be explicitly classified and role-gated rather than accidentally exposed. | Route inventory + authorization tests |
@@ -33,7 +33,7 @@ A requirement is not complete because a UI exists. It needs an observable behavi
 
 | ID | Priority | Requirement | Acceptance evidence |
 |---|---|---|---|
-| FR-SALE-001 | P0 | Server SHALL calculate authoritative line, discount, tax and total amounts; client totals SHALL never be trusted. | Money invariant tests |
+| FR-SALE-001 | P0 | Line, discount, tax and total amounts SHALL be computed by the single money rule (`server/lib/money.js#computeLineMinor`, mirrored in `POS/src/utils/money.js`) — locally while offline, and re-validated server-side on sync; client totals SHALL never be trusted by a *server*, but an offline sale SHALL NOT require a server to be valid. | Money invariant tests |
 | FR-SALE-002 | P0 | Money calculations SHALL use minor units or exact decimal semantics and explicit currency precision. | Property/unit tests |
 | FR-SALE-003 | P0 | A sale mutation SHALL be atomic across invoice, lines, payment, stock, receivable and local audit/outbox state. | Transaction failure tests |
 | FR-SALE-004 | P0 | Repeating the same idempotent sale request SHALL return the canonical original result without creating another sale. | Replay/concurrency tests |
@@ -74,6 +74,29 @@ A requirement is not complete because a UI exists. It needs an observable behavi
 | FR-SYNC-004 | P0 | A local pending write SHALL never be presented as an authoritative server success. | UX/API integration test |
 | FR-SYNC-005 | P1 | Sync SHALL survive application restart, network loss and transient server failure with bounded retry/backoff. | Fault-injection tests |
 | FR-SYNC-006 | P1 | Sync cursors SHALL be tenant/device/entity scoped and monotonic. | Cursor invariants |
+| FR-SYNC-007 | P0 | Every terminal SHALL mint its own invoice numbers **independently and offline** in the form `POS-{branch}-{terminal}-{date}-{seq}`; two terminals SHALL never collide and no terminal SHALL ever wait on another (or on a server) to issue a number. | Multi-terminal offline concurrency test |
+| FR-SYNC-008 | P0 | Where a jurisdiction demands gapless numbering, the server SHALL allocate from `invoice_sequences` scoped by `(branch, fiscal year)` inside the insert transaction; the offline pre-allocated block SHALL reconcile to that scope on sync without gaps or duplicates. | Gapless sequence + reconciliation test |
+| FR-SYNC-009 | P1 | Sync SHALL scale across branches: per `(tenant, branch, terminal, entity)` cursors, batched pages and bounded queue depth, so N terminals on one branch do not contend for a single counter or cursor. | Multi-terminal load test |
+
+### Traceability and audit trail
+
+| ID | Priority | Requirement | Acceptance evidence |
+|---|---|---|---|
+| FR-TRACE-001 | P0 | Every document SHALL be traceable end-to-end: terminal → branch → shift → invoice → lines → payments → stock movements → returns, by identifiers that survive sync. | Trace query test |
+| FR-TRACE-002 | P0 | The audit ledger SHALL be hash-chained (`audit_ledger`) and the invoice chain (`chain_hash`/`chain_prev`) SHALL verify end-to-end; tampering SHALL be detectable with the broken sequence number. | `GET /api/audit/verify`, `chain/verify` |
+| FR-TRACE-003 | P0 | Each print SHALL be attributable: print history records document, device, operator, time and outcome, and a reprint SHALL be distinguishable from a first print. | Print history test |
+| FR-TRACE-004 | P0 | Each sync operation SHALL be traceable from origin (device/terminal) to acknowledgement, including quarantined and failed operations. | Sync envelope tests |
+| FR-TRACE-005 | P1 | Actor, device, branch and correlation IDs SHALL be carried on reads and writes alike, so any figure in a report can be drilled back to its source document. | Report drill-down test |
+
+### Multi-branch and multi-terminal
+
+| ID | Priority | Requirement | Acceptance evidence |
+|---|---|---|---|
+| FR-MULTI-001 | P0 | The tenant hierarchy `tenants → organizations → branches → terminals` SHALL scope every read and write; a terminal of branch A SHALL NOT see or mutate branch B's rows (404 on foreign rows, 403 on spoofed scope). | Tenant isolation suite |
+| FR-MULTI-002 | P0 | Stock SHALL be correct per branch and aggregated per tenant, with reservations held per terminal so offline terminals cannot oversell a shared branch stock beyond the configured policy. | Reservation race tests |
+| FR-MULTI-003 | P1 | Adding a terminal or a branch SHALL require configuration only — no schema change, no code change, and no renumbering of existing documents. | Provisioning test |
+| FR-MULTI-004 | P1 | Per-branch settings (currency, tax profile, invoice prefix, receipt header/footer, sequence scope) SHALL override tenant defaults without cross-branch leakage. | Branch settings test |
+| FR-MULTI-005 | P1 | Reports SHALL be viewable at terminal, branch, organization and tenant scope with explicit scope labels and consistent roll-ups. | Roll-up reconciliation test |
 
 ### Tax, fiscal and jurisdiction
 
@@ -106,6 +129,22 @@ A requirement is not complete because a UI exists. It needs an observable behavi
 | FR-A11Y-001 | P1 | Core POS workflows SHALL target WCAG 2.2 AA, including keyboard, focus, semantics, contrast, reflow and touch targets. | Automated + manual audit |
 
 ## 3. Non-functional requirements
+
+### Offline availability (absolute)
+- NFR-OFF-001 P0: Startup SHALL perform **zero** network requests. Boot, first
+  paint and session resolution are served entirely from local storage —
+  evidence: `POS/tests/standaloneBoot.test.js`.
+- NFR-OFF-002 P0: Every core flow — sale, return, shift open/close, search,
+  customer lookup, receipt print, stock movement, report — SHALL complete
+  with the backend absent. The Express server is optional and sync-only; no
+  screen, feature or flag may be gated on its availability.
+- NFR-OFF-003 P0: No license, entitlement, telemetry, feature-flag or
+  version probe may run without the user's demand or a granted `auto`
+  linkage consent (`POS/src/services/link-consent.js`, default `off`).
+- NFR-OFF-004 P0: Any unavoidable offline limitation (e.g. an uncached
+  catalog page, a cross-branch figure) SHALL be surfaced with provenance
+  (`server | local | unavailable`) and recorded as a measured debt item in
+  `TECH_DEBT_PAYDOWN.md` — never a silent empty state or a fake zero.
 
 ### Security
 - NFR-SEC-001 P0: Authentication, authorization, tenant isolation and input validation SHALL fail closed.
@@ -182,10 +221,12 @@ A financial feature is complete only when:
 - requirements and edge cases are documented;
 - state transitions are explicit;
 - authorization/tenant scope is tested;
-- server-side calculation is authoritative;
+- the single money rule computes the amounts — locally offline and
+  server-side on sync — and the two agree;
 - idempotency/race behavior is tested;
 - audit/reconciliation impact is covered;
-- offline behavior is specified if applicable;
+- offline behavior is specified (not "if applicable" — offline is the base
+  path and the server is the optional one);
 - migration/backward compatibility is covered;
 - observability/error codes exist;
 - Arabic/RTL and accessibility impacts are checked;

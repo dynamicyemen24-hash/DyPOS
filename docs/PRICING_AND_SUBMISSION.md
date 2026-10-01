@@ -241,12 +241,14 @@ New Subtotal: $450
                 Response
 ```
 
+### Online Mode (optional — only when linked)
+
 1. Cashier completes sale
 2. POS sends invoice data to server
 3. Server creates and submits invoice
 4. POS shows success with invoice number
 
-### Offline Mode
+### Offline Mode (the base path)
 
 ```
 ┌─────────┐     ┌─────────┐            ┌─────────┐     ┌─────────┐
@@ -258,7 +260,7 @@ New Subtotal: $450
 1. Cashier completes sale
 2. POS saves invoice to local database (IndexedDB)
 3. POS shows "Saved Offline" message
-4. **When internet returns:**
+4. **When the user syncs (Sync Now, server login, or `auto` consent):**
    - Sync process reads pending invoices
    - Sends each to server
    - Marks as synced when successful
@@ -364,7 +366,7 @@ Press "Pay"                   →   Payment works normally
 Press "Complete"              →   "Saved Offline - Will sync later"
                               →   Sale stored locally
 
-[Internet returns]            →   Auto-sync starts
+[User syncs / `auto` consent]   →   Sync runs on demand
                               →   "1 invoice synced"
                               →   Invoice SI-00124 created
 ```
@@ -412,9 +414,9 @@ Press "Pay"                   →   Customer pays: $115.00
 1. Pricing Rule not active (check dates)
 2. Customer doesn't meet criteria (check customer group)
 3. Quantity threshold not met
-4. Offline mode can't evaluate complex rules
+4. Rule set is not in the local offline cache (rules are cached locally; only an uncached set falls back)
 
-**Solution:** Check Pricing Rule conditions in DyPOS. Try online mode to verify.
+**Solution:** Check Pricing Rule conditions in DyPOS. Rules are evaluated locally offline; only an uncached rule set needs a sync to refresh.
 
 ### Problem: Offline Invoice Created Twice
 

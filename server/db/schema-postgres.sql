@@ -233,6 +233,16 @@ CREATE INDEX IF NOT EXISTS idx_sync_entity ON sync_log(entity_type, status, id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_idem ON sync_log(idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
 CREATE INDEX IF NOT EXISTS idx_sync_tenant ON sync_log(tenant_id, status, id);
 
+-- ── v29: per-branch sync scope (multi-branch / multi-terminal) ──
+-- A terminal of branch A pulls only branch A's changes, and each branch
+-- owns its cursor region, so N branches never contend for one counter.
+-- Rows written before v29 keep branch_id NULL and stay visible to every
+-- scope of their tenant (legacy passthrough, same rule as tenant_id).
+ALTER TABLE sync_log ADD COLUMN IF NOT EXISTS branch_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_sync_tenant_branch ON sync_log(tenant_id, branch_id, status, id);
+CREATE INDEX IF NOT EXISTS idx_sync_pull ON sync_log(status, id, entity_type);
+INSERT INTO schema_version (version, description) VALUES (29, 'sync_log branch scope (multi-branch pull + cursor)') ON CONFLICT DO NOTHING;
+
 -- v16: minimal device registry (see SQLite migrate() v16)
 CREATE TABLE IF NOT EXISTS devices (
   id UUID PRIMARY KEY,
@@ -513,7 +523,11 @@ INSERT INTO currencies (code,name,name_ar,symbol,decimals,rate_to_base,is_base) 
   ('KWD','Kuwaiti Dinar','دينار كويتي','د.ك',3,0.08170,FALSE),
   ('BHD','Bahraini Dinar','دينار بحريني','د.ب',3,0.10040,FALSE),
   ('QAR','Qatari Riyal','ريال قطري','ر.ق',2,0.97087,FALSE),
-  ('EGP','Egyptian Pound','جنيه مصري','ج.م',2,12.80000,FALSE)
+  ('EGP','Egyptian Pound','جنيه مصري','ج.م',2,12.80000,FALSE),
+  ('OMR','Omani Rial','ريال عماني','ر.ع.',3,0.10256,FALSE),
+  ('JOD','Jordanian Dinar','دينار أردني','د.أ',3,0.18868,FALSE),
+  ('TRY','Turkish Lira','ليرة تركية','₺',2,8.69565,FALSE),
+  ('YER','Yemeni Rial','ريال يمني','ر.ي',2,66.5,FALSE)
 ON CONFLICT DO NOTHING;
 INSERT INTO uoms (code,name,name_ar,category,factor_to_base,is_base) VALUES
   ('Unit','Unit','قطعة','count',1,TRUE),

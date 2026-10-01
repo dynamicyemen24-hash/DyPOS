@@ -13,12 +13,12 @@
 ## Verify before you claim done (all must be green)
 
 ```powershell
-# server/ — 534 tests / 166 suites
+# server/ — 577 tests / 177 suites
 npm test                              # = node scripts/run-tests.mjs
 npx @biomejs/biome check .
 npm run parity
 npm run contract
-# POS/ — 1048 tests / 73 files
+# POS/ — 1172 tests / 85 files
 npm run test:run
 npx biome check src/<touched-file>
 # production, from the repo root (after a deploy)
@@ -26,7 +26,7 @@ npm run verify:live                   # = node scripts/verify-live.mjs
 ```
 
 Test counts are *measured* by the runners, never estimated: server
-`534 tests / 166 suites`, POS `1048 tests / 73 files`.
+`577 tests / 177 suites`, POS `1172 tests / 85 files`.
 
 `POS/node_modules` is disposable — if a command hangs on `npx … Ok to proceed?`,
 the install is missing: `npm ci` in `POS/` (and add the package to
@@ -59,6 +59,13 @@ manifest breaks both the build and any test that compiles CSS).
 8. **Standalone-First PWA (Installable)**: The POS MUST work 100% offline as an
    installable mobile/desktop app. Zero network calls on startup — and zero
    network at any time without the user's demand or granted automation.
+   - **Offline-first on local storage is absolute**: Dexie/IndexedDB (client)
+     and SQLite (server) are the only sources of truth. The Express server is
+     **optional and sync-only** — no feature, screen, sale, return, print or
+     report may be gated on its availability. Nothing may limit offline
+     operation: no offline feature flags, no license/telemetry/boot fetch, no
+     "server required" fallback screen. Any unavoidable offline limitation is
+     a measured debt item (`TECH_DEBT_PAYDOWN.md`), never a silent design.
    - IndexedDB (Dexie) is the local database — all sales, stock, customers cached.
    - Service Worker precaches ALL assets (HTML, JS, CSS, fonts, images).
    - Background sync queue persists pending operations to IndexedDB.
@@ -168,3 +175,20 @@ manifest breaks both the build and any test that compiles CSS).
   change that one file — never reintroduce per-workflow inline `curl` probes with
   paths only the deployed layout knows (that is how the heartbeat stayed red on a
   healthy site).
+- **A `ref` bound to no element is a silent dead contract.** `StockImportExportDialog`
+  had a complete import pipeline (`fileInput`, `handleFileSelect`, `validateRows`,
+  `executeImport`) and NO `<input type="file">`; the button called
+  `fileInput.value.click()` and `if (fileInput.value)` skipped, so the whole
+  feature was unreachable with every suite green. `POS/tests/stockImportDialog.test.js`
+  now mounts it and asserts on rendered output. Same class: `<StepCard>` /
+  `<ShortcutKey>` used without an import (not in the `main.js` global registry)
+  render as unknown elements, and a prop literally named `key` never binds —
+  Vue reserves it, so `<kbd>` stayed empty. Render the component, then assert the
+  text is there.
+- **Mojibake here is UTF-8 re-decoded as CP1252, and it is reversible.** A file
+  whose Arabic shows as `Ø§Ù„Ø¹Ù…Ù„Ø©` has each original byte mapped through
+  CP1252 then re-encoded as UTF-8 (the BOM often survives as a lone `U+FEFF`).
+  Reverse it by mapping each char back to its CP1252 byte — `0x80–0x9F` through
+  the CP1252 table, everything else by code point — then decoding the byte array
+  as UTF-8. `StockImportExportDialog.vue` was the only such file in the tree;
+  check `arabicChars > 0 && no U+FFFD` before claiming it fixed.

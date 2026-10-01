@@ -6,10 +6,10 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.36.x  | :white_check_mark: |
+| 1.42.x  | :white_check_mark: |
 | < 1.36  | :x:                |
 
-Only the latest release line (currently `1.36.x`, single-sourced in root
+Only the latest release line (currently `1.42.x`, single-sourced in root
 `package.json` + `POS/package.json` + `server/package.json` +
 `server/lib/version.js`) receives security fixes. The live production build
 is https://dypos.smartportssoft.com/.

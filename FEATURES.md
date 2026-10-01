@@ -1,6 +1,6 @@
 # DyPOS - Feature Guide
 
-**Version:** 1.17.0
+**Version:** 1.42.0
 **Perfect for:** Retail Stores, Restaurants, Cafes, and Service Businesses
 
 > A modern Point of Sale system that works online and offline, with real-time inventory, smart promotions, and seamless DyPOS integration. 100% free and open source.
@@ -10,7 +10,7 @@
 ## Why Choose DyPOS?
 
 ### 🚀 Works Offline
-Never lose a sale due to internet problems. DyPOS works perfectly without internet and syncs automatically when back online.
+Never lose a sale due to internet problems. DyPOS works perfectly without internet and syncs when you demand it (Sync Now) or after you enable the `auto` linkage consent — nothing is sent on its own.
 
 ### ⚡ Lightning Fast
 Serve more customers in less time. Optimized for speed on any device - tablets, phones, or computers.
@@ -224,8 +224,8 @@ Stock levels and prices update instantly across all your devices. No manual refr
 - Accept payments offline
 - Print receipts offline
 
-**Auto-Sync**
-- Syncs when internet returns
+**Sync on demand**
+- Syncs on demand (Sync Center) or via the `auto` consent you enable
 - Queue sales during offline
 - See pending sync count
 - Manual sync available
@@ -445,7 +445,7 @@ Stock levels and prices update instantly across all your devices. No manual refr
 
 ## Quick Facts
 
-**Version:** 1.17.0
+**Version:** 1.42.0
 **License:** ISC (Free & Open Source)
 **Built on:** DyPOS
 **Technology:** Modern web technologies

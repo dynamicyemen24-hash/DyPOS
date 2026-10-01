@@ -124,14 +124,21 @@ function scoreEntry(entry, query) {
 	}
 
 	// «أرز بسمتي» يجب أن يُطابق «بسمتي أرز» مهما كان ترتيب الكلمات.
-	if (score === 0) {
-		const words = tokenize(query)
+	const words = tokenize(query)
+	if (
+		words.length > 1 &&
+		words.every((word) => entry.haystack.includes(word))
+	) {
+		score = Math.max(score, 50 + words.length)
+	}
 
-		if (
-			words.length > 1 &&
-			words.every((word) => entry.haystack.includes(word))
-		) {
-			score = 50
+	// البحث بكلمات متفرقة أكثر تسامحًا مع أسماء المنتجات الطويلة.
+	if (score === 0 && words.length > 1) {
+		const matchedWords = words.filter((word) =>
+			entry.tokens.some((token) => token.startsWith(word)),
+		).length
+		if (matchedWords === words.length) {
+			score = 44 + matchedWords
 		}
 	}
 
@@ -216,21 +223,23 @@ export function searchProductIndex(index, query, options = {}) {
 	for (let position = 0; position < scanLimit; position += 1) {
 		const entry = entries[position]
 
-		const matched = entry.tokens.some((token) =>
+		const matchedToken = entry.tokens.find((token) =>
 			fuzzyMatch(normalizedQuery, token, { threshold: FUZZY_THRESHOLD }),
 		)
 
-		if (matched) {
-			approximateHits.push(entry.product)
-
-			if (approximateHits.length >= limit) {
-				break
-			}
+		if (matchedToken) {
+			const distance = Math.abs(matchedToken.length - normalizedQuery.length)
+			approximateHits.push({
+				product: entry.product,
+				score: 100 - distance + boostOf(entry),
+			})
 		}
 	}
 
+	approximateHits.sort((first, second) => second.score - first.score)
+
 	return {
-		results: approximateHits,
+		results: approximateHits.slice(0, limit).map((hit) => hit.product),
 		approximate: approximateHits.length > 0,
 		query: trimmed,
 	}
