@@ -49,7 +49,7 @@ const CAPS = [
   // extracted to lib/payment-invariants.js, so the next payment rule lands
   // there instead of here.
   ['routes/invoices.js', 888],
-  ['server.js', 636],
+  ['server.js', 615],
 ];
 
 function countLines(rel) {

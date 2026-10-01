@@ -77,6 +77,7 @@ import { registerAuditRoutes } from './routes/audit.js';
 import { registerFeatures } from './routes/features.js';
 import { registerErrorTracker } from './lib/errorTracker.js';
 import { registerPublicEndpoints } from './lib/publicEndpoints.js';
+import { memoryCheck, diskCheck } from './lib/health-resources.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.DYPOS_PORT) || 3001;
@@ -217,30 +218,8 @@ registerHealthCheck("stock", async () => {
   }
 });
 
-registerHealthCheck("disk", async () => {
-  try {
-    const { statfsSync } = await import('node:fs');
-    const dataDir = process.env.DYPOS_DB_PATH && process.env.DYPOS_DB_PATH !== ':memory:'
-      ? dirname(process.env.DYPOS_DB_PATH)
-      : join(__dirname, 'data');
-    const st = statfsSync(dataDir);
-    if (st && typeof st.bfree === 'number') {
-      return { healthy: true, details: { free_mb: Math.round((Number(st.bfree) * Number(st.bsize)) / 1048576) } };
-    }
-    return { healthy: true, details: { error: 'unavailable' } };
-  } catch (e) {
-    return { healthy: false, error: e.message };
-  }
-});
-
-registerHealthCheck("memory", async () => {
-  const mem = process.memoryUsage();
-  const heapUsagePercent = (mem.heapUsed / mem.heapTotal) * 100;
-  return {
-    healthy: heapUsagePercent < 90,
-    details: { rss_mb: Math.round(mem.rss / 1048576), heap_mb: Math.round(mem.heapUsed / 1048576), heap_usage_percent: Math.round(heapUsagePercent) }
-  };
-});
+registerHealthCheck("disk", diskCheck);
+registerHealthCheck("memory", memoryCheck);
 
 // Initialize lifecycle only when server starts (not during test imports)
 let _lifecycleInitialized = false;

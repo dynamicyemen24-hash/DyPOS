@@ -54,4 +54,35 @@ describe('/api/health is a contract, not an environment reading', () => {
     assert.match(server, /\/api\/ready/);
     assert.match(server, /\/api\/health/);
   });
+
+  /**
+   * Reproduced by actually running the stack: a freshly booted container
+   * answered `/api/ready` with 503, because `heapUsed / heapTotal` reads ~92%
+   * before V8 has grown the heap. `docker-compose.yml` health-checks that path
+   * for a 200, so the container went unhealthy on start and every sidecar gated
+   * on `service_healthy` (backup, cloudflared) never launched — the whole
+   * end-to-end deploy silently stood still.
+   */
+  it('the memory check does not fail a fresh process on heap ratio alone', () => {
+    const health = readFileSync(resolve(HERE, '..', 'lib', 'health-resources.js'), 'utf8');
+    // It must judge RSS against a real budget…
+    assert.match(health, /MEMORY_BUDGET_MB/);
+    assert.match(health, /DYPOS_MEMORY_BUDGET_MB/);
+    // …and the ratio only counts once the heap is big enough to mean anything.
+    assert.match(health, /HEAP_RATIO_FLOOR_MB/);
+    // A bare `heapUsagePercent < 90` verdict is the bug this replaced.
+    assert.doesNotMatch(health, /healthy:\s*heapUsagePercent\s*<\s*90/);
+    // The extracted checks must stay wired, or the endpoints lose two probes.
+    const server = readFileSync(resolve(HERE, '..', 'server.js'), 'utf8');
+    assert.match(server, /registerHealthCheck\("memory",\s*memoryCheck\)/);
+    assert.match(server, /registerHealthCheck\("disk",\s*diskCheck\)/);
+  });
+
+  it('the compose healthcheck expects 200 on /api/ready', () => {
+    const compose = readFileSync(resolve(HERE, '..', '..', 'docker-compose.yml'), 'utf8');
+    assert.match(compose, /\/api\/ready/);
+    assert.match(compose, /statusCode===200/);
+    // Proves the two files are coupled: the endpoint must stay unconditional.
+    assert.match(compose, /condition:\s*service_healthy/);
+  });
 });
