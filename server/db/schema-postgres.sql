@@ -561,6 +561,32 @@ CREATE TABLE IF NOT EXISTS api_keys (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_apikeys_hash ON api_keys(key_hash);
+CREATE TABLE IF NOT EXISTS passkey_credentials (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id),
+  tenant_id UUID,
+  credential_id TEXT NOT NULL UNIQUE,
+  public_key TEXT NOT NULL,
+  algorithm INTEGER NOT NULL DEFAULT -7,
+  counter BIGINT NOT NULL DEFAULT 0,
+  transports TEXT NOT NULL DEFAULT '[]',
+  device_label TEXT,
+  aaguid TEXT,
+  backed_up BOOLEAN NOT NULL DEFAULT FALSE,
+  last_used_at timestamptz,
+  revoked BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_passkeys_user ON passkey_credentials(user_id);
+CREATE TABLE IF NOT EXISTS passkey_challenges (
+  challenge TEXT PRIMARY KEY,
+  user_id UUID,
+  tenant_id UUID,
+  purpose TEXT NOT NULL,
+  expires_at timestamptz NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_passkey_challenges_exp ON passkey_challenges(expires_at);
 CREATE TABLE IF NOT EXISTS password_resets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,

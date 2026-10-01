@@ -25,11 +25,12 @@ import { migrateShiftSettlementIntegrity } from './migrations-shift-settlement-i
 import { migrateSyncLogBranchScope } from './migrations-sync-branch-scope.js';
 import { migrateCatalogParity } from './migrations-catalog-parity.js';
 import { migrateReorderPoint } from './migrations-reorder-point.js';
+import { migratePasskeys } from './migrations-passkeys.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DYPOS_DB_PATH || join(__dirname, '..', 'data', 'dypos.db');
 
-const MIGRATION_VERSION = 31; // Increment when schema changes
+const MIGRATION_VERSION = 32; // Increment when schema changes
 
 /**
  * Migrations that live in their own `db/migrations-*.js` file (v23+).
@@ -49,8 +50,9 @@ const LATE_MIGRATIONS = Object.freeze([
 	{ version: 28, run: migrateShiftSettlementIntegrity, note: 'shift settlement concurrency integrity' },
 	{ version: 29, run: migrateSyncLogBranchScope, note: 'sync_log branch scope (multi-branch pull)' },
 	{ version: 30, run: migrateCatalogParity, note: 'currency + UoM catalog parity (POS ⇄ SQLite)' },
-	{ version: 31, run: migrateReorderPoint, note: 'per-product reorder point' },
-]);
+  { version: 31, run: migrateReorderPoint, note: 'per-product reorder point' },
+  { version: 32, run: migratePasskeys, note: 'webauthn passkey credentials' },
+ ]);
 
 function columnExists(table, column) {
 	try {

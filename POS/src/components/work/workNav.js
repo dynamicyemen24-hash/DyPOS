@@ -25,6 +25,16 @@ export const WORK_NAV_SECTIONS = Object.freeze([
 				icon: "file-text",
 			},
 			{
+				// الكشك نفسه: مسار قابل للوصول من التنقل، لا رابط ميت.
+				// `to: { name }` بلا `capability` لأن الكاشير الذاتي يخدم
+				// كل قطاع (مطعم/نادٍ/متجر/منشأة خدمة) — القدرات تصف
+				// ما يُباع لا كيف يُدفع.
+				id: "self-checkout",
+				label: "الكاشير الذاتي",
+				to: { name: "SelfCheckout" },
+				icon: "smartphone",
+			},
+			{
 				id: "third-party-sales",
 				label: "البيع بالنيابة",
 				to: { name: "ThirdPartySales" },

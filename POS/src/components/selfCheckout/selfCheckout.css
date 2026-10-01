@@ -1,0 +1,522 @@
+/*
+ * الكاشير الذاتي — تنسيقات الكشك.
+ *
+ * الشاشة تعمل على جهاز لمس قد يكون حاسب لوحي عموديًا في مطعم أو طاولة
+ * إلكترونية في نادٍ أو شاشة عند مدخل متجر. لذلك القواعد هنا مقصودة:
+ *  - أهداف لمس كبيرة (WCAG 2.5.8): لا زر أصغر من 48px في أي مكان.
+ *  - خصائص منطقية (inline-start/end) لا يمين/يسار، فينقلب الاتجاهان معًا.
+ *  - الأرقام لاتينية دائمًا (`formatNumberSafe`) عبر متغيّرات العرض.
+ *  - `prefers-reduced-motion` و`forced-colors` محترمان كما في بقية الواجهة.
+ *
+ * ملاحظة معمارية: كل المسافات والأحجام هنا تمرّ عبر طبقة `--dy-space-*`
+ * و`--dy-control-h-*` لا بقيم خام. السبب أن `density.css` يعيد تعريف تلك
+ * التوكنات تحت `data-density` — فالكاتب الذي يكتب `1.25rem` هنا يتجاهل
+ * إعداد الكثافة، ويظهر الكشك بمقاسات لا تطابق بقية الشاشات على الجهاز نفسه.
+ * التوكنات تجعل الكشك يتبع الكثافة كغيره.
+ */
+
+.self-checkout {
+	display: grid;
+	grid-template-rows: auto 1fr;
+	min-block-size: 100dvh;
+	background: var(--dy-bg-sunken);
+	color: var(--dy-text);
+	font-family: inherit;
+}
+
+/* --------------------------------------------------------------------------
+   الرأس — هوية المنشأة + حالة الجلسة
+   -------------------------------------------------------------------------- */
+.self-checkout__header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--dy-space-3);
+	flex-wrap: wrap;
+	padding: var(--dy-space-3) var(--dy-space-5);
+	background: var(--dy-bg);
+	border-block-end: var(--dy-border-width-thin) solid var(--dy-border);
+}
+
+.self-checkout__brand {
+	display: flex;
+	align-items: center;
+	gap: var(--dy-space-3);
+	min-block-size: var(--dy-control-h-md);
+}
+
+.self-checkout__title {
+	margin: 0;
+	font-size: 1.5rem;
+	font-weight: 700;
+	line-height: 1.2;
+}
+
+.self-checkout__subtitle {
+	margin: var(--dy-space-0-5) 0 0;
+	font-size: 0.9rem;
+	color: var(--dy-text-muted);
+}
+
+.self-checkout__header-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--dy-space-3);
+}
+
+/* --------------------------------------------------------------------------
+   الجسم — شبكة مخصّص + سلة
+   -------------------------------------------------------------------------- */
+.self-checkout__body {
+	display: grid;
+	grid-template-columns: 1fr 400px;
+	gap: var(--dy-space-5);
+	padding: var(--dy-space-5);
+	align-items: start;
+	min-block-size: 0;
+}
+
+.self-checkout__catalog {
+	display: flex;
+	flex-direction: column;
+	gap: var(--dy-space-3);
+	min-block-size: 0;
+}
+
+/* شريط المصدر — يعلن أن emptiness ليست قياسًا */
+.self-checkout__source {
+	padding: var(--dy-space-2) var(--dy-space-3);
+	font-size: 0.85rem;
+	color: var(--dy-text-muted);
+	background: rgb(15 23 42 / 4%);
+	border-radius: var(--dy-radius-sm);
+}
+
+.self-checkout__source[data-source="unavailable"] {
+	color: #b45309;
+	background: rgb(217 119 6 / 12%);
+}
+
+.self-checkout__grid {
+	/* بطاقة صنف — هدف لمس كبير */
+	.self-checkout__product {
+		display: flex;
+		flex-direction: column;
+		justify-content: space-between;
+		gap: var(--dy-space-2);
+		min-block-size: 132px; /* بطاقة صنف: ثابتة لأنها تحكم إيقاع اللمس */
+		padding: var(--dy-space-3);
+		text-align: start;
+		background: var(--dy-bg);
+		border: var(--dy-border-width-thin) solid var(--dy-border);
+		border-radius: var(--dy-radius-md);
+		cursor: pointer;
+		transition: border-color var(--dy-motion-duration-fast)
+			var(--dy-motion-ease-standard), transform var(--dy-motion-duration-fast)
+			var(--dy-motion-ease-standard);
+	}
+
+	.self-checkout__product:hover:not(:disabled) {
+		border-color: var(--dy-color-interactive-primary-bg);
+		transform: translateY(-2px);
+	}
+
+	.self-checkout__product:disabled {
+		opacity: 0.55;
+		cursor: not-allowed;
+	}
+
+	.self-checkout__product:focus-visible {
+		outline: 3px solid var(--dy-color-interactive-primary-bg);
+		outline-offset: 2px;
+	}
+
+	.self-checkout__product-name {
+		font-size: 1rem;
+		font-weight: 600;
+		line-height: 1.35;
+	}
+
+	.self-checkout__product-price {
+		font-size: 1.125rem;
+		font-weight: 700;
+		color: var(--dy-color-interactive-primary-bg);
+		font-variant-numeric: tabular-nums;
+	}
+
+	/* --------------------------------------------------------------------------
+   السلة
+   -------------------------------------------------------------------------- */
+	.self-checkout__cart {
+		position: sticky;
+		inset-block-start: 1.5rem;
+		display: flex;
+		flex-direction: column;
+		gap: var(--dy-space-3);
+		padding: var(--dy-space-4);
+		background: var(--dy-bg);
+		border: var(--dy-border-width-thin) solid var(--dy-border);
+		border-radius: var(--dy-radius-lg);
+		max-block-size: calc(100dvh - 8rem);
+		overflow-y: auto;
+	}
+
+	.self-checkout__cart-title {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--dy-space-2);
+		margin: 0;
+		font-size: 1.125rem;
+		font-weight: 700;
+	}
+
+	.self-checkout__cart-count {
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: var(--dy-text-muted);
+	}
+
+	.self-checkout__lines {
+		display: flex;
+		flex-direction: column;
+		gap: var(--dy-space-2);
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.self-checkout__line {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: var(--dy-space-1) var(--dy-space-3);
+		padding: var(--dy-space-2);
+		background: rgb(15 23 42 / 3%);
+
+		/* --------------------------------------------------------------------------
+   الإجماليات والدفع
+   -------------------------------------------------------------------------- */
+		.self-checkout__totals {
+			display: flex;
+			flex-direction: column;
+			gap: var(--dy-space-1-5);
+			padding-block: var(--dy-space-3);
+			border-block-start: 1px solid var(--dy-border);
+			font-size: 0.95rem;
+		}
+
+		.self-checkout__total-row {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: var(--dy-space-3);
+		}
+
+		.self-checkout__total-row--grand {
+			font-size: 1.35rem;
+			font-weight: 700;
+			font-variant-numeric: tabular-nums;
+		}
+
+		.self-checkout__change {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: var(--dy-space-3);
+			padding: var(--dy-space-3);
+			font-size: 1.15rem;
+			font-weight: 700;
+			font-variant-numeric: tabular-nums;
+			color: #047857;
+			background: rgb(16 185 129 / 12%);
+			border-radius: var(--dy-radius-sm);
+		}
+
+		.self-checkout__change[data-short="true"] {
+			color: #b45309;
+			background: rgb(217 119 6 / 12%);
+		}
+
+		.self-checkout__error {
+			padding: var(--dy-space-3) var(--dy-space-4);
+			font-size: 0.9rem;
+			color: #b91c1c;
+			background: rgb(239 68 68 / 10%);
+			border-radius: var(--dy-radius-sm);
+		}
+
+		.self-checkout__actions {
+			display: flex;
+			flex-direction: column;
+			gap: var(--dy-space-2);
+		}
+
+		.self-checkout__actions-row {
+			display: flex;
+			gap: var(--dy-space-2);
+		}
+
+		/* --------------------------------------------------------------------------
+   الدفع — اختيار الطريقة + لوحة الأرقام
+   -------------------------------------------------------------------------- */
+		.self-checkout__payment {
+			position: fixed;
+			inset: 0;
+			z-index: var(--dy-z-dialog);
+			display: grid;
+			place-items: center;
+			padding: var(--dy-space-5);
+			background: rgb(15 23 42 / 55%);
+		}
+
+		.self-checkout__payment-panel {
+			display: flex;
+			flex-direction: column;
+			gap: var(--dy-space-4);
+			inline-size: min(560px, 100%);
+			max-block-size: calc(100dvh - 3rem);
+			overflow-y: auto;
+			padding: var(--dy-space-5);
+			background: var(--dy-bg);
+			border-radius: var(--dy-radius-xl);
+		}
+
+		.self-checkout__payment-title {
+			margin: 0;
+			font-size: 1.5rem;
+			font-weight: 700;
+		}
+
+		.self-checkout__method-row {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+			gap: var(--dy-space-3);
+		}
+
+		.self-checkout__methods {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+			gap: var(--dy-space-3);
+		}
+
+		.self-checkout__method {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			gap: var(--dy-space-2);
+			min-block-size: var(--dy-control-h-lg);
+			padding: var(--dy-space-3);
+			font-size: 0.95rem;
+			font-weight: 600;
+			background: var(--dy-bg);
+			border: var(--dy-border-width-thick) solid var(--dy-border);
+			border-radius: var(--dy-radius-md);
+			cursor: pointer;
+		}
+
+		.self-checkout__method[aria-pressed="true"] {
+			border-color: var(--dy-color-interactive-primary-bg);
+			background: rgb(5 150 105 / 8%);
+			color: #047857;
+		}
+
+		.self-checkout__keypad {
+			display: grid;
+			grid-template-columns: repeat(3, 1fr);
+			gap: var(--dy-space-2);
+		}
+
+		.self-checkout__key {
+			min-block-size: var(--dy-control-h-lg);
+			font-size: 1.5rem;
+			font-weight: 700;
+			font-variant-numeric: tabular-nums;
+			background: var(--dy-bg);
+			border: var(--dy-border-width-thin) solid var(--dy-border);
+			border-radius: var(--dy-radius-md);
+			cursor: pointer;
+		}
+
+		.self-checkout__key:active {
+			background: rgb(15 23 42 / 6%);
+		}
+
+		.self-checkout__tender {
+			font-size: 2.25rem;
+			font-weight: 700;
+			text-align: center;
+			font-variant-numeric: tabular-nums;
+		}
+
+		.self-checkout__quick {
+			display: flex;
+			flex-wrap: wrap;
+			justify-content: center;
+			gap: var(--dy-space-2);
+		}
+
+		/* --------------------------------------------------------------------------
+   الإيصال / بوابة البداية
+   -------------------------------------------------------------------------- */
+		.self-checkout__receipt {
+			position: fixed;
+			inset: 0;
+			z-index: var(--dy-z-dialog);
+			display: grid;
+			place-items: center;
+			padding: var(--dy-space-5);
+			background: rgb(15 23 42 / 55%);
+		}
+
+		.self-checkout__receipt-panel {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: var(--dy-space-4);
+			inline-size: min(480px, 100%);
+			padding: var(--dy-space-8) var(--dy-space-5);
+			text-align: center;
+			background: var(--dy-bg);
+			border-radius: var(--dy-radius-xl);
+		}
+
+		.self-checkout__receipt-icon {
+			color: #047857;
+		}
+
+		.self-checkout__receipt-title {
+			margin: 0;
+			font-size: 1.75rem;
+			font-weight: 700;
+		}
+
+		.self-checkout__receipt-rows {
+			display: flex;
+			flex-direction: column;
+			gap: var(--dy-space-2);
+			inline-size: 100%;
+			padding: var(--dy-space-3);
+			background: rgb(15 23 42 / 3%);
+			border-radius: var(--dy-radius-md);
+			font-size: 0.95rem;
+		}
+
+		.self-checkout__receipt-row {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: var(--dy-space-3);
+		}
+
+		.self-checkout__receipt-row--total {
+			font-size: 1.2rem;
+			font-weight: 700;
+			font-variant-numeric: tabular-nums;
+		}
+
+		/* --------------------------------------------------------------------------
+   استجابة + تفضيلات
+   -------------------------------------------------------------------------- */
+		@media (max-width: 1024px) {
+			.self-checkout__body {
+				grid-template-columns: 1fr;
+			}
+
+			.self-checkout__cart {
+				position: static;
+				max-block-size: none;
+			}
+
+			.self-checkout__grid {
+				max-block-size: 46dvh;
+			}
+		}
+
+		@media (prefers-reduced-motion: reduce) {
+			.self-checkout__product {
+				transition: none;
+			}
+
+			.self-checkout__product:hover:not(:disabled) {
+				transform: none;
+			}
+		}
+
+		@media (forced-colors: active) {
+			.self-checkout__product,
+			.self-checkout__key,
+			.self-checkout__method {
+				border: 1px solid currentColor;
+			}
+		}
+
+		border-radius: var(--dy-radius-sm);
+	}
+
+	.self-checkout__line-name {
+		font-weight: 600;
+		font-size: 0.95rem;
+	}
+
+	.self-checkout__line-meta {
+		grid-column: 1 / -1;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--dy-space-2);
+		font-size: 0.85rem;
+		color: var(--dy-text-muted);
+	}
+
+	.self-checkout__line-total {
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.self-checkout__qty {
+		display: flex;
+		align-items: center;
+		gap: var(--dy-space-1-5);
+	}
+
+	.self-checkout__qty-value {
+		min-inline-size: var(--dy-control-h-xs);
+		text-align: center;
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.self-checkout__remove {
+		min-inline-size: var(--dy-control-h-xs);
+		min-block-size: var(--dy-control-h-xs);
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		background: transparent;
+		border: var(--dy-border-width-thin) solid var(--dy-border);
+		border-radius: var(--dy-radius-sm);
+		cursor: pointer;
+		color: var(--dy-color-interactive-danger-bg);
+	}
+
+	.self-checkout__empty {
+		padding: var(--dy-space-8) var(--dy-space-4);
+		text-align: center;
+		color: var(--dy-text-muted);
+	}
+
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+	gap: var(--dy-space-3);
+	overflow-y: auto;
+	max-block-size: calc(100dvh - 12rem);
+	padding-block-end: var(--dy-space-2);
+}
+
+.self-checkout__grid-empty {
+	grid-column: 1 / -1;
+	padding: var(--dy-space-10) var(--dy-space-4);
+	text-align: center;
+	color: var(--dy-text-muted);
+}
