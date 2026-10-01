@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.42.3] - 2026-10-01 — التحقق الحي المتوافق مع التشغيل المستقل
+
+### Fixed
+- مزامنة رقم Worker مع مصدر الإصدار لمنع فشل اختبار إصدار الحافة.
+- بوابة النشر تتحقق من إصدار Worker وجاهزيته وربط D1، وتعرض حالة خادم
+  المزامنة الاختياري منفصلة؛ غيابه لا يمنع إصدار PWA المستقل ولا يُعرض كخدمة
+  مزامنة سليمة.
+
 ## [1.42.0] - 2026-09-30 — التشغيل المستقل أولًا ومتغيرات الربط العامة
 
 ### Added

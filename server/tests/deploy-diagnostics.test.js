@@ -82,19 +82,19 @@ describe('Cloudflare Pages preflight', () => {
 });
 
 describe('live verification probe (scripts/verify-live.mjs)', () => {
-  it('names the fault the edge reports, not just a status code', () => {
-    // A bare 'HTTP 503' sends the operator back to curl by hand, and this is
-    // the only place the 15-minute heartbeat can say WHY production is red.
+  it('reports optional sync-backend faults without gating the offline release', () => {
     const live = readFileSync(join(REPO, 'scripts', 'verify-live.mjs'), 'utf8');
     assert.match(live, /function httpFailure\(/);
-    assert.match(live, /assert\(status === 200, httpFailure\(status, body\)\)/);
+    assert.match(live, /async function optionalSyncBackend\(/);
+    assert.match(live, /offline POS release is unaffected/);
+    assert.doesNotMatch(live, /probe\("API \/api\/health"/);
   });
 
-  it('labels the probe with the path it actually measures', () => {
-    // The label said 'API /api/ping' while the probe measured '/api/health',
-    // so the deploy log named an endpoint the operator could not diagnose.
+  it('gates the deployed Worker version and readiness, not an optional backend', () => {
     const live = readFileSync(join(REPO, 'scripts', 'verify-live.mjs'), 'utf8');
-    assert.match(live, /probe\("API \/api\/health", apiPing\)/);
-    assert.doesNotMatch(live, /probe\("API \/api\/ping"/);
+    assert.match(live, /probe\("API edge release \+ readiness", apiEdge\)/);
+    assert.match(live, /\/api\/edge-health/);
+    assert.match(live, /\/api\/ready/);
+    assert.match(live, /ready\.database_bound === true/);
   });
 });

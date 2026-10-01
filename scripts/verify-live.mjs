@@ -20,7 +20,9 @@
  *   /sw.js                200 (service worker at root scope = offline-first PWA)
  *   /manifest.webmanifest 200 (installable)
  *   /pos/<deep link>      200 + app shell (Ctrl+F5 on a deep route must work)
- *   /api/health           200 + version === expected (frontend/API release parity)
+ *   /api/edge-health      200 + version === expected (deployed Worker release)
+ *   /api/ready            200 + D1 bound (Worker readiness)
+ *   /api/health           reported separately; the sync backend is optional
  *
  * Exit code 1 = at least one probe failed. `GITHUB_STEP_SUMMARY`, when set, gets
  * the same table the terminal shows.
@@ -123,16 +125,39 @@ function httpFailure(status, body) {
 	return `${head} · ${String(body).replace(/\s+/g, " ").slice(0, 160)}`
 }
 
-async function apiPing() {
-	const { status, body } = await httpGet(`${SITE}/api/health`)
-	assert(status === 200, httpFailure(status, body))
-	const parsed = JSON.parse(body)
-	assert(parsed.status === "ok", `unexpected health status: ${parsed.status ?? "missing"}`)
+async function apiEdge() {
+	const { status: healthStatus, body: healthBody } = await httpGet(`${SITE}/api/edge-health`)
+	assert(healthStatus === 200, httpFailure(healthStatus, healthBody))
+	const health = JSON.parse(healthBody)
+	assert(health.status === "ok", `unexpected edge health status: ${health.status ?? "missing"}`)
 	assert(
-		parsed.version === EXPECTED,
-		`API health says '${parsed.version ?? "missing"}' but this release is ${EXPECTED} — frontend and API are out of sync`,
+		health.version === EXPECTED,
+		`edge health says '${health.version ?? "missing"}' but this release is ${EXPECTED}`,
 	)
-	return `version ${parsed.version} · ${body.replace(/\s+/g, " ").slice(0, 120)}`
+
+	const { status: readyStatus, body: readyBody } = await httpGet(`${SITE}/api/ready`)
+	assert(readyStatus === 200, httpFailure(readyStatus, readyBody))
+	const ready = JSON.parse(readyBody)
+	assert(ready.status === "ready", `unexpected edge readiness: ${ready.status ?? "missing"}`)
+	assert(ready.database_bound === true, "edge D1 database binding is missing")
+	assert(ready.version === EXPECTED, `edge readiness reports version '${ready.version ?? "missing"}'`)
+	return `edge ${health.version} · ready with D1 binding`
+}
+
+async function optionalSyncBackend() {
+	try {
+		const { status, body } = await httpGet(`${SITE}/api/health`)
+		if (status === 200) {
+			const parsed = JSON.parse(body)
+			if (parsed.status === "ok" && parsed.version === EXPECTED) {
+				return `✅ optional sync backend — version ${parsed.version}`
+			}
+			return `⚠️ optional sync backend — HTTP 200 but unexpected health/version (${String(body).replace(/\s+/g, " ").slice(0, 120)})`
+		}
+		return `⚠️ optional sync backend unavailable — ${httpFailure(status, body)}; offline POS release is unaffected`
+	} catch (error) {
+		return `⚠️ optional sync backend unavailable — ${String(error?.message || error).slice(0, 160)}; offline POS release is unaffected`
+	}
 }
 
 await probe("release stamp /version.json", versionStamp)
@@ -140,10 +165,11 @@ await probe("homepage + hashed bundle", homepageAndBundle)
 await probe("service worker /sw.js", () => assetServed("/sw.js"))
 await probe("manifest /manifest.webmanifest", () => assetServed("/manifest.webmanifest"))
 await probe("SPA deep link /pos/deep-link-probe", spaFallback)
-await probe("API /api/health", apiPing)
+await probe("API edge release + readiness", apiEdge)
+const syncBackendStatus = await optionalSyncBackend()
 
 const failed = results.filter((r) => !r.ok)
-const lines = results.map((r) => `${r.ok ? "✅" : "❌"} ${r.label} — ${r.detail}`)
+const lines = [...results.map((r) => `${r.ok ? "✅" : "❌"} ${r.label} — ${r.detail}`), syncBackendStatus]
 const report = [
 	"",
 	`DyPOS live verification — ${SITE}`,
