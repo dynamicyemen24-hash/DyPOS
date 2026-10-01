@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.42.4] - 2026-10-01 — تحسين تجربة تسجيل الدخول
+
+### Changed
+- تثبيت لوحة الهوية ضمن ارتفاع الشاشة المكتبية مع تمرير مستقل لنموذج الدخول،
+  وإبقاء التمرير الطبيعي على الأجهزة المحمولة.
+- عرض أخطاء الحقول المطلوبة فور المحاولة، وتحويل التركيز إلى أول حقل ناقص،
+  وتحسين دعم الإكمال التلقائي ولوحات المفاتيح.
+- توحيد التحقق في composable مختبر، وإضافة بوابات تمنع رجوع عيوب القالب
+  والتخطيط المكتبي.
+
 ## [1.42.3] - 2026-10-01 — التحقق الحي المتوافق مع التشغيل المستقل
 
 ### Fixed

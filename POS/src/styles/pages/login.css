@@ -389,7 +389,7 @@
 	grid-area: panel;
 
 	display: flex;
-	align-items: center;
+	align-items: stretch;
 	justify-content: center;
 
 	min-width: 0;
@@ -413,6 +413,7 @@
 
 .dy-login__panel-inner {
 	position: relative;
+	margin-block: auto;
 
 	/* يقصّ شريط التقدّم على زوايا البطاقة الدائرية بدل أن يفيض فوقها. */
 	overflow: hidden;
@@ -1319,6 +1320,30 @@
    Responsive
    ============================================================================= */
 
+/*
+ * On desktop, the brand rail remains a viewport-height composition while the
+ * longer form scrolls independently. The previous min-height-only grid grew
+ * both columns to the form's full content height and pushed the brand plaque
+ * below the fold on common laptop screens.
+ */
+@media (min-width: 901px) {
+	.dy-login {
+		height: 100vh;
+		height: 100dvh;
+	}
+
+	.dy-login__brand,
+	.dy-login__brand-content,
+	.dy-login__panel {
+		min-height: 0;
+	}
+
+	.dy-login__panel {
+		overscroll-behavior-y: contain;
+		scrollbar-gutter: stable;
+	}
+}
+
 @media (max-width: 1100px) {
 	.dy-login {
 		grid-template-columns:
@@ -1339,6 +1364,7 @@
 	.dy-login {
 		display: block;
 
+		height: auto;
 		overflow: auto;
 	}
 

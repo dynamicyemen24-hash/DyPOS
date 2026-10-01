@@ -938,6 +938,20 @@ describe("compounded dimming (colour × opacity)", () => {
 	})
 })
 
+describe("login viewport layout", () => {
+	it("keeps the desktop identity rail in view and scrolls the long panel", () => {
+		expect(LOGIN_CSS_FILE).toMatch(
+			/@media\s*\(min-width:\s*901px\)[\s\S]*?\.dy-login\s*\{[^}]*height:\s*100vh;[^}]*height:\s*100dvh;/,
+		)
+		expect(LOGIN_CSS_FILE).toMatch(
+			/@media\s*\(min-width:\s*901px\)[\s\S]*?\.dy-login__panel\s*\{[^}]*overscroll-behavior-y:\s*contain;[^}]*scrollbar-gutter:\s*stable;/,
+		)
+		expect(LOGIN_CSS_FILE).toMatch(
+			/@media\s*\(max-width:\s*900px\)[\s\S]*?\.dy-login\s*\{[^}]*height:\s*auto;/,
+		)
+	})
+})
+
 describe("the identity image is framed, never stretched behind live text", () => {
 	/*
 	 * `smart-ports-og.jpg` is a 1200×630 *sharing card*: the company name in two

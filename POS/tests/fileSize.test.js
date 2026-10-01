@@ -73,7 +73,10 @@ const CAPS = [
 	//   components/common/LoginSessionLockDialog.vue. شريط اللغة والسِمة
 	//   وتنبيه Caps Lock والمكوّنان اللذان يخدمانهما خارج الملف. الاتجاه
 	//   نزول فقط.
-	["src/pages/Login.vue", 1899],
+	// 1899 → 1890: ربط حالات الواجهة وتصحيح refs وترجمة PIN، ثم استخراج
+	//   التحقق من الحقول إلى composable قابل للاختبار. أضيفت بوابات القالب
+	//   والتخطيط المكتبي؛ الاتجاه downward فقط.
+	["src/pages/Login.vue", 1890],
 	// 2620 → 2561: the per-code tracking bookkeeping (registry buckets, the
 	// empty-bucket pruning that keeps a long session from leaking one Set per
 	// code it ever sold, and the list mutators) moved to

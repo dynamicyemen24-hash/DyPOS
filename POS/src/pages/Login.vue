@@ -61,6 +61,7 @@ import { useMediaQuery } from "@/composables/useMediaQuery"
 import { useAppTheme } from "@/composables/useAppTheme"
 import { useLoginPreferences } from "@/composables/useLoginPreferences"
 import { useCapsLock } from "@/composables/useCapsLock"
+import { useLoginRequiredFields } from "@/composables/useLoginRequiredFields"
 import {
 	useLoginRuntime,
 	attemptLocalLogin,
@@ -164,6 +165,8 @@ const { isLocked: sessionLocked } = useSessionLock()
  * ========================================================================== */
 
 const password = ref("")
+const showPassword = ref(false)
+const showRuntimeDetails = ref(false)
 
 const isSubmitting = ref(false)
 const loginError = ref("")
@@ -177,14 +180,8 @@ const loginForm = ref(null)
 const { capsLockOn, trackCapsLock } = useCapsLock()
 
 /* ============================================================================
- * Runtime State
- * ============================================================================ */
-
-/* ============================================================================
  * Runtime Readiness
- * ---------------------------------------------------------------------------
- * منطق التهيئة (CSRF، محرّك عدم الاتصال، اكتشاف الشبكة، تحديد الجاهزية)
- * Lives in composables/useLoginRuntime.js — قابل للاختبار وحده، ومختبر في
+ * تهيئة CSRF وعدم الاتصال والشبكة في useLoginRuntime.js ومختبرة في
  * tests/loginRuntime.test.js.
  * ========================================================================== */
 
@@ -200,7 +197,6 @@ const {
 	isRuntimeReady,
 	rateLimitState,
 	isRateLimited,
-	setRuntimeState,
 	prepareRuntime,
 	prepareServerDemand,
 	detectAndSetOfflineMode,
@@ -292,22 +288,6 @@ function stopSessionSecurityMonitor() {
 /* ============================================================================
  * Computed
  * ========================================================================== */
-
-const loginErrorMessage = computed(() => {
-	if (!loginError.value) {
-		return ""
-	}
-
-	return loginError.value
-})
-
-const canSubmit = computed(() => {
-	return (
-		email.value.trim().length > 0 &&
-		password.value.length > 0 &&
-		!isSubmitting.value
-	)
-})
 
 /*
  * حالة بيئة التشغيل: جدول لا سلسلة `if`.
@@ -488,7 +468,7 @@ function completeAuthentication(stage) {
  * للخادم) لا حسب `navigator.onLine` — انظر useLoginRuntime.
  */
 async function submitLogin() {
-	if (!canSubmit.value) return
+	if (isSubmitting.value || !validateRequiredFields()) return
 
 	if (isRateLimited.value) {
 		loginError.value = rateLimitMessage(rateLimitState.value.retryAfterMs)
@@ -868,6 +848,12 @@ const {
 	onError: (message, error) => log.debug(message, error),
 })
 
+const {
+	emailMissing,
+	passwordMissing,
+	validate: validateRequiredFields,
+} = useLoginRequiredFields({ email, password, emailInput, passwordInput })
+
 /* ============================================================================
  * Keyboard
  * ========================================================================== */
@@ -1220,7 +1206,7 @@ function goToRegister() {
                 <!-- Error -->
 
                 <div
-                    v-if="loginErrorMessage"
+                    v-if="loginError"
                     id="dypos-login-error"
                     class="dy-login__error"
                     role="alert"
@@ -1239,7 +1225,7 @@ function goToRegister() {
                         </strong>
 
                         <span>
-                            {{ loginErrorMessage }}
+                            {{ loginError }}
                         </span>
                     </div>
 
@@ -1269,7 +1255,6 @@ function goToRegister() {
 
                 <form
                     v-if="pinModeActive"
-                    ref="pinForm"
                     class="dy-login__form"
                     novalidate
                     @submit.prevent="handlePinLogin"
@@ -1279,7 +1264,7 @@ function goToRegister() {
                             for="dypos-pin-code"
                             class="dy-login__label"
                         >
-                            {{  pinAvailable ? "__('كود الدخول السريع')" : "__('لا يوجد رمز محفوظ')"  }}
+                            {{ pinAvailable ? __("كود الدخول السريع") : __("لا يوجد رمز محفوظ") }}
                         </label>
 
                         <div
@@ -1402,21 +1387,26 @@ function goToRegister() {
                                 ref="emailInput"
                                 v-model="email"
                                 class="dy-login__input"
+                                :class="{ 'dy-login__input--error': emailMissing }"
                                 type="email"
                                 inputmode="email"
+                                name="username"
                                 autocomplete="username"
                                 dir="ltr"
                                 placeholder="name@company.com"
                                 :disabled="isSubmitting"
+                                autocapitalize="none"
+                                autocorrect="off"
                                 required
                                 spellcheck="false"
-                                aria-describedby="dypos-login-email-error"
+                                :aria-invalid="emailMissing"
+                                :aria-describedby="emailMissing ? 'dypos-login-email-error' : undefined"
                                 @input="clearLoginError"
                             />
                         </div>
 
                         <span
-                            v-if="!email.value && isSubmitting"
+                            v-if="emailMissing"
                             id="dypos-login-email-error"
                             class="dy-login__field-error"
                             role="alert"
@@ -1441,7 +1431,7 @@ function goToRegister() {
                             </label>
 
                             <span
-                                v-if="password.value"
+                                v-if="password"
                                 class="dy-login__strength"
                                 :style="{ color: passwordStrength.color }"
                                 aria-live="polite"
@@ -1451,7 +1441,7 @@ function goToRegister() {
                         </div>
 
                         <PasswordStrengthBar
-                            v-if="password.value"
+                            v-if="password"
                             :password="password"
                             :show-label="false"
                             :aria-label="__('قوة كلمة المرور')"
@@ -1472,19 +1462,20 @@ function goToRegister() {
                                 ref="passwordInput"
                                 v-model="password"
                                 class="dy-login__input"
-                                :class="{ 'dy-login__input--error': !password.value && isSubmitting }"
+                                :class="{ 'dy-login__input--error': passwordMissing }"
                                 :type="
                                     showPassword
                                         ? 'text'
                                         : 'password'
                                 "
+                                name="password"
                                 autocomplete="current-password"
                                 dir="ltr"
                                 :placeholder="__('أدخل كلمة المرور')"
                                 :disabled="isSubmitting"
                                 required
-                                :aria-invalid="!!(!password.value && isSubmitting)"
-                                aria-describedby="dypos-login-password-error"
+                                :aria-invalid="passwordMissing"
+                                :aria-describedby="passwordMissing ? 'dypos-login-password-error' : undefined"
                                 @input="clearLoginError"
                                 @keydown="trackCapsLock"
                                 @keyup="trackCapsLock"
@@ -1517,7 +1508,7 @@ function goToRegister() {
                         </div>
 
                         <span
-                            v-if="!password.value && isSubmitting"
+                            v-if="passwordMissing"
                             id="dypos-login-password-error"
                             class="dy-login__field-error"
                             role="alert"
@@ -1589,7 +1580,7 @@ function goToRegister() {
                         size="lg"
                         class="dy-login__submit"
                         :loading="isSubmitting"
-                        :disabled="!canSubmit"
+                        :disabled="isSubmitting"
                         :aria-busy="isSubmitting"
                     >
                         <FeatherIcon

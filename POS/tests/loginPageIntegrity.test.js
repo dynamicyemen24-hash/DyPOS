@@ -339,3 +339,34 @@ describe("Login.vue — the four defects this gate was written for", () => {
 		)
 	})
 })
+
+describe("Login.vue — template state contracts", () => {
+	const template = source.slice(source.indexOf("<template>"))
+
+	it("binds the password visibility and runtime-detail controls", () => {
+		expect(bound.has("showPassword")).toBe(true)
+		expect(bound.has("showRuntimeDetails")).toBe(true)
+	})
+
+	it("uses Vue-unwrapped refs in the template", () => {
+		expect(template).not.toMatch(/\b(?:email|password)\.value\b/)
+	})
+
+	it("renders translated PIN labels instead of their source expression", () => {
+		expect(template).toContain(
+			'pinAvailable ? __("كود الدخول السريع") : __("لا يوجد رمز محفوظ")',
+		)
+		expect(template).not.toContain('"__("كود الدخول السريع")"')
+	})
+
+	it("exposes required-field errors and keeps empty-form submission available", () => {
+		expect(bound.has("emailMissing")).toBe(true)
+		expect(bound.has("passwordMissing")).toBe(true)
+		expect(template).toContain(':aria-invalid="emailMissing"')
+		expect(template).toContain(':aria-invalid="passwordMissing"')
+		expect(template).toContain('name="username"')
+		expect(template).toContain('name="password"')
+		expect(template).toContain(':disabled="isSubmitting"')
+		expect(script).toContain("validateRequiredFields()")
+	})
+})
