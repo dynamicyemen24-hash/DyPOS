@@ -144,7 +144,7 @@ A requirement is not complete because a UI exists. It needs an observable behavi
 - NFR-OFF-004 P0: Any unavoidable offline limitation (e.g. an uncached
   catalog page, a cross-branch figure) SHALL be surfaced with provenance
   (`server | local | unavailable`) and recorded as a measured debt item in
-  `TECH_DEBT_PAYDOWN.md` — never a silent empty state or a fake zero.
+  `docs/TECH_DEBT_PAYDOWN.md` — never a silent empty state or a fake zero.
 
 ### Security
 - NFR-SEC-001 P0: Authentication, authorization, tenant isolation and input validation SHALL fail closed.

@@ -18,7 +18,7 @@ npm test                              # = node scripts/run-tests.mjs
 npx @biomejs/biome check .
 npm run parity
 npm run contract
-# POS/ — 1278 tests / 95 files
+# POS/ — 1286 tests / 95 files
 npm run test:run
 npx biome check src/<touched-file>
 # production, from the repo root (after a deploy)
@@ -26,7 +26,7 @@ npm run verify:live                   # = node scripts/verify-live.mjs
 ```
 
 Test counts are *measured* by the runners, never estimated: server
-`615 tests / 183 suites`, POS `1278 tests / 95 files`.
+`615 tests / 183 suites`, POS `1286 tests / 95 files`.
 
 `POS/node_modules` is disposable — if a command hangs on `npx … Ok to proceed?`,
 the install is missing: `npm ci` in `POS/` (and add the package to
@@ -65,7 +65,7 @@ manifest breaks both the build and any test that compiles CSS).
      report may be gated on its availability. Nothing may limit offline
      operation: no offline feature flags, no license/telemetry/boot fetch, no
      "server required" fallback screen. Any unavoidable offline limitation is
-     a measured debt item (`TECH_DEBT_PAYDOWN.md`), never a silent design.
+     a measured debt item (`docs/TECH_DEBT_PAYDOWN.md`), never a silent design.
    - IndexedDB (Dexie) is the local database — all sales, stock, customers cached.
    - Service Worker precaches ALL assets (HTML, JS, CSS, fonts, images).
    - Background sync queue persists pending operations to IndexedDB.

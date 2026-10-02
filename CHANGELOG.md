@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   قادم بلا سند.
 
 ### Verified
-- POS: 1278 اختبارًا في 95 ملفًا، صفر فشل. `biome check .` و`vue-tsc` نظيفان.
+- POS: 1286 اختبارًا في 95 ملفًا، صفر فشل. `biome check .` و`vue-tsc` نظيفان.
 ## [1.44.1] - 2026-10-02 — سداد الديون المُقاسة
 
 ### Fixed
