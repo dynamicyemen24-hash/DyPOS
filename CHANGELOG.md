@@ -5,6 +5,90 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.44.2] - 2026-10-02 — ترقية شاشة الدخول: تنظيف مُقاس، وبنية وصولية سليمة
+
+### Fixed
+- **137 سطرًا من CSS ميت** حُذفت من `login.css`: أحد عشر مُحدِّدًا
+  (`brand-overlay`, `brand-copy`, `eyebrow`, `brand-title`, `brand-footer`,
+  `mobile-logo`…) لا يشير إليها أي مكوّن في الشجرة — بقايا استبدال لوحة
+  الهوية بـ `SystemAboutPanel.vue`. الملف 1958 ← 1805 سطرًا.
+- **لا `<h1>` في صفحة الدخول إطلاقًا**: كان العنوان `<h2>`، فكان مخطط
+  العناوين يبدأ من المستوى 2 بلا عنوان صفحة. أصبح `<h1>`، ورُقي عنوان
+  «إنشاء رمز دخول سريع» من `<h3>` إلى `<h2>` ليصبح التسلسل h1 ← h2.
+- **زر «إنشاء حساب» كان يعيد تحميل الصفحة كاملة** عبر
+  `window.location.href` بين صفحتين يملكهما الموجّه أصلًا.
+
+### Added
+- `goToRegister()` في `router.js`، ليطابق `goToForgotPassword()` القائم،
+  ويصبح الانتقال بين تسجيل الدخول والتسجيل داخل التطبيق دون إعادة تحميل.
+- بوابتان في `POS/tests/loginMasthead.test.js` و`designTokens.test.js`:
+  عنوان `<h1>` واحد، وغياب `location.href`، وغياب CSS الدخول الميت. وأُضيف
+  تثبيت لربط `dy-login__runtime--${type}` الديناميكي كي لا يحذفه مسح آلي
+  قادم بلا سند.
+
+### Verified
+- POS: 1278 اختبارًا في 95 ملفًا، صفر فشل. `biome check .` و`vue-tsc` نظيفان.
+## [1.44.1] - 2026-10-02 — سداد الديون المُقاسة
+
+### Fixed
+- **رافعة حجم الملفات كانت توافق لا تحمي**: ثلاثة أسقف تجاوزت واقعها
+  (`db/schema.js` سقفًا 1037 ومقاسًا 745، `routes/method.js` 3907/3784،
+  `pages/Login.vue` 1890/1845) — أي 460 سطرًا من النمو غير المقاس الذي كانت
+  الرافعة تُخضِر له. خُفِّضت كلها إلى الأرقام المقاسة في نفس الإصدار.
+- **أربعة ملفات عملاقة بلا أي قياس**: `offline.worker.js` (2065)،
+  `posCart.js` (2046)، `posSettings.js` (1548)، `AutocompleteSelect.vue`
+  (1477) — أضيفت أسقفها المقيسة إلى `POS/tests/fileSize.test.js`.
+
+### Changed
+- `docs/TECH_DEBT_PAYDOWN.md` أُعيد قياسه بالكامل: البنود 2 و3 و5 كانت تصف
+  ملفات **حُذفت في 1.39.0** (`PaymentDialog`, `ReturnInvoiceDialog`,
+  `InvoiceCart`) وأرقامًا تجاوزت الواقع بوقت طويل. البند 5 كان يسجّل
+  `DOCTYPES` كـ«مجدول» وهو منفَّذ فعلًا ومستورد في `method.js:59`.
+- **أغلفة `formatCurrency` المكرّرة أُزيلت** من خمسة مكوّنات
+  (`WorkTable`, `DataRow`, `GroupHeader`, `ReorderManagementDialog`,
+  `StockHistoryDialog`): كل غلاف كان يسمّي `formatCurrencySafe` بلا سطر من
+  منطقه، فاستُبدل باستيراد مُسمّى بلا تغيير سلوك.
+
+### Verified
+- الخادم: 615 اختبارًا / 183 مجموعة، صفر فشل. POS: 1278 اختبارًا في 95
+  ملفًا، صفر فشل. `biome` و`parity` (`ok: true`) و`contract` و`vue-tsc` خضراء.
+## [1.44.0] - 2026-10-02 — نظام الطوابير مُثبت بالاختبار، وسداد ديون مُقاسة
+
+### Fixed
+- **إصدار التذكرة في الطابور كان يفشل كليًا**: `issueTicket` يكتب حدث
+  `TICKET_CREATED` خارج معاملة Dexie التي ترفضه، فيرمي `NotFoundError`.
+  أي أن الكشك لم يكن يستطيع إصدار تذكرة إطلاقًا. الجدول أُضيف إلى نطاق
+  المعاملة ليكتب الحدث ذرّيًا مع التذكرة.
+- **زر النقل كان يفشل على أشهر مسار له**: انتقال `CALLED → TRANSFERRED`
+  كان غائبًا من آلة الحالات، فالنقل يفشل والسبب هو آلة الحالات نفسها.
+- **البصمة لم تعد تُركَّب في `server.js`**: مسارات WebAuthn انتقلت إلى
+  `routes/auth.js` لترث محدّد معدّل المصادقة دون نقطة تركيب ثانية يمكن
+  نسيانها.
+
+### Added
+- `POS/tests/queueDomain.test.js` و`POS/tests/queueRepository.test.js`:
+  50 اختبارًا لنظام الطابور الذي كُتب كاملًا (21 وحدة) بلا ولا اختبار.
+  تغطّي ترتيب النداء بالأولوية ثم الأقدم، مسارات آلة الحالات، خلوص
+  الكاونتر (`undefined` لا `null`)، الذرّية تحت النداء المتزامن، نطاق
+  المستأجر، وتسليم الأحداث مرة واحدة بالترتيب.
+- `server/middleware/rate-limiters.js` و`server/lib/health-paths.js`:
+  مصدر واحد لمحدَّدي المعدّل ومسارات الفحص، بدل تعريفين متطابقين.
+
+### Changed
+- `server.js` من 618 إلى 601 سطرًا، والسقف في `server/tests/fileSize.test.js`
+  خُفّض تبعًا لذلك. الاتجاه نزول فقط.
+- `Register.vue` من 1712 إلى 1516 سطرًا: حُذف 204 سطرًا من CSS يخص 13
+  مُحدِّدًا لا يشير إليه القالب إطلاقًا، وكتلة `@media` كانت تُصفّ شبكة
+  لم تعد موجودة. بوابة جديدة في `designTokens.test.js` تفشل البناء إن
+  عادت.
+- مفتاح `__APP_VERSION__` في `vite.config.js` لعرض الإصدار الدلالي على
+  بطاقة الهوية (`__BUILD_VERSION__` طابع زمني، فليس للعرض).
+
+### Verified
+- الخادم: 615 اختبار / 183 مجموعة، صفر فشل. `biome check .`، `parity`
+  (`ok: true`)، و`contract` خضراء.
+- POS: 1273 اختبار في 95 ملفًا، صفر فشل. `biome check .` و`vue-tsc
+  --noEmit` خضراء.
 ## [1.42.5] - 2026-10-01 — إعادة هندسة هوية شاشة الدخول
 
 ### Changed

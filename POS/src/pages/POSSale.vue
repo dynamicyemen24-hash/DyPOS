@@ -51,11 +51,14 @@ import { createSaleNotification } from "@/composables/useSaleNotification"
 import {
 	createHeaderActions,
 	handleHeaderAction,
+	handleHeaderGroupAction,
 } from "@/composables/usePosHeaderActions"
 import { createKeyboardShortcuts } from "@/composables/useKeyboardShortcuts"
 import { useConnectionWatch } from "@/composables/useConnectionWatch"
 import { gridNextIndex, readDirectionRTL } from "@/utils/gridNavigation"
 import POSHeader from "@/components/pos/POSHeader.vue"
+import PosKioskActions from "@/components/pos/PosKioskActions.vue"
+import PosHeaderActionGroup from "@/components/pos/PosHeaderActionGroup.vue"
 import SmartCashierDock from "@/components/pos/SmartCashierDock.vue"
 import SyncStatusIndicator from "@/components/pos/SyncStatusIndicator.vue"
 import SyncCenterDialog from "@/components/sale/SyncCenterDialog.vue"
@@ -1357,6 +1360,13 @@ const headerActions = createHeaderActions({
 	showCustomerPanel,
 })
 
+// طباعة آخر فاتورة تحتاج حالة الصفحة، فتبقى خارج خريطة الرأس.
+function onHeaderGroupAction(action) {
+	handleHeaderGroupAction(action, headerActions, {
+		printLast: () => printLastInvoice(),
+	})
+}
+
 const { handleKeydown } = createKeyboardShortcuts({
 	showShortcutsPanel,
 	quantityEditor,
@@ -1523,34 +1533,13 @@ watch(
             <!-- مؤشر حالة المزامنة الحي (معلّق/متصل/مزامنة أولية) -->
             <template #actions>
                 <SyncStatusIndicator @click="showSyncCenter = true" />
-                <button
-                    type="button"
-                    class="dy-pos-header-action"
-                    :title="__('التسويات')"
-                    :aria-label="__('التسويات')"
-                    @click="goToWorkScreens('settlements')"
-                >
-                    <FeatherIcon name="clipboard" class="h-[18px] w-[18px]" />
-                </button>
-                <button
-                    v-if="allowPrintLastInvoice"
-                    type="button"
-                    class="dy-pos-header-action"
-                    :title="__('طباعة آخر فاتورة')"
-                    :aria-label="__('طباعة آخر فاتورة')"
-                    @click="printLastInvoice"
-                >
-                    <FeatherIcon name="printer" class="h-[18px] w-[18px]" />
-                </button>
-                <button
-                    type="button"
-                    class="dy-pos-header-action"
-                    :title="__('إدارة المخزون')"
-                    :aria-label="__('إدارة المخزون')"
-                    @click="goToStockManagement"
-                >
-                    <FeatherIcon name="package" class="h-[18px] w-[18px]" />
-                </button>
+                <PosKioskActions
+                    @selfCheckout="handleHeaderAction('selfCheckout', headerActions)"
+                    @queue="handleHeaderAction('queue', headerActions)" />
+                <PosHeaderActionGroup
+                    :allow-print-last-invoice="allowPrintLastInvoice"
+                    @action="onHeaderGroupAction"
+                />
                 <ActionButton
                     variant="subtle"
                     size="sm"

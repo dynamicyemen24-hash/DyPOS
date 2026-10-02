@@ -1,4 +1,4 @@
-﻿/**
+/**
  * DyPOS Database Schema — SQLite (dev) / PostgreSQL (prod)
  * Single-tenant with multi-terminal support.
  *
@@ -26,11 +26,12 @@ import { migrateSyncLogBranchScope } from './migrations-sync-branch-scope.js';
 import { migrateCatalogParity } from './migrations-catalog-parity.js';
 import { migrateReorderPoint } from './migrations-reorder-point.js';
 import { migratePasskeys } from './migrations-passkeys.js';
+import { migrateQueueManagement } from './migrations-queue-management.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DYPOS_DB_PATH || join(__dirname, '..', 'data', 'dypos.db');
 
-const MIGRATION_VERSION = 32; // Increment when schema changes
+const MIGRATION_VERSION = 33; // Increment when schema changes
 
 /**
  * Migrations that live in their own `db/migrations-*.js` file (v23+).
@@ -52,6 +53,7 @@ const LATE_MIGRATIONS = Object.freeze([
 	{ version: 30, run: migrateCatalogParity, note: 'currency + UoM catalog parity (POS ⇄ SQLite)' },
   { version: 31, run: migrateReorderPoint, note: 'per-product reorder point' },
   { version: 32, run: migratePasskeys, note: 'webauthn passkey credentials' },
+  { version: 33, run: migrateQueueManagement, note: 'queue management (tickets, counters, calls)' },
  ]);
 
 function columnExists(table, column) {

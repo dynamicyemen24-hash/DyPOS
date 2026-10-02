@@ -77,6 +77,6 @@ watch(
 		}
 		html.dataset.theme = themeMap[theme] || "base"
 	},
-	{ immediate: true }
+	{ immediate: true },
 )
 </script>

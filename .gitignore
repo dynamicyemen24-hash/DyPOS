@@ -1,4 +1,4 @@
-﻿.DS_Store
+.DS_Store
 *.pyc
 *.egg-info
 *.swp
@@ -93,6 +93,9 @@ _fix*.txt
 _full*.txt
 _full2.txt
 _rest.txt
+_r.txt
+# Drill/test scratch produced by a local probe (never source)
+data/_qtest.sql
 _sc.txt
 _on*.txt
 _srvtest.txt
@@ -136,6 +139,10 @@ server/_install.log
 .pages-site/
 
 # Scratch diagnostics produced while measuring (regenerable, never source)
+.probe-out.txt
+.prune-dead-css.mjs
+.probe-err.txt
+server/data/_probe.db
 .biome-*.txt
 .fmt-*.txt
 .gate-*.txt

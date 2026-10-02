@@ -13,7 +13,10 @@
  */
 export function migratePasskeys(
 	db,
-	addColumnIfMissing,
+	// The runner injects it for every step (`step.run(db, addColumnIfMissing)`),
+	// so an all-CREATE-TABLE step leaves it unused. The `_` records that on
+	// purpose; dropping the parameter would break the shared call signature.
+	_addColumnIfMissing,
 	{ version = 32, description = "webauthn passkey credentials" } = {},
 ) {
 	db.exec(`

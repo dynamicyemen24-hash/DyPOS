@@ -28,13 +28,15 @@ import { FeatherIcon } from "dypos-ui"
 
 import { endpoints } from "@/utils/apiEndpoints"
 import { COMPANY_WEBSITE, COMPANY_WEBSITE_LABEL } from "@/utils/brand"
+import { getPasswordStrength } from "@/utils/passwordPolicy"
 import { translationVersion } from "@/utils/translation"
 
 import DyPOSLogo from "@/assets/DyPOSLogo.png"
-import smartPortsBg from "@/assets/smart-ports-og.jpg"
 
 import ShiftOpeningDialog from "@/components/ShiftOpeningDialog.vue"
 import CompanyFooter from "@/components/common/CompanyFooter.vue"
+import LoginPasskeyActions from "@/components/common/LoginPasskeyActions.vue"
+import SystemAboutPanel from "@/components/common/SystemAboutPanel.vue"
 import LoginAppearanceBar from "@/components/common/LoginAppearanceBar.vue"
 import LoginSessionLockDialog from "@/components/common/LoginSessionLockDialog.vue"
 import LoginSessionTimeoutDialog from "@/components/common/LoginSessionTimeoutDialog.vue"
@@ -53,7 +55,7 @@ import PasswordStrengthBar from "@/components/reports/dashboards/core/PasswordSt
  */
 
 import { session } from "@/stores/session"
-import { goToForgotPassword } from "@/router"
+import { goToForgotPassword, goToRegister } from "@/router"
 import { useSessionLock } from "@/composables/useSessionLock"
 import { useSessionTimeout } from "@/composables/useSessionTimeout"
 import { useSecondsRemaining } from "@/composables/useSecondsRemaining"
@@ -418,22 +420,15 @@ const { locale: preferencesLocale, dir: preferencesDir } = useLoginPreferences()
  * Password Strength
  * ============================================================================ */
 
-const passwordStrength = computed(() => {
-	const pwd = password.value
-	if (!pwd) return { level: 0, label: "", color: "" }
-	let score = 0
-	if (pwd.length >= 6) score++
-	if (pwd.length >= 10) score++
-	if (/[A-Z]/.test(pwd)) score++
-	if (/[0-9]/.test(pwd)) score++
-	if (/[^A-Za-z0-9]/.test(pwd)) score++
-
-	if (score <= 2)
-		return { level: score, label: "ضعيف", color: "var(--dy-crimson-600)" }
-	if (score <= 3)
-		return { level: score, label: "متوسط", color: "var(--dy-amber-600)" }
-	return { level: score, label: "قوي", color: "var(--dy-mint-600)" }
-})
+/*
+ * The strength meter is the POLICY's, not a private copy.
+ *
+ * This was a third implementation scoring from 6 characters while
+ * `passwordPolicy` (MIN_LENGTH = 8) judges the same password on the
+ * register and reset screens. A meter that says «قوي» for a value the
+ * policy rejects teaches the user the wrong thing.
+ */
+const passwordStrength = computed(() => getPasswordStrength(password.value))
 
 /* ============================================================================
  * Error
@@ -461,6 +456,17 @@ function completeAuthentication(stage) {
 	handleAuthSuccess({ stage })
 
 	emit("authenticated")
+}
+
+/**
+ * بعد نجاح البصمة على السيرفر.
+ *
+ * يمرّ بنفس `completeAuthentication` الذي يمرّ به الدخول بكلمة
+ * المرور — لا مسار ثانٍ يفتح جلسة، ولا عدّاد يُصعَّد مرتين، ولا
+ * تنقّل مكرّر. البصمة **طريقة تحقق**، لا نظام دخول موازٍ.
+ */
+function onPasskeyAuthenticated() {
+	completeAuthentication("passkey")
 }
 
 /**
@@ -951,10 +957,6 @@ watch(
 		}
 	},
 )
-
-function goToRegister() {
-	window.location.href = "/account/register"
-}
 </script>
 
 <template>
@@ -1058,9 +1060,11 @@ function goToRegister() {
                             {{ __('تسجيل الدخول') }}
                         </span>
 
-                        <h2 class="dy-login__title">
+                        <!-- The page's one top-level heading: it was an <h2> with
+                             no <h1> anywhere, so the outline started at level 2. -->
+                        <h1 class="dy-login__title">
                             {{ __('مرحبًا بك') }}
-                        </h2>
+                        </h1>
 
                         <p class="dy-login__subtitle">
                             {{ __('سجّل الدخول للمتابعة إلى نقطة البيع.') }}
@@ -1545,6 +1549,14 @@ function goToRegister() {
                     </DyButton>
                 </form>
 
+                <!-- الدخول/التسجيل بالبصمة. الزر يظهر فقط إن كان
+                     الجهاز يدعمه فعلًا — لا زرّ معطّل بتخمين السبب. -->
+                <LoginPasskeyActions
+                    mode="login"
+                    :email="email"
+                    @authenticated="onPasskeyAuthenticated"
+                />
+
                 <!-- =================================================================
                      Quick-access row: PIN entry + setup
                      ==================================================================
@@ -1611,12 +1623,12 @@ function goToRegister() {
                     aria-modal="true"
                     aria-labelledby="dypos-pin-setup-title"
                 >
-                    <h3
+                    <h2
                         id="dypos-pin-setup-title"
                         class="dy-login__pin-setup-title"
                     >
                         {{ __('إنشاء رمز دخول سريع') }}
-                    </h3>
+                    </h2>
 
                     <p class="dy-login__hint">
                         {{
@@ -1796,32 +1808,18 @@ function goToRegister() {
             </div>
         </section>
 
+        <!--
+        	قسم العرض على يسار/وسط شاشة الدخول. `dir` يُترك للصفحة
+        	(rtl): البطاقة داخله عربية، والشعار-circle محايد الاتجاه،
+        	التعليق **خارج** الوسم: تعليق داخل قائمة الخصائص ليس
+        	تعليقًا في HTML، فيقرأ نصه خاصيةً ويشكو تكرارًا.
+        -->
         <section
         	class="dy-login__showcase"
         	:aria-label="__('شركة المنافذ الذكية للبرمجيات — Smart Ports Software')"
         >
-        	<figure class="dy-login__brand-card">
-        		<a
-        			class="dy-login__brand-card-link"
-        			:href="COMPANY_WEBSITE"
-        			target="_blank"
-        			rel="noopener noreferrer"
-        			:aria-label="COMPANY_WEBSITE_LABEL"
-        		>
-        			<img
-        				:src="smartPortsBg"
-        				:alt="__('شركة المنافذ الذكية للبرمجيات — Smart Ports Software')"
-        				width="1200"
-        				height="630"
-        				decoding="async"
-        			/>
-        		</a>
-        	</figure>
+        	<SystemAboutPanel class="dy-login__brand-card" />
         </section>
-
-        <!-- =================================================================
-             Shift Opening
-             =============================================================== -->
 
         <ShiftOpeningDialog
             v-if="shiftDialogOpen"

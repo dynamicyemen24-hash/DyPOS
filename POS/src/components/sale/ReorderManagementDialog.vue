@@ -10,7 +10,6 @@
             </div>
             <Button variant="ghost" size="sm" @click="handleClose" icon="x" />
           </div>
-
           <div class="flex-1 overflow-y-auto p-4 space-y-4">
             <div class="flex flex-wrap items-center gap-2">
               <Button variant="outline" @click="loadReorderData" :loading="loading">
@@ -49,7 +48,6 @@
                 class="w-48"
               />
             </div>
-
             <p
               v-if="loadError"
               role="alert"
@@ -63,7 +61,6 @@
             >
               {{ __("تم عرض أول 5000 صنف مطابق فقط. استخدم البحث لتضييق النتائج.") }}
             </p>
-
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <KpiCard
                 :label="__('تحت حد إعادة الطلب')"
@@ -84,7 +81,6 @@
                 status="good"
               />
             </div>
-
             <div class="overflow-x-auto">
               <ReportTable
                 :columns="reorderColumns"
@@ -136,14 +132,12 @@
                 </template>
               </ReportTable>
             </div>
-
             <Pagination
               v-if="totalPages > 1"
               :current-page="currentPage"
               :total-pages="totalPages"
               @page-change="currentPage = $event"
             />
-
             <p v-if="!loading && !reorderItems.length" class="text-center text-sm text-gray-500 py-8">
               {{ __("لا توجد أصناف مطابقة في هذا المستودع") }}
             </p>
@@ -153,37 +147,30 @@
     </div>
   </Transition>
 </template>
-
 <script setup>
 import SelectInput from "@/components/common/SelectInput.vue"
 import KpiCard from "@/components/reports/ui/cards/KpiCard.vue"
 import ReportTable from "@/components/reports/ui/tables/ReportTable.vue"
 import Pagination from "@/components/ui/Pagination.vue"
 import { useToast } from "@/composables/useToast"
-import { formatCurrencySafe } from "@/utils/currency"
+import { formatCurrencySafe as formatCurrency } from "@/utils/currency"
 import { logger } from "@/utils/logger"
 import { apiGet, apiPatch } from "@/utils/restApi"
 import { Badge, Button, FeatherIcon, FormControl } from "dypos-ui"
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue"
 import { buildReorderPlan, summarizeReorderPlan } from "./reorderPlanning"
-
 const log = logger.create("ReorderManagementDialog")
-
 const props = defineProps({
 	modelValue: Boolean,
 	warehouses: { type: Array, default: () => [] },
 	categories: { type: Array, default: () => [] },
 })
-
 const emit = defineEmits(["update:modelValue", "saved"])
-
 const { showSuccess, showError } = useToast()
-
 const show = computed({
 	get: () => props.modelValue,
 	set: (val) => emit("update:modelValue", val),
 })
-
 const searchQuery = ref("")
 const filterCategory = ref("")
 const warehouseFilter = ref("")
@@ -198,7 +185,6 @@ const savingItemId = ref(null)
 const draftReorderPoints = reactive({})
 let requestSequence = 0
 let searchTimer = null
-
 const categoryOptions = computed(() =>
 	props.categories.map((c) => ({ value: c, label: c })),
 )
@@ -210,7 +196,6 @@ const warehouseOptions = computed(() =>
 			label: warehouse.name || warehouse.id,
 		})),
 )
-
 const reorderColumns = [
 	{ key: "code", label: "الكود", sortable: true },
 	{ key: "name", label: "الاسم", sortable: true },
@@ -238,20 +223,13 @@ const reorderColumns = [
 	{ key: "status", label: "الحالة", sortable: true },
 	{ key: "actions", label: "إجراءات", width: 80 },
 ]
-
 const paginatedItems = computed(() => {
 	const start = (currentPage.value - 1) * pageSize
 	return reorderItems.value.slice(start, start + pageSize)
 })
-
 const totalPages = computed(() =>
 	Math.ceil(reorderItems.value.length / pageSize),
 )
-
-function formatCurrency(amount) {
-	return formatCurrencySafe(amount)
-}
-
 async function loadReorderData() {
 	const requestId = ++requestSequence
 	if (!warehouseFilter.value) {
@@ -285,14 +263,12 @@ async function loadReorderData() {
 			if (all.length >= 5000 && data?.hasMore) truncated.value = true
 			offset += rows.length
 		}
-
 		if (requestId !== requestSequence) return
 		const warehouseName =
 			warehouseOptions.value.find(
 				(option) => option.value === warehouseFilter.value,
 			)?.label || warehouseFilter.value
 		const items = buildReorderPlan(all, warehouseName)
-
 		reorderItems.value = items
 		summary.value = summarizeReorderPlan(items)
 		for (const item of items) draftReorderPoints[item.id] = item.reorder_point
@@ -306,7 +282,6 @@ async function loadReorderData() {
 		if (requestId === requestSequence) loading.value = false
 	}
 }
-
 async function saveReorderPoint(row) {
 	const reorderPoint = Number(draftReorderPoints[row.id])
 	if (
@@ -334,7 +309,6 @@ async function saveReorderPoint(row) {
 		savingItemId.value = null
 	}
 }
-
 function getReorderStatusTheme(status) {
 	switch (status) {
 		case "below_reorder":
@@ -347,20 +321,17 @@ function getReorderStatusTheme(status) {
 			return "green"
 	}
 }
-
 function statusLabel(status) {
 	if (status === "below_reorder") return "تحت الحد"
 	if (status === "suggested") return "مقترح"
 	if (status === "unconfigured") return "غير مضبوط"
 	return "طبيعي"
 }
-
 function openReorderDetails(row) {
 	showSuccess(
 		`${row.name}: المتاح ${row.available_qty} / حد إعادة الطلب ${row.reorder_point}`,
 	)
 }
-
 function exportReorderList() {
 	const headers = [
 		"code",
@@ -400,7 +371,6 @@ function exportReorderList() {
 	URL.revokeObjectURL(url)
 	showSuccess("تم تصدير قائمة إعادة الطلب")
 }
-
 function exportReorderRow(row) {
 	const csv = [
 		[
@@ -434,27 +404,22 @@ function exportReorderRow(row) {
 	a.click()
 	URL.revokeObjectURL(url)
 }
-
 function csvCell(value) {
 	const text = String(value ?? "")
 	const safeText = /^[=+\-@]/.test(text) ? `'${text}` : text
 	return `"${safeText.replace(/"/g, '""')}"`
 }
-
 onMounted(() => {
 	if (show.value) loadReorderData()
 })
-
 watch([searchQuery, filterCategory, warehouseFilter], () => {
 	currentPage.value = 1
 	clearTimeout(searchTimer)
 	searchTimer = setTimeout(loadReorderData, 250)
 })
-
 watch(show, (val) => {
 	if (val) if (show.value) searchTimer = setTimeout(loadReorderData, 250)
 })
-
 watch(
 	warehouseOptions,
 	(options) => {
@@ -464,7 +429,6 @@ watch(
 	},
 	{ immediate: true },
 )
-
 onBeforeUnmount(() => {
 	clearTimeout(searchTimer)
 	requestSequence += 1

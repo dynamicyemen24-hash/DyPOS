@@ -1,18 +1,18 @@
-<!--
+﻿<!--
   =============================================================================
-  DyPOS — Subscriber Registration Page
+  DyPOS â€” Subscriber Registration Page
   Production Grade / End-to-End SaaS
   =============================================================================
 
-  المسؤوليات:
+  Ø§Ù„Ù…Ø³Ø¤ÙˆÙ„ÙŠØ§Øª:
   - Subscriber registration UI
   - Form validation (Arabic)
   - API registration via the method router
   - Success/error feedback
   - Navigation back to login
 
-  المبدأ:
-  Register → Verify → Login
+  Ø§Ù„Ù…Ø¨Ø¯Ø£:
+  Register â†’ Verify â†’ Login
   -->
 
 <script setup>
@@ -20,9 +20,6 @@ import { ref, computed, onMounted, onUnmounted, watch } from "vue"
 
 import { FeatherIcon } from "dypos-ui"
 import { ActionButton } from "dypos-ui"
-
-import DyPOSLogo from "@/assets/DyPOSLogo.png"
-import smartPortsBg from "@/assets/smart-ports-og.jpg"
 
 import DyButton from "@/components/ui/DyButton.vue"
 import CompanyFooter from "@/components/common/CompanyFooter.vue"
@@ -36,6 +33,11 @@ import { useReducedMotion } from "@/composables/useReducedMotion"
 import { useMediaQuery } from "@/composables/useMediaQuery"
 import { isLinkEnabled } from "@/services/link-consent"
 import { userRepository } from "@/repositories/userRepository"
+import {
+	getPasswordStrength,
+	isPasswordAcceptable,
+	validatePassword,
+} from "@/utils/passwordPolicy"
 
 /* ============================================================================
  * Props
@@ -72,59 +74,57 @@ const showConfirmPassword = ref(false)
  * Computed
  * ============================================================================ */
 
+/*
+ * The password rules are the POLICY's, not this page's.
+ *
+ * This screen used to hardcode a 6-character minimum and keep a private
+ * copy of the strength scoring, while `utils/passwordPolicy.js` â€” the
+ * module `usePasswordReset` judges with â€” said 8. Two screens then gave
+ * two different answers to "is this password valid": an account could be
+ * registered with six characters and be refused the same value later.
+ * One module, one answer, both screens.
+ */
 const canSubmit = computed(() => {
 	return (
 		fullName.value.trim().length >= 2 &&
 		email.value.trim().length > 0 &&
-		password.value.length >= 6 &&
+		isPasswordAcceptable(password.value) &&
 		password.value === confirmPassword.value &&
 		agreeToTerms.value &&
 		!isSubmitting.value
 	)
 })
 
-const passwordStrength = computed(() => {
-	const pwd = password.value
-	if (!pwd) return { level: 0, label: "", color: "" }
-	let score = 0
-	if (pwd.length >= 6) score++
-	if (pwd.length >= 10) score++
-	if (/[A-Z]/.test(pwd)) score++
-	if (/[0-9]/.test(pwd)) score++
-	if (/[^A-Za-z0-9]/.test(pwd)) score++
+const passwordStrength = computed(() => getPasswordStrength(password.value))
 
-	if (score <= 2)
-		return { level: score, label: "ضعيف", color: "var(--dy-crimson-600)" }
-	if (score <= 3)
-		return { level: score, label: "متوسط", color: "var(--dy-amber-600)" }
-	return { level: score, label: "قوي", color: "var(--dy-mint-600)" }
+/*
+ * The field error is the policy's FIRST complaint. Re-checking the rules
+ * here is exactly what let the two copies drift apart.
+ */
+const passwordError = computed(() => {
+	if (!password.value) return ""
+	return validatePassword(password.value)[0] ?? ""
 })
 
 const emailError = computed(() => {
 	if (!email.value) return ""
 	const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-	if (!emailRegex.test(email.value)) return "البريد الإلكتروني غير صالح"
-	return ""
-})
-
-const passwordError = computed(() => {
-	if (!password.value) return ""
-	if (password.value.length < 6)
-		return "كلمة المرور يجب أن تكون 6 أحرف على الأقل"
+	if (!emailRegex.test(email.value))
+		return "Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ ØºÙŠØ± ØµØ§Ù„Ø­"
 	return ""
 })
 
 const confirmPasswordError = computed(() => {
 	if (!confirmPassword.value) return ""
 	if (confirmPassword.value !== password.value)
-		return "كلمات المرور غير متطابقة"
+		return "ÙƒÙ„Ù…Ø§Øª Ø§Ù„Ù…Ø±ÙˆØ± ØºÙŠØ± Ù…ØªØ·Ø§Ø¨Ù‚Ø©"
 	return ""
 })
 
 const fullNameError = computed(() => {
 	if (!fullName.value.trim()) return ""
 	if (fullName.value.trim().length < 2)
-		return "الاسم يجب أن يكون حرفين على الأقل"
+		return "Ø§Ù„Ø§Ø³Ù… ÙŠØ¬Ø¨ Ø£Ù† ÙŠÙƒÙˆÙ† Ø­Ø±ÙÙŠÙ† Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„"
 	return ""
 })
 
@@ -152,7 +152,7 @@ const log = logger.create("Register")
 async function detectOfflineMode() {
 	if (!isBrowser) return false
 
-	// Standalone-first (user-mandated): no boot probe — pinging the backend
+	// Standalone-first (user-mandated): no boot probe â€” pinging the backend
 	// to decide the mode was itself an undemanded connection. Pure local
 	// state: standalone until the user demands server linkage.
 	return !isLinkEnabled()
@@ -208,7 +208,10 @@ async function attemptOfflineRegistration(userData) {
 		return { success: true, user }
 	} catch (error) {
 		log.error("Offline registration failed:", error)
-		return { success: false, error: error.message || "فشل التسجيل المحلي" }
+		return {
+			success: false,
+			error: error.message || "ÙØ´Ù„ Ø§Ù„ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ù…Ø­Ù„ÙŠ",
+		}
 	}
 }
 
@@ -301,7 +304,7 @@ async function submitRegistration() {
 		const errorMessage =
 			error?.message ||
 			error?.response?.data?.message ||
-			"حدث خطأ أثناء التسجيل. يرجى المحاولة مرة أخرى."
+			"Ø­Ø¯Ø« Ø®Ø·Ø£ Ø£Ø«Ù†Ø§Ø¡ Ø§Ù„ØªØ³Ø¬ÙŠÙ„. ÙŠØ±Ø¬Ù‰ Ø§Ù„Ù…Ø­Ø§ÙˆÙ„Ø© Ù…Ø±Ø© Ø£Ø®Ø±Ù‰."
 
 		registerError.value = errorMessage
 
@@ -343,7 +346,7 @@ onMounted(async () => {
 
 	window.addEventListener("online", () => {
 		if (isOfflineMode.value) {
-			log.info("Connection restored — switching to online mode")
+			log.info("Connection restored â€” switching to online mode")
 			isOfflineMode.value = false
 			showOfflineIndicator.value = false
 		}
@@ -351,7 +354,7 @@ onMounted(async () => {
 
 	window.addEventListener("offline", () => {
 		if (!isOfflineMode.value) {
-			log.info("Connection lost — switching to offline mode")
+			log.info("Connection lost â€” switching to offline mode")
 			isOfflineMode.value = true
 			showOfflineIndicator.value = true
 		}
@@ -383,67 +386,17 @@ onUnmounted(() => {
 			aria-live="polite"
 		>
 			<FeatherIcon name="wifi-off" :size="16" aria-hidden="true" />
-			<span>وضع عدم الاتصال — سيتم حفظ الحساب محليًا</span>
+			<span>ÙˆØ¶Ø¹ Ø¹Ø¯Ù… Ø§Ù„Ø§ØªØµØ§Ù„ â€” Ø³ÙŠØªÙ… Ø­ÙØ¸ Ø§Ù„Ø­Ø³Ø§Ø¨ Ù…Ø­Ù„ÙŠÙ‹Ø§</span>
 		</div>
 
-		<!-- =================================================================
-             Brand Panel
-             =========================================================== -->
+		<!--
+			Ù„Ø§ Ù„ÙˆØ­Ø© Ù‡ÙˆÙŠØ© ÙˆÙ„Ø§ ØµÙˆØ± Ù‡Ù†Ø§.
 
-		<section class="dy-register__brand" aria-label="هوية DyPOS">
-			<div class="dy-register__brand-overlay" />
-
-			<div class="dy-register__brand-content">
-				<div class="dy-register__logo-shell">
-					<img
-						:src="DyPOSLogo"
-						alt="DyPOS"
-						class="dy-register__logo"
-						width="112"
-						height="112"
-						decoding="async"
-					/>
-				</div>
-
-				<div class="dy-register__brand-copy">
-					<span class="dy-register__eyebrow">
-						نقطة البيع الذكية
-					</span>
-
-					<h1 class="dy-register__brand-title">
-						أنشئ حسابك
-						<br />
-						ابدأ الآن.
-					</h1>
-
-					<p class="dy-register__brand-description">
-						سجّل كمشترك جديد للوصول إلى جميع مميزات
-						نقطة البيع الذكية.
-					</p>
-				</div>
-
-				<!-- The identity card, framed instead of stretched behind the
-				     copy: `smart-ports-og.jpg` is a 1200×630 sharing card whose
-				     typography is baked into its pixels, so a `cover` backdrop
-				     could only ever show it cut mid-word under the headline. -->
-				<figure class="dy-register__brand-card">
-					<img
-						:src="smartPortsBg"
-						alt="شركة المنافذ الذكية للبرمجيات — Smart Ports Software"
-						width="1200"
-						height="630"
-						decoding="async"
-					/>
-				</figure>
-
-
-				<div class="dy-register__brand-footer">
-					<span>DyPOS</span>
-					<span>© {{ new Date().getFullYear() }}</span>
-					<span>جميع الحقوق محفوظة</span>
-				</div>
-			</div>
-		</section>
+			ÙƒØ§Ù†Øª Ø¹Ù…ÙˆØ¯Ù‹Ø§ ÙƒØ§Ù…Ù„Ù‹Ø§ Ø¨ØµÙˆØ±Ø© 1200Ã—630 ÙˆØ´Ø¹Ø§Ø± ÙˆØªØ°ÙŠÙŠÙ„ØŒ ÙØ¨Ù‚ÙŠ Ø¨Ø¹Ø¯
+			Ø­Ø°Ù Ø§Ù„ØµÙˆØ± ÙØ±Ø§ØºÙ‹Ø§ Ù…ÙŠØªÙ‹Ø§ ÙŠØ´Ø¯Ù‘ Ø§Ù„Ø¹ÙŠÙ† Ø¨Ù„Ø§ Ù…Ø¹Ù„ÙˆÙ…Ø©: Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù… Ù‡Ù†Ø§
+			Ù„Ù… signingStyle ÙŠØ­ØªØ§Ø¬ Ù†Ù…ÙˆØ°Ø¬Ù‹Ø§ Ù„Ø§ Ø¥Ø¹Ù„Ø§Ù†Ù‹Ø§. Ø§Ù„Ø§Ø¹ØªÙ…Ø§Ø¯_
+			ÙŠØªØ£ØªÙ‰ Ù…Ù† `CompanyFooter` Ù†ØµÙ‹Ù‘Ø§ ÙÙŠ Ø£Ø³ÙÙ„ Ø§Ù„ØµÙØ­Ø©.
+		-->
 
 		<!-- =================================================================
              Registration Panel
@@ -454,27 +407,18 @@ onUnmounted(() => {
 				<!-- Header -->
 
 				<header class="dy-register__header">
-					<div class="dy-register__mobile-logo">
-						<img
-							:src="DyPOSLogo"
-							alt="DyPOS"
-							width="148"
-							height="54"
-							decoding="async"
-						/>
-					</div>
 
 					<div>
 						<span class="dy-register__section-label">
-							تسجيل حساب جديد
+							ØªØ³Ø¬ÙŠÙ„ Ø­Ø³Ø§Ø¨ Ø¬Ø¯ÙŠØ¯
 						</span>
 
 						<h2 class="dy-register__title">
-							إنشاء حساب المشترك
+							Ø¥Ù†Ø´Ø§Ø¡ Ø­Ø³Ø§Ø¨ Ø§Ù„Ù…Ø´ØªØ±Ùƒ
 						</h2>
 
 						<p class="dy-register__subtitle">
-							أدخل بياناتك لبدء استخدام نقطة البيع الذكية.
+							Ø£Ø¯Ø®Ù„ Ø¨ÙŠØ§Ù†Ø§ØªÙƒ Ù„Ø¨Ø¯Ø¡ Ø§Ø³ØªØ®Ø¯Ø§Ù… Ù†Ù‚Ø·Ø© Ø§Ù„Ø¨ÙŠØ¹ Ø§Ù„Ø°ÙƒÙŠØ©.
 						</p>
 					</div>
 
@@ -489,7 +433,7 @@ onUnmounted(() => {
 							:size="18"
 							aria-hidden="true"
 						/>
-						العودة إلى تسجيل الدخول
+						Ø§Ù„Ø¹ÙˆØ¯Ø© Ø¥Ù„Ù‰ ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„
 					</a>
 				</header>
 
@@ -509,12 +453,12 @@ onUnmounted(() => {
 					</div>
 
 					<h3 class="dy-register__success-title">
-						تم إنشاء الحساب بنجاح!
+						ØªÙ… Ø¥Ù†Ø´Ø§Ø¡ Ø§Ù„Ø­Ø³Ø§Ø¨ Ø¨Ù†Ø¬Ø§Ø­!
 					</h3>
 
 					<p class="dy-register__success-message">
-						مرحبًا بك في DyPOS. يمكنك الآن تسجيل الدخول
-						لبدء استخدام نقطة البيع.
+						Ù…Ø±Ø­Ø¨Ù‹Ø§ Ø¨Ùƒ ÙÙŠ DyPOS. ÙŠÙ…ÙƒÙ†Ùƒ Ø§Ù„Ø¢Ù† ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„
+						Ù„Ø¨Ø¯Ø¡ Ø§Ø³ØªØ®Ø¯Ø§Ù… Ù†Ù‚Ø·Ø© Ø§Ù„Ø¨ÙŠØ¹.
 					</p>
 
 					<DyButton
@@ -522,7 +466,7 @@ onUnmounted(() => {
 						size="lg"
 						@click="goToLogin"
 					>
-						الانتقال إلى تسجيل الدخول
+						Ø§Ù„Ø§Ù†ØªÙ‚Ø§Ù„ Ø¥Ù„Ù‰ ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„
 					</DyButton>
 				</div>
 
@@ -543,7 +487,7 @@ onUnmounted(() => {
 
 					<div class="dy-register__error-content">
 						<strong>
-							تعذر إنشاء الحساب
+							ØªØ¹Ø°Ø± Ø¥Ù†Ø´Ø§Ø¡ Ø§Ù„Ø­Ø³Ø§Ø¨
 						</strong>
 
 						<span>
@@ -554,7 +498,7 @@ onUnmounted(() => {
 					<button
 						type="button"
 						class="dy-register__error-close"
-						aria-label="إغلاق رسالة الخطأ"
+						aria-label="Ø¥ØºÙ„Ø§Ù‚ Ø±Ø³Ø§Ù„Ø© Ø§Ù„Ø®Ø·Ø£"
 						@click="registerError = ''"
 					>
 						<FeatherIcon
@@ -580,7 +524,7 @@ onUnmounted(() => {
 							for="dypos-register-name"
 							class="dy-register__label"
 						>
-							الاسم الكامل <span class="dy-register__required" aria-hidden="true">*</span>
+							Ø§Ù„Ø§Ø³Ù… Ø§Ù„ÙƒØ§Ù…Ù„ <span class="dy-register__required" aria-hidden="true">*</span>
 						</label>
 
 						<div class="dy-register__input-wrap">
@@ -599,7 +543,7 @@ onUnmounted(() => {
 								:class="{ 'dy-register__input--error': fullNameError }"
 								type="text"
 								dir="rtl"
-								placeholder="أدخل اسمك الكامل"
+								placeholder="Ø£Ø¯Ø®Ù„ Ø§Ø³Ù…Ùƒ Ø§Ù„ÙƒØ§Ù…Ù„"
 								:disabled="isSubmitting"
 								required
 								spellcheck="false"
@@ -629,7 +573,7 @@ onUnmounted(() => {
 							for="dypos-register-email"
 							class="dy-register__label"
 						>
-							البريد الإلكتروني <span class="dy-register__required" aria-hidden="true">*</span>
+							Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ <span class="dy-register__required" aria-hidden="true">*</span>
 						</label>
 
 						<div class="dy-register__input-wrap">
@@ -680,7 +624,7 @@ onUnmounted(() => {
 								for="dypos-register-password"
 								class="dy-register__label"
 							>
-								كلمة المرور <span class="dy-register__required" aria-hidden="true">*</span>
+								ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± <span class="dy-register__required" aria-hidden="true">*</span>
 							</label>
 
 							<span
@@ -697,7 +641,7 @@ onUnmounted(() => {
 							v-if="password.value"
 							:password="password"
 							:show-label="false"
-							aria-label="قوة كلمة المرور"
+							aria-label="Ù‚ÙˆØ© ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±"
 						/>
 
 						<div class="dy-register__input-wrap">
@@ -715,7 +659,7 @@ onUnmounted(() => {
 								:class="{ 'dy-register__input--error': passwordError }"
 								:type="showPassword ? 'text' : 'password'"
 								dir="ltr"
-								placeholder="6 أحرف على الأقل"
+								placeholder="6 Ø£Ø­Ø±Ù Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„"
 								:disabled="isSubmitting"
 								required
 								spellcheck="false"
@@ -730,8 +674,8 @@ onUnmounted(() => {
 								class="dy-register__password-toggle"
 								:aria-label="
 									showPassword
-										? 'إخفاء كلمة المرور'
-										: 'إظهار كلمة المرور'
+										? 'Ø¥Ø®ÙØ§Ø¡ ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±'
+										: 'Ø¥Ø¸Ù‡Ø§Ø± ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±'
 								"
 								:aria-pressed="showPassword"
 								:disabled="isSubmitting"
@@ -763,7 +707,7 @@ onUnmounted(() => {
 							for="dypos-register-confirm"
 							class="dy-register__label"
 						>
-							تأكيد كلمة المرور <span class="dy-register__required" aria-hidden="true">*</span>
+							ØªØ£ÙƒÙŠØ¯ ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± <span class="dy-register__required" aria-hidden="true">*</span>
 						</label>
 
 						<div class="dy-register__input-wrap">
@@ -781,7 +725,7 @@ onUnmounted(() => {
 								:class="{ 'dy-register__input--error': confirmPasswordError }"
 								:type="showConfirmPassword ? 'text' : 'password'"
 								dir="ltr"
-								placeholder="أعد كتابة كلمة المرور"
+								placeholder="Ø£Ø¹Ø¯ ÙƒØªØ§Ø¨Ø© ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±"
 								:disabled="isSubmitting"
 								required
 								spellcheck="false"
@@ -796,8 +740,8 @@ onUnmounted(() => {
 								class="dy-register__password-toggle"
 								:aria-label="
 									showConfirmPassword
-										? 'إخفاء كلمة المرور'
-										: 'إظهار كلمة المرور'
+										? 'Ø¥Ø®ÙØ§Ø¡ ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±'
+										: 'Ø¥Ø¸Ù‡Ø§Ø± ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±'
 								"
 								:disabled="isSubmitting"
 								@click="showConfirmPassword = !showConfirmPassword"
@@ -828,7 +772,7 @@ onUnmounted(() => {
 							for="dypos-register-phone"
 							class="dy-register__label"
 						>
-							رقم الهاتف
+							Ø±Ù‚Ù… Ø§Ù„Ù‡Ø§ØªÙ
 						</label>
 
 						<div class="dy-register__input-wrap">
@@ -862,7 +806,7 @@ onUnmounted(() => {
 							for="dypos-register-company"
 							class="dy-register__label"
 						>
-							اسم الشركة / المؤسسة
+							Ø§Ø³Ù… Ø§Ù„Ø´Ø±ÙƒØ© / Ø§Ù„Ù…Ø¤Ø³Ø³Ø©
 						</label>
 
 						<div class="dy-register__input-wrap">
@@ -879,7 +823,7 @@ onUnmounted(() => {
 								class="dy-register__input"
 								type="text"
 								dir="rtl"
-								placeholder="أدخل اسم شركتك"
+								placeholder="Ø£Ø¯Ø®Ù„ Ø§Ø³Ù… Ø´Ø±ÙƒØªÙƒ"
 								:disabled="isSubmitting"
 								spellcheck="false"
 								@input="clearErrors"
@@ -907,13 +851,13 @@ onUnmounted(() => {
 							/>
 
 							<span id="dypos-register-terms-desc">
-								أوافق على
+								Ø£ÙˆØ§ÙÙ‚ Ø¹Ù„Ù‰
 								<a href="/terms" class="dy-register__link">
-									شروط الاستخدام
+									Ø´Ø±ÙˆØ· Ø§Ù„Ø§Ø³ØªØ®Ø¯Ø§Ù…
 								</a>
-								و
+								Ùˆ
 								<a href="/privacy" class="dy-register__link">
-									سياسة الخصوصية
+									Ø³ÙŠØ§Ø³Ø© Ø§Ù„Ø®ØµÙˆØµÙŠØ©
 								</a>
 							</span>
 						</label>
@@ -944,22 +888,22 @@ onUnmounted(() => {
 							aria-hidden="true"
 						/>
 
-						{{ isSubmitting ? 'جاري التسجيل...' : 'إنشاء الحساب' }}
+						{{ isSubmitting ? 'Ø¬Ø§Ø±ÙŠ Ø§Ù„ØªØ³Ø¬ÙŠÙ„...' : 'Ø¥Ù†Ø´Ø§Ø¡ Ø§Ù„Ø­Ø³Ø§Ø¨' }}
 					</DyButton>
 
 					<ActionButton
 						variant="subtle"
 						size="lg"
 						@click="goToLogin"
-						:title="__('عودة للتسجيل الدخول')"
-						:aria-label="__('عودة للتسجيل الدخول')"
+						:title="__('Ø¹ÙˆØ¯Ø© Ù„Ù„ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„')"
+						:aria-label="__('Ø¹ÙˆØ¯Ø© Ù„Ù„ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„')"
 					>
 						<FeatherIcon name="arrow-left" class="h-[16px] w-[16px]" />
-						<span>عودة للتسجيل</span>
+						<span>Ø¹ÙˆØ¯Ø© Ù„Ù„ØªØ³Ø¬ÙŠÙ„</span>
 					</ActionButton>
 				</form>
 
-				<!-- Footer — اسم الشركة + رابط موقعها الرسمي -->
+				<!-- Footer â€” Ø§Ø³Ù… Ø§Ù„Ø´Ø±ÙƒØ© + Ø±Ø§Ø¨Ø· Ù…ÙˆÙ‚Ø¹Ù‡Ø§ Ø§Ù„Ø±Ø³Ù…ÙŠ -->
 
 				<CompanyFooter class="dy-register__footer" />
 			</div>
@@ -969,7 +913,7 @@ onUnmounted(() => {
 
 <style scoped>
 /* =============================================================================
-   DyPOS — Subscriber Registration Page
+   DyPOS â€” Subscriber Registration Page
    RTL-first / Arabic-first / Production Grade
    ============================================================================= */
 
@@ -978,8 +922,13 @@ onUnmounted(() => {
 	--register-content-width: 480px;
 
 	position: relative;
-	display: grid;
-	grid-template-columns: minmax(360px, 0.9fr) minmax(520px, 1.1fr);
+	/* A single centered column. This was a two-column grid whose left cell
+	   held the 1200Ã—630 artwork; removing the artwork without touching the
+	   grid would have left a guaranteed-empty column â€” the "stupid space".
+	   One column, one job. */
+	display: flex;
+	align-items: center;
+	justify-content: center;
 
 	min-height: 100vh;
 	min-height: 100dvh;
@@ -995,209 +944,21 @@ onUnmounted(() => {
 }
 
 /* =============================================================================
-   Brand
-   ============================================================================= */
-
-.dy-register__brand {
-	position: relative;
-	display: flex;
-	min-height: 100%;
-	overflow: hidden;
-
-	/*
-	 * One gradient, owned here. `background-position`/`background-size: cover`
-	 * were left over from the photo this rule used to sit under; with the image
-	 * framed in `.dy-register__brand-card` there is nothing left to cover.
-	 */
-	background: linear-gradient(
-		158deg,
-		rgb(var(--dy-brand-c-800)) 0%,
-		rgb(var(--dy-brand-c-900)) 44%,
-		rgb(var(--dy-brand-c-950)) 100%
-	);
-
-	color: white;
-}
-
-.dy-register__brand-overlay {
-	position: absolute;
-	inset: 0;
-
-	background:
-		radial-gradient(
-			circle at 20% 20%,
-			rgb(var(--dy-brand-c-500) / 0.20),
-			transparent 34%
-		),
-		radial-gradient(
-			circle at 80% 80%,
-			rgb(var(--dy-mint-c-500) / 0.15),
-			transparent 34%
-		);
-}
-
-.dy-register__brand-content {
-	position: relative;
-	z-index: 1;
-
-	display: flex;
-	flex: 1;
-	flex-direction: column;
-
-	justify-content: space-between;
-
-	min-height: 100%;
-
-	padding:
-		max(48px, env(safe-area-inset-top))
-		clamp(40px, 6vw, 88px)
-		max(40px, env(safe-area-inset-bottom));
-}
-
-.dy-register__logo-shell {
-	display: inline-flex;
-	width: fit-content;
-
-	/*
-	 * `DyPOSLogo.png` is 512×512 with the icon printed on a WHITE ground: the
-	 * translucent shell this used to be (14×18px of `rgb(255 255 255 / 0.07)`)
-	 * could never be seen behind it, so the shell *is* the tile. Same treatment
-	 * as the login panel, same reason.
-	 */
-	padding: 8px;
-
-	border: 1px solid rgb(255 255 255 / 0.5);
-
-	border-radius: var(--dy-radius-xl);
-
-	background: white;
-
-	box-shadow: 0 16px 32px rgb(var(--dy-brand-c-950) / 0.45);
-}
-
-.dy-register__logo {
-	display: block;
-	width: 112px;
-	height: auto;
-	object-fit: contain;
-}
-
-/* =============================================================================
-   Identity card — the company image, framed instead of stretched
+   Brand panel — REMOVED, deliberately
    =============================================================================
-   `smart-ports-og.jpg` is a 1200×630 *sharing card*: white ground, logo, the
-   company name in two scripts, a tagline and four badges — all baked into the
-   pixels. Used as a `cover` backdrop of this tall panel it can only ever show
-   fragments of that typography, cut mid-word, underneath the live headline.
+   This page used to be a two-column grid: the left cell held the 1200x630
+   company card in a glass plaque (`.dy-register__brand*`). Every rule of
+   that column is gone with it — 13 selectors, zero references in the
+   template. They were kept because "the CSS looks nice", which is how a
+   stylesheet grows to a thousand lines of rules nothing renders.
 
-   Presented as an artifact instead: a glass plaque holding the whole card at
-   its native aspect ratio. `object-fit: contain` guarantees no crop, and the
-   intrinsic `width`/`height` on the element keep the plaque from reflowing
-   while the JPEG decodes.
-   ========================================================================== */
-
-.dy-register__brand-card {
-	position: relative;
-
-	/* `vh` is not decoration: the panel is viewport-height and clips its
-	   overflow, so an unconstrained card would be cut off on a 1366×768
-	   laptop. The card yields height before the layout yields legibility. */
-	width: min(100%, 440px, 42vh);
-
-	margin: 0;
-
-	padding: 10px;
-
-	border: 1px solid rgb(255 255 255 / 0.2);
-	border-radius: var(--dy-radius-2xl);
-
-	background: rgb(255 255 255 / 0.1);
-	backdrop-filter: blur(20px) saturate(1.35);
-	-webkit-backdrop-filter: blur(20px) saturate(1.35);
-
-	box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.24), 0 24px 48px
-		rgb(var(--dy-brand-c-950) / 0.5);
-}
-
-.dy-register__brand-card img {
-	display: block;
-
-	width: 100%;
-	height: auto;
-	aspect-ratio: 1200 / 630;
-
-	object-fit: contain;
-
-	border-radius: calc(var(--dy-radius-2xl) - 10px);
-
-	/* The JPEG's own ground is white; without this the letterboxing that
-	   `contain` can introduce would read as a dirty edge. */
-	background: white;
-}
-
-.dy-register__brand-copy {
-	max-width: 540px;
-
-	/*
-	 * `margin-block: auto` used to swallow every pixel of the column's free
-	 * space before `justify-content: space-between` (on
-	 * `.dy-register__brand-content`) could share it — the same trap login.css
-	 * documents. The identity card below stayed pinned to the bottom edge of a
-	 * viewport-height panel instead of landing inside the first screen.
-	 * `padding-block` is the deliberate breathing room now, not a by-product.
-	 */
-	padding-block: 40px 24px;
-}
-
-.dy-register__eyebrow {
-	display: inline-flex;
-	align-items: center;
-
-	margin-bottom: var(--dy-space-5);
-
-	color: rgb(255 255 255 / 0.72);
-
-	font-size: 0.9rem;
-	font-weight: 700;
-	letter-spacing: 0.02em;
-}
-
-.dy-register__brand-title {
-	margin: 0;
-
-	color: white;
-
-	font-size: clamp(2.5rem, 5vw, 4.8rem);
-
-	font-weight: 800;
-	line-height: 1.08;
-	letter-spacing: -0.035em;
-}
-
-.dy-register__brand-description {
-	max-width: 480px;
-
-	margin: var(--dy-space-6) 0 0;
-
-	color: rgb(255 255 255 / 0.72);
-
-	font-size: clamp(1rem, 1.5vw, 1.15rem);
-
-	line-height: 1.9;
-}
-
-.dy-register__brand-footer {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-
-	margin-top: var(--dy-space-8);
-
-	color: rgb(255 255 255 / 0.45);
-
-	font-size: 0.75rem;
-}
-
+   The card moved to `components/common/SystemAboutPanel.vue`, which is the
+   identity card the login family renders; `CompanyFooter` carries the
+   company name at the bottom of the page. What is deliberately NOT here:
+   the artwork behind live copy. A 1200x630 sharing card used as a `cover`
+   backdrop of a tall panel can only ever show fragments of that
+   typography, cut mid-word, underneath the headline.
+   ============================================================================= */
 /* =============================================================================
    Registration Panel
    ============================================================================= */
@@ -1226,10 +987,6 @@ onUnmounted(() => {
 
 .dy-register__header {
 	margin-bottom: var(--dy-space-8);
-}
-
-.dy-register__mobile-logo {
-	display: none;
 }
 
 .dy-register__section-label {
@@ -1589,21 +1346,13 @@ onUnmounted(() => {
 
 /* =============================================================================
    Responsive
+   =============================================================================
+   The page is a single centred column (see `.dy-register`), so there is
+   nothing to collapse at 768px. The rule that used to live here
+   (`grid-template-columns: 1fr`, plus hiding the brand column and showing a
+   mobile logo) all addressed markup this page no longer has — a media
+   query that styles nothing is a comment that costs a parse.
    ============================================================================= */
-
-@media (max-width: 768px) {
-	.dy-register {
-		grid-template-columns: 1fr;
-	}
-
-	.dy-register__brand {
-		display: none;
-	}
-
-	.dy-register__mobile-logo {
-		display: inline-flex;
-	}
-}
 
 /* =============================================================================
    Password Strength Bar
@@ -1673,7 +1422,7 @@ onUnmounted(() => {
 }
 
 .dy-register--offline .dy-register__title::after {
-	content: " (غير متصل)";
+	content: " (ØºÙŠØ± Ù…ØªØµÙ„)";
 	color: var(--dy-amber-600);
 	font-weight: 600;
 	font-size: 0.9em;

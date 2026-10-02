@@ -1,7 +1,7 @@
 # AGENTS.md — Repo conventions for AI coding agents
 
 > This repo is Arabic-first (UI, messages, commit bodies) with English code.
-> Production: https://dypos.smartportssoft.com/ · Version single source: `1.42.0`
+> Production: https://dypos.smartportssoft.com/ · Version single source: `1.44.2`
 > (root `package.json` + `POS/package.json` + `server/package.json` + `server/lib/version.js`).
 
 ## Shell (Windows PowerShell 5.1 — win32)
@@ -13,12 +13,12 @@
 ## Verify before you claim done (all must be green)
 
 ```powershell
-# server/ — 577 tests / 177 suites
+# server/ — 615 tests / 183 suites
 npm test                              # = node scripts/run-tests.mjs
 npx @biomejs/biome check .
 npm run parity
 npm run contract
-# POS/ — 1172 tests / 85 files
+# POS/ — 1278 tests / 95 files
 npm run test:run
 npx biome check src/<touched-file>
 # production, from the repo root (after a deploy)
@@ -26,7 +26,7 @@ npm run verify:live                   # = node scripts/verify-live.mjs
 ```
 
 Test counts are *measured* by the runners, never estimated: server
-`577 tests / 177 suites`, POS `1172 tests / 85 files`.
+`615 tests / 183 suites`, POS `1278 tests / 95 files`.
 
 `POS/node_modules` is disposable — if a command hangs on `npx … Ok to proceed?`,
 the install is missing: `npm ci` in `POS/` (and add the package to

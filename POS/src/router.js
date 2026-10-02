@@ -48,6 +48,7 @@ const ROUTE_NAMES = Object.freeze({
 	OPENING_BALANCES: "OpeningBalances",
 	THIRD_PARTY_SALES: "ThirdPartySales",
 	SELF_CHECKOUT: "SelfCheckout",
+	QUEUE: "Queue",
 })
 
 const ROUTE_TITLES = Object.freeze({
@@ -63,6 +64,7 @@ const ROUTE_TITLES = Object.freeze({
 	[ROUTE_NAMES.OPENING_BALANCES]: "الأرصدة الافتتاحية",
 	[ROUTE_NAMES.THIRD_PARTY_SALES]: "البيع بالنيابة",
 	[ROUTE_NAMES.SELF_CHECKOUT]: "الكاشير الذاتي",
+	[ROUTE_NAMES.QUEUE]: "الطوابير",
 	landing: "DyPOS",
 	[ROUTE_NAMES.NOT_FOUND]: "صفحة غير موجودة",
 })
@@ -276,6 +278,22 @@ const routes = [
 		// مباشرة هنا كان سيترك `index.js` بلا مستورد = شجرة ميتة.
 		component: () =>
 			import("@/components/selfCheckout").then((m) => m.SelfCheckoutScreen),
+		meta: {
+			[ROUTE_META.requiresAuth]: true,
+		},
+	},
+
+	/**
+	 * نظام الطوابير — الطابور وشاشة العميل.
+	 *
+	 * `requiresAuth` فقط (لا `requiresOpenShift`): الطابور يعمل في
+	 * الكشك الذي لا يفتح وردية: التذكرة مسار مستقل عن الفوترة،
+	 * والربط بالوردية كان سيمنعه من العمل أصلًا.
+	 */
+	{
+		path: "/queue",
+		name: ROUTE_NAMES.QUEUE,
+		component: () => import("@/pages/QueuePage.vue"),
 		meta: {
 			[ROUTE_META.requiresAuth]: true,
 		},
@@ -769,6 +787,25 @@ export function goToForgotPassword() {
 }
 
 /**
+ * Navigate to the registration page.
+ *
+ * Why this exists: the login page reached registration with
+ * `window.location.href = "/account/register"`, so following the link threw
+ * away the running app — every chunk re-downloaded, the service worker
+ * re-registered, Dexie re-opened, the session store rebuilt — to move between
+ * two pages the router already knows. The sibling "forgot password" link went
+ * through `goToForgotPassword()` all along, so this closes that asymmetry with
+ * the pattern the file already uses, rather than a second one.
+ *
+ * @returns {Promise}
+ */
+export function goToRegister() {
+	return router.push({
+		name: ROUTE_NAMES.REGISTER,
+	})
+}
+
+/**
  * Navigate to the stock management screen.
  * @returns {Promise}
  */
@@ -797,6 +834,27 @@ export function goToWorkScreens(screen = null) {
 	return router.push({
 		name: ROUTE_NAMES.WORK_SCREENS,
 		query: screen ? { screen } : undefined,
+	})
+}
+
+/**
+ * Navigate to the self-checkout kiosk.
+ * A customer-facing surface: no shift, no staff navigation.
+ * @returns {Promise}
+ */
+export function goToSelfCheckout() {
+	return router.push({ name: ROUTE_NAMES.SELF_CHECKOUT })
+}
+
+/**
+ * Navigate to the queue screen (ticket issuing + customer display).
+ * @param {string} [counterId] optional counter to open on
+ * @returns {Promise}
+ */
+export function goToQueue(counterId = null) {
+	return router.push({
+		name: ROUTE_NAMES.QUEUE,
+		query: counterId ? { counter: counterId } : undefined,
 	})
 }
 

@@ -983,27 +983,37 @@ describe("the identity image is framed, never stretched behind live text", () =>
 			"Login.vue must not repaint the panel background inline",
 		).not.toMatch(/:style="[^"]*background/i)
 	})
+	/*
+	 * The showcase prints the OFFICIAL sharing card at a compact size.
+	 * The artwork is NOT cropped or substituted — the company name is
+	 * part of that design, and a branding gate pins the file byte-for-byte.
+	 *
+	 * What this gate protects, unchanged: the image is a real element
+	 * (never a CSS background behind live text), it declares its intrinsic
+	 * size (no reflow as the JPEG decodes), it keeps its own aspect ratio
+	 * (no stretching, no mid-word crop), and it is named for assistive tech.
+	 */
+	it("renders the official artwork whole, at its own aspect ratio", () => {
+		const panel = read(SRC, "components", "common", "SystemAboutPanel.vue")
 
-	it("renders the card whole, at its own aspect ratio", () => {
-		const img = stripComments(
-			ruleBody(LOGIN_CSS_FILE, ".dy-login__brand-card img"),
-		)
-		expect(img, "the framed-card rule exists").not.toBe("")
-		expect(img).toMatch(/object-fit:\s*contain/)
-		expect(img).not.toMatch(/object-fit:\s*cover/)
+		// A real element, not a CSS background painted behind live text.
+		expect(panel).toMatch(/<img/)
+		// The OFFICIAL asset, imported — not a derived or cropped copy.
+		expect(panel).toMatch(/from "@\/assets\/smart-ports-og\.jpg"/)
+		expect(panel).not.toMatch(/smart-ports-mark/)
 
-		const figure = read(SRC, "pages", "Login.vue").match(
-			/<figure class="dy-login__brand-card">[\s\S]*?<\/figure>/,
-		)
-		expect(figure, "the card is markup, not a CSS background").not.toBeNull()
-		// Intrinsic size: without it the plaque reflows as the JPEG decodes.
-		expect(figure[0]).toMatch(/\bwidth="1200"/)
-		expect(figure[0]).toMatch(/\bheight="630"/)
-		expect(figure[0], "the image is named, not decorative").toMatch(
-			/\balt="[^"]+"/,
-		)
+		// Intrinsic size: without it the box reflows as the JPEG decodes.
+		expect(panel).toMatch(/\bwidth="1200"/)
+		expect(panel).toMatch(/\bheight="630"/)
+
+		// Named, not decorative.
+		expect(panel).toMatch(/:alt="[^"]+"/)
+		expect(panel).toMatch(/\bdecoding="async"/)
+
+		// `contain`, never `cover`: the card shows the whole artwork.
+		expect(panel).toMatch(/object-fit:\s*contain/)
+		expect(panel).not.toMatch(/object-fit:\s*cover/)
 	})
-
 	it("keeps the masthead compact and links the full company artwork in its showcase", () => {
 		const login = read(SRC, "pages", "Login.vue")
 		const masthead = login.slice(
@@ -1021,23 +1031,25 @@ describe("the identity image is framed, never stretched behind live text", () =>
 			showcaseStart,
 			login.indexOf("</section>", showcaseStart),
 		)
-		expect(showcase).toMatch(/<figure class="dy-login__brand-card">/)
-		expect(showcase).toMatch(/:href="COMPANY_WEBSITE"/)
-		expect(showcase).toMatch(/target="_blank"/)
-		expect(showcase).toMatch(/rel="noopener noreferrer"/)
+		expect(showcase).toMatch(/<SystemAboutPanel/)
+		// The company stays reachable FROM THE CARD (it moved off the
+		// image when the image became a mark).
+		const card = read(SRC, "components", "common", "SystemAboutPanel.vue")
+		expect(card).toMatch(/:href="COMPANY_WEBSITE"/)
+		expect(card).toMatch(/target="_blank"/)
+		expect(card).toMatch(/rel="noopener noreferrer"/)
 	})
 
 	/*
-	 * The same treatment, measured on the siblings. Register, ForgotPassword
-	 * and ResetPassword each carry their own scoped copy of the panel, so
-	 * keeping Login.vue correct says nothing about them — and siblings
-	 * drifting apart is exactly how one page got framed while three of them
-	 * stayed stretched behind the copy.
+	 * The same treatment, measured on the siblings that still carry the
+	 * panel. ForgotPassword and ResetPassword each hold their own scoped
+	 * copy, so keeping Login.vue correct says nothing about them — and
+	 * siblings drifting apart is exactly how one page got framed while
+	 * three of them stayed stretched behind the copy.
 	 */
 	const SIBLINGS = [
 		["ForgotPassword.vue", "dy-forgot"],
 		["ResetPassword.vue", "dy-reset"],
-		["Register.vue", "dy-register"],
 	]
 
 	it.each(SIBLINGS)("%s frames the identity image", (file, prefix) => {
@@ -1071,6 +1083,115 @@ describe("the identity image is framed, never stretched behind live text", () =>
 			vue,
 			`${file} must not repaint the panel background inline`,
 		).not.toMatch(/:style="[^"]*background/i)
+	})
+
+	/*
+	 * Register.vue is the counter-example, and it is a gate rather than a
+	 * comment.
+	 *
+	 * It used to be a two-column page whose left cell held the 1200x630
+	 * artwork in a glass plaque. The panel was removed (one centred column,
+	 * one job) and the identity card moved to `SystemAboutPanel.vue`, which
+	 * the login family renders. What survived the removal was **204 lines of
+	 * CSS for 13 selectors the template never references** — rules that
+	 * render nothing, weigh down the stylesheet, and read like a live feature
+	 * to the next maintainer.
+	 *
+	 * Asserting the absence is what makes the cleanup stick: without it, the
+	 * dead block grows back the first time someone "restores the brand
+	 * panel" from memory.
+	 */
+	it("Register.vue carries no dead brand-panel CSS", () => {
+		const vue = read(SRC, "pages", "Register.vue")
+		const template = vue.slice(0, vue.indexOf("<style scoped>"))
+		// Comments may NAMES the removed selectors (this file's own note does),
+		// so every assertion runs on code with the commentary stripped —
+		// otherwise the gate fails on the documentation of its own cleanup.
+		const code = stripComments(vue)
+
+		// No panel markup…
+		expect(code).not.toContain("dy-register__brand")
+		expect(code).not.toContain("dy-register__logo")
+		expect(code).not.toContain("dy-register__eyebrow")
+
+		// …and no rules pretending to style one.
+		const style = stripComments(vue.slice(vue.indexOf("<style scoped>")))
+		for (const selector of [
+			"__brand",
+			"__brand-card",
+			"__brand-content",
+			"__brand-overlay",
+			"__brand-copy",
+			"__brand-title",
+			"__brand-description",
+			"__brand-footer",
+			"__logo-shell",
+			"__eyebrow",
+			"__mobile-logo",
+		]) {
+			expect(style, `.dy-register${selector} is dead CSS`).not.toContain(
+				selector,
+			)
+		}
+
+		// The company is still reachable: the artwork moved to the shared
+		// panel, the name stayed on `CompanyFooter`. A page with no brand at
+		// all would satisfy the assertions above, so name the successor.
+		expect(template).toMatch(/<CompanyFooter/)
+	})
+	/**
+	 * login.css carries no rule for a class nothing renders.
+	 *
+	 * The masthead refactor replaced the bespoke identity block with
+	 * `SystemAboutPanel.vue`, and 137 lines of CSS stayed behind for eleven
+	 * selectors (`brand-overlay`, `brand-copy`, `eyebrow`, `brand-title`,
+	 * `brand-footer`, `mobile-logo`…). They cost bytes in the shipped
+	 * stylesheet and — worse — they read like live features to whoever opens
+	 * the file next.
+	 *
+	 * Asserting absence is what keeps the cleanup. A comment does not: the
+	 * first person to "restore the brand panel" from memory would otherwise
+	 * copy the rules straight back, dead and all.
+	 */
+	it("login.css styles nothing the login page does not render", () => {
+		const css = read(SRC, "styles", "pages", "login.css")
+		const code = stripComments(css)
+
+		for (const selector of [
+			"brand-overlay",
+			"brand-card-link",
+			"brand-copy",
+			"eyebrow",
+			"brand-title",
+			"brand-description",
+			"context-icon",
+			"brand-footer",
+			"brand-dot",
+			"mobile-logo",
+		]) {
+			expect(code, `.dy-login__${selector} is dead CSS`).not.toContain(selector)
+		}
+	})
+
+	/**
+	 * The runtime banner's modifier classes are built at runtime —
+	 * `` `dy-login__runtime--${runtimeStatus.type}` `` — so they never appear
+	 * literally in the template. A naive "is this class used?" sweep reports
+	 * them dead, and deleting them would strip live styling (they cover all
+	 * four readiness states). Pin the binding so the next sweep cannot repeat
+	 * that mistake.
+	 */
+	it("the runtime banner keeps its dynamic modifier binding", () => {
+		const login = read(SRC, "pages", "Login.vue")
+		expect(login).toMatch(/`dy-login__runtime--\$\{[^}]+\}`/)
+
+		const css = read(SRC, "styles", "pages", "login.css")
+		for (const tone of ["info", "success", "warning", "error"]) {
+			expect(
+				css,
+				`runtime tone "${tone}" is produced by RUNTIME_STATUS_BY_STATE and must be styled`,
+			).toContain(`dy-login__runtime--${tone}`)
+		}
 	})
 })
 

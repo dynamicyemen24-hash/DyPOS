@@ -88,26 +88,41 @@ const isIconOnly = computed(
 // Carbon + Fluent token palettes using DyPOS design tokens
 const CARBON = {
 	default: {
-		solid: "bg-[var(--dy-text)] text-[var(--dy-surface)] hover:bg-[var(--dy-text-strong)]",
-		subtle: "bg-[var(--dy-bg-sunken)] text-[var(--dy-text)] hover:bg-[var(--dy-surface-active)]",
-		outline: "bg-transparent text-[var(--dy-text)] border border-[var(--dy-border-strong)] hover:bg-[var(--dy-bg-sunken)]",
-		ghost: "bg-transparent text-[var(--dy-text-secondary)] hover:bg-[var(--dy-bg-sunken)]",
-		critical: "bg-[var(--dy-danger)] text-[var(--dy-text-on-crimson)] hover:bg-[var(--dy-danger-hover)]",
-		destructive: "bg-[var(--dy-danger)] text-[var(--dy-text-on-crimson)] hover:bg-[var(--dy-danger-hover)]",
-		secondary: "bg-[var(--dy-info)] text-[var(--dy-text-on-info)] hover:bg-[var(--dy-info-hover)]",
-		subtleSecondary: "bg-[var(--dy-info-soft)] text-[var(--dy-info)] hover:bg-[var(--dy-info-subtle)]",
+		solid:
+			"bg-[var(--dy-text)] text-[var(--dy-surface)] hover:bg-[var(--dy-text-strong)]",
+		subtle:
+			"bg-[var(--dy-bg-sunken)] text-[var(--dy-text)] hover:bg-[var(--dy-surface-active)]",
+		outline:
+			"bg-transparent text-[var(--dy-text)] border border-[var(--dy-border-strong)] hover:bg-[var(--dy-bg-sunken)]",
+		ghost:
+			"bg-transparent text-[var(--dy-text-secondary)] hover:bg-[var(--dy-bg-sunken)]",
+		critical:
+			"bg-[var(--dy-danger)] text-[var(--dy-text-on-crimson)] hover:bg-[var(--dy-danger-hover)]",
+		destructive:
+			"bg-[var(--dy-danger)] text-[var(--dy-text-on-crimson)] hover:bg-[var(--dy-danger-hover)]",
+		secondary:
+			"bg-[var(--dy-info)] text-[var(--dy-text-on-info)] hover:bg-[var(--dy-info-hover)]",
+		subtleSecondary:
+			"bg-[var(--dy-info-soft)] text-[var(--dy-info)] hover:bg-[var(--dy-info-subtle)]",
 	},
 }
 
 const FLUENT = {
 	default: {
-		solid: "bg-[var(--dy-primary)] text-[var(--dy-text-on-primary)] hover:bg-[var(--dy-primary-hover)]",
-		subtle: "bg-[var(--dy-primary-soft)] text-[var(--dy-primary)] hover:bg-[var(--dy-primary-subtle)]",
-		outline: "bg-transparent text-[var(--dy-primary)] border border-[var(--dy-primary)] hover:bg-[var(--dy-primary-subtle)]",
-		ghost: "bg-transparent text-[var(--dy-primary)] hover:bg-[var(--dy-primary-subtle)]",
-		success: "bg-[var(--dy-success)] text-[var(--dy-text-on-mint)] hover:bg-[var(--dy-success-hover)]",
-		warning: "bg-[var(--dy-warning)] text-[var(--dy-text-on-warning)] hover:bg-[var(--dy-warning-hover)]",
-		destructive: "bg-[var(--dy-danger)] text-[var(--dy-text-on-crimson)] hover:bg-[var(--dy-danger-hover)]",
+		solid:
+			"bg-[var(--dy-primary)] text-[var(--dy-text-on-primary)] hover:bg-[var(--dy-primary-hover)]",
+		subtle:
+			"bg-[var(--dy-primary-soft)] text-[var(--dy-primary)] hover:bg-[var(--dy-primary-subtle)]",
+		outline:
+			"bg-transparent text-[var(--dy-primary)] border border-[var(--dy-primary)] hover:bg-[var(--dy-primary-subtle)]",
+		ghost:
+			"bg-transparent text-[var(--dy-primary)] hover:bg-[var(--dy-primary-subtle)]",
+		success:
+			"bg-[var(--dy-success)] text-[var(--dy-text-on-mint)] hover:bg-[var(--dy-success-hover)]",
+		warning:
+			"bg-[var(--dy-warning)] text-[var(--dy-text-on-warning)] hover:bg-[var(--dy-warning-hover)]",
+		destructive:
+			"bg-[var(--dy-danger)] text-[var(--dy-text-on-crimson)] hover:bg-[var(--dy-danger-hover)]",
 	},
 }
 
@@ -143,7 +158,9 @@ const classes = computed(() => {
 	const carbonTheme = THEME_ALIAS[props.theme] || props.theme
 	const themeMap = props.theme.startsWith("carbon-")
 		? CARBON
-		: (props.theme.startsWith("fluent-") ? FLUENT : CARBON)
+		: props.theme.startsWith("fluent-")
+			? FLUENT
+			: CARBON
 
 	const theme = carbonTheme in themeMap ? carbonTheme : "default"
 	const palette = themeMap[theme] || CARBON.default

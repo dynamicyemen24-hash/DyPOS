@@ -10,7 +10,6 @@
             </div>
             <Button variant="ghost" size="sm" @click="handleClose" icon="x" />
           </div>
-
           <div class="flex-1 overflow-y-auto p-4">
             <div v-if="selectedProduct" class="mb-4 p-3 bg-gray-50 rounded-lg flex items-center justify-between">
               <div class="flex items-center gap-3">
@@ -27,7 +26,6 @@
               </div>
               <Button variant="ghost" size="sm" @click="clearProduct">{{ __("تغيير المنتج") }}</Button>
             </div>
-
             <div v-if="!selectedProduct" class="text-center py-12">
               <FeatherIcon name="search" class="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <h3 class="text-lg font-medium text-gray-900 mb-2">{{ __("اختر منتجاً") }}</h3>
@@ -45,7 +43,6 @@
                   </template>
                 </FormControl>
               </div>
-
               <div v-if="productSearchResults.length" class="max-w-md mx-auto mt-4 text-left max-h-64 overflow-auto border rounded bg-white">
                 <div v-for="p in productSearchResults" :key="p.id"
                   @click="selectProduct(p)"
@@ -63,7 +60,6 @@
                 </div>
               </div>
             </div>
-
             <div v-if="selectedProduct" class="space-y-4">
               <div class="flex flex-wrap gap-4 mb-4">
                 <div class="flex-1 min-w-[200px]">
@@ -90,16 +86,13 @@
                   class="w-40"
                 />
               </div>
-
               <div v-if="loading" class="flex justify-center py-8">
                 <LoadingIndicator class="w-8 h-8" />
               </div>
-
               <div v-else-if="!movements.length" class="text-center py-12">
                 <FeatherIcon name="inbox" class="w-12 h-12 text-gray-300 mx-auto mb-4" />
                 <p class="text-gray-500">{{ __("لا توجد حركات مخزون لهذا المنتج") }}</p>
               </div>
-
               <template v-else>
                 <div class="overflow-x-auto">
                   <ReportTable
@@ -129,7 +122,6 @@
                     </template>
                   </ReportTable>
                 </div>
-
                 <Pagination
                   v-if="totalPages > 1"
                   :current-page="currentPage"
@@ -144,7 +136,6 @@
     </div>
   </Transition>
 </template>
-
 <script setup>
 import { ref, computed, watch, onMounted } from "vue"
 import {
@@ -160,36 +151,28 @@ import Pagination from "@/components/ui/Pagination.vue"
 import { useToast } from "@/composables/useToast"
 import { apiGet } from "@/utils/restApi"
 import { logger } from "@/utils/logger"
-import { formatCurrencySafe } from "@/utils/currency"
-
+import { formatCurrencySafe as formatCurrency } from "@/utils/currency"
 const log = logger.create("StockHistoryDialog")
-
 const props = defineProps({
 	modelValue: Boolean,
 	product: { type: Object, default: null },
 	warehouses: { type: Array, default: () => [] },
 })
-
 const emit = defineEmits(["update:modelValue", "product-selected"])
-
 const { showSuccess, showError } = useToast()
-
 const show = computed({
 	get: () => props.modelValue,
 	set: (val) => emit("update:modelValue", val),
 })
-
 const selectedProduct = ref(props.product)
 const productSearch = ref("")
 const productSearchResults = ref([])
-
 const loading = ref(false)
 const movements = ref([])
 const currentPage = ref(1)
 const pageSize = 50
 const totalItems = ref(0)
 const totalPages = ref(0)
-
 const movementFilter = ref({
 	search: "",
 	type: "",
@@ -197,7 +180,6 @@ const movementFilter = ref({
 	from: "",
 	to: "",
 })
-
 const movementTypeOptions = [
 	{ value: "", label: "كل الأنواع" },
 	{ value: "ADJUST", label: "تسوية" },
@@ -207,7 +189,6 @@ const movementTypeOptions = [
 	{ value: "SALE", label: "بيع" },
 	{ value: "PURCHASE", label: "شراء" },
 ]
-
 const movementColumns = [
 	{ key: "date", label: "التاريخ", sortable: true, format: "datetime" },
 	{ key: "type", label: "النوع", sortable: true },
@@ -218,24 +199,16 @@ const movementColumns = [
 	{ key: "reference", label: "المرجع", sortable: true },
 	{ key: "user", label: "المستخدم", sortable: true },
 ]
-
 const productSearchDebounce = ref(null)
-
-function formatCurrency(amount) {
-	return formatCurrencySafe(amount)
-}
-
 function formatDateTime(iso) {
 	if (!iso) return "-"
 	return new Date(iso).toLocaleString("ar-SA")
 }
-
 function clearProduct() {
 	selectedProduct.value = null
 	movements.value = []
 	productSearch.value = ""
 }
-
 function selectProduct(product) {
 	selectedProduct.value = product
 	productSearch.value = ""
@@ -243,13 +216,11 @@ function selectProduct(product) {
 	currentPage.value = 1
 	loadMovements()
 }
-
 async function searchProducts() {
 	if (!productSearch.value.trim()) {
 		productSearchResults.value = []
 		return
 	}
-
 	clearTimeout(productSearchDebounce.value)
 	productSearchDebounce.value = setTimeout(async () => {
 		try {
@@ -264,10 +235,8 @@ async function searchProducts() {
 		}
 	}, 300)
 }
-
 async function loadMovements() {
 	if (!selectedProduct.value) return
-
 	loading.value = true
 	try {
 		const productId = String(selectedProduct.value.id)
@@ -311,7 +280,6 @@ async function loadMovements() {
 				(row) =>
 					!movementFilter.value.type || row.type === movementFilter.value.type,
 			)
-
 		totalItems.value = mapped.length
 		totalPages.value = Math.max(1, Math.ceil(totalItems.value / pageSize))
 		const start = (currentPage.value - 1) * pageSize
@@ -328,7 +296,6 @@ async function loadMovements() {
 		loading.value = false
 	}
 }
-
 watch(
 	() => props.product,
 	(newProduct) => {
@@ -339,7 +306,6 @@ watch(
 		}
 	},
 )
-
 watch(movementFilter, () => {
 	currentPage.value = 1
 	loadMovements()

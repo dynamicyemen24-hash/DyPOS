@@ -1,15 +1,15 @@
 // بيئة اختبار احترافية: jsdom لمكونات Vue + node للمنطق النقي.
 // تغطية utils + stores + services + composables؛ تُرفع الحدود مع نمو تغطية الوحدات القديمة.
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import vue from "@vitejs/plugin-vue";
-import { defineConfig } from "vitest/config";
+import path from "node:path"
+import { fileURLToPath } from "node:url"
+import vue from "@vitejs/plugin-vue"
+import { defineConfig } from "vitest/config"
 
 const UI_KIT = path.resolve(
 	fileURLToPath(new URL(".", import.meta.url)),
 	"packages",
 	"dypos-ui",
-);
+)
 
 export default defineConfig({
 	plugins: [vue()],
@@ -64,4 +64,4 @@ export default defineConfig({
 			},
 		},
 	},
-});
+})

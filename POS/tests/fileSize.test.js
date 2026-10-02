@@ -44,9 +44,18 @@ const CAPS = [
 	// ومنها إصلاح catalog-actions للشاشات 420px) استُخرجت إلى
 	// styles/pages/pos-sale-responsive.css (نفس نمط styles/pages/login.css)
 	// مع `<style scoped src>` ثانٍ، فيُقاس الملفان معًا والاتجاه نزول فقط.
-	["src/pages/POSSale.vue", 6250],
+	["src/pages/POSSale.vue", 6239],
 	["src/styles/pages/pos-sale-responsive.css", 193],
 	["src/components/settings/POSSettings.vue", 2092],
+	// 1712 → 1512: the brand panel was removed from the page (the identity
+	// card moved to the shared `SystemAboutPanel.vue`, the company name stays
+	// on `CompanyFooter`), and 204 lines of CSS for 13 selectors the template
+	// never referenced went with it — plus a `@media` block that collapsed a
+	// grid the page no longer has. Nothing was extracted: it was DEAD.
+	// `tests/designTokens.test.js` now fails the build if it grows back.
+	// 1512 → 1516: `biome check --write` re-wrapped four comments; the cap
+	// follows the MEASURED number, never an aspiration.
+	["src/pages/Register.vue", 1516],
 	// 3406 → 3225 → 1706 → 2039:
 	//  - تهيئة بيئة التشغيل (~250 سطرًا) انتقلت إلى composables/useLoginRuntime.js
 	//  - ثم استُخرجت 1531 سطرًا من `<style scoped>` إلى styles/pages/login.css
@@ -76,7 +85,22 @@ const CAPS = [
 	// 1899 → 1890: ربط حالات الواجهة وتصحيح refs وترجمة PIN، ثم استخراج
 	//   التحقق من الحقول إلى composable قابل للاختبار. أضيفت بوابات القالب
 	//   والتخطيط المكتبي؛ الاتجاه downward فقط.
-	["src/pages/Login.vue", 1890],
+	["src/pages/Login.vue", 1845],
+	// 1890 → 1845: same staleness as the server side. The masthead refactor
+	// moved the session dialogs into their own components and the runtime into
+	// `useLoginRuntime.js`, and the cap stayed where it was — so this ratchet
+	// had stopped measuring anything it claimed to.
+	//
+	// The four files below had NO cap at all, which is the same defect wearing
+	// a different hat: a backlog nobody measures is a wish. They are the four
+	// largest remaining modules in `src/` (measured, in this order), and every
+	// one of them is a place a merge conflict lands. Capping them converts a
+	// wish into a rule the suite enforces on every pull request — the same
+	// move the rest of this table made.
+	["src/workers/offline.worker.js", 2065],
+	["src/stores/posCart.js", 2046],
+	["src/stores/posSettings.js", 1548],
+	["src/components/common/AutocompleteSelect.vue", 1477],
 	// 2620 → 2561: the per-code tracking bookkeeping (registry buckets, the
 	// empty-bucket pruning that keeps a long session from leaking one Set per
 	// code it ever sold, and the list mutators) moved to

@@ -492,6 +492,10 @@ export default defineConfig({
 	},
 	define: {
 		__BUILD_VERSION__: JSON.stringify(buildVersion),
+		// The semantic version, for surfaces that must SHOW it (the
+		// identity card). `__BUILD_VERSION__` is a timestamp — fine for
+		// cache-busting, wrong to show a user.
+		__APP_VERSION__: JSON.stringify(appVersion),
 	},
 	optimizeDeps: {
 		// Every entry MUST be a declared dependency: the optimizer pre-bundles

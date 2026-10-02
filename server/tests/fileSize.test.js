@@ -39,17 +39,31 @@ const CAPS = [
   // Raised once, and deliberately, for v27 + v28 (1033 → 1037): both are real
   // financial-integrity migrations (tenant-scoped invoice idempotency, one OPEN
   // shift per terminal). At four lines each — one import and one registry row —
-  // they are already at the floor the table-driven runner allows. When the next
-  // migration lands, extract the migration registry into db/migrations-index.js
-  // rather than raising this again.
-  ['routes/method.js', 3907],
-  ['db/schema.js', 1037],
+  // they are already at the floor the table-driven runner allows.
+  //
+  // 1037 → 745: **the cap was stale, and a stale cap measures nothing.** The
+  // file had already shrunk — migrations moved out, then the split registry —
+  // while the number stayed behind, so this ratchet has been green through
+  // 292 lines of unmeasured growth: the exact failure this file exists to
+  // prevent, hidden inside the file that prevents it. Caps follow the measured
+  // line, never the last number somebody remembered.
+  ['db/schema.js', 745],
+  // 3907 → 3784: same story, smaller. The router shrank (doctypes, the
+  // mappers, the tenant table set and the voucher projection each left for
+  // their own module) and the cap never followed. Re-measured, not guessed.
+  ['routes/method.js', 3784],
   // 881 → 888, the one deliberate raise in this release: tenant-scoped
   // idempotency lookups and the non-cash overpayment guard. The guard itself was
   // extracted to lib/payment-invariants.js, so the next payment rule lands
   // there instead of here.
   ['routes/invoices.js', 888],
-  ['server.js', 615],
+  // 615 → 601: the two rate limiters (global + auth) moved to
+  // middleware/rate-limiters.js, and HEALTH_PATHS to lib/health-paths.js so the
+  // limiter and the request logger exempt exactly the same three probes.
+  // Passkeys then stopped costing server.js a mount point at all: they hang
+  // off routes/auth.js, where the auth limiter already applies — so adding a
+  // biometric ceremony no longer grows this file. The cap moves down only.
+  ['server.js', 601],
 ];
 
 function countLines(rel) {

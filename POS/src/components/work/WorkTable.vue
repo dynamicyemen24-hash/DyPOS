@@ -189,7 +189,7 @@
 import { computed, ref, watch, nextTick } from "vue"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
-import { formatCurrencySafe } from "@/utils/currency"
+import { formatCurrencySafe as formatCurrency } from "@/utils/currency"
 import WorkEmptyState from "./WorkEmptyState.vue"
 import WorkPagination from "./WorkPagination.vue"
 
@@ -397,9 +397,6 @@ function handlePageSizeChange(size) {
 	emit("update:currentPage", 1)
 }
 
-function formatCurrency(val) {
-	return formatCurrencySafe(val)
-}
 function formatNumber(val) {
 	return new Intl.NumberFormat("ar-SA").format(Number(val))
 }

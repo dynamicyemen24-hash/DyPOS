@@ -1055,6 +1055,16 @@ async function initializeOfflineSystems() {
 			log.warn("Offline DB open failed", error)
 		})
 
+		// Seed the local install account — BEFORE the router guard can ask
+		// for a login, otherwise first run presents a form whose
+		// credentials cannot exist yet. Local-only, one-shot, and it uses
+		// the same PBKDF2 hash `userRepository` verifies.
+		await import("./services/localUserSeed")
+			.then((m) => m.ensureInstallUser())
+			.catch((error) => {
+				log.warn("Install user seed failed", error)
+			})
+
 		// Initialize offline numbering (for invoice numbers)
 		await import("./services/offline-numbering").catch((error) => {
 			log.warn("Offline numbering init failed", error)

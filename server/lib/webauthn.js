@@ -139,7 +139,17 @@ export function publicKeyFromCose(coseB64url) {
 	return crypto.createPublicKey({ key: coseToJwk(cose), format: "jwk" });
 }
 
-function verifyDigestFor(coseAlg, key) {
+/**
+ * اسم دالة التجزئة لتوقيع WebAuthn، مشتقّ من خوارزمية COSE وحدها.
+ *
+ * لا مفتاح هنا بالمعنى المعتاد: التوقيع في WebAuthn يُغطّي
+ * `authData ‖ sha256(clientDataJSON)` فقط، فاختيار الدالة دالّة في
+ * الخوارزمية لا في المفتاح. `null` يعني Ed25519 يوقّع الرسالة كما هي.
+ *
+ * @param {number} coseAlg خوارزمية COSE (-7 ES256، -8 EdDSA، -257 RS256)
+ * @returns {string|null} اسم دالة التجزئة، أو `null` للتوقيع المباشر
+ */
+function verifyDigestFor(coseAlg) {
 	if (coseAlg === -8) return null; // Ed25519 signs the message directly.
 	if (coseAlg === -7) return "sha256";
 	if (coseAlg === -257) return "sha256";
@@ -247,7 +257,7 @@ export function verifyRegistration({
 	if (fmt === "packed" || fmt === "self") {
 		// Self/packed attest the key with the key itself; proving that is what
 		// stops an attacker substituting a public key of their own.
-		const digest = verifyDigestFor(cose.alg, key);
+		const digest = verifyDigestFor(cose.alg);
 		const signed = Buffer.concat([
 			Buffer.from(att.authData, "base64url"),
 			sha256(Buffer.from(clientDataJSON, "base64url")),
@@ -306,7 +316,7 @@ export function verifyAssertion({
 		expectedOrigins: origin,
 	});
 
-	const digest = verifyDigestFor(parsedCose.alg, key);
+	const digest = verifyDigestFor(parsedCose.alg);
 	const signed = Buffer.concat([
 		Buffer.from(authenticatorData, "base64url"),
 		sha256(Buffer.from(clientDataJSON, "base64url")),

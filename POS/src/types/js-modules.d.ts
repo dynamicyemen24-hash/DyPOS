@@ -38,6 +38,76 @@ declare module "@/utils/currency" {
 	export function roundFloat(value: number): number
 }
 
+/**
+ * Dexie store (offline-first local database).
+ *
+ * Declared with the table surface the queue repository actually touches.
+ * `Transaction` is the Dexie callback form: a plain async function whose
+ * return value is the transaction's result.
+ */
+declare module "@/services/db" {
+	type Row = Record<string, unknown>
+	type Table = {
+		add(row: Row): Promise<number | string>
+		get(key: string): Promise<Row | undefined>
+		update(key: string, patch: Row): Promise<number>
+		put(row: Row): Promise<string | number>
+		where(index: string): {
+			equals(value: unknown): {
+				toArray(): Promise<Row[]>
+				first(): Promise<Row | undefined>
+				count(): Promise<number>
+			}
+			above(value: unknown): {
+				sortBy(key: string): Promise<Row[]>
+			}
+		}
+		orderBy(index: string): {
+			reverse(): { limit(n: number): { toArray(): Promise<Row[]> } }
+		}
+		limit(n: number): { toArray(): Promise<Row[]> }
+		toArray(): Promise<Row[]>
+		count(): Promise<number>
+	}
+
+	interface QueueDatabase {
+		/**
+		 * Dexie form: the callback is the LAST argument, not curried —
+		 * `db.transaction("rw", a, b, () => …)`.
+		 */
+		transaction<T>(
+			mode: "rw",
+			...rest: [...Table[], () => Promise<T>]
+		): Promise<T>
+		queueServices: Table
+		queueSessions: Table
+		queueCounters: Table
+		queueTickets: Table
+		queueCalls: Table
+		queueEvents: Table
+	}
+
+	const db: QueueDatabase
+	export default db
+}
+
+/** UUID helpers (offline invoice de-duplication). */
+declare module "@/utils/offline/uuid" {
+	export function generateUUID(): string
+	export function generateOfflineId(): string
+}
+
+/**
+ * Local session — the single source of identity in the POS.
+ *
+ * Identity is read from the local session only; there is no server or
+ * desk global to read it from (AGENTS.md invariant 9).
+ */
+declare module "@/data/session" {
+	export function sessionUser(): string | null
+	export function sessionRole(): string
+}
+
 declare module "@/utils/logger" {
 	export const LOG_LEVELS: Record<string, string>
 	export interface Logger {

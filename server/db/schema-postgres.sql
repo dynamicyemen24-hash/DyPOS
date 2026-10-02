@@ -3952,3 +3952,144 @@ COMMIT;
 --    query plans.
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_idem ON invoices(tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
+
+-- ============================================================================
+-- v33 — QUEUE MANAGEMENT (نظام الطوابير)
+-- ============================================================================
+-- Lockstep with server/db/migrations-queue-management.js (SQLite). Run
+-- `npm run parity` after editing: the gate compares tables, columns and
+-- indexes and fails on drift.
+--
+-- The partial unique index on queue_counters(current_ticket_id) is carried
+-- over deliberately: it is the atomic guard that stops one counter serving
+-- two tickets on a double-clicked "call next", and Postgres enforces it just
+-- as SQLite does.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS queue_services (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id TEXT,
+  code TEXT NOT NULL,
+  name TEXT NOT NULL,
+  name_en TEXT,
+  prefix TEXT NOT NULL DEFAULT 'A',
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  color_token TEXT NOT NULL DEFAULT 'primary',
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_queue_services_tenant
+  ON queue_services(tenant_id, active, sort_order);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_queue_services_code
+  ON queue_services(tenant_id, code);
+
+CREATE TABLE IF NOT EXISTS queue_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id TEXT,
+  business_date TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'OPEN'
+    CHECK (status IN ('OPEN','CLOSED')),
+  numbering_strategy TEXT NOT NULL DEFAULT 'sequential'
+    CHECK (numbering_strategy IN ('sequential','daily-reset')),
+  last_sequence INTEGER NOT NULL DEFAULT 0,
+  currency TEXT NOT NULL DEFAULT 'SAR',
+  opened_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  closed_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_queue_sessions_tenant
+  ON queue_sessions(tenant_id, business_date, status);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_queue_sessions_date
+  ON queue_sessions(tenant_id, business_date);
+
+CREATE TABLE IF NOT EXISTS queue_counters (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id TEXT,
+  name TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'CLOSED'
+    CHECK (status IN ('CLOSED','OPEN','SUSPENDED')),
+  service_id UUID REFERENCES queue_services(id),
+  current_ticket_id UUID,
+  session_id UUID NOT NULL REFERENCES queue_sessions(id),
+  served_count INTEGER NOT NULL DEFAULT 0,
+  total_serve_ms BIGINT NOT NULL DEFAULT 0,
+  opened_at TIMESTAMPTZ,
+  closed_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_queue_counters_tenant
+  ON queue_counters(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_queue_counters_session
+  ON queue_counters(session_id);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_queue_counters_current
+  ON queue_counters(current_ticket_id)
+  WHERE current_ticket_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS queue_tickets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id TEXT,
+  session_id UUID NOT NULL REFERENCES queue_sessions(id),
+  service_id UUID NOT NULL REFERENCES queue_services(id),
+  service_name TEXT NOT NULL,
+  number TEXT NOT NULL,
+  sequence INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'WAITING'
+    CHECK (status IN ('WAITING','CALLED','RECALLED','SKIPPED','SERVING',
+      'COMPLETED','TRANSFERRED','CANCELLED')),
+  priority TEXT NOT NULL DEFAULT 'NORMAL'
+    CHECK (priority IN ('NORMAL','HIGH','URGENT')),
+  counter_id UUID REFERENCES queue_counters(id),
+  issued_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  first_called_at TIMESTAMPTZ,
+  called_at TIMESTAMPTZ,
+  serving_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  call_count INTEGER NOT NULL DEFAULT 0,
+  mobile TEXT,
+  note TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_queue_tickets_tenant
+  ON queue_tickets(tenant_id, status, sequence);
+CREATE INDEX IF NOT EXISTS idx_queue_tickets_session
+  ON queue_tickets(session_id, status, priority, sequence);
+CREATE INDEX IF NOT EXISTS idx_queue_tickets_counter
+  ON queue_tickets(counter_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_queue_tickets_sequence
+  ON queue_tickets(session_id, sequence);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_queue_tickets_number
+  ON queue_tickets(session_id, number);
+
+CREATE TABLE IF NOT EXISTS queue_calls (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id TEXT,
+  ticket_id UUID NOT NULL REFERENCES queue_tickets(id),
+  ticket_number TEXT NOT NULL,
+  counter_id UUID NOT NULL REFERENCES queue_counters(id),
+  counter_name TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('CALL','RECALL','SKIP','TRANSFER')),
+  to_counter_id UUID,
+  at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_queue_calls_tenant
+  ON queue_calls(tenant_id, at);
+CREATE INDEX IF NOT EXISTS idx_queue_calls_ticket
+  ON queue_calls(ticket_id, at);
+CREATE INDEX IF NOT EXISTS idx_queue_calls_counter
+  ON queue_calls(counter_id, at);
+
+CREATE TABLE IF NOT EXISTS queue_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id TEXT,
+  session_id UUID,
+  type TEXT NOT NULL,
+  version BIGINT NOT NULL,
+  payload TEXT NOT NULL DEFAULT '{}',
+  origin TEXT,
+  at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_queue_events_tenant
+  ON queue_events(tenant_id, version);
+CREATE INDEX IF NOT EXISTS idx_queue_events_session
+  ON queue_events(session_id, version);

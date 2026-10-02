@@ -35,6 +35,15 @@ export const WORK_NAV_SECTIONS = Object.freeze([
 				icon: "smartphone",
 			},
 			{
+				// الطابور: يُصدر التذكرة ويزنّها للكاونتر. خدمة لكل قطاع
+				// فيه تدفّق نقدي (مطعم، نادٍ، عيادة، ورشة) فبذاته في
+				// «البيع» لا «الإدارة».
+				id: "queue",
+				label: "الطوابير",
+				to: { name: "Queue" },
+				icon: "list-ordered",
+			},
+			{
 				id: "third-party-sales",
 				label: "البيع بالنيابة",
 				to: { name: "ThirdPartySales" },

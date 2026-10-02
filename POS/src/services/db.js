@@ -88,6 +88,26 @@ class DyPOSDb extends Dexie {
 			thirdPartySaleEvents:
 				"&id, saleId, eventType, createdAt, syncStatus, [saleId+createdAt]",
 		})
+
+		// v6: queue management (نظام الطوابير) — offline-first like everything
+		// else. The kiosk must keep calling tickets with no server: the queue
+		// is local-first by nature, not a cache of a remote queue.
+		//
+		// `&id` = primary key given by us (UUID) so a ticket survives export/
+		// import round-trips. The `status`+`sequence` composite index is what
+		// "who is next" reads — a full scan would be O(n) per call-next.
+		this.version(6).stores({
+			queueServices: "&id, tenantId, code, active, sortOrder",
+			queueSessions:
+				"&id, tenantId, businessDate, status, [tenantId+businessDate]",
+			queueCounters:
+				"&id, tenantId, sessionId, status, currentTicketId, [sessionId+status]",
+			queueTickets:
+				"&id, tenantId, sessionId, status, sequence, number, counterId, [sessionId+status+sequence], [status+sequence]",
+			queueCalls: "&id, tenantId, ticketId, counterId, at, [counterId+at]",
+			queueEvents:
+				"&id, tenantId, sessionId, type, version, [sessionId+version]",
+		})
 	}
 }
 

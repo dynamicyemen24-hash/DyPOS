@@ -1,4 +1,4 @@
-import test from "node:test";
+﻿import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import {
@@ -20,7 +20,7 @@ import {
 const RP_ID = "dypos.smartportssoft.com";
 const ORIGINS = ["https://dypos.smartportssoft.com", "http://localhost:5173"];
 
-// ── a CBOR *writer*, so the test can mint real COSE keys ─────────────────────
+// â”€â”€ a CBOR *writer*, so the test can mint real COSE keys â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function cbor(value) {
 	if (typeof value === "number") {
 		if (value >= 0 && value < 24) return Buffer.from([value]);
@@ -142,6 +142,49 @@ test("authenticator data parses flags, counter and attested credential", () => {
 	assert.equal(parsed.flags & FLAG_AT, FLAG_AT);
 	assert.equal(parsed.signCount, 0);
 	assert.equal(parsed.attestedCredentialData.credentialId.toString("hex"), auth.credId.toString("hex"));
+});
+
+// The backup flag (BS = 1) is what tells the operator the credential also
+// lives in another place (a synced phone). The library parses it, and a
+// parsed-but-unasserted flag is how a real bit rots into a wrong UI.
+test("authenticator data reports the backup (synced) flag", () => {
+	const withBackup = makeAuthenticator();
+	const reg = withBackup.register({ flags: FLAG_UP | FLAG_UV | FLAG_AT | FLAG_BS });
+	const att = JSON.parse(Buffer.from(reg.attestationObject, "base64url").toString());
+	const parsed = parseAuthenticatorData(Buffer.from(att.authData, "base64url"));
+
+	assert.equal(parsed.flags & FLAG_BS, FLAG_BS, "BS must survive the parse");
+	assert.equal(
+		verifyRegistration({
+			clientDataJSON: reg.clientDataJSON,
+			attestationObject: reg.attestationObject,
+			response: reg.response,
+			rpId: RP_ID,
+			origin: ORIGINS,
+			challenge: reg.challenge,
+		}).backedUp,
+		true,
+		"a synced authenticator must be reported as backedUp",
+	);
+
+	// And the negative half: an unbacked device must not claim to be.
+	const deviceOnly = makeAuthenticator();
+	const reg2 = deviceOnly.register({ flags: FLAG_UP | FLAG_UV | FLAG_AT });
+	const att2 = JSON.parse(Buffer.from(reg2.attestationObject, "base64url").toString());
+	const parsed2 = parseAuthenticatorData(Buffer.from(att2.authData, "base64url"));
+	assert.equal(parsed2.flags & FLAG_BS, 0);
+	assert.equal(
+		verifyRegistration({
+			clientDataJSON: reg2.clientDataJSON,
+			attestationObject: reg2.attestationObject,
+			response: reg2.response,
+			rpId: RP_ID,
+			origin: ORIGINS,
+			challenge: reg2.challenge,
+		}).backedUp,
+		false,
+		"an unbacked authenticator must not claim backedUp",
+	);
 });
 
 test("registration yields a storable credential", () => {

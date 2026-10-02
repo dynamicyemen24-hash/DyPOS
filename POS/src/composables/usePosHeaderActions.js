@@ -2,7 +2,12 @@
  * POS Header Actions — reusable header action handlers.
  * Extracted from POSSale.vue to keep it under file-size cap.
  */
-import { goToWorkScreens } from "@/router"
+import {
+	goToQueue,
+	goToSelfCheckout,
+	goToStockManagement,
+	goToWorkScreens,
+} from "@/router"
 
 /**
  * Creates header actions map.
@@ -26,11 +31,21 @@ export function createHeaderActions({
 			showCustomerPanel.value = true
 		},
 		menu: () => goToWorkScreens(),
+		// The two kiosk surfaces, reachable from the cashier screen in one
+		// click. They were reachable only by typing the URL, which is not
+		// a way anyone discovers a feature — the same dead-contract
+		// problem the menu button had before it was wired.
+		selfCheckout: () => goToSelfCheckout(),
+		queue: () => goToQueue(),
+		// The `PosHeaderActionGroup` keys, so a group button and a header
+		// button share one namespace and one dispatch path.
+		settlements: () => goToWorkScreens("settlements"),
+		stock: () => goToStockManagement(),
 	}
 }
 
 /**
- * Handles header action by key.
+ * Handles a header action by key.
  *
  * BOTH arguments are required: the map is the contract, and a one-argument
  * call (`handleHeaderAction('menu')`) throws a TypeError on the click instead
@@ -48,5 +63,26 @@ export function handleHeaderAction(action, headerActions) {
 
 	run()
 
+	return true
+}
+
+/**
+ * Routes an action emitted by `PosHeaderActionGroup`.
+ *
+ * The group's keys are the same namespace the header map uses, so the
+ * dispatch stays in one place: a group button and a header button are the
+ * same kind of contract, not two.
+ *
+ * @param {string} action - Group key
+ * @param {Record<string, () => void>} headerActions - Actions map
+ * @param {Object} extra - Actions that live only on the page (print,
+ *   stock) because they close over page state, not refs
+ * @returns {boolean} true when an action ran
+ */
+export function handleHeaderGroupAction(action, headerActions, extra = {}) {
+	if (handleHeaderAction(action, headerActions)) return true
+	const run = extra?.[action]
+	if (typeof run !== "function") return false
+	run()
 	return true
 }

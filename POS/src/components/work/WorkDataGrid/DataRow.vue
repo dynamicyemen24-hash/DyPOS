@@ -119,7 +119,7 @@
 import { computed } from "vue"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
-import { formatCurrencySafe } from "@/utils/currency"
+import { formatCurrencySafe as formatCurrency } from "@/utils/currency"
 import DyBadge from "@/components/ui/DyBadge.vue"
 import InlineEditCell from "./InlineEditCell.vue"
 
@@ -174,9 +174,6 @@ function formatCell(row, column) {
 	}
 }
 
-function formatCurrency(val) {
-	return formatCurrencySafe(val)
-}
 function formatNumber(val) {
 	return new Intl.NumberFormat("ar-SA").format(Number(val))
 }

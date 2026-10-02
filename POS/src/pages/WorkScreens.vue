@@ -41,7 +41,7 @@
 			:total-items="rows.length"
 			:loading="loading"
 			:aria-label="screen.label"
-			:empty-title="'لا توجد بيانات'"
+			:empty-title="emptyTitle"
 			:empty-description="emptyDescription"
 			striped
 			selectable
@@ -155,6 +155,24 @@ const sourceNote = computed(() => {
 	if (source.value === "unavailable")
 		return "تعذّر الوصول للسيرفر ولا توجد نسخة محلية — البيانات غير معروفة"
 	return ""
+})
+
+/**
+ * Empty-state title (SAP Fiori): an empty state NAMES what is empty.
+ *
+ * A fixed «لا توجد بيانات» is the same sentence for invoices, items,
+ * customers and stock — so the user cannot tell which screen they are on,
+ * and «unavailable» (we could not read) reads identically to «empty» (we
+ * read it and there is nothing). Those are different facts and must not
+ * share a heading.
+ */
+const emptyTitle = computed(() => {
+	if (source.value === "unavailable") return "تعذّر قراءة البيانات"
+	// The phrase is DATA, not a template: Arabic needs a per-screen
+	// subject and verb («لا توجد فواتير» vs «لا يوجد عملاء» vs «لا يوجد
+	// صنف بحاجة إلى…»), and composing it from the label produces
+	// broken grammar the moment a screen is added.
+	return screen.value.emptyTitle
 })
 
 const emptyDescription = computed(() =>

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * DyPOS Server — Standalone REST API v1.33.0
  * Production-hardened for millions of subscribers:
  * dotenv, JWT validation, CSP, CORS lock-down, request-id tracing,
@@ -10,7 +10,6 @@ import dotenv from 'dotenv';
 import express from 'express';
 import helmet from 'helmet';
 import compression from 'compression';
-import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
 import cluster from 'node:cluster';
 import os from 'node:os';
@@ -65,8 +64,9 @@ import { auditMiddleware } from './middleware/audit.js';
 import { startDispatcher } from './lib/webhooks.js';
 import { cacheStats } from './lib/cache.js';
 import { ah, isSqliteLockError } from './lib/async.js';
-import { createRateStore } from './lib/rate-store.js';
 import { VERSION } from './lib/version.js';
+import { HEALTH_PATHS } from './lib/health-paths.js';
+import { authRateLimit, globalRateLimit } from './middleware/rate-limiters.js';
 import { logger } from './lib/logger.js';
 import { registerService, registerHealthCheck, initialize, deepHealthCheck, isReady, shutdown } from './lib/lifecycle.js';
 import { registerSecurityHeaders } from './middleware/securityHeaders.js';
@@ -237,8 +237,8 @@ async function ensureLifecycleInitialized() {
 //                 platform probe hits by default; the Cloudflare API Worker
 //                 answers the same alias, so both origins behave identically.
 // All three are exempt from per-IP rate limiting and request logging: a probe
-// that gets throttled looks like an outage.
-const HEALTH_PATHS = new Set(['/health', '/api/health', '/api/ready']);
+// that gets throttled looks like an outage. The set itself lives in
+// `lib/health-paths.js` — the rate limiter must exempt exactly these three.
 
 // Request-ID + structured request logger (skips health probes to save I/O)
 // + X-Response-Time for LB observability at millions-of-requests scale.
@@ -323,14 +323,7 @@ app.use(auditMiddleware);
 // Global rate limit — shared store (memory, or Redis when DYPOS_REDIS_URL set).
 // Tunable for load campaigns: DYPOS_RATE_LIMIT_MAX (default 2000 prod / 1000 dev).
 // Bulk import batches are exempt (already capped at 2000 rows + ADMIN/MANAGER gate).
-const GLOBAL_WINDOW_MS = 15 * 60 * 1000;
-app.use(rateLimit({
-  windowMs: GLOBAL_WINDOW_MS, max: Number(process.env.DYPOS_RATE_LIMIT_MAX) || (isProduction ? 2000 : 1000),
-  standardHeaders: true, legacyHeaders: false,
-  store: createRateStore(GLOBAL_WINDOW_MS, 'global'),
-  skip: (req) => HEALTH_PATHS.has(req.path) || req.path.startsWith('/api/import'),
-  message: { error: 'Too many requests. Please try again later.' },
-}));
+app.use(globalRateLimit);
 
 // Tight body limits: 2MB (raised from 1MB) to support large invoices with 500+ lines,
 // each carrying pricing_rules, batch/serial data, and free item rows.
@@ -414,15 +407,8 @@ app.get('/api/ready', ah(async (_req, res) => {
 // middleware blocks; admin PUT is internally gated (requireRole ADMIN).
 registerFeatures(app);
 
-// Auth routes with stricter rate limit (brute-force protection, shared store)
-const AUTH_WINDOW_MS = 15 * 60 * 1000;
-const authRateLimit = rateLimit({
-  windowMs: AUTH_WINDOW_MS, max: Number(process.env.DYPOS_AUTH_LIMIT_MAX) || 30,
-  standardHeaders: true, legacyHeaders: false,
-  store: createRateStore(AUTH_WINDOW_MS, 'auth'),
-  message: { error: 'Too many login attempts. Please try again later.' },
-  skipSuccessfulRequests: true,
-});
+// Auth routes with stricter rate limit (brute-force protection, shared store).
+// Passkeys ride the same limiter — they are mounted inside `routes/auth.js`.
 app.use('/api/auth', authRateLimit, authRoutes);
 
 // Write guard: read-only replicas reject mutations with 409 (retry @ primary)

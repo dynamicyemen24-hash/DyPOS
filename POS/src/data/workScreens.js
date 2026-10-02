@@ -17,11 +17,12 @@ import { productRepository } from "@/repositories/productRepository"
 const money = (row) => Number(row?.grand_total ?? row?.total ?? 0)
 const amount = (field) => (row) => Number(row?.[field] ?? 0).toFixed(2)
 
-/** @type {ReadonlyArray<{id:string,label:string,icon:string,doctype:string,permission:string,orderBy:string,columns:Array<object>,load:Function}>} */
+/** @type {ReadonlyArray<{id:string,label:string,emptyTitle:string,icon:string,doctype:string,permission:string,orderBy:string,columns:Array<object>,load:Function}>} */
 export const WORK_SCREENS = Object.freeze([
 	{
 		id: "invoices",
 		label: "الفواتير",
+		emptyTitle: "لا توجد فواتير",
 		icon: "file-text",
 		doctype: "Sales Invoice",
 		permission: "work.invoices",
@@ -61,6 +62,7 @@ export const WORK_SCREENS = Object.freeze([
 	{
 		id: "items",
 		label: "الأصناف",
+		emptyTitle: "لا توجد أصناف",
 		icon: "package",
 		doctype: "Item",
 		permission: "work.items",
@@ -86,6 +88,7 @@ export const WORK_SCREENS = Object.freeze([
 	{
 		id: "customers",
 		label: "العملاء",
+		emptyTitle: "لا يوجد عملاء",
 		icon: "users",
 		doctype: "Customer",
 		permission: "work.customers",
@@ -106,6 +109,7 @@ export const WORK_SCREENS = Object.freeze([
 	{
 		id: "settlements",
 		label: "التسويات",
+		emptyTitle: "لا توجد تسويات",
 		icon: "clipboard",
 		doctype: "POS Opening Shift",
 		permission: "work.settlements",
@@ -170,6 +174,7 @@ export const WORK_SCREENS = Object.freeze([
 	{
 		id: "stock",
 		label: "تنبيه المخزون",
+		emptyTitle: "لا يوجد صنف بحاجة إلى إعادة طلب",
 		icon: "alert-triangle",
 		doctype: "Item",
 		permission: "work.stock",

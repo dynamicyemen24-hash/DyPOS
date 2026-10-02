@@ -8,6 +8,7 @@ import { cacheGet, cacheSet, cacheDel } from '../lib/cache.js';
 import { createRateStore } from '../lib/rate-store.js';
 import db from '../db/schema.js';
 import { v4 as uuid } from 'uuid';
+import passkeyRoutes from './passkeys.js';
 
 const router = Router();
 
@@ -313,5 +314,12 @@ router.get('/users', authMiddleware, requireRole('ADMIN'), (req, res) => {
   const rows = db.prepare('SELECT id,username,full_name,role,is_active,tenant_id,created_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?').all(limit, offset);
   return res.json({ users: rows, total: totalRow?.c || 0, limit, offset, hasMore: offset + rows.length < (totalRow?.c || 0) });
 });
+
+// Passkeys are part of the auth surface, so they hang off THIS router —
+// which server.js mounts under `/api/auth` behind the auth rate limiter. A
+// ceremony is a login attempt, and mounting it here means a future auth mount
+// point cannot forget it (the failure mode is a biometric endpoint with no
+// brute-force guard).
+router.use(passkeyRoutes);
 
 export default router;

@@ -42,7 +42,7 @@
 import { computed } from "vue"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
-import { formatCurrencySafe } from "@/utils/currency"
+import { formatCurrencySafe as formatCurrency } from "@/utils/currency"
 
 const props = defineProps({
 	group: { type: Object, required: true },
@@ -93,9 +93,6 @@ function formatAggregate(fn, columnKey) {
 	return `${label}: ${formatted}`
 }
 
-function formatCurrency(val) {
-	return formatCurrencySafe(val)
-}
 function formatNumber(val) {
 	return new Intl.NumberFormat("ar-SA").format(Number(val))
 }

@@ -57,23 +57,6 @@
 	background: var(--dy-surface);
 	color: var(--dy-text);
 }
-
-.dy-login__brand-overlay {
-	position: absolute;
-	inset: 0;
-
-	background: radial-gradient(
-			circle at 20% 20%,
-			rgb(var(--dy-brand-c-500) / 0.2),
-			transparent 34%
-		),
-		radial-gradient(
-			circle at 80% 80%,
-			rgb(var(--dy-mint-c-500) / 0.15),
-			transparent 34%
-		);
-}
-
 .dy-login__brand-content {
 	display: grid;
 	width: min(100%, 1440px);
@@ -109,46 +92,29 @@
 }
 
 .dy-login__brand-card {
-	width: min(100%, 720px);
+	/*
+	 * اللوحة مختصرة إلى 420px (كانت 720px). `justify-self: end` يضعها
+	 * في حافة السطر inline-end — **اليمين** في RTL، واليسار في LTR.
+	 * خاصية منطقية واحدة تخدم الاتجاهين، بخلاف `right`/`left` الذي
+	 * ينقلب خطأً عند تبديل اللغة.
+	 * الصورة نفسها **الرسمية**، بنسبتها الأصلية 1200/630.
+	 */
+	width: min(100%, 420px);
 	margin: 0;
-	justify-self: stretch;
+	justify-self: end;
+	align-self: start;
 }
 
-.dy-login__brand-logo,
-.dy-login__brand-card-link {
+.dy-login__brand-logo {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	border-radius: var(--dy-radius-lg);
 }
 
-.dy-login__brand-logo:focus-visible,
-.dy-login__brand-card-link:focus-visible {
+.dy-login__brand-logo:focus-visible {
 	outline: var(--dy-focus-width) solid var(--dy-focus-color);
 	outline-offset: var(--dy-focus-offset);
-}
-
-.dy-login__brand-card-link {
-	width: 100%;
-	overflow: hidden;
-	border: 1px solid var(--dy-border-soft);
-	border-radius: var(--dy-radius-2xl);
-	background: white;
-	box-shadow: var(--dy-elevation-2);
-}
-
-.dy-login__brand-card-link img {
-	transition: transform 180ms ease;
-}
-
-.dy-login__brand-card img {
-	display: block;
-	width: 100%;
-	height: auto;
-	aspect-ratio: 1200 / 630;
-	object-fit: contain;
-	border-radius: calc(var(--dy-radius-2xl) - 1px);
-	background: white;
 }
 
 .dy-login__showcase {
@@ -171,11 +137,6 @@
 .dy-login__preferences {
 	grid-area: preferences;
 }
-
-.dy-login__brand-card-link:hover img {
-	transform: scale(1.015);
-}
-
 .dy-login__brand-company {
 	display: flex;
 	justify-content: flex-end;
@@ -207,20 +168,6 @@
 .dy-login__context-label {
 	max-width: 220px;
 }
-
-.dy-login__brand-copy {
-	max-width: 540px;
-
-	/*
-	 * No `margin-block: auto` here: it swallowed every bit of free space, so
-	 * `justify-content: space-between` had nothing to distribute and the card
-	 * below stayed pinned at y=724 — past the fold at 1440×900. With the
-	 * margins gone the four children share the column evenly (measured card
-	 * bottom: 851px at 1440×900, inside the first screen).
-	 */
-	padding-block: 40px 24px;
-}
-
 /*
  * شارة الحالة، لا سطر نص.
  *
@@ -228,75 +175,6 @@
  * زجاجية بنقطة نابضة، فصار الشكل وحده يقول شيئًا (نظام يعمل) قبل قراءة أي نص.
  * النقطة `aria-hidden` لأن النابض لا يُنطَق.
  */
-.dy-login__eyebrow {
-	display: inline-flex;
-	align-items: center;
-	gap: 9px;
-
-	margin-bottom: var(--dy-space-5);
-
-	padding: 7px 14px 7px 12px;
-
-	border: 1px solid rgb(255 255 255 / 0.16);
-
-	border-radius: var(--dy-radius-full);
-
-	background: rgb(255 255 255 / 0.07);
-
-	backdrop-filter: blur(12px) saturate(1.3);
-	-webkit-backdrop-filter: blur(12px) saturate(1.3);
-
-	box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08);
-
-	color: rgb(255 255 255 / 0.86);
-
-	font-size: 0.78rem;
-	font-weight: 700;
-	letter-spacing: 0.02em;
-}
-
-.dy-login__eyebrow-dot {
-	width: 7px;
-	height: 7px;
-
-	flex: 0 0 auto;
-
-	border-radius: var(--dy-radius-full);
-
-	background: var(--dy-mint-400);
-
-	box-shadow: 0 0 0 3px rgb(var(--dy-mint-c-500) / 0.28);
-
-	animation: dy-pulse-soft 2.6s var(--dy-ease-standard) infinite;
-}
-
-.dy-login__brand-title {
-	margin: 0;
-
-	color: white;
-
-	/* 4.8rem packed two 78px lines above the identity card and pushed it past
-	   the fold at 1440×900. The headline still leads; the card now lands in
-	   the first screen. */
-	font-size: clamp(2.25rem, 4.2vw, 3.75rem);
-
-	font-weight: 800;
-	line-height: 1.08;
-	letter-spacing: var(--dy-tracking-tight);
-}
-
-.dy-login__brand-description {
-	max-width: 480px;
-
-	margin: var(--dy-space-6) 0 0;
-
-	color: rgb(255 255 255 / 0.72);
-
-	font-size: clamp(1rem, 1.4vw, 1.05rem);
-
-	line-height: 1.7;
-}
-
 .dy-login__context {
 	display: flex;
 	flex-wrap: wrap;
@@ -333,12 +211,6 @@
 
 	font-size: 0.82rem;
 }
-
-.dy-login__context-icon {
-	display: inline-flex;
-	color: rgb(255 255 255 / 0.62);
-}
-
 .dy-login__context-label {
 	max-width: 180px;
 
@@ -346,43 +218,6 @@
 
 	text-overflow: ellipsis;
 	white-space: nowrap;
-}
-
-.dy-login__brand-footer {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-
-	width: fit-content;
-
-	margin-top: var(--dy-space-8);
-	padding: 6px 12px;
-
-	border-radius: var(--dy-radius-lg);
-
-	/*
-	 * «لوح تعتيم» — لأن خلفية اللوحة صورة، لا تدرّج ثابت.
-	 *
-	 * القياس في المتصفح كان 2.12:1 بأبيض 45%، ورفع الشفافية وحده لا يكفي:
-	 * عند النقطة التي يجلس فيها التذييل يجعل التدرّج الثلاثي (آخر درجة 0.62)
-	 * الصورةَ هي الغالبة، والخلفية المقيسة rgb(93,123,161) — وعليها لا يتجاوز
-	 * أبيض صافٍ 4.36:1. فتٌضمن القراءة بلوح داكن فوق الصورة (9.86:1)، بدل
-	 * رهان على سطوع بكسل لم يختره المصمم. الوسوم الفاصلة aria-hidden فلا تُقيَّم.
-	 */
-	background: rgb(var(--dy-brand-c-950) / 0.55);
-
-	color: rgb(255 255 255 / 0.78);
-
-	font-size: 0.75rem;
-}
-
-.dy-login__brand-dot {
-	width: 3px;
-	height: 3px;
-
-	border-radius: 50%;
-
-	background: rgb(255 255 255 / 0.32);
 }
 
 /* =============================================================================
@@ -521,11 +356,6 @@
 .dy-login__header {
 	margin-bottom: var(--dy-space-7);
 }
-
-.dy-login__mobile-logo {
-	display: none;
-}
-
 .dy-login__section-label {
 	display: block;
 

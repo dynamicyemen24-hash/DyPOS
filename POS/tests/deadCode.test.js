@@ -78,8 +78,28 @@ const importsOf = (file) => {
 				break
 			}
 		}
-		const barrel = `${abs}/index.js`
-		if (byKey.has(key(barrel))) out.add(key(barrel))
+		// ESM TypeScript writes `./x.js` for a file that is actually `x.ts`
+		// (what `moduleResolution: bundler` expects). The literal probe
+		// above never matches that, so a barrel re-exporting its own tree
+		// reported every member dead. Try the sibling source extension.
+		for (const alt of [".ts", ".vue", ".tsx"]) {
+			const candidate = abs.replace(/\.js$/, alt)
+			if (byKey.has(key(candidate))) {
+				out.add(key(candidate))
+				break
+			}
+		}
+		// Barrel: `@/x/y` → `src/x/y/index.{js,ts}`. Only `index.js` was
+		// probed, so a TypeScript barrel (`index.ts`) was invisible to the
+		// BFS and every module it re-exported was reported dead — a false
+		// verdict that says "delete it" about a live, wired entry point.
+		for (const ext of [".js", ".ts"]) {
+			const barrel = `${abs}/index${ext}`
+			if (byKey.has(key(barrel))) {
+				out.add(key(barrel))
+				break
+			}
+		}
 	}
 	return out
 }
