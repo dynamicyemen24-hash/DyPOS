@@ -194,7 +194,10 @@ export function registerOpeningBalanceVerbs(def, requireUser) {
 				payload.amountMinor = toMinor(Number(major));
 			}
 			delete payload.amount;
-			row = normaliseOpeningBalance(payload, { tenantId, products: buildProductIndex(db, tenantId) });
+			row = normaliseOpeningBalance(payload, {
+				tenantId,
+				products: buildProductIndex(db, tenantId),
+			});
 		} catch (error) {
 			if (error instanceof OpeningBalanceError) {
 				return res.json({
@@ -204,7 +207,11 @@ export function registerOpeningBalanceVerbs(def, requireUser) {
 					row: error.row,
 				});
 			}
-			return res.json({ exc_type: 'ValidationError', _error_message: 'سجل غير صالح', message: 'سجل غير صالح' });
+			return res.json({
+				exc_type: 'ValidationError',
+				_error_message: 'سجل غير صالح',
+				message: 'سجل غير صالح',
+			});
 		}
 
 		const key = openingBalanceKey(row);
@@ -301,7 +308,10 @@ export function registerOpeningBalanceVerbs(def, requireUser) {
 			// reported by LINE NUMBER instead of importing an unlinked movement.
 			const products = buildProductIndex(db, tenantId);
 			parsed = Array.isArray(params.rows)
-				? { rows: params.rows.map((r, i) => normaliseOpeningBalance(r, { row: i + 1, tenantId, products })), errors: [] }
+				? {
+						rows: params.rows.map((r, i) => normaliseOpeningBalance(r, { row: i + 1, tenantId, products })),
+						errors: [],
+					}
 				: parseOpeningBalanceCsv(source, { tenantId, products });
 		} catch (error) {
 			if (error instanceof OpeningBalanceError) {
@@ -312,7 +322,11 @@ export function registerOpeningBalanceVerbs(def, requireUser) {
 					row: error.row,
 				});
 			}
-			return res.json({ exc_type: 'ValidationError', _error_message: 'تعذر قراءة الملف', message: 'تعذر قراءة الملف' });
+			return res.json({
+				exc_type: 'ValidationError',
+				_error_message: 'تعذر قراءة الملف',
+				message: 'تعذر قراءة الملف',
+			});
 		}
 
 		const { rows, errors } = parsed;

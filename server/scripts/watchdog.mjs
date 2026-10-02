@@ -39,97 +39,114 @@ let intentionalStop = false;
 let attachedLogged = false;
 
 function log(event, detail = {}) {
-  const line = JSON.stringify({ ts: new Date().toISOString(), service: 'dypos-watchdog', event, ...detail });
-  try { console.log(line); } catch { /* ignore */ }
-  try { appendFileSync(LOG, line + '\n'); } catch { /* data dir may not exist yet */ }
+	const line = JSON.stringify({
+		ts: new Date().toISOString(),
+		service: 'dypos-watchdog',
+		event,
+		...detail,
+	});
+	try {
+		console.log(line);
+	} catch {
+		/* ignore */
+	}
+	try {
+		appendFileSync(LOG, `${line}\n`);
+	} catch {
+		/* data dir may not exist yet */
+	}
 }
 
 async function probe() {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT);
-  try {
-    const r = await fetch(URL, { signal: ctrl.signal });
-    if (!r.ok) return false;
-    const j = await r.json().catch(() => null);
-    return j && j.ready === true;
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(t);
-  }
+	const ctrl = new AbortController();
+	const t = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT);
+	try {
+		const r = await fetch(URL, { signal: ctrl.signal });
+		if (!r.ok) return false;
+		const j = await r.json().catch(() => null);
+		return j && j.ready === true;
+	} catch {
+		return false;
+	} finally {
+		clearTimeout(t);
+	}
 }
 
 function spawnChild() {
-  log('spawn', { cmd: 'node entrypoint.js' });
-  const c = spawn(process.execPath, ['entrypoint.js'], {
-    cwd: SERVER_DIR,
-    stdio: 'ignore',
-    detached: false,
-    windowsHide: true,
-  });
-  child = c;
-  c.on('exit', (code, signal) => {
-    if (child !== c) return; // superseded
-    child = null;
-    if (intentionalStop) return;
-    log('child-exit', { code, signal });
-    fails = MAX_FAILS; // recover on next tick without waiting out the streak
-  });
-  c.on('error', (e) => {
-    if (child !== c) return;
-    child = null;
-    log('child-error', { message: String(e.message).slice(0, 200) });
-    fails = MAX_FAILS;
-  });
+	log('spawn', { cmd: 'node entrypoint.js' });
+	const c = spawn(process.execPath, ['entrypoint.js'], {
+		cwd: SERVER_DIR,
+		stdio: 'ignore',
+		detached: false,
+		windowsHide: true,
+	});
+	child = c;
+	c.on('exit', (code, signal) => {
+		if (child !== c) return; // superseded
+		child = null;
+		if (intentionalStop) return;
+		log('child-exit', { code, signal });
+		fails = MAX_FAILS; // recover on next tick without waiting out the streak
+	});
+	c.on('error', (e) => {
+		if (child !== c) return;
+		child = null;
+		log('child-error', { message: String(e.message).slice(0, 200) });
+		fails = MAX_FAILS;
+	});
 }
 
 function stopChild() {
-  if (child) {
-    try { child.kill(); } catch { /* already dead */ }
-    child = null;
-  }
+	if (child) {
+		try {
+			child.kill();
+		} catch {
+			/* already dead */
+		}
+		child = null;
+	}
 }
 
 async function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
+	return new Promise((r) => setTimeout(r, ms));
 }
 
 async function tick() {
-  const ok = await probe();
-  if (ok) {
-    fails = 0;
-    lastHealthy = Date.now();
-    backoff = 1000;
-    if (!child && !attachedLogged) {
-      attachedLogged = true;
-      log('attached', { url: URL, note: 'port busy at boot — supervising existing instance' });
-    }
-    return;
-  }
-  fails += 1;
-  log('probe-fail', { fails, need: MAX_FAILS });
-  if (Date.now() - lastHealthy > HEALTHY_RESET_MS) backoff = 1000;
-  if (fails < MAX_FAILS) return;
-  // Recover: replace (only our own child) with backoff. Re-probe after
-  // the wait — another instance may have taken the port meanwhile.
-  log('recover', { backoffMs: backoff });
-  stopChild();
-  await sleep(backoff);
-  backoff = Math.min(backoff * 2, BACKOFF_CAP);
-  fails = 0;
-  if (await probe()) {
-    lastHealthy = Date.now();
-    log('attached', { url: URL, note: 'instance appeared during backoff — monitoring' });
-    return;
-  }
-  spawnChild();
+	const ok = await probe();
+	if (ok) {
+		fails = 0;
+		lastHealthy = Date.now();
+		backoff = 1000;
+		if (!child && !attachedLogged) {
+			attachedLogged = true;
+			log('attached', { url: URL, note: 'port busy at boot — supervising existing instance' });
+		}
+		return;
+	}
+	fails += 1;
+	log('probe-fail', { fails, need: MAX_FAILS });
+	if (Date.now() - lastHealthy > HEALTHY_RESET_MS) backoff = 1000;
+	if (fails < MAX_FAILS) return;
+	// Recover: replace (only our own child) with backoff. Re-probe after
+	// the wait — another instance may have taken the port meanwhile.
+	log('recover', { backoffMs: backoff });
+	stopChild();
+	await sleep(backoff);
+	backoff = Math.min(backoff * 2, BACKOFF_CAP);
+	fails = 0;
+	if (await probe()) {
+		lastHealthy = Date.now();
+		log('attached', { url: URL, note: 'instance appeared during backoff — monitoring' });
+		return;
+	}
+	spawnChild();
 }
 
 function shutdown(signal) {
-  intentionalStop = true;
-  log('shutdown', { signal });
-  stopChild();
-  process.exit(0);
+	intentionalStop = true;
+	log('shutdown', { signal });
+	stopChild();
+	process.exit(0);
 }
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
@@ -139,14 +156,14 @@ log('start', { url: URL, intervalMs: INTERVAL, maxFails: MAX_FAILS });
 // (normal restart case), attach as monitor instead of crash-looping a
 // second entrypoint against EADDRINUSE.
 if (await probe()) {
-  attachedLogged = true;
-  lastHealthy = Date.now();
-  log('attached', { url: URL, note: 'healthy instance already owns the port' });
+	attachedLogged = true;
+	lastHealthy = Date.now();
+	log('attached', { url: URL, note: 'healthy instance already owns the port' });
 } else {
-  spawnChild();
+	spawnChild();
 }
 // eslint-disable-next-line no-constant-condition
 while (true) {
-  await sleep(INTERVAL);
-  await tick();
+	await sleep(INTERVAL);
+	await tick();
 }

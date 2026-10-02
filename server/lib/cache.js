@@ -15,7 +15,7 @@
  *   import { getOrSet, cacheStats, sendCached } from '../lib/cache.js';
  *   const data = await getOrSet('products:list:...', 5, async () => db.query(...));
  */
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 
 const MAX_ENTRIES = Number(process.env.DYPOS_CACHE_MAX || 2000);
 const DEFAULT_TTL = Number(process.env.DYPOS_CACHE_TTL || 5);
@@ -29,134 +29,171 @@ const inflightLoads = new Map(); // key -> Promise
 // ── Optional Redis (lazy, no hard dependency) ──
 let redis = null;
 async function redisClient() {
-  const url = process.env.DYPOS_REDIS_URL;
-  if (!url) return null;
-  if (redis) return redis;
-  try {
-    const { default: Redis } = await import('ioredis').catch(() => ({ default: null }));
-    if (!Redis) return null;
-    redis = new Redis(url, { maxRetriesPerRequest: 1, enableReadyCheck: false, lazyConnect: true });
-    redis.on('error', () => { stats.redis = false; });
-    await redis.connect().catch(() => null);
-    stats.redis = !!redis;
-    return redis;
-  } catch {
-    return null;
-  }
+	const url = process.env.DYPOS_REDIS_URL;
+	if (!url) return null;
+	if (redis) return redis;
+	try {
+		const { default: Redis } = await import('ioredis').catch(() => ({ default: null }));
+		if (!Redis) return null;
+		redis = new Redis(url, { maxRetriesPerRequest: 1, enableReadyCheck: false, lazyConnect: true });
+		redis.on('error', () => {
+			stats.redis = false;
+		});
+		await redis.connect().catch(() => null);
+		stats.redis = !!redis;
+		return redis;
+	} catch {
+		return null;
+	}
 }
 if (process.env.DYPOS_REDIS_URL) redisClient().catch(() => null);
 
 function indexKey(key) {
-  // Index by first two pipe-segments (e.g. "products|list") for O(1) prefix invalidation.
-  const seg = String(key).split('|').slice(0, 2).join('|');
-  let set = prefixIndex.get(seg);
-  if (!set) { set = new Set(); prefixIndex.set(seg, set); }
-  set.add(key);
+	// Index by first two pipe-segments (e.g. "products|list") for O(1) prefix invalidation.
+	const seg = String(key).split('|').slice(0, 2).join('|');
+	let set = prefixIndex.get(seg);
+	if (!set) {
+		set = new Set();
+		prefixIndex.set(seg, set);
+	}
+	set.add(key);
 }
 
 function unindexKey(key) {
-  const seg = String(key).split('|').slice(0, 2).join('|');
-  const set = prefixIndex.get(seg);
-  if (set) {
-    set.delete(key);
-    if (!set.size) prefixIndex.delete(seg);
-  }
+	const seg = String(key).split('|').slice(0, 2).join('|');
+	const set = prefixIndex.get(seg);
+	if (set) {
+		set.delete(key);
+		if (!set.size) prefixIndex.delete(seg);
+	}
 }
 
 function evictIfNeeded() {
-  if (mem.size < MAX_ENTRIES) return;
-  // Evict oldest-expired first, else oldest-inserted (Map preserves insertion order).
-  const now = Date.now();
-  for (const [k, v] of mem) {
-    if (v.expiresAt <= now) { mem.delete(k); stats.evictions++; return; }
-  }
-  const first = mem.keys().next().value;
-  if (first !== undefined) { mem.delete(first); stats.evictions++; }
+	if (mem.size < MAX_ENTRIES) return;
+	// Evict oldest-expired first, else oldest-inserted (Map preserves insertion order).
+	const now = Date.now();
+	for (const [k, v] of mem) {
+		if (v.expiresAt <= now) {
+			mem.delete(k);
+			stats.evictions++;
+			return;
+		}
+	}
+	const first = mem.keys().next().value;
+	if (first !== undefined) {
+		mem.delete(first);
+		stats.evictions++;
+	}
 }
 
 export function cacheKey(...parts) {
-  return parts.map((p) => String(p ?? '').slice(0, 200)).join('|');
+	return parts.map((p) => String(p ?? '').slice(0, 200)).join('|');
 }
 
 export async function cacheGet(key) {
-  // Redis first (shared), then memory.
-  const rc = process.env.DYPOS_REDIS_URL ? await redisClient().catch(() => null) : null;
-  if (rc) {
-    try {
-      const raw = await rc.get(`dypos:${key}`);
-      if (raw != null) { stats.hits++; return JSON.parse(raw); }
-    } catch { /* fall through to memory */ }
-  }
-  const e = mem.get(key);
-  if (!e) { stats.misses++; return null; }
-  if (e.expiresAt <= Date.now()) { mem.delete(key); stats.misses++; return null; }
-  e.hits++;
-  stats.hits++;
-  return e.value;
+	// Redis first (shared), then memory.
+	const rc = process.env.DYPOS_REDIS_URL ? await redisClient().catch(() => null) : null;
+	if (rc) {
+		try {
+			const raw = await rc.get(`dypos:${key}`);
+			if (raw != null) {
+				stats.hits++;
+				return JSON.parse(raw);
+			}
+		} catch {
+			/* fall through to memory */
+		}
+	}
+	const e = mem.get(key);
+	if (!e) {
+		stats.misses++;
+		return null;
+	}
+	if (e.expiresAt <= Date.now()) {
+		mem.delete(key);
+		stats.misses++;
+		return null;
+	}
+	e.hits++;
+	stats.hits++;
+	return e.value;
 }
 
 export async function cacheSet(key, value, ttlSecs = DEFAULT_TTL) {
-  stats.sets++;
-  evictIfNeeded();
-  mem.set(key, { value, expiresAt: Date.now() + ttlSecs * 1000, hits: 0 });
-  indexKey(key);
-  const rc = process.env.DYPOS_REDIS_URL ? await redisClient().catch(() => null) : null;
-  if (rc) {
-    try { await rc.set(`dypos:${key}`, JSON.stringify(value), 'EX', Math.max(1, Math.round(ttlSecs))); }
-    catch { /* memory remains authoritative */ }
-  }
+	stats.sets++;
+	evictIfNeeded();
+	mem.set(key, { value, expiresAt: Date.now() + ttlSecs * 1000, hits: 0 });
+	indexKey(key);
+	const rc = process.env.DYPOS_REDIS_URL ? await redisClient().catch(() => null) : null;
+	if (rc) {
+		try {
+			await rc.set(`dypos:${key}`, JSON.stringify(value), 'EX', Math.max(1, Math.round(ttlSecs)));
+		} catch {
+			/* memory remains authoritative */
+		}
+	}
 }
 
 export async function cacheDel(prefix) {
-  // O(indexed) invalidation: drop whole segments when the prefix aligns,
-  // else fall back to a bounded scan (prefixes are short by construction).
-  let removed = 0;
-  const seg = String(prefix).split('|').slice(0, 2).join('|');
-  const set = prefixIndex.get(seg);
-  if (set && (prefix === seg || String(prefix).endsWith('|'))) {
-    for (const k of [...set]) { mem.delete(k); unindexKey(k); removed++; }
-  } else {
-    for (const k of [...mem.keys()]) {
-      if (k.startsWith(prefix)) { mem.delete(k); unindexKey(k); removed++; }
-      if (removed > 10000) break; // safety bound
-    }
-  }
-  const rc = process.env.DYPOS_REDIS_URL ? await redisClient().catch(() => null) : null;
-  if (rc) {
-    try {
-      const keys = await rc.keys(`dypos:${prefix}*`);
-      if (keys.length) await rc.del(keys);
-    } catch { /* ignore */ }
-  }
+	// O(indexed) invalidation: drop whole segments when the prefix aligns,
+	// else fall back to a bounded scan (prefixes are short by construction).
+	let removed = 0;
+	const seg = String(prefix).split('|').slice(0, 2).join('|');
+	const set = prefixIndex.get(seg);
+	if (set && (prefix === seg || String(prefix).endsWith('|'))) {
+		for (const k of [...set]) {
+			mem.delete(k);
+			unindexKey(k);
+			removed++;
+		}
+	} else {
+		for (const k of [...mem.keys()]) {
+			if (k.startsWith(prefix)) {
+				mem.delete(k);
+				unindexKey(k);
+				removed++;
+			}
+			if (removed > 10000) break; // safety bound
+		}
+	}
+	const rc = process.env.DYPOS_REDIS_URL ? await redisClient().catch(() => null) : null;
+	if (rc) {
+		try {
+			const keys = await rc.keys(`dypos:${prefix}*`);
+			if (keys.length) await rc.del(keys);
+		} catch {
+			/* ignore */
+		}
+	}
 }
 
 /** Read-through helper: singleflight stampede-proof for POS read workloads. */
 export async function getOrSet(key, ttlSecs, loader) {
-  const hit = await cacheGet(key);
-  if (hit !== null && hit !== undefined) return { value: hit, cached: true };
-  // Singleflight: N concurrent misses share ONE loader execution.
-  if (inflightLoads.has(key)) {
-    stats.singleflightHits++;
-    const value = await inflightLoads.get(key);
-    return { value, cached: true };
-  }
-  const p = (async () => {
-    const value = await loader();
-    await cacheSet(key, value, ttlSecs);
-    return value;
-  })();
-  inflightLoads.set(key, p);
-  try {
-    const value = await p;
-    return { value, cached: false };
-  } finally {
-    inflightLoads.delete(key);
-  }
+	const hit = await cacheGet(key);
+	if (hit !== null && hit !== undefined) return { value: hit, cached: true };
+	// Singleflight: N concurrent misses share ONE loader execution.
+	if (inflightLoads.has(key)) {
+		stats.singleflightHits++;
+		const value = await inflightLoads.get(key);
+		return { value, cached: true };
+	}
+	const p = (async () => {
+		const value = await loader();
+		await cacheSet(key, value, ttlSecs);
+		return value;
+	})();
+	inflightLoads.set(key, p);
+	try {
+		const value = await p;
+		return { value, cached: false };
+	} finally {
+		inflightLoads.delete(key);
+	}
 }
 
 export function etagFor(obj) {
-  const h = crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 27);
-  return `W/"${h}"`;
+	const h = crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 27);
+	return `W/"${h}"`;
 }
 
 /**
@@ -164,32 +201,42 @@ export function etagFor(obj) {
  * Returns true when a 304 was sent (caller must not send again).
  */
 export function sendCached(req, res, obj, { maxAge = 5, swr = 30 } = {}) {
-  const etag = etagFor(obj);
-  res.set('ETag', etag);
-  res.set('Cache-Control', `private, max-age=${maxAge}, stale-while-revalidate=${swr}`);
-  res.set('Vary', 'Authorization, Accept-Encoding');
-  if (req.headers['if-none-match'] === etag) {
-    res.status(304).end();
-    return true;
-  }
-  return false;
+	const etag = etagFor(obj);
+	res.set('ETag', etag);
+	res.set('Cache-Control', `private, max-age=${maxAge}, stale-while-revalidate=${swr}`);
+	res.set('Vary', 'Authorization, Accept-Encoding');
+	if (req.headers['if-none-match'] === etag) {
+		res.status(304).end();
+		return true;
+	}
+	return false;
 }
 
 export function cacheStats() {
-  return {
-    ...stats,
-    entries: mem.size,
-    maxEntries: MAX_ENTRIES,
-    defaultTtlSecs: DEFAULT_TTL,
-    redisConfigured: !!process.env.DYPOS_REDIS_URL,
-  };
+	return {
+		...stats,
+		entries: mem.size,
+		maxEntries: MAX_ENTRIES,
+		defaultTtlSecs: DEFAULT_TTL,
+		redisConfigured: !!process.env.DYPOS_REDIS_URL,
+	};
 }
 
 export function resetCacheStats() {
-  stats = { hits: 0, misses: 0, sets: 0, evictions: 0, redis: stats.redis, singleflightHits: 0 };
-  mem.clear();
-  prefixIndex.clear();
-  inflightLoads.clear();
+	stats = { hits: 0, misses: 0, sets: 0, evictions: 0, redis: stats.redis, singleflightHits: 0 };
+	mem.clear();
+	prefixIndex.clear();
+	inflightLoads.clear();
 }
 
-export default { getOrSet, cacheGet, cacheSet, cacheDel, cacheKey, sendCached, etagFor, cacheStats, resetCacheStats };
+export default {
+	getOrSet,
+	cacheGet,
+	cacheSet,
+	cacheDel,
+	cacheKey,
+	sendCached,
+	etagFor,
+	cacheStats,
+	resetCacheStats,
+};

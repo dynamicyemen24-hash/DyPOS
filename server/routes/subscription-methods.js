@@ -1,4 +1,3 @@
-
 import { resolveTenantFilter, assertTenantScope } from '../lib/tenant.js';
 import {
 	SubscriptionError,
@@ -281,11 +280,11 @@ export function registerSubscriptionVerbs(def, requireUser) {
 		}
 	});
 
-def('DyPOS.api.subscriptions.get_customer_billings', (params, req, res) => {
-	if (!requireUser(req, res)) return;
-	const tenantId = readTenant(req, res);
-	if (tenantId === null) return;
-	const customerId = String((params.customerId ?? params.customer_id) || '').slice(0, 64);
+	def('DyPOS.api.subscriptions.get_customer_billings', (params, req, res) => {
+		if (!requireUser(req, res)) return;
+		const tenantId = readTenant(req, res);
+		if (tenantId === null) return;
+		const customerId = String((params.customerId ?? params.customer_id) || '').slice(0, 64);
 		if (!customerId) return methodError(res, 400, 'ValidationError', 'معرف العميل مطلوب');
 		try {
 			const result = customerBillings(ctxFromReq(req, tenantId), customerId, {

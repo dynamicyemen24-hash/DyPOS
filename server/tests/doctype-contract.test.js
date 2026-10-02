@@ -42,8 +42,7 @@ const DATA_LAYERS = [
 const label = (file) => file.split(/[\\/]reports[\\/]/)[1] || file;
 
 /** Comments explain the old bug by naming it — they must not trip the linters. */
-const stripComments = (source) =>
-	source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+const stripComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 
 /** Fields declared by a named query builder, wherever its body is declared. */
 function fieldsForBuilder(source, name) {
@@ -93,17 +92,12 @@ function parseDeclaredUnavailable() {
 	return new Set([...block[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]));
 }
 
-const queries = DATA_LAYERS.flatMap((file) =>
-	parseDoctypeQueries(read(file)).map((q) => ({ ...q, file })),
-);
+const queries = DATA_LAYERS.flatMap((file) => parseDoctypeQueries(read(file)).map((q) => ({ ...q, file })));
 const declaredUnavailable = parseDeclaredUnavailable();
 
 describe('report layer ↔ method-router doctype contract', () => {
 	it('finds the report queries it is supposed to check (non-vacuous)', () => {
-		assert.ok(
-			queries.length >= 8,
-			`only ${queries.length} doctype queries parsed — the parser probably broke`,
-		);
+		assert.ok(queries.length >= 8, `only ${queries.length} doctype queries parsed — the parser probably broke`);
 		const fields = new Set(queries.flatMap((q) => q.fields));
 		// A sample of the financial facts the reports sum: if these stop being
 		// parsed the gate is checking nothing.
@@ -124,9 +118,10 @@ describe('report layer ↔ method-router doctype contract', () => {
 			}
 		}
 		assert.deepEqual(
-			problems, [],
-			'these fields are neither mapped to a column nor emitted by the projection — '
-				+ 'the report layer would sum undefined and render a confident zero',
+			problems,
+			[],
+			'these fields are neither mapped to a column nor emitted by the projection — ' +
+				'the report layer would sum undefined and render a confident zero',
 		);
 	});
 
@@ -141,7 +136,8 @@ describe('report layer ↔ method-router doctype contract', () => {
 			}
 		}
 		assert.deepEqual(
-			[...new Set(problems)], [],
+			[...new Set(problems)],
+			[],
 			'add these to SERVER_UNAVAILABLE_DOCTYPES so the report names the gap',
 		);
 	});
@@ -149,7 +145,8 @@ describe('report layer ↔ method-router doctype contract', () => {
 	it('the declared-unavailable set is not stale (nothing there became mappable)', () => {
 		const stale = [...declaredUnavailable].filter((d) => resolveDoctype(d) !== null);
 		assert.deepEqual(
-			stale, [],
+			stale,
+			[],
 			'these became mappable — remove them from SERVER_UNAVAILABLE_DOCTYPES so the data is used',
 		);
 	});
@@ -157,8 +154,7 @@ describe('report layer ↔ method-router doctype contract', () => {
 	it('the report layer never asks for "no limit" any more', () => {
 		// `limit: 0` silently became a 50-row page and the KPIs were computed
 		// from the oldest slice of the period.
-		const offenders = DATA_LAYERS
-			.map((file) => ({ file, source: stripComments(read(file)) }))
+		const offenders = DATA_LAYERS.map((file) => ({ file, source: stripComments(read(file)) }))
 			.filter(({ source }) => /limit:\s*0\b/.test(source))
 			.map(({ file }) => label(file));
 		assert.deepEqual(offenders, [], 'use pagedList() instead of a single unbounded call');

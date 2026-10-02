@@ -21,57 +21,70 @@ import { toMinor, toMajor, clampMinor, computeLineMinor } from '../lib/money.js'
  * @param {{discountAmount?:number, couponDiscount?:number, taxInclusive?:boolean}} opts
  */
 export function computeInvoiceTotals(lines, opts = {}) {
-  const taxInclusive = !!opts.taxInclusive;
-  let subtotalMinor = 0;
-  let taxTotalMinor = 0;
-  const computed = [];
+	const taxInclusive = !!opts.taxInclusive;
+	let subtotalMinor = 0;
+	let taxTotalMinor = 0;
+	const computed = [];
 
-  for (const line of lines || []) {
-    const qty = Number(line.qty) > 0 ? Number(line.qty) : 0;
-    const price = Number(line.unitPrice) || 0;
-    const amounts = computeLineMinor({
-      qty, price, discount: line.discount, taxRate: line.taxRate, taxInclusive,
-    });
-    subtotalMinor += amounts.netMinor;
-    taxTotalMinor += amounts.taxMinor;
-    computed.push({ ...line, netMinor: amounts.netMinor, taxMinor: amounts.taxMinor, totalMinor: amounts.totalMinor });
-  }
+	for (const line of lines || []) {
+		const qty = Number(line.qty) > 0 ? Number(line.qty) : 0;
+		const price = Number(line.unitPrice) || 0;
+		const amounts = computeLineMinor({
+			qty,
+			price,
+			discount: line.discount,
+			taxRate: line.taxRate,
+			taxInclusive,
+		});
+		subtotalMinor += amounts.netMinor;
+		taxTotalMinor += amounts.taxMinor;
+		computed.push({
+			...line,
+			netMinor: amounts.netMinor,
+			taxMinor: amounts.taxMinor,
+			totalMinor: amounts.totalMinor,
+		});
+	}
 
-  const grossMinor = subtotalMinor + taxTotalMinor;
-  const manualMinor = clampMinor(toMinor(opts.discountAmount), grossMinor);
-  const couponMinor = clampMinor(toMinor(opts.couponDiscount), grossMinor - manualMinor);
-  const discountMinor = Math.min(manualMinor + couponMinor, grossMinor);
-  const totalMinor = grossMinor - discountMinor;
+	const grossMinor = subtotalMinor + taxTotalMinor;
+	const manualMinor = clampMinor(toMinor(opts.discountAmount), grossMinor);
+	const couponMinor = clampMinor(toMinor(opts.couponDiscount), grossMinor - manualMinor);
+	const discountMinor = Math.min(manualMinor + couponMinor, grossMinor);
+	const totalMinor = grossMinor - discountMinor;
 
-  return {
-    subtotal: toMajor(subtotalMinor),
-    taxTotal: toMajor(taxTotalMinor),
-    discountAmount: toMajor(discountMinor),
-    total: toMajor(totalMinor),
-    subtotalMinor, taxTotalMinor, discountMinor, totalMinor, grossMinor,
-    lines: computed,
-  };
+	return {
+		subtotal: toMajor(subtotalMinor),
+		taxTotal: toMajor(taxTotalMinor),
+		discountAmount: toMajor(discountMinor),
+		total: toMajor(totalMinor),
+		subtotalMinor,
+		taxTotalMinor,
+		discountMinor,
+		totalMinor,
+		grossMinor,
+		lines: computed,
+	};
 }
 
 /** Split a total into paid/remaining/change with clamped semantics. */
 export function settlePayments(total, paidMinorSoFar, newPaymentMinor) {
-  const totalMinor = toMinor(total);
-  const paidMinor = toMinor(paidMinorSoFar) + toMinor(newPaymentMinor);
-  const changeMinor = Math.max(0, paidMinor - totalMinor);
-  const paidCapped = paidMinor - changeMinor;
-  const remainingMinor = totalMinor - paidCapped;
-  return {
-    paidAmount: toMajor(paidCapped),
-    remainingAmount: toMajor(remainingMinor),
-    change: toMajor(changeMinor),
-    status: remainingMinor <= 1 ? 'PAID' : remainingMinor >= totalMinor - 1 ? 'UNPAID' : 'PARTIAL',
-  };
+	const totalMinor = toMinor(total);
+	const paidMinor = toMinor(paidMinorSoFar) + toMinor(newPaymentMinor);
+	const changeMinor = Math.max(0, paidMinor - totalMinor);
+	const paidCapped = paidMinor - changeMinor;
+	const remainingMinor = totalMinor - paidCapped;
+	return {
+		paidAmount: toMajor(paidCapped),
+		remainingAmount: toMajor(remainingMinor),
+		change: toMajor(changeMinor),
+		status: remainingMinor <= 1 ? 'PAID' : remainingMinor >= totalMinor - 1 ? 'UNPAID' : 'PARTIAL',
+	};
 }
 
 export function invoiceStatus(totalMinor, remainingMinor) {
-  if (remainingMinor <= 1) return 'PAID';
-  if (remainingMinor >= totalMinor - 1) return 'UNPAID';
-  return 'PARTIAL';
+	if (remainingMinor <= 1) return 'PAID';
+	if (remainingMinor >= totalMinor - 1) return 'UNPAID';
+	return 'PARTIAL';
 }
 
 export default { computeInvoiceTotals, settlePayments, invoiceStatus };

@@ -123,17 +123,11 @@ describe('normaliseOpeningBalance', () => {
 	});
 
 	it('requires a customer id for a customer balance', () => {
-		assert.throws(
-			() => normaliseOpeningBalance({ ...base, accountId: '' }),
-			/معرّف العميل مطلوب/,
-		);
+		assert.throws(() => normaliseOpeningBalance({ ...base, accountId: '' }), /معرّف العميل مطلوب/);
 	});
 
 	it('allows a cash position with no counterparty', () => {
-		const row = normaliseOpeningBalance(
-			{ fiscalYear: '2026', accountType: 'cash', amount: '500' },
-			{ tenantId: 't1' },
-		);
+		const row = normaliseOpeningBalance({ fiscalYear: '2026', accountType: 'cash', amount: '500' }, { tenantId: 't1' });
 		assert.equal(row.account_id, '');
 		assert.equal(row.amount_minor, 50000);
 	});
@@ -164,7 +158,13 @@ describe('the item link (product_id) — a stock row must name an item that EXIS
 		['PRD-2', { id: 'u-2', code: 'PRD-2', name: 'كريم' }],
 		['u-2', { id: 'u-2', code: 'PRD-2', name: 'كريم' }],
 	]);
-	const stock = { fiscalYear: '2026', accountType: 'stock', accountCode: 'PRD-1', amount: '10', quantity: '5' };
+	const stock = {
+		fiscalYear: '2026',
+		accountType: 'stock',
+		accountCode: 'PRD-1',
+		amount: '10',
+		quantity: '5',
+	};
 
 	it('resolves the item from the account code a spreadsheet carries', () => {
 		const row = normaliseOpeningBalance(stock, { tenantId: 't1', products });
@@ -172,7 +172,10 @@ describe('the item link (product_id) — a stock row must name an item that EXIS
 	});
 
 	it('resolves the item from an explicit productId (the UUID)', () => {
-		const row = normaliseOpeningBalance({ ...stock, accountCode: '', accountId: 'PRD-2', productId: 'u-2' }, { products });
+		const row = normaliseOpeningBalance(
+			{ ...stock, accountCode: '', accountId: 'PRD-2', productId: 'u-2' },
+			{ products },
+		);
 		assert.equal(row.product_id, 'u-2');
 	});
 
@@ -198,11 +201,13 @@ describe('the item link (product_id) — a stock row must name an item that EXIS
 	});
 
 	it('never links an item to a customer or cash position', () => {
-		const customer = { fiscalYear: '2026', accountType: 'customer', accountId: 'c1', amount: '100' };
-		assert.throws(
-			() => normaliseOpeningBalance({ ...customer, productId: 'u-1' }, { products }),
-			/أرصدة المخزون فقط/,
-		);
+		const customer = {
+			fiscalYear: '2026',
+			accountType: 'customer',
+			accountId: 'c1',
+			amount: '100',
+		};
+		assert.throws(() => normaliseOpeningBalance({ ...customer, productId: 'u-1' }, { products }), /أرصدة المخزون فقط/);
 		assert.equal(normaliseOpeningBalance(customer, { products }).product_id, '');
 	});
 });
@@ -255,9 +260,7 @@ describe('parseOpeningBalanceCsv — the item link survives the file', () => {
 	]);
 
 	it('links a stock row through its account code', () => {
-		const csv =
-			'fiscalYear,accountType,accountCode,quantity,amount\r\n' +
-			'2026,مخزون,GMN1,24,158.40\r\n';
+		const csv = 'fiscalYear,accountType,accountCode,quantity,amount\r\n' + '2026,مخزون,GMN1,24,158.40\r\n';
 		const { rows, errors } = parseOpeningBalanceCsv(csv, { tenantId: 't1', products });
 		assert.deepEqual(errors, []);
 		assert.equal(rows[0].product_id, 'u-g1');
@@ -266,9 +269,7 @@ describe('parseOpeningBalanceCsv — the item link survives the file', () => {
 
 	it('reports a missing item by LINE NUMBER while the other rows still import', () => {
 		const csv =
-			'fiscalYear,accountType,accountCode,amount\r\n' +
-			'2026,stock,GMN1,10.00\r\n' +
-			'2026,stock,GHOST,20.00\r\n';
+			'fiscalYear,accountType,accountCode,amount\r\n' + '2026,stock,GMN1,10.00\r\n' + '2026,stock,GHOST,20.00\r\n';
 		const { rows, errors } = parseOpeningBalanceCsv(csv, { products });
 		assert.equal(rows.length, 1, 'the good row must survive');
 		assert.equal(errors.length, 1);
@@ -277,9 +278,7 @@ describe('parseOpeningBalanceCsv — the item link survives the file', () => {
 	});
 
 	it('honours an explicit productId column', () => {
-		const csv =
-			'fiscalYear,accountType,productId,amount\r\n' +
-			'2026,stock,u-g1,10.00\r\n';
+		const csv = 'fiscalYear,accountType,productId,amount\r\n' + '2026,stock,u-g1,10.00\r\n';
 		const { rows, errors } = parseOpeningBalanceCsv(csv, { products });
 		assert.deepEqual(errors, []);
 		assert.equal(rows[0].product_id, 'u-g1');
@@ -288,18 +287,34 @@ describe('parseOpeningBalanceCsv — the item link survives the file', () => {
 
 describe('openingBalanceKey', () => {
 	it('is stable and distinguishes tenant + year + account', () => {
-		const a = openingBalanceKey({ fiscal_year: '2026', account_type: 'cash', account_id: '', tenant_id: 't1' });
-		const b = openingBalanceKey({ fiscal_year: '2026', account_type: 'cash', account_id: '', tenant_id: 't2' });
-		assert.equal(a, openingBalanceKey({ fiscal_year: '2026', account_type: 'cash', account_id: '', tenant_id: 't1' }));
+		const a = openingBalanceKey({
+			fiscal_year: '2026',
+			account_type: 'cash',
+			account_id: '',
+			tenant_id: 't1',
+		});
+		const b = openingBalanceKey({
+			fiscal_year: '2026',
+			account_type: 'cash',
+			account_id: '',
+			tenant_id: 't2',
+		});
+		assert.equal(
+			a,
+			openingBalanceKey({
+				fiscal_year: '2026',
+				account_type: 'cash',
+				account_id: '',
+				tenant_id: 't1',
+			}),
+		);
 		assert.notEqual(a, b);
 	});
 });
 
 describe('parseOpeningBalanceCsv', () => {
 	it('parses a BOM + CRLF file the way Excel writes it', () => {
-		const csv =
-			'﻿fiscalYear,accountType,accountId,accountName,amount\r\n' +
-			'2026,عميل,c1,أحمد,"1,250.50"\r\n';
+		const csv = '﻿fiscalYear,accountType,accountId,accountName,amount\r\n' + '2026,عميل,c1,أحمد,"1,250.50"\r\n';
 		const { rows, errors } = parseOpeningBalanceCsv(csv, { tenantId: 't1' });
 		assert.deepEqual(errors, []);
 		assert.equal(rows.length, 1);
@@ -317,9 +332,7 @@ describe('parseOpeningBalanceCsv', () => {
 	});
 
 	it('handles a quoted field containing a comma', () => {
-		const csv =
-			'fiscalYear,accountType,accountId,accountName,amount\r\n' +
-			'2026,customer,c1,"محمد, أحمد",100\r\n';
+		const csv = 'fiscalYear,accountType,accountId,accountName,amount\r\n' + '2026,customer,c1,"محمد, أحمد",100\r\n';
 		const { rows } = parseOpeningBalanceCsv(csv);
 		assert.equal(rows[0].account_name, 'محمد, أحمد');
 	});
@@ -371,7 +384,16 @@ describe('CSV round trip', () => {
 
 	it('escapes a field that contains a quote', () => {
 		const csv = toOpeningBalanceCsv([
-			{ fiscal_year: '2026', account_type: 'cash', account_id: '', account_code: '', account_name: 'a"b', amount_minor: 100, quantity: 0, notes: '' },
+			{
+				fiscal_year: '2026',
+				account_type: 'cash',
+				account_id: '',
+				account_code: '',
+				account_name: 'a"b',
+				amount_minor: 100,
+				quantity: 0,
+				notes: '',
+			},
 		]);
 		const { rows, errors } = parseOpeningBalanceCsv(csv);
 		assert.deepEqual(errors, []);

@@ -19,16 +19,16 @@ let sseHandler = null;
  * @param {(req, res) => void} fn
  */
 export function setSseHandler(fn) {
-  sseHandler = typeof fn === 'function' ? fn : null;
+	sseHandler = typeof fn === 'function' ? fn : null;
 }
 
 const router = Router();
 
 router.get('/events', (req, res) => {
-  if (typeof sseHandler !== 'function') {
-    return res.status(503).json({ error: 'البث اللحظي غير مهيأ بعد' });
-  }
-  return sseHandler(req, res);
+	if (typeof sseHandler !== 'function') {
+		return res.status(503).json({ error: 'البث اللحظي غير مهيأ بعد' });
+	}
+	return sseHandler(req, res);
 });
 
 export default router;

@@ -17,7 +17,7 @@ export function migratePasskeys(
 	// so an all-CREATE-TABLE step leaves it unused. The `_` records that on
 	// purpose; dropping the parameter would break the shared call signature.
 	_addColumnIfMissing,
-	{ version = 32, description = "webauthn passkey credentials" } = {},
+	{ version = 32, description = 'webauthn passkey credentials' } = {},
 ) {
 	db.exec(`
     CREATE TABLE IF NOT EXISTS passkey_credentials (
@@ -47,9 +47,7 @@ export function migratePasskeys(
     );
     CREATE INDEX IF NOT EXISTS idx_passkey_challenges_exp ON passkey_challenges(expires_at);
   `);
-	db.prepare(
-		"INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)",
-	).run(version, description);
+	db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)').run(version, description);
 	return version;
 }
 

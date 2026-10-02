@@ -130,7 +130,7 @@ describe('Chaos: SIGKILL mid-session, restart, idempotent replay', () => {
 				port,
 				'POST',
 				'/api/products',
-				{ name: 'Kill-Test-Sugar', code: 'KILL-SUGAR-' + Date.now(), unitPrice: 40 },
+				{ name: 'Kill-Test-Sugar', code: `KILL-SUGAR-${Date.now()}`, unitPrice: 40 },
 				token,
 			);
 			assert.equal(prod.status, 201, JSON.stringify(prod.body));

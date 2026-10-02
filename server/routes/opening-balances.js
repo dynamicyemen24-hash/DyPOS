@@ -103,7 +103,12 @@ router.get('/', (req, res) => {
 			 ORDER BY fiscal_year DESC, account_type, account_name`,
 		)
 		.all(...args);
-  return res.json({ rows, count: rows.length, summary: summariseOpeningBalances(rows), accountTypes: ACCOUNT_TYPES });
+	return res.json({
+		rows,
+		count: rows.length,
+		summary: summariseOpeningBalances(rows),
+		accountTypes: ACCOUNT_TYPES,
+	});
 });
 
 /**
@@ -305,7 +310,10 @@ router.put('/', (req, res) => {
 
 	let row;
 	try {
-		row = normaliseOpeningBalance(req.body || {}, { tenantId, products: buildProductIndex(db, tenantId) });
+		row = normaliseOpeningBalance(req.body || {}, {
+			tenantId,
+			products: buildProductIndex(db, tenantId),
+		});
 	} catch (error) {
 		if (error instanceof OpeningBalanceError) {
 			return res.status(error.statusCode || 400).json({ error: error.message, row: error.row });

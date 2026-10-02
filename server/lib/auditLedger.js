@@ -56,36 +56,38 @@ let verifiedTable = false;
  * @returns {boolean} true when the table is guaranteed present
  */
 export function ensureAuditLedger(database = db) {
-  if (verifiedTable) return true;
-  try {
-    database.exec(DDL);
-    verifiedTable = true;
-    return true;
-  } catch {
-    return false;
-  }
+	if (verifiedTable) return true;
+	try {
+		database.exec(DDL);
+		verifiedTable = true;
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 /** Compute the chain hash for one ledger entry. */
 export function auditChainHash({ seq, ts, actor_id, action, entity, entity_id, meta, prev_hash }) {
-  return crypto
-    .createHash('sha256')
-    .update(`${String(seq)}|${String(ts)}|${String(actor_id)}|${String(action)}|${String(entity)}|${String(entity_id)}|${String(meta)}|${String(prev_hash)}`)
-    .digest('hex');
+	return crypto
+		.createHash('sha256')
+		.update(
+			`${String(seq)}|${String(ts)}|${String(actor_id)}|${String(action)}|${String(entity)}|${String(entity_id)}|${String(meta)}|${String(prev_hash)}`,
+		)
+		.digest('hex');
 }
 
 function stringifyMeta(meta) {
-  if (meta === undefined || meta === null) return '{}';
-  if (typeof meta === 'string') return meta.slice(0, MAX_LEN.meta);
-  try {
-    return JSON.stringify(meta).slice(0, MAX_LEN.meta);
-  } catch {
-    return '{}';
-  }
+	if (meta === undefined || meta === null) return '{}';
+	if (typeof meta === 'string') return meta.slice(0, MAX_LEN.meta);
+	try {
+		return JSON.stringify(meta).slice(0, MAX_LEN.meta);
+	} catch {
+		return '{}';
+	}
 }
 
 function clip(value, max) {
-  return String(value ?? '').slice(0, max);
+	return String(value ?? '').slice(0, max);
 }
 
 /**
@@ -95,37 +97,46 @@ function clip(value, max) {
  * @returns {{ ok: boolean, seq?: number, hash?: string, prev_hash?: string, error?: string }}
  */
 export function auditRecordSAFE(entry, database = db) {
-  try {
-    if (!entry || typeof entry !== 'object') {
-      return { ok: false, error: 'invalid ledger entry' };
-    }
-    if (!ensureAuditLedger(database)) {
-      return { ok: false, error: 'ledger table unavailable' };
-    }
-    const action = clip(entry.action, MAX_LEN.action) || 'unknown';
-    const entity = clip(entry.entity, MAX_LEN.entity);
-    const entityId = clip(entry.entity_id, MAX_LEN.entityId);
-    const meta = stringifyMeta(entry.meta);
-    const actorId = clip(entry.actor_id, MAX_LEN.actorId);
-    const actorRole = clip(entry.actor_role, MAX_LEN.actorRole);
-    const run = database.transaction(() => {
-      const last = database.prepare(`SELECT seq, hash FROM ${AUDIT_LEDGER_TABLE} ORDER BY seq DESC LIMIT 1`).get();
-      const seq = last ? Number(last.seq) + 1 : 1;
-      const prevHash = last ? String(last.hash) : GENESIS;
-      const ts = new Date().toISOString();
-      const hash = auditChainHash({ seq, ts, actor_id: actorId, action, entity, entity_id: entityId, meta, prev_hash: prevHash });
-      database
-        .prepare(
-          `INSERT INTO ${AUDIT_LEDGER_TABLE} (seq, ts, actor_id, actor_role, action, entity, entity_id, meta, prev_hash, hash)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        )
-        .run(seq, ts, actorId, actorRole, action, entity, entityId, meta, prevHash, hash);
-      return { seq, hash, prev_hash: prevHash };
-    });
-    return { ok: true, ...run() };
-  } catch (e) {
-    return { ok: false, error: String(e?.message || 'ledger write failed').slice(0, 200) };
-  }
+	try {
+		if (!entry || typeof entry !== 'object') {
+			return { ok: false, error: 'invalid ledger entry' };
+		}
+		if (!ensureAuditLedger(database)) {
+			return { ok: false, error: 'ledger table unavailable' };
+		}
+		const action = clip(entry.action, MAX_LEN.action) || 'unknown';
+		const entity = clip(entry.entity, MAX_LEN.entity);
+		const entityId = clip(entry.entity_id, MAX_LEN.entityId);
+		const meta = stringifyMeta(entry.meta);
+		const actorId = clip(entry.actor_id, MAX_LEN.actorId);
+		const actorRole = clip(entry.actor_role, MAX_LEN.actorRole);
+		const run = database.transaction(() => {
+			const last = database.prepare(`SELECT seq, hash FROM ${AUDIT_LEDGER_TABLE} ORDER BY seq DESC LIMIT 1`).get();
+			const seq = last ? Number(last.seq) + 1 : 1;
+			const prevHash = last ? String(last.hash) : GENESIS;
+			const ts = new Date().toISOString();
+			const hash = auditChainHash({
+				seq,
+				ts,
+				actor_id: actorId,
+				action,
+				entity,
+				entity_id: entityId,
+				meta,
+				prev_hash: prevHash,
+			});
+			database
+				.prepare(
+					`INSERT INTO ${AUDIT_LEDGER_TABLE} (seq, ts, actor_id, actor_role, action, entity, entity_id, meta, prev_hash, hash)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				)
+				.run(seq, ts, actorId, actorRole, action, entity, entityId, meta, prevHash, hash);
+			return { seq, hash, prev_hash: prevHash };
+		});
+		return { ok: true, ...run() };
+	} catch (e) {
+		return { ok: false, error: String(e?.message || 'ledger write failed').slice(0, 200) };
+	}
 }
 
 /**
@@ -135,29 +146,36 @@ export function auditRecordSAFE(entry, database = db) {
  * @returns {{ valid: boolean, count: number, brokenAtSeq: number|null, error?: string }}
  */
 export function auditVerifyChain(database = db) {
-  try {
-    if (!ensureAuditLedger(database)) {
-      return { valid: false, count: 0, brokenAtSeq: null, error: 'ledger table unavailable' };
-    }
-    const rows = database
-      .prepare(`SELECT seq, ts, actor_id, action, entity, entity_id, meta, prev_hash, hash FROM ${AUDIT_LEDGER_TABLE} ORDER BY seq ASC`)
-      .all();
-    if (!rows.length) return { valid: true, count: 0, brokenAtSeq: null };
-    let expectedPrev = GENESIS;
-    for (const row of rows) {
-      const recomputed = auditChainHash(row);
-      if (recomputed !== String(row.hash)) {
-        return { valid: false, count: rows.length, brokenAtSeq: Number(row.seq) };
-      }
-      if (String(row.prev_hash) !== expectedPrev) {
-        return { valid: false, count: rows.length, brokenAtSeq: Number(row.seq) };
-      }
-      expectedPrev = String(row.hash);
-    }
-    return { valid: true, count: rows.length, brokenAtSeq: null };
-  } catch (e) {
-    return { valid: false, count: 0, brokenAtSeq: null, error: String(e?.message || 'ledger verify failed').slice(0, 200) };
-  }
+	try {
+		if (!ensureAuditLedger(database)) {
+			return { valid: false, count: 0, brokenAtSeq: null, error: 'ledger table unavailable' };
+		}
+		const rows = database
+			.prepare(
+				`SELECT seq, ts, actor_id, action, entity, entity_id, meta, prev_hash, hash FROM ${AUDIT_LEDGER_TABLE} ORDER BY seq ASC`,
+			)
+			.all();
+		if (!rows.length) return { valid: true, count: 0, brokenAtSeq: null };
+		let expectedPrev = GENESIS;
+		for (const row of rows) {
+			const recomputed = auditChainHash(row);
+			if (recomputed !== String(row.hash)) {
+				return { valid: false, count: rows.length, brokenAtSeq: Number(row.seq) };
+			}
+			if (String(row.prev_hash) !== expectedPrev) {
+				return { valid: false, count: rows.length, brokenAtSeq: Number(row.seq) };
+			}
+			expectedPrev = String(row.hash);
+		}
+		return { valid: true, count: rows.length, brokenAtSeq: null };
+	} catch (e) {
+		return {
+			valid: false,
+			count: 0,
+			brokenAtSeq: null,
+			error: String(e?.message || 'ledger verify failed').slice(0, 200),
+		};
+	}
 }
 
 /**
@@ -166,16 +184,24 @@ export function auditVerifyChain(database = db) {
  * @param {import('express').Express} app
  */
 export function registerAuditLedger(app) {
-  app.use((req, _res, next) => {
-    req.ledger = (entry) =>
-      auditRecordSAFE({
-        actor_id: req.user?.id || req.user?.username || '',
-        actor_role: req.user?.role || '',
-        ...entry,
-      });
-    next();
-  });
-  return app;
+	app.use((req, _res, next) => {
+		req.ledger = (entry) =>
+			auditRecordSAFE({
+				actor_id: req.user?.id || req.user?.username || '',
+				actor_role: req.user?.role || '',
+				...entry,
+			});
+		next();
+	});
+	return app;
 }
 
-export default { AUDIT_LEDGER_TABLE, AUDIT_LEDGER_VERSION, ensureAuditLedger, auditChainHash, auditRecordSAFE, auditVerifyChain, registerAuditLedger };
+export default {
+	AUDIT_LEDGER_TABLE,
+	AUDIT_LEDGER_VERSION,
+	ensureAuditLedger,
+	auditChainHash,
+	auditRecordSAFE,
+	auditVerifyChain,
+	registerAuditLedger,
+};

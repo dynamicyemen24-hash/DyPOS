@@ -91,7 +91,7 @@ describe('Chaos: recovery drill', () => {
 				encoding: 'utf8',
 				timeout: 20000,
 			});
-			assert.ok(r.status !== null && r.status !== 0, 'boot must exit non-zero, got ' + r.status);
+			assert.ok(r.status !== null && r.status !== 0, `boot must exit non-zero, got ${r.status}`);
 			assert.match(
 				`${r.stderr}\n${r.stdout}`,
 				/not a database/i,
@@ -114,7 +114,7 @@ describe('Chaos: recovery drill', () => {
 				encoding: 'utf8',
 				timeout: 20000,
 			});
-			assert.ok(r.status !== null && r.status !== 0, 'boot must exit non-zero, got ' + r.status);
+			assert.ok(r.status !== null && r.status !== 0, `boot must exit non-zero, got ${r.status}`);
 			assert.match(
 				`${r.stderr}\n${r.stdout}`,
 				/ENOTDIR|EEXIST|not a directory/i,
@@ -168,7 +168,11 @@ describe('Chaos: recovery drill', () => {
 		]);
 
 		const boot2app = await boot1();
-		assert.equal(await waitReadyOnPort(boot2app.port, boot2app.child), true, 'second boot on the SAME DB must be healthy');
+		assert.equal(
+			await waitReadyOnPort(boot2app.port, boot2app.child),
+			true,
+			'second boot on the SAME DB must be healthy',
+		);
 
 		const login = await fetch(`http://127.0.0.1:${boot2app.port}/api/auth/login`, {
 			method: 'POST',

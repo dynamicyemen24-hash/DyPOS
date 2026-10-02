@@ -173,8 +173,8 @@ router.get('/billings/:customerId', (req, res) => {
 
 function page(q, def = 50) {
 	return {
-		limit: Math.min(Math.max(parseInt(q.limit, 10) || def, 1), 200),
-		offset: Math.max(parseInt(q.offset, 10) || 0, 0),
+		limit: Math.min(Math.max(Number.parseInt(q.limit, 10) || def, 1), 200),
+		offset: Math.max(Number.parseInt(q.offset, 10) || 0, 0),
 	};
 }
 

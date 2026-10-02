@@ -18,26 +18,19 @@
  *   logger.info(withCtx(req, { op: 'invoice.create' }), 'sale recorded');
  *   const jobLog = childSafe({ op: 'dispatcher' });
  */
-import pino from "pino"
+import pino from 'pino';
 
-const isDev = process.env.NODE_ENV !== "production"
+const isDev = process.env.NODE_ENV !== 'production';
 
 export const logger = pino({
-	level: process.env.DYPOS_LOG_LEVEL || (isDev ? "debug" : "info"),
+	level: process.env.DYPOS_LOG_LEVEL || (isDev ? 'debug' : 'info'),
 	redact: {
-		paths: [
-			"password",
-			"token",
-			"*.password",
-			"*.token",
-			"authorization",
-			"req.headers.authorization",
-		],
-		censor: "[REDACTED]",
+		paths: ['password', 'token', '*.password', '*.token', 'authorization', 'req.headers.authorization'],
+		censor: '[REDACTED]',
 	},
-	base: { service: "dypos-server" },
+	base: { service: 'dypos-server' },
 	timestamp: pino.stdTimeFunctions.isoTime,
-})
+});
 
 /** Express middleware: attaches req.log (request-scoped child) + req.id. */
 export function reqLogger(req, _res, next) {
@@ -47,11 +40,11 @@ export function reqLogger(req, _res, next) {
 			method: req.method,
 			url: req.url,
 			user: req.user?.username,
-		})
+		});
 	} catch {
-		req.log = logger
+		req.log = logger;
 	}
-	next()
+	next();
 }
 
 /**
@@ -62,10 +55,10 @@ export function reqLogger(req, _res, next) {
  */
 export function childSafe(bindings) {
 	try {
-		const safe = bindings && typeof bindings === "object" ? bindings : {}
-		return logger.child(safe)
+		const safe = bindings && typeof bindings === 'object' ? bindings : {};
+		return logger.child(safe);
 	} catch {
-		return logger
+		return logger;
 	}
 }
 
@@ -85,11 +78,11 @@ export function withCtx(req, extra = {}) {
 		user: req?.user?.username,
 		tenant_id: req?.user?.tenantId,
 		...(extra || {}),
-	}
+	};
 	for (const key of Object.keys(merged)) {
-		if (merged[key] === undefined) delete merged[key]
+		if (merged[key] === undefined) delete merged[key];
 	}
-	return merged
+	return merged;
 }
 
-export default logger
+export default logger;

@@ -1,6 +1,6 @@
 {
   "name": "dypos-server",
-  "version": "1.44.2",
+  "version": "1.44.3",
   "description": "DyPOS SaaS backend - REST API + JWT Auth + SQLite (node:sqlite, zero native deps)",
   "main": "server.js",
   "type": "module",
@@ -41,7 +41,7 @@
     "that module was unreachable from any entry point, so the collector wiring it",
     "declared (api, resources, semantic-conventions, instrumentation-express/http,",
     "Prometheus exporter) had no importer either. An SDK plus an exporter that",
-    "nothing configures is worse than none — a deployment that enabled OTLP got an",
+    "nothing configures is worse than none â€” a deployment that enabled OTLP got an",
     "unconfigured collector. Add a package back the moment a code path really",
     "exports traces or OTLP metrics, and wire it in the same commit."
   ],

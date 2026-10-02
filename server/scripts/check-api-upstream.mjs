@@ -36,90 +36,113 @@ const PRIMARY_EDGE_HOST = 'dypos.smartportssoft.com';
 
 /** Extract `[vars] BACKEND_URL` from wrangler.api.toml, or null when absent. */
 export function readCheckedInBackendUrl(tomlText) {
-  const varsSection = String(tomlText).split(/^\[vars\]/m)[1]?.split(/^\[/m)[0] ?? '';
-  const hit = varsSection.match(/^\s*BACKEND_URL\s*=\s*"([^"]*)"/m);
-  return hit ? hit[1].trim() : null;
+	const varsSection =
+		String(tomlText)
+			.split(/^\[vars\]/m)[1]
+			?.split(/^\[/m)[0] ?? '';
+	const hit = varsSection.match(/^\s*BACKEND_URL\s*=\s*"([^"]*)"/m);
+	return hit ? hit[1].trim() : null;
 }
 
 export function assessUpstream(checkedIn) {
-  if (checkedIn === null || checkedIn === '') {
-    return {
-      ok: true,
-      code: 'SECRET_ONLY',
-      detail: 'لا BACKEND_URL في [vars] — الأصل من secret النشر (العقد الصحيح).',
-    };
-  }
-  let url = null;
-  try {
-    url = new URL(checkedIn);
-  } catch {
-    return { ok: false, code: 'INVALID_URL', detail: `BACKEND_URL مدقق («${checkedIn}») ليس عنوانًا مطلقًا صالحًا.` };
-  }
-  if (!['http:', 'https:'].includes(url.protocol)) {
-    return { ok: false, code: 'INVALID_URL', detail: `BACKEND_URL يجب أن يكون http(s)، وليس «${url.protocol}».` };
-  }
-  if (isSelfProxy(PRIMARY_EDGE_HOST, url)) {
-    return {
-      ok: false,
-      code: 'SELF_REFERENCE',
-      detail:
-        `BACKEND_URL («${url.origin}») يُحلّ إلى الحافة نفسها ` +
-        `(${DYPOS_EDGE_HOSTS.join('، ')}) — كل /api/* سترد 503 UPSTREAM_MISCONFIGURED. ` +
-        `احذفه من [vars] وزوّد الأصل الحقيقي عبر: wrangler secret put BACKEND_URL --config wrangler.api.toml`,
-    };
-  }
-  return { ok: true, code: 'OK', detail: `BACKEND_URL المدقق («${url.origin}») خارج الحافة.` };
+	if (checkedIn === null || checkedIn === '') {
+		return {
+			ok: true,
+			code: 'SECRET_ONLY',
+			detail: 'لا BACKEND_URL في [vars] — الأصل من secret النشر (العقد الصحيح).',
+		};
+	}
+	let url = null;
+	try {
+		url = new URL(checkedIn);
+	} catch {
+		return {
+			ok: false,
+			code: 'INVALID_URL',
+			detail: `BACKEND_URL مدقق («${checkedIn}») ليس عنوانًا مطلقًا صالحًا.`,
+		};
+	}
+	if (!['http:', 'https:'].includes(url.protocol)) {
+		return {
+			ok: false,
+			code: 'INVALID_URL',
+			detail: `BACKEND_URL يجب أن يكون http(s)، وليس «${url.protocol}».`,
+		};
+	}
+	if (isSelfProxy(PRIMARY_EDGE_HOST, url)) {
+		return {
+			ok: false,
+			code: 'SELF_REFERENCE',
+			detail:
+				`BACKEND_URL («${url.origin}») يُحلّ إلى الحافة نفسها ` +
+				`(${DYPOS_EDGE_HOSTS.join('، ')}) — كل /api/* سترد 503 UPSTREAM_MISCONFIGURED. ` +
+				'احذفه من [vars] وزوّد الأصل الحقيقي عبر: wrangler secret put BACKEND_URL --config wrangler.api.toml',
+		};
+	}
+	return { ok: true, code: 'OK', detail: `BACKEND_URL المدقق («${url.origin}») خارج الحافة.` };
 }
 
 async function main() {
-  const argv = process.argv.slice(2);
-  const wantResolve = argv.includes('--resolve');
-  const wantJson = argv.includes('--json');
-  const tomlPath = join(REPO, 'wrangler.api.toml');
-  let toml = '';
-  try {
-    toml = readFileSync(tomlPath, 'utf8');
-  } catch (e) {
-    const out = { ok: false, code: 'TOML_MISSING', detail: `تعذّر قراءة wrangler.api.toml: ${e.message}` };
-    console.log(wantJson ? JSON.stringify(out) : `❌ ${out.detail}`);
-    return 1;
-  }
-  const checkedIn = readCheckedInBackendUrl(toml);
-  const verdict = assessUpstream(checkedIn);
-  if (!verdict.ok) {
-    console.log(wantJson ? JSON.stringify(verdict) : `❌ بوابة الأصل الخلفي: ${verdict.detail}`);
-    return 1;
-  }
-  // `--resolve`: operator-grade DNS proof for the effective upstream.
-  const override = String(process.env.BACKEND_URL || '').trim();
-  if (wantResolve) {
-    const raw = override || checkedIn;
-    if (!raw) {
-      const out = { ok: false, code: 'NOTHING_TO_RESOLVE', detail: 'لا أصل فعّال لحلّه: لا secret ولا قيمة مدققة.' };
-      console.log(wantJson ? JSON.stringify(out) : `❌ ${out.detail}`);
-      return 1;
-    }
-    const host = new URL(raw).hostname;
-    try {
-      const addrs = await resolve4(host);
-      const out = { ...verdict, resolved: addrs, host };
-      console.log(wantJson ? JSON.stringify(out) : `✅ ${verdict.detail} ويُحلّ في DNS إلى ${addrs.join('، ')}.`);
-      return 0;
-    } catch {
-      const out = { ok: false, code: 'UNRESOLVED', detail: `الأصل «${host}» لا يحلّ في DNS (NXDOMAIN) — الـAPI ميت حيًّا. ثبّت سجل DNS ثم أعد النشر.` };
-      console.log(wantJson ? JSON.stringify(out) : `❌ ${out.detail}`);
-      return 1;
-    }
-  }
-  console.log(wantJson ? JSON.stringify(verdict) : `✅ بوابة الأصل الخلفي: ${verdict.detail}`);
-  return 0;
+	const argv = process.argv.slice(2);
+	const wantResolve = argv.includes('--resolve');
+	const wantJson = argv.includes('--json');
+	const tomlPath = join(REPO, 'wrangler.api.toml');
+	let toml = '';
+	try {
+		toml = readFileSync(tomlPath, 'utf8');
+	} catch (e) {
+		const out = {
+			ok: false,
+			code: 'TOML_MISSING',
+			detail: `تعذّر قراءة wrangler.api.toml: ${e.message}`,
+		};
+		console.log(wantJson ? JSON.stringify(out) : `❌ ${out.detail}`);
+		return 1;
+	}
+	const checkedIn = readCheckedInBackendUrl(toml);
+	const verdict = assessUpstream(checkedIn);
+	if (!verdict.ok) {
+		console.log(wantJson ? JSON.stringify(verdict) : `❌ بوابة الأصل الخلفي: ${verdict.detail}`);
+		return 1;
+	}
+	// `--resolve`: operator-grade DNS proof for the effective upstream.
+	const override = String(process.env.BACKEND_URL || '').trim();
+	if (wantResolve) {
+		const raw = override || checkedIn;
+		if (!raw) {
+			const out = {
+				ok: false,
+				code: 'NOTHING_TO_RESOLVE',
+				detail: 'لا أصل فعّال لحلّه: لا secret ولا قيمة مدققة.',
+			};
+			console.log(wantJson ? JSON.stringify(out) : `❌ ${out.detail}`);
+			return 1;
+		}
+		const host = new URL(raw).hostname;
+		try {
+			const addrs = await resolve4(host);
+			const out = { ...verdict, resolved: addrs, host };
+			console.log(wantJson ? JSON.stringify(out) : `✅ ${verdict.detail} ويُحلّ في DNS إلى ${addrs.join('، ')}.`);
+			return 0;
+		} catch {
+			const out = {
+				ok: false,
+				code: 'UNRESOLVED',
+				detail: `الأصل «${host}» لا يحلّ في DNS (NXDOMAIN) — الـAPI ميت حيًّا. ثبّت سجل DNS ثم أعد النشر.`,
+			};
+			console.log(wantJson ? JSON.stringify(out) : `❌ ${out.detail}`);
+			return 1;
+		}
+	}
+	console.log(wantJson ? JSON.stringify(verdict) : `✅ بوابة الأصل الخلفي: ${verdict.detail}`);
+	return 0;
 }
 
 const invokedAsCli = (() => {
-  try {
-    return import.meta.url === pathToFileURL(process.argv[1] ?? '').href;
-  } catch {
-    return false;
-  }
+	try {
+		return import.meta.url === pathToFileURL(process.argv[1] ?? '').href;
+	} catch {
+		return false;
+	}
 })();
 if (invokedAsCli) process.exitCode = await main();

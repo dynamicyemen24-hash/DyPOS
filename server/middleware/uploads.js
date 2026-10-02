@@ -22,23 +22,23 @@ const SERVABLE_UPLOAD = /\.(png|jpe?g|webp|gif|avif|bmp|ico|svg)$/i;
 /** Express router mounted at `/uploads`. Mounted unconditionally so the gate
  *  fails closed: a missing directory must not silently drop the auth check. */
 export function uploadsRouter(uploadsDir) {
-  const router = express.Router();
-  router.use(authMiddleware, (req, res, next) => {
-    if (req.method === 'GET' || req.method === 'HEAD') {
-      if (!SERVABLE_UPLOAD.test(req.path)) {
-        return res.status(404).json({ error: 'المسار غير موجود', path: req.path });
-      }
-    }
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader(
-      'Content-Security-Policy',
-      "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; sandbox",
-    );
-    res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
-    return next();
-  });
-  router.use(express.static(uploadsDir, { maxAge: '1y', etag: true, index: false }));
-  return router;
+	const router = express.Router();
+	router.use(authMiddleware, (req, res, next) => {
+		if (req.method === 'GET' || req.method === 'HEAD') {
+			if (!SERVABLE_UPLOAD.test(req.path)) {
+				return res.status(404).json({ error: 'المسار غير موجود', path: req.path });
+			}
+		}
+		res.setHeader('X-Content-Type-Options', 'nosniff');
+		res.setHeader(
+			'Content-Security-Policy',
+			"default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; sandbox",
+		);
+		res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+		return next();
+	});
+	router.use(express.static(uploadsDir, { maxAge: '1y', etag: true, index: false }));
+	return router;
 }
 
 export default uploadsRouter;

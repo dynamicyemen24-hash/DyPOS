@@ -9,19 +9,19 @@ const { db, migrate, checkDbHealth } = await import('../db/schema.js');
 migrate();
 
 const tables = db
-  .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
-  .all()
-  .map((r) => r.name);
+	.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+	.all()
+	.map((r) => r.name);
 
 const indexes = db
-  .prepare("SELECT name FROM sqlite_master WHERE type='index' AND name NOT LIKE 'sqlite_%' ORDER BY name")
-  .all()
-  .map((r) => r.name);
+	.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+	.all()
+	.map((r) => r.name);
 
 const triggers = db
-  .prepare("SELECT name FROM sqlite_master WHERE type='trigger' ORDER BY name")
-  .all()
-  .map((r) => r.name);
+	.prepare("SELECT name FROM sqlite_master WHERE type='trigger' ORDER BY name")
+	.all()
+	.map((r) => r.name);
 
 console.log('HEALTH:', JSON.stringify(checkDbHealth()));
 console.log(`TABLES (${tables.length}):`);

@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+import crypto from 'node:crypto';
 
 /**
  * WebAuthn (FIDO2) verification primitives.
@@ -16,16 +16,16 @@ import crypto from "node:crypto";
 
 // ── base64url ────────────────────────────────────────────────────────────────
 export function b64u(buf) {
-	return Buffer.from(buf).toString("base64url");
+	return Buffer.from(buf).toString('base64url');
 }
 
 export function fromB64u(str) {
-	if (typeof str !== "string" || !str.length) throw new Error("bad base64url");
-	return Buffer.from(str, "base64url");
+	if (typeof str !== 'string' || !str.length) throw new Error('bad base64url');
+	return Buffer.from(str, 'base64url');
 }
 
 export function sha256(...parts) {
-	const h = crypto.createHash("sha256");
+	const h = crypto.createHash('sha256');
 	for (const p of parts) h.update(Buffer.isBuffer(p) ? p : Buffer.from(p));
 	return h.digest();
 }
@@ -66,7 +66,7 @@ function readCbor(buf, state) {
 			return out;
 		}
 		case 3: {
-			const out = buf.subarray(state.i, state.i + len).toString("utf8");
+			const out = buf.subarray(state.i, state.i + len).toString('utf8');
 			state.i += len;
 			return out;
 		}
@@ -95,7 +95,7 @@ function readCbor(buf, state) {
 export function parseCoseKey(bytes) {
 	const state = { i: 0 };
 	const map = readCbor(bytes, state);
-	if (!map || map[1] === undefined) throw new Error("not a COSE_Key");
+	if (!map || map[1] === undefined) throw new Error('not a COSE_Key');
 	// COSE labels are integers, not names: 1=kty 3=alg -1/-2/-3 carry the key
 	// material (crv,x,y for EC2; n,e for RSA; crv,x for OKP).
 	return {
@@ -117,26 +117,26 @@ export function coseToJwk(cose) {
 	if (cose.kty === 2) {
 		if (cose.crv !== 1) throw new Error(`unsupported EC curve ${cose.crv}`);
 		return {
-			kty: "EC",
-			crv: "P-256",
+			kty: 'EC',
+			crv: 'P-256',
 			x: b64uBuf(cose.x),
 			y: b64uBuf(cose.y),
 			ext: true,
 		};
 	}
 	if (cose.kty === 3) {
-		return { kty: "RSA", n: b64uBuf(cose.n), e: b64uBuf(cose.e), ext: true };
+		return { kty: 'RSA', n: b64uBuf(cose.n), e: b64uBuf(cose.e), ext: true };
 	}
 	if (cose.kty === 1) {
 		if (cose.crv !== 6) throw new Error(`unsupported OKP curve ${cose.crv}`);
-		return { kty: "OKP", crv: "Ed25519", x: b64uBuf(cose.x), ext: true };
+		return { kty: 'OKP', crv: 'Ed25519', x: b64uBuf(cose.x), ext: true };
 	}
 	throw new Error(`unsupported COSE kty ${cose.kty}`);
 }
 
 export function publicKeyFromCose(coseB64url) {
 	const cose = parseCoseKey(fromB64u(coseB64url));
-	return crypto.createPublicKey({ key: coseToJwk(cose), format: "jwk" });
+	return crypto.createPublicKey({ key: coseToJwk(cose), format: 'jwk' });
 }
 
 /**
@@ -151,8 +151,8 @@ export function publicKeyFromCose(coseB64url) {
  */
 function verifyDigestFor(coseAlg) {
 	if (coseAlg === -8) return null; // Ed25519 signs the message directly.
-	if (coseAlg === -7) return "sha256";
-	if (coseAlg === -257) return "sha256";
+	if (coseAlg === -7) return 'sha256';
+	if (coseAlg === -257) return 'sha256';
 	throw new Error(`unsupported COSE alg ${coseAlg}`);
 }
 
@@ -164,7 +164,7 @@ export const FLAG_BS = 0x10; // backup state (synced passkey)
 export const FLAG_AT = 0x40; // attested credential data present
 
 export function parseAuthenticatorData(buf) {
-	if (!Buffer.isBuffer(buf) || buf.length < 37) throw new Error("authData too short");
+	if (!Buffer.isBuffer(buf) || buf.length < 37) throw new Error('authData too short');
 	const out = {
 		rpIdHash: buf.subarray(0, 32),
 		flags: buf[32],
@@ -174,10 +174,10 @@ export function parseAuthenticatorData(buf) {
 	if (out.flags & FLAG_AT) {
 		const aaguid = buf.subarray(37, 53);
 		let i = 53;
-		if (buf.length < i + 2) throw new Error("truncated credentialIdLength");
+		if (buf.length < i + 2) throw new Error('truncated credentialIdLength');
 		const idLen = buf.readUInt16BE(i);
 		i += 2;
-		if (buf.length < i + idLen) throw new Error("truncated credentialId");
+		if (buf.length < i + idLen) throw new Error('truncated credentialId');
 		const credentialId = buf.subarray(i, i + idLen);
 		i += idLen;
 		// The COSE key is CBOR with a definite length; decode one item and use
@@ -198,18 +198,18 @@ export function parseAuthenticatorData(buf) {
 export function verifyClientData(raw, { type, expectedChallenge, expectedOrigins }) {
 	let parsed;
 	try {
-		parsed = JSON.parse(Buffer.from(raw).toString("utf8"));
+		parsed = JSON.parse(Buffer.from(raw).toString('utf8'));
 	} catch {
-		throw new Error("clientDataJSON is not JSON");
+		throw new Error('clientDataJSON is not JSON');
 	}
 	if (parsed.type !== type) throw new Error(`clientData type ${parsed.type} != ${type}`);
-	if (typeof parsed.challenge !== "string" || parsed.challenge !== expectedChallenge) {
-		throw new Error("challenge mismatch");
+	if (typeof parsed.challenge !== 'string' || parsed.challenge !== expectedChallenge) {
+		throw new Error('challenge mismatch');
 	}
 	if (!Array.isArray(expectedOrigins) || !expectedOrigins.includes(parsed.origin)) {
 		throw new Error(`origin ${parsed.origin} not allowed`);
 	}
-	if (parsed.crossOrigin === true) throw new Error("cross-origin ceremony refused");
+	if (parsed.crossOrigin === true) throw new Error('cross-origin ceremony refused');
 	return parsed;
 }
 
@@ -230,45 +230,40 @@ export function verifyRegistration({
 	challenge,
 	requireUserVerified = true,
 }) {
-	const att = JSON.parse(Buffer.from(attestationObject, "base64url").toString("utf8"));
-	const clientData = verifyClientData(Buffer.from(clientDataJSON, "base64url"), {
-		type: "webauthn.create",
+	const att = JSON.parse(Buffer.from(attestationObject, 'base64url').toString('utf8'));
+	const clientData = verifyClientData(Buffer.from(clientDataJSON, 'base64url'), {
+		type: 'webauthn.create',
 		expectedChallenge: challenge,
 		expectedOrigins: origin,
 	});
-	const authData = parseAuthenticatorData(Buffer.from(att.authData, "base64url"));
+	const authData = parseAuthenticatorData(Buffer.from(att.authData, 'base64url'));
 	assertFlags(authData, { requireUserVerified });
 
 	const expectedRp = sha256(rpId);
 	if (!crypto.timingSafeEqual(authData.rpIdHash, expectedRp)) {
-		throw new Error("rpIdHash does not match the relying party");
+		throw new Error('rpIdHash does not match the relying party');
 	}
-	if (!authData.attestedCredentialData) throw new Error("no attested credential data");
+	if (!authData.attestedCredentialData) throw new Error('no attested credential data');
 	if (!response?.clientExtensionResults) {
 		// Extensions are optional; presence is not required, correctness is.
 	}
 
 	const cose = parseCoseKey(fromB64u(authData.attestedCredentialData.publicKey));
-	const key = crypto.createPublicKey({ key: coseToJwk(cose), format: "jwk" });
-	const fmt = att.fmt || "none";
-	if (fmt !== "none" && fmt !== "packed" && fmt !== "self") {
+	const key = crypto.createPublicKey({ key: coseToJwk(cose), format: 'jwk' });
+	const fmt = att.fmt || 'none';
+	if (fmt !== 'none' && fmt !== 'packed' && fmt !== 'self') {
 		throw new Error(`unsupported attestation format ${fmt}`);
 	}
-	if (fmt === "packed" || fmt === "self") {
+	if (fmt === 'packed' || fmt === 'self') {
 		// Self/packed attest the key with the key itself; proving that is what
 		// stops an attacker substituting a public key of their own.
 		const digest = verifyDigestFor(cose.alg);
 		const signed = Buffer.concat([
-			Buffer.from(att.authData, "base64url"),
-			sha256(Buffer.from(clientDataJSON, "base64url")),
+			Buffer.from(att.authData, 'base64url'),
+			sha256(Buffer.from(clientDataJSON, 'base64url')),
 		]);
-		const ok = crypto.verify(
-			digest || null,
-			signed,
-			key,
-			fromB64u(att.signature),
-		);
-		if (!ok) throw new Error("attestation signature does not verify");
+		const ok = crypto.verify(digest || null, signed, key, fromB64u(att.signature));
+		if (!ok) throw new Error('attestation signature does not verify');
 	}
 	return {
 		credentialId: b64u(authData.attestedCredentialData.credentialId),
@@ -284,9 +279,9 @@ export function verifyRegistration({
 
 // ── assertion (login) ────────────────────────────────────────────────────────
 function assertFlags(authData, { requireUserVerified }) {
-	if (!(authData.flags & FLAG_UP)) throw new Error("user presence flag not set");
+	if (!(authData.flags & FLAG_UP)) throw new Error('user presence flag not set');
 	if (requireUserVerified && !(authData.flags & FLAG_UV)) {
-		throw new Error("user verification (biometric/PIN) required but not performed");
+		throw new Error('user verification (biometric/PIN) required but not performed');
 	}
 }
 
@@ -306,34 +301,34 @@ export function verifyAssertion({
 	requireUserVerified = true,
 }) {
 	const parsedCose = parseCoseKey(fromB64u(credential.public_key));
-	const key = crypto.createPublicKey({ key: coseToJwk(parsedCose), format: "jwk" });
-	const authData = parseAuthenticatorData(Buffer.from(authenticatorData, "base64url"));
+	const key = crypto.createPublicKey({ key: coseToJwk(parsedCose), format: 'jwk' });
+	const authData = parseAuthenticatorData(Buffer.from(authenticatorData, 'base64url'));
 	assertFlags(authData, { requireUserVerified });
 
-	verifyClientData(Buffer.from(clientDataJSON, "base64url"), {
-		type: "webauthn.get",
+	verifyClientData(Buffer.from(clientDataJSON, 'base64url'), {
+		type: 'webauthn.get',
 		expectedChallenge: challenge,
 		expectedOrigins: origin,
 	});
 
 	const digest = verifyDigestFor(parsedCose.alg);
 	const signed = Buffer.concat([
-		Buffer.from(authenticatorData, "base64url"),
-		sha256(Buffer.from(clientDataJSON, "base64url")),
+		Buffer.from(authenticatorData, 'base64url'),
+		sha256(Buffer.from(clientDataJSON, 'base64url')),
 	]);
 	const ok = crypto.verify(digest || null, signed, key, fromB64u(signature));
-	if (!ok) return { ok: false, reason: "signature_mismatch" };
+	if (!ok) return { ok: false, reason: 'signature_mismatch' };
 
 	const previous = Number(credential.counter || 0);
 	if (authData.signCount > 0 || previous > 0) {
 		if (authData.signCount <= previous) {
-			return { ok: false, reason: "counter_replay" };
+			return { ok: false, reason: 'counter_replay' };
 		}
 	}
 	if (userHandle) {
 		const handle = b64u(fromB64u(userHandle));
 		if (handle !== credential.credential_id) {
-			return { ok: false, reason: "user_handle_mismatch" };
+			return { ok: false, reason: 'user_handle_mismatch' };
 		}
 	}
 	return {
@@ -356,27 +351,25 @@ export function registrationOptions({ challenge, rpId, rpName, user, exclude = [
 			displayName: user.full_name || user.username,
 		},
 		pubKeyCredParams: [
-			{ type: "public-key", alg: -7 },
-			{ type: "public-key", alg: -257 },
-			{ type: "public-key", alg: -8 },
+			{ type: 'public-key', alg: -7 },
+			{ type: 'public-key', alg: -257 },
+			{ type: 'public-key', alg: -8 },
 		],
 		timeout: 60000,
-		attestation: "none",
+		attestation: 'none',
 		authenticatorSelection: {
-			residentKey: "preferred",
-			userVerification: "required",
+			residentKey: 'preferred',
+			userVerification: 'required',
 		},
-		excludeCredentials: exclude.map((c) => ({ type: "public-key", id: c.credential_id })),
+		excludeCredentials: exclude.map((c) => ({ type: 'public-key', id: c.credential_id })),
 	};
 }
 
-export function authenticationOptions({ challenge, allow = [], userVerification = "required" }) {
+export function authenticationOptions({ challenge, allow = [], userVerification = 'required' }) {
 	return {
 		challenge,
 		timeout: 60000,
 		userVerification,
-		allowCredentials: allow.length
-			? allow.map((c) => ({ type: "public-key", id: c.credential_id }))
-			: undefined,
+		allowCredentials: allow.length ? allow.map((c) => ({ type: 'public-key', id: c.credential_id })) : undefined,
 	};
 }

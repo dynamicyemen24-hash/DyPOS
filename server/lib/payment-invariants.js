@@ -21,10 +21,12 @@
  * @throws {Error & {statusCode: 400}} when the tender is not cash and overpays
  */
 export function assertNonCashNotOverpaid(method, amountMinor, needMinor) {
-  if (method === 'CASH') return;
-  if (amountMinor > Math.max(0, needMinor)) {
-    throw Object.assign(new Error('مبلغ الدفع غير النقدي يتجاوز المبلغ المستحق'), { statusCode: 400 });
-  }
+	if (method === 'CASH') return;
+	if (amountMinor > Math.max(0, needMinor)) {
+		throw Object.assign(new Error('مبلغ الدفع غير النقدي يتجاوز المبلغ المستحق'), {
+			statusCode: 400,
+		});
+	}
 }
 
 /**
@@ -40,8 +42,11 @@ export function assertNonCashNotOverpaid(method, amountMinor, needMinor) {
  * @returns {number} major units of cash actually in the drawer
  */
 export function netCashForInvoice(payments, invoiceTotal) {
-  const cashTendered = payments.reduce((sum, p) => (String(p.method).toUpperCase() === 'CASH' ? sum + p.amount : sum), 0);
-  const totalTendered = payments.reduce((sum, p) => sum + p.amount, 0);
-  const overpaid = Math.max(0, totalTendered - invoiceTotal);
-  return Math.max(0, cashTendered - overpaid);
+	const cashTendered = payments.reduce(
+		(sum, p) => (String(p.method).toUpperCase() === 'CASH' ? sum + p.amount : sum),
+		0,
+	);
+	const totalTendered = payments.reduce((sum, p) => sum + p.amount, 0);
+	const overpaid = Math.max(0, totalTendered - invoiceTotal);
+	return Math.max(0, cashTendered - overpaid);
 }

@@ -20,15 +20,18 @@
  * have been worse: it would have silently assigned one store's historical
  * promotions to whichever tenant happened to migrate first.
  */
-export function migratePromotionTenancy(db, addColumnIfMissing, { version = 23, description = 'offers + coupons tenant isolation' } = {}) {
+export function migratePromotionTenancy(
+	db,
+	addColumnIfMissing,
+	{ version = 23, description = 'offers + coupons tenant isolation' } = {},
+) {
 	addColumnIfMissing('offers', 'tenant_id', 'TEXT');
 	addColumnIfMissing('coupons', 'tenant_id', 'TEXT');
 	db.exec(`
     CREATE INDEX IF NOT EXISTS idx_offers_tenant ON offers(tenant_id, is_active);
     CREATE INDEX IF NOT EXISTS idx_coupons_tenant ON coupons(tenant_id, is_active);
   `);
-	db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
-		.run(version, description);
+	db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)').run(version, description);
 }
 
 export default migratePromotionTenancy;

@@ -1,8 +1,9 @@
 # AGENTS.md — Repo conventions for AI coding agents
 
 > This repo is Arabic-first (UI, messages, commit bodies) with English code.
-> Production: https://dypos.smartportssoft.com/ · Version single source: `1.44.2`
-> (root `package.json` + `POS/package.json` + `server/package.json` + `server/lib/version.js`).
+> Production: https://dypos.smartportssoft.com/ · Version single source: `1.44.3`
+> (root `package.json` + `POS/package.json` + `server/package.json` + `server/lib/version.js`
+> + `worker-api.js` `API_VERSION` — the edge's copy, asserted by both suites).
 
 ## Shell (Windows PowerShell 5.1 — win32)
 
@@ -18,7 +19,7 @@ npm test                              # = node scripts/run-tests.mjs
 npx @biomejs/biome check .
 npm run parity
 npm run contract
-# POS/ — 1286 tests / 95 files
+# POS/ — 1287 tests / 95 files
 npm run test:run
 npx biome check src/<touched-file>
 # production, from the repo root (after a deploy)
@@ -26,7 +27,7 @@ npm run verify:live                   # = node scripts/verify-live.mjs
 ```
 
 Test counts are *measured* by the runners, never estimated: server
-`615 tests / 183 suites`, POS `1286 tests / 95 files`.
+`615 tests / 183 suites`, POS `1287 tests / 95 files`.
 
 `POS/node_modules` is disposable — if a command hangs on `npx … Ok to proceed?`,
 the install is missing: `npm ci` in `POS/` (and add the package to
@@ -156,10 +157,14 @@ manifest breaks both the build and any test that compiles CSS).
 - Frontend adapter: `dypos-ui call()` POSTs `/api/method/<path>`, unwraps
   `{ message }`; `login` returns the full payload (short-circuit path).
 - **A release MUST bump the version** (`package.json` + `POS/package.json` +
-  `server/package.json` + `server/lib/version.js`). The deploy workflow asserts
+  `server/package.json` + `server/lib/version.js` + `worker-api.js`
+  `API_VERSION`). The deploy workflow asserts
   the live `/version.json` against that number; shipping code without a bump
   makes that gate pass over a **failed** deploy, because the domain already
-  serves the old number.
+  serves the old number. **`worker-api.js` was the fifth place and it went
+  stale on its own** — `/api/edge-health` served `1.44.2` while the release
+  was `1.44.3`, and two green suites missed it because neither read that
+  literal. `POS/tests/versionDrift.test.js` now asserts all five together.
 - **Cloudflare deploys need `Cloudflare Pages:Edit` on the token.** Proven, not
   guessed: `scripts/pages-preflight.mjs` gets `403` + `code 10000` on
   `GET /accounts/{id}/pages/projects` *after* `/user/tokens/verify` passes, so

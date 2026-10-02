@@ -92,8 +92,7 @@ export function migrateCatalogParity(
 	);
 	for (const row of UOMS) uom.run(...row);
 
-	db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
-		.run(version, description);
+	db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)').run(version, description);
 }
 
 export default migrateCatalogParity;

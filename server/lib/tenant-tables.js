@@ -30,21 +30,47 @@
  * which is the compatibility rule `assertRecordTenant` also applies.
  */
 export const TENANT_TABLES = new Set([
-  'products', 'customers', 'invoices', 'stock_levels', 'shifts', 'offers', 'coupons',
-  'expenses', 'audit_trail', 'sync_log', 'webhook_outbox', 'user_sessions', 'users',
-  'settings', 'hardware_devices', 'store_synergies', 'merchant_insights', 'customer_feedback',
-  'payment_methods', 'business_settings', 'currencies', 'uoms',
-  'fiscal_years', 'invoice_sequences', 'subscription_plans', 'customer_subscriptions',
-  'subscription_billings', 'alert_notifications', 'devices', 'api_keys',
-  'password_resets', 'idempotency_keys', 'dispatcher_lock',
-  // Money a customer already owed: with this entry missing, the generic list
-  // plane would answer an Opening Balance query with EVERY tenant's balances.
-  'opening_balances',
+	'products',
+	'customers',
+	'invoices',
+	'stock_levels',
+	'shifts',
+	'offers',
+	'coupons',
+	'expenses',
+	'audit_trail',
+	'sync_log',
+	'webhook_outbox',
+	'user_sessions',
+	'users',
+	'settings',
+	'hardware_devices',
+	'store_synergies',
+	'merchant_insights',
+	'customer_feedback',
+	'payment_methods',
+	'business_settings',
+	'currencies',
+	'uoms',
+	'fiscal_years',
+	'invoice_sequences',
+	'subscription_plans',
+	'customer_subscriptions',
+	'subscription_billings',
+	'alert_notifications',
+	'devices',
+	'api_keys',
+	'password_resets',
+	'idempotency_keys',
+	'dispatcher_lock',
+	// Money a customer already owed: with this entry missing, the generic list
+	// plane would answer an Opening Balance query with EVERY tenant's balances.
+	'opening_balances',
 ]);
 
 /** Whether `table` is tenant-scoped, i.e. its queries must carry a tenant clause. */
 export function tenantColumnKnown(table) {
-  return TENANT_TABLES.has(String(table));
+	return TENANT_TABLES.has(String(table));
 }
 
 export default { TENANT_TABLES, tenantColumnKnown };

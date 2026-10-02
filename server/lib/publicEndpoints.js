@@ -15,7 +15,9 @@ export function registerPublicEndpoints(app) {
 	app.use('/api', (_req, res, next) => {
 		try {
 			res.setHeader('X-DyPOS-Version', VERSION);
-		} catch { /* headers best-effort */ }
+		} catch {
+			/* headers best-effort */
+		}
 		next();
 	});
 }

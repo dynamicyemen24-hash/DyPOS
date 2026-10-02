@@ -57,8 +57,8 @@ export const options = {
 			{ threshold: 'p(95)<1500', abortOnFail: true },
 			{ threshold: 'p(99)<4000', abortOnFail: true },
 		],
-		'invoice_create_ok': ['rate>0.90'],
-		'report_read_ok': ['rate>0.98'],
+		invoice_create_ok: ['rate>0.90'],
+		report_read_ok: ['rate>0.98'],
 	},
 };
 
@@ -76,11 +76,9 @@ const seeded = new SharedArray('dypos-load-seed', () => {
 		throw new Error(`seed register failed: ${reg.status} ${reg.body}`);
 	}
 
-	const login = http.post(
-		`${BASE}/auth/login`,
-		JSON.stringify({ username, password }),
-		{ headers: { 'Content-Type': 'application/json' } },
-	);
+	const login = http.post(`${BASE}/auth/login`, JSON.stringify({ username, password }), {
+		headers: { 'Content-Type': 'application/json' },
+	});
 	if (login.status !== 200) {
 		throw new Error(`seed login failed: ${login.status} ${login.body}`);
 	}
@@ -89,7 +87,11 @@ const seeded = new SharedArray('dypos-load-seed', () => {
 
 	const prod = http.post(
 		`${BASE}/products`,
-		JSON.stringify({ name: 'Load-Test-Basmati', code: `LOAD-RICE-${randomString(6)}`, unitPrice: 40 }),
+		JSON.stringify({
+			name: 'Load-Test-Basmati',
+			code: `LOAD-RICE-${randomString(6)}`,
+			unitPrice: 40,
+		}),
 		{
 			headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
 		},
@@ -134,10 +136,9 @@ export default function () {
 
 	if (roll < 0.95) {
 		const today = new Date().toISOString().slice(0, 10);
-		const res = http.get(
-			`${BASE}/reports/summary?from=${today}&to=${today}`,
-			{ headers: bearer() },
-		);
+		const res = http.get(`${BASE}/reports/summary?from=${today}&to=${today}`, {
+			headers: bearer(),
+		});
 		const readable = res.status === 200 && res.json('orders') !== undefined;
 		reportReadOk.add(readable);
 		check(res, {

@@ -55,13 +55,13 @@ const NAMESPACE = /^(?:DyPOS|dypos)\.[\w.]+$/;
 
 /** Bare verbs (no namespace) the router answers directly. */
 const BARE_VERBS = new Set([
-  'login',
-  'logout',
-  'upload_file',
-  'get_allowed_locales',
-  'get_locale_names',
-  'ping',
-  'health',
+	'login',
+	'logout',
+	'upload_file',
+	'get_allowed_locales',
+	'get_locale_names',
+	'ping',
+	'health',
 ]);
 
 /**
@@ -74,11 +74,10 @@ const BARE_VERBS = new Set([
  *                    options ("POST", "silent", "browser").
  */
 const FORMS = [
-  ['call', /\b(?:methodCall|call)\s*\(\s*['"]([^'"]+)['"]/g],
-  ['literal-path', /['"](\/api\/method\/[^'"]+)['"]/g],
-  ['resource-url', /\burl\s*:\s*['"]([^'"]+)['"]/g],
-  ['method-field', /\bmethod\s*:\s*['"]([^'"]+)['"]/g],
-
+	['call', /\b(?:methodCall|call)\s*\(\s*['"]([^'"]+)['"]/g],
+	['literal-path', /['"](\/api\/method\/[^'"]+)['"]/g],
+	['resource-url', /\burl\s*:\s*['"]([^'"]+)['"]/g],
+	['method-field', /\bmethod\s*:\s*['"]([^'"]+)['"]/g],
 ];
 
 /**
@@ -86,95 +85,94 @@ const FORMS = [
  * @returns {{kind:'verb'|'rest-path'|'other', verb?:string}}
  */
 export function classify(form, rawValue) {
-  const value = rawValue.trim();
-  if (value.startsWith(METHOD_PREFIX)) {
-    return { kind: 'verb', verb: value.slice(METHOD_PREFIX.length) };
-  }
-  if (NAMESPACE.test(value)) return { kind: 'verb', verb: value };
-  if (form === 'call' || form === 'literal-path') {
-    // Both forms only ever carry a verb, so a miss must be reported, not hidden.
-    return { kind: 'verb', verb: value };
-  }
-  if (BARE_VERBS.has(value)) return { kind: 'verb', verb: value };
-  if (value.startsWith('/')) return { kind: 'rest-path' };
-  return { kind: 'other' };
+	const value = rawValue.trim();
+	if (value.startsWith(METHOD_PREFIX)) {
+		return { kind: 'verb', verb: value.slice(METHOD_PREFIX.length) };
+	}
+	if (NAMESPACE.test(value)) return { kind: 'verb', verb: value };
+	if (form === 'call' || form === 'literal-path') {
+		// Both forms only ever carry a verb, so a miss must be reported, not hidden.
+		return { kind: 'verb', verb: value };
+	}
+	if (BARE_VERBS.has(value)) return { kind: 'verb', verb: value };
+	if (value.startsWith('/')) return { kind: 'rest-path' };
+	return { kind: 'other' };
 }
 
 /** Collect every call site in one source text (pure — touches no filesystem). */
 export function collectFromSource(text, file) {
-  const sites = [];
-  for (const [form, pattern] of FORMS) {
-    // Fresh regex per call: a shared global regex leaks `lastIndex` state.
-    const re = new RegExp(pattern.source, 'g');
-    for (const m of text.matchAll(re)) {
-      sites.push({
-        form,
-        raw: m[1],
-        file,
-        line: text.slice(0, m.index).split('\n').length,
-      });
-    }
-  }
-  return sites;
+	const sites = [];
+	for (const [form, pattern] of FORMS) {
+		// Fresh regex per call: a shared global regex leaks `lastIndex` state.
+		const re = new RegExp(pattern.source, 'g');
+		for (const m of text.matchAll(re)) {
+			sites.push({
+				form,
+				raw: m[1],
+				file,
+				line: text.slice(0, m.index).split('\n').length,
+			});
+		}
+	}
+	return sites;
 }
 
 /** Walk the source roots and classify everything it finds. */
 export function collectCallSites(repoRoot, roots = SCAN_ROOTS) {
-  const verbs = new Map();
-  const ignored = new Map();
-  let scannedFiles = 0;
+	const verbs = new Map();
+	const ignored = new Map();
+	let scannedFiles = 0;
 
-  const visit = (dir) => {
-    let entries;
-    try {
-      entries = readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) {
-        if (entry.name === 'node_modules' || entry.name === 'dist') continue;
-        visit(full);
-        continue;
-      }
-      if (!/\.(js|vue|ts|tsx)$/.test(entry.name)) continue;
-      const text = readFileSync(full, 'utf8');
-      scannedFiles += 1;
-      const rel = full.slice(repoRoot.length + 1).replace(/\\/g, '/');
-      for (const site of collectFromSource(text, rel)) {
-        const verdict = classify(site.form, site.raw);
-        if (verdict.kind !== 'verb') {
-          const key = `${site.form}:${site.raw}`;
-          if (!ignored.has(key)) ignored.set(key, { ...site, kind: verdict.kind });
-          continue;
-        }
-        const list = verbs.get(verdict.verb) || [];
-        list.push({ ...site, verb: verdict.verb });
-        verbs.set(verdict.verb, list);
-      }
-    }
-  };
+	const visit = (dir) => {
+		let entries;
+		try {
+			entries = readdirSync(dir, { withFileTypes: true });
+		} catch {
+			return;
+		}
+		for (const entry of entries) {
+			const full = join(dir, entry.name);
+			if (entry.isDirectory()) {
+				if (entry.name === 'node_modules' || entry.name === 'dist') continue;
+				visit(full);
+				continue;
+			}
+			if (!/\.(js|vue|ts|tsx)$/.test(entry.name)) continue;
+			const text = readFileSync(full, 'utf8');
+			scannedFiles += 1;
+			const rel = full.slice(repoRoot.length + 1).replace(/\\/g, '/');
+			for (const site of collectFromSource(text, rel)) {
+				const verdict = classify(site.form, site.raw);
+				if (verdict.kind !== 'verb') {
+					const key = `${site.form}:${site.raw}`;
+					if (!ignored.has(key)) ignored.set(key, { ...site, kind: verdict.kind });
+					continue;
+				}
+				const list = verbs.get(verdict.verb) || [];
+				list.push({ ...site, verb: verdict.verb });
+				verbs.set(verdict.verb, list);
+			}
+		}
+	};
 
-  for (const root of roots) visit(join(repoRoot, root));
-  return { verbs, ignored, scannedFiles };
+	for (const root of roots) visit(join(repoRoot, root));
+	return { verbs, ignored, scannedFiles };
 }
 
 /** Compare a scan against the registered handlers. */
 export function evaluate(handlers, scan) {
-  const missing = [];
-  for (const [verb, sites] of scan.verbs) {
-    if (!handlers.has(verb)) missing.push({ verb, sites });
-  }
-  missing.sort((a, b) => a.verb.localeCompare(b.verb));
-  const totalSites = [...scan.verbs.values()].reduce((n, list) => n + list.length, 0);
-  return {
-    missing,
-    verbCount: scan.verbs.size,
-    siteCount: totalSites,
-    ignoredCount: scan.ignored.size,
-    scannedFiles: scan.scannedFiles,
-    vacuous: scan.verbs.size < MIN_VERB_FLOOR,
-  };
+	const missing = [];
+	for (const [verb, sites] of scan.verbs) {
+		if (!handlers.has(verb)) missing.push({ verb, sites });
+	}
+	missing.sort((a, b) => a.verb.localeCompare(b.verb));
+	const totalSites = [...scan.verbs.values()].reduce((n, list) => n + list.length, 0);
+	return {
+		missing,
+		verbCount: scan.verbs.size,
+		siteCount: totalSites,
+		ignoredCount: scan.ignored.size,
+		scannedFiles: scan.scannedFiles,
+		vacuous: scan.verbs.size < MIN_VERB_FLOOR,
+	};
 }
-

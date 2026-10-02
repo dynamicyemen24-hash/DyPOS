@@ -10,9 +10,9 @@
  * Usage: router.get('/', ah(async (req, res) => { ... }))
  */
 export function ah(fn) {
-  return (req, res, next) => {
-    Promise.resolve(fn(req, res, next)).catch(next);
-  };
+	return (req, res, next) => {
+		Promise.resolve(fn(req, res, next)).catch(next);
+	};
 }
 
 const LOCK_RE = /(SQLITE_BUSY|SQLITE_LOCKED|database is locked)/i;
@@ -26,7 +26,7 @@ const LOCK_RE = /(SQLITE_BUSY|SQLITE_LOCKED|database is locked)/i;
  * @returns {boolean}
  */
 export function isSqliteLockError(err) {
-  return Boolean(err && typeof err.message === 'string' && LOCK_RE.test(err.message));
+	return Boolean(err && typeof err.message === 'string' && LOCK_RE.test(err.message));
 }
 
 /**
@@ -37,8 +37,8 @@ export function isSqliteLockError(err) {
  * @returns {number}
  */
 export function mapErrorStatus(err, fallback = 400) {
-  if (isSqliteLockError(err)) return 503;
-  return err?.statusCode && Number.isInteger(err.statusCode) ? err.statusCode : fallback;
+	if (isSqliteLockError(err)) return 503;
+	return err?.statusCode && Number.isInteger(err.statusCode) ? err.statusCode : fallback;
 }
 
 export default ah;

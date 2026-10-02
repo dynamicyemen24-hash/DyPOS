@@ -17,11 +17,11 @@ const rootPkg = JSON.parse(readFileSync(resolve(ROOT, 'package.json'), 'utf8'));
 const posPkg = JSON.parse(readFileSync(resolve(ROOT, 'POS', 'package.json'), 'utf8'));
 
 test('worker-api.js stamps a single API_VERSION literal', () => {
-  assert.match(pinned ?? '', /^\d+\.\d+\.\d+$/, 'API_VERSION literal not found in worker-api.js');
+	assert.match(pinned ?? '', /^\d+\.\d+\.\d+$/, 'API_VERSION literal not found in worker-api.js');
 });
 
 test('edge API_VERSION tracks the version single source', () => {
-  assert.equal(pinned, VERSION);
-  assert.equal(pinned, rootPkg.version);
-  assert.equal(pinned, posPkg.version);
+	assert.equal(pinned, VERSION);
+	assert.equal(pinned, rootPkg.version);
+	assert.equal(pinned, posPkg.version);
 });

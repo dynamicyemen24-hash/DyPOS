@@ -21,16 +21,16 @@ const listeners = new Map();
  * @returns {() => boolean} Unsubscribe function.
  */
 export function subscribe(topic, handler) {
-  if (typeof handler !== 'function') {
-    throw new TypeError('events.subscribe: handler must be a function');
-  }
-  let set = listeners.get(topic);
-  if (!set) {
-    set = new Set();
-    listeners.set(topic, set);
-  }
-  set.add(handler);
-  return () => unsubscribe(topic, handler);
+	if (typeof handler !== 'function') {
+		throw new TypeError('events.subscribe: handler must be a function');
+	}
+	let set = listeners.get(topic);
+	if (!set) {
+		set = new Set();
+		listeners.set(topic, set);
+	}
+	set.add(handler);
+	return () => unsubscribe(topic, handler);
 }
 
 /**
@@ -40,11 +40,11 @@ export function subscribe(topic, handler) {
  * @returns {boolean} True when the handler was actually removed.
  */
 export function unsubscribe(topic, handler) {
-  const set = listeners.get(topic);
-  if (!set) return false;
-  const removed = set.delete(handler);
-  if (set.size === 0) listeners.delete(topic);
-  return removed;
+	const set = listeners.get(topic);
+	if (!set) return false;
+	const removed = set.delete(handler);
+	if (set.size === 0) listeners.delete(topic);
+	return removed;
 }
 
 /**
@@ -55,18 +55,18 @@ export function unsubscribe(topic, handler) {
  * @returns {number} Number of handlers that received the payload.
  */
 export function emit(topic, payload) {
-  const set = listeners.get(topic);
-  if (!set || set.size === 0) return 0;
-  let delivered = 0;
-  for (const handler of Array.from(set)) {
-    try {
-      handler(payload, topic);
-      delivered++;
-    } catch {
-      /* a subscriber error must never propagate into a sale/invoice path */
-    }
-  }
-  return delivered;
+	const set = listeners.get(topic);
+	if (!set || set.size === 0) return 0;
+	let delivered = 0;
+	for (const handler of Array.from(set)) {
+		try {
+			handler(payload, topic);
+			delivered++;
+		} catch {
+			/* a subscriber error must never propagate into a sale/invoice path */
+		}
+	}
+	return delivered;
 }
 
 /**
@@ -75,7 +75,7 @@ export function emit(topic, payload) {
  * @returns {number}
  */
 export function listenerCount(topic) {
-  return listeners.get(topic)?.size ?? 0;
+	return listeners.get(topic)?.size ?? 0;
 }
 
 export default { subscribe, unsubscribe, emit, listenerCount };

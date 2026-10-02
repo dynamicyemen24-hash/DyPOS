@@ -61,8 +61,8 @@ let eventSeq = 0;
  * @returns {string|null}
  */
 function tenantKeyOf(payload) {
-  const raw = payload && typeof payload === 'object' ? payload.tenantId : null;
-  return raw == null ? null : String(raw);
+	const raw = payload && typeof payload === 'object' ? payload.tenantId : null;
+	return raw == null ? null : String(raw);
 }
 
 /**
@@ -73,20 +73,20 @@ function tenantKeyOf(payload) {
  * @returns {string|null}
  */
 function resolveTenant(req) {
-  const hdr = String(req.headers['x-tenant-id'] || '').trim();
-  if (hdr) return hdr;
-  return req.user?.tenantId != null ? String(req.user.tenantId) : null;
+	const hdr = String(req.headers['x-tenant-id'] || '').trim();
+	if (hdr) return hdr;
+	return req.user?.tenantId != null ? String(req.user.tenantId) : null;
 }
 
 function frameFor(event) {
-  const data = JSON.stringify({
-    id: event.id,
-    topic: event.topic,
-    tenantId: event.tenantId,
-    at: event.at,
-    payload: event.payload,
-  });
-  return `id: ${event.id}\ndata: ${data}\n\n`;
+	const data = JSON.stringify({
+		id: event.id,
+		topic: event.topic,
+		tenantId: event.tenantId,
+		at: event.at,
+		payload: event.payload,
+	});
+	return `id: ${event.id}\ndata: ${data}\n\n`;
 }
 
 /**
@@ -97,47 +97,47 @@ function frameFor(event) {
  * @param {string} frame
  */
 function pushToConnection(conn, frame) {
-  if (conn.closed) return;
-  conn.queue.push(frame);
-  drainConnection(conn);
+	if (conn.closed) return;
+	conn.queue.push(frame);
+	drainConnection(conn);
 }
 
 function drainConnection(conn) {
-  if (conn.draining || conn.closed) return;
-  conn.draining = true;
-  let lastWrite = true;
-  try {
-    while (conn.queue.length > 0 && !conn.closed) {
-      const frame = conn.queue[0];
-      try {
-        // res.write() enqueues the bytes even when it returns false (backpressure
-        // signal), so the frame is always shifted after the call — leaving it queued
-        // would re-send it on the next drain and duplicate frames. We only STOP when
-        // the socket says "slow down", resuming on the socket's 'drain' event.
-        lastWrite = conn.res.write(frame);
-      } catch {
-        closeConnection(conn);
-        return;
-      }
-      conn.queue.shift();
-      if (!lastWrite) break;
-    }
-  } finally {
-    conn.draining = false;
-  }
-  if (!lastWrite && conn.queue.length > 0 && !conn.closed) {
-    conn.res.once('drain', () => drainConnection(conn));
-  }
+	if (conn.draining || conn.closed) return;
+	conn.draining = true;
+	let lastWrite = true;
+	try {
+		while (conn.queue.length > 0 && !conn.closed) {
+			const frame = conn.queue[0];
+			try {
+				// res.write() enqueues the bytes even when it returns false (backpressure
+				// signal), so the frame is always shifted after the call — leaving it queued
+				// would re-send it on the next drain and duplicate frames. We only STOP when
+				// the socket says "slow down", resuming on the socket's 'drain' event.
+				lastWrite = conn.res.write(frame);
+			} catch {
+				closeConnection(conn);
+				return;
+			}
+			conn.queue.shift();
+			if (!lastWrite) break;
+		}
+	} finally {
+		conn.draining = false;
+	}
+	if (!lastWrite && conn.queue.length > 0 && !conn.closed) {
+		conn.res.once('drain', () => drainConnection(conn));
+	}
 }
 
 function appendToRing(event) {
-  const list = ringByTopic.get(event.topic);
-  if (list) {
-    list.push(event);
-    if (list.length > RING_SIZE_PER_TOPIC) list.splice(0, list.length - RING_SIZE_PER_TOPIC);
-  } else {
-    ringByTopic.set(event.topic, [event]);
-  }
+	const list = ringByTopic.get(event.topic);
+	if (list) {
+		list.push(event);
+		if (list.length > RING_SIZE_PER_TOPIC) list.splice(0, list.length - RING_SIZE_PER_TOPIC);
+	} else {
+		ringByTopic.set(event.topic, [event]);
+	}
 }
 
 /**
@@ -145,10 +145,10 @@ function appendToRing(event) {
  * @param {object} event - { id, topic, tenantId, at, payload }
  */
 function fanOut(event) {
-  for (const conn of connections.values()) {
-    if (conn.closed || conn.tenantId !== event.tenantId) continue;
-    pushToConnection(conn, frameFor(event));
-  }
+	for (const conn of connections.values()) {
+		if (conn.closed || conn.tenantId !== event.tenantId) continue;
+		pushToConnection(conn, frameFor(event));
+	}
 }
 
 /**
@@ -161,33 +161,33 @@ function fanOut(event) {
  * @param {any} lastIdRaw
  */
 function replayBuffer(conn, lastIdRaw) {
-  const lastId = Number.isInteger(Number(lastIdRaw)) && Number(lastIdRaw) >= 0 ? Number(lastIdRaw) : 0;
-  const candidates = [];
-  for (const list of ringByTopic.values()) {
-    for (const ev of list) {
-      if (ev.tenantId === conn.tenantId && ev.id > lastId) candidates.push(ev);
-    }
-  }
-  candidates.sort((a, b) => a.id - b.id);
-  for (const ev of candidates) pushToConnection(conn, frameFor(ev));
+	const lastId = Number.isInteger(Number(lastIdRaw)) && Number(lastIdRaw) >= 0 ? Number(lastIdRaw) : 0;
+	const candidates = [];
+	for (const list of ringByTopic.values()) {
+		for (const ev of list) {
+			if (ev.tenantId === conn.tenantId && ev.id > lastId) candidates.push(ev);
+		}
+	}
+	candidates.sort((a, b) => a.id - b.id);
+	for (const ev of candidates) pushToConnection(conn, frameFor(ev));
 }
 
 function closeConnection(conn) {
-  if (conn.closed) return;
-  conn.closed = true;
-  connections.delete(conn.id);
-  try {
-    trackRealtimeConnection(-1);
-  } catch {
-    /* metrics must never break sockets */
-  }
-  try {
-    conn.res.removeAllListeners('close');
-    conn.res.removeAllListeners('error');
-    if (!conn.res.writableEnded) conn.res.end();
-  } catch {
-    /* socket already gone */
-  }
+	if (conn.closed) return;
+	conn.closed = true;
+	connections.delete(conn.id);
+	try {
+		trackRealtimeConnection(-1);
+	} catch {
+		/* metrics must never break sockets */
+	}
+	try {
+		conn.res.removeAllListeners('close');
+		conn.res.removeAllListeners('error');
+		if (!conn.res.writableEnded) conn.res.end();
+	} catch {
+		/* socket already gone */
+	}
 }
 
 /**
@@ -196,49 +196,49 @@ function closeConnection(conn) {
  * @param {import('express').Response} res
  */
 export function addClient(req, res) {
-  // SSE headers must be set before any middleware above can flush a buffer.
-  res.status(200);
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache, no-store');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders?.();
+	// SSE headers must be set before any middleware above can flush a buffer.
+	res.status(200);
+	res.setHeader('Content-Type', 'text/event-stream');
+	res.setHeader('Cache-Control', 'no-cache, no-store');
+	res.setHeader('Connection', 'keep-alive');
+	res.setHeader('X-Accel-Buffering', 'no');
+	res.flushHeaders?.();
 
-  const conn = {
-    id: `conn-${++connSeq}`,
-    tenantId: resolveTenant(req),
-    res,
-    queue: [],
-    draining: false,
-    closed: false,
-  };
+	const conn = {
+		id: `conn-${++connSeq}`,
+		tenantId: resolveTenant(req),
+		res,
+		queue: [],
+		draining: false,
+		closed: false,
+	};
 
-  // Immediate comment frame so proxies (and client `onopen`) see a live stream.
-  try {
-    res.write(': ready\n\n');
-  } catch {
-    return; // socket already dead — nothing to register
-  }
+	// Immediate comment frame so proxies (and client `onopen`) see a live stream.
+	try {
+		res.write(': ready\n\n');
+	} catch {
+		return; // socket already dead — nothing to register
+	}
 
-  connections.set(conn.id, conn);
-  try {
-    trackRealtimeConnection(1);
-  } catch {
-    /* metrics must never break sockets */
-  }
-  res.on('close', () => closeConnection(conn));
-  res.on('error', () => closeConnection(conn));
+	connections.set(conn.id, conn);
+	try {
+		trackRealtimeConnection(1);
+	} catch {
+		/* metrics must never break sockets */
+	}
+	res.on('close', () => closeConnection(conn));
+	res.on('error', () => closeConnection(conn));
 
-  // Last-Event-ID replay: header (native EventSource reconnects) or explicit
-  // query param (our own reconnect backoff uses the query form).
-  const lastId = req.headers['last-event-id'] ?? req.query.lastEventId;
-  if (lastId != null && lastId !== '') {
-    try {
-      replayBuffer(conn, String(lastId));
-    } catch {
-      /* replay must never kill the stream */
-    }
-  }
+	// Last-Event-ID replay: header (native EventSource reconnects) or explicit
+	// query param (our own reconnect backoff uses the query form).
+	const lastId = req.headers['last-event-id'] ?? req.query.lastEventId;
+	if (lastId != null && lastId !== '') {
+		try {
+			replayBuffer(conn, String(lastId));
+		} catch {
+			/* replay must never kill the stream */
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -248,38 +248,38 @@ let heartbeatTimer = null;
 let pruneTimer = null;
 
 function heartbeatAll() {
-  for (const conn of connections.values()) {
-    if (conn.closed) continue;
-    try {
-      conn.res.write(': ping\n\n');
-    } catch {
-      closeConnection(conn);
-    }
-  }
+	for (const conn of connections.values()) {
+		if (conn.closed) continue;
+		try {
+			conn.res.write(': ping\n\n');
+		} catch {
+			closeConnection(conn);
+		}
+	}
 }
 
 function pruneDead() {
-  for (const conn of connections.values()) {
-    const socket = conn.res.socket;
-    if (conn.res.writableEnded || conn.res.destroyed || !socket || socket.destroyed) {
-      closeConnection(conn);
-    }
-  }
+	for (const conn of connections.values()) {
+		const socket = conn.res.socket;
+		if (conn.res.writableEnded || conn.res.destroyed || !socket || socket.destroyed) {
+			closeConnection(conn);
+		}
+	}
 }
 
 function startTimers() {
-  if (heartbeatTimer) return;
-  heartbeatTimer = setInterval(heartbeatAll, HEARTBEAT_MS);
-  pruneTimer = setInterval(pruneDead, PRUNE_MS);
-  if (heartbeatTimer.unref) heartbeatTimer.unref();
-  if (pruneTimer.unref) pruneTimer.unref();
+	if (heartbeatTimer) return;
+	heartbeatTimer = setInterval(heartbeatAll, HEARTBEAT_MS);
+	pruneTimer = setInterval(pruneDead, PRUNE_MS);
+	if (heartbeatTimer.unref) heartbeatTimer.unref();
+	if (pruneTimer.unref) pruneTimer.unref();
 }
 
 function stopTimers() {
-  if (heartbeatTimer) clearInterval(heartbeatTimer);
-  if (pruneTimer) clearInterval(pruneTimer);
-  heartbeatTimer = null;
-  pruneTimer = null;
+	if (heartbeatTimer) clearInterval(heartbeatTimer);
+	if (pruneTimer) clearInterval(pruneTimer);
+	heartbeatTimer = null;
+	pruneTimer = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -294,12 +294,12 @@ function stopTimers() {
  * @returns {import('express').Express} the same app (chainable)
  */
 export function registerSseRoutes(app) {
-  if (_mounted) return app;
-  setSseHandler(addClient);
-  app.use('/api/realtime', authMiddleware, realtimeRouter);
-  startTimers();
-  _mounted = true;
-  return app;
+	if (_mounted) return app;
+	setSseHandler(addClient);
+	app.use('/api/realtime', authMiddleware, realtimeRouter);
+	startTimers();
+	_mounted = true;
+	return app;
 }
 
 /**
@@ -314,22 +314,22 @@ export function registerSseRoutes(app) {
  *   object — callers with that shape are using the wrong API).
  */
 export function emit(topic, payload) {
-  if (!payload || typeof payload !== 'object') return 0;
-  const event = {
-    id: ++eventSeq,
-    topic: String(topic),
-    tenantId: tenantKeyOf(payload),
-    at: new Date().toISOString(),
-    payload,
-  };
-  appendToRing(event);
-  fanOut(event);
-  try {
-    bus.emit(event.topic, event);
-  } catch {
-    /* bus delivery is best-effort */
-  }
-  return event.id;
+	if (!payload || typeof payload !== 'object') return 0;
+	const event = {
+		id: ++eventSeq,
+		topic: String(topic),
+		tenantId: tenantKeyOf(payload),
+		at: new Date().toISOString(),
+		payload,
+	};
+	appendToRing(event);
+	fanOut(event);
+	try {
+		bus.emit(event.topic, event);
+	} catch {
+		/* bus delivery is best-effort */
+	}
+	return event.id;
 }
 
 /**
@@ -337,11 +337,11 @@ export function emit(topic, payload) {
  * cases; also safe as a hot-reload hook.
  */
 export function resetHub() {
-  for (const conn of connections.values()) closeConnection(conn);
-  connections.clear();
-  ringByTopic.clear();
-  eventSeq = 0;
-  connSeq = 0;
+	for (const conn of connections.values()) closeConnection(conn);
+	connections.clear();
+	ringByTopic.clear();
+	eventSeq = 0;
+	connSeq = 0;
 }
 
 /**
@@ -349,9 +349,9 @@ export function resetHub() {
  * so `node --test` exits without forced shutdown.
  */
 export function closeHub() {
-  stopTimers();
-  resetHub();
-  _mounted = false;
+	stopTimers();
+	resetHub();
+	_mounted = false;
 }
 
 export default { registerSseRoutes, emit, closeHub, resetHub };

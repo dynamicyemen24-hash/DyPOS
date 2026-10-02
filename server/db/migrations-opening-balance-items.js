@@ -36,7 +36,11 @@
  * every later stock movement, so `product_id` is indexed for the join direction
  * that matters (all rows for one item).
  */
-export function migrateOpeningBalanceItems(db, addColumnIfMissing, { version = 26, description = 'opening balances item link (product_id)' } = {}) {
+export function migrateOpeningBalanceItems(
+	db,
+	addColumnIfMissing,
+	{ version = 26, description = 'opening balances item link (product_id)' } = {},
+) {
 	// `REFERENCES products(id)` is legal on ALTER TABLE ... ADD COLUMN here because
 	// the column defaults to NULL (SQLite only refuses that clause for a NOT NULL
 	// addition without a non-NULL default).
@@ -44,8 +48,7 @@ export function migrateOpeningBalanceItems(db, addColumnIfMissing, { version = 2
 	db.exec(`
     CREATE INDEX IF NOT EXISTS idx_opening_product ON opening_balances(product_id);
   `);
-	db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
-		.run(version, description);
+	db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)').run(version, description);
 }
 
 export default migrateOpeningBalanceItems;

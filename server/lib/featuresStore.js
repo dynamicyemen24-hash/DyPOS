@@ -7,9 +7,9 @@
  * All access is best-effort: a missing/broken table degrades to the
  * env-over-default precedence in features.js, never throws.
  */
-import db from "../db/schema.js"
+import db from '../db/schema.js';
 
-const TABLE = "feature_flags"
+const TABLE = 'feature_flags';
 
 function ensureTable() {
 	try {
@@ -20,10 +20,10 @@ function ensureTable() {
         note TEXT,
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       )`,
-		).run()
-		return true
+		).run();
+		return true;
 	} catch {
-		return false
+		return false;
 	}
 }
 
@@ -32,29 +32,21 @@ function ensureTable() {
  * @returns {{ flag: string, enabled: number, note: string|null, updated_at: string }|null}
  */
 export function getFeature(name) {
-	if (!ensureTable()) return null
+	if (!ensureTable()) return null;
 	try {
-		return (
-			db
-				.prepare(
-					`SELECT flag, enabled, note, updated_at FROM ${TABLE} WHERE flag = ?`,
-				)
-				.get(name) ?? null
-		)
+		return db.prepare(`SELECT flag, enabled, note, updated_at FROM ${TABLE} WHERE flag = ?`).get(name) ?? null;
 	} catch {
-		return null
+		return null;
 	}
 }
 
 /** @returns {Array<{ flag: string, enabled: number, note: string|null, updated_at: string }>} */
 export function allFeatures() {
-	if (!ensureTable()) return []
+	if (!ensureTable()) return [];
 	try {
-		return db
-			.prepare(`SELECT flag, enabled, note, updated_at FROM ${TABLE}`)
-			.all()
+		return db.prepare(`SELECT flag, enabled, note, updated_at FROM ${TABLE}`).all();
 	} catch {
-		return []
+		return [];
 	}
 }
 
@@ -65,12 +57,12 @@ export function allFeatures() {
  * @returns {{ flag: string, enabled: number, note: string|null, updated_at: string }|null}
  */
 export function upsertFeature(name, enabled, note) {
-	ensureTable()
+	ensureTable();
 	db.prepare(
 		`INSERT INTO ${TABLE} (flag, enabled, note) VALUES (?, ?, ?)
      ON CONFLICT(flag) DO UPDATE SET enabled = excluded.enabled, note = excluded.note, updated_at = datetime('now')`,
-	).run(name, enabled ? 1 : 0, note || null)
-	return getFeature(name)
+	).run(name, enabled ? 1 : 0, note || null);
+	return getFeature(name);
 }
 
-export default { getFeature, allFeatures, upsertFeature }
+export default { getFeature, allFeatures, upsertFeature };

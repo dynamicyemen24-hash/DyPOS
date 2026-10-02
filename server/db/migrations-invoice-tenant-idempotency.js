@@ -6,12 +6,14 @@
  * otherwise independent tenant, which is a financial integrity defect.
  */
 export function migrateInvoiceTenantIdempotency(db) {
-  db.exec('DROP INDEX IF EXISTS idx_invoices_idem');
-  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_idem
+	db.exec('DROP INDEX IF EXISTS idx_invoices_idem');
+	db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_idem
     ON invoices(tenant_id, idempotency_key)
     WHERE idempotency_key IS NOT NULL AND idempotency_key <> ''`);
-  db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
-    .run(27, 'invoice idempotency scoped to tenant');
+	db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)').run(
+		27,
+		'invoice idempotency scoped to tenant',
+	);
 }
 
 export default migrateInvoiceTenantIdempotency;

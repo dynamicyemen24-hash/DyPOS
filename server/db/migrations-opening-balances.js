@@ -49,8 +49,7 @@ export function migrateOpeningBalances(db, { version = 25, description = 'openin
     CREATE INDEX IF NOT EXISTS idx_opening_tenant
       ON opening_balances(tenant_id, fiscal_year);
   `);
-	db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
-		.run(version, description);
+	db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)').run(version, description);
 }
 
 export default migrateOpeningBalances;

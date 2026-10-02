@@ -10,10 +10,14 @@ import { assertRecordTenant, resolveTenantFilter } from '../lib/tenant.js';
 const router = Router();
 
 function esc(s) {
-  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+	return String(s ?? '')
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;');
 }
 function fmt(n) {
-  return Number(n || 0).toFixed(2);
+	return Number(n || 0).toFixed(2);
 }
 
 /**
@@ -22,30 +26,32 @@ function fmt(n) {
  * Falls back to JSON payload when seller/VAT not configured (dev).
  */
 function tlv(tag, value) {
-  const buf = Buffer.from(String(value ?? ''), 'utf8');
-  if (buf.length > 255) throw new Error('TLV value too long');
-  return Buffer.concat([Buffer.from([tag, buf.length]), buf]);
+	const buf = Buffer.from(String(value ?? ''), 'utf8');
+	if (buf.length > 255) throw new Error('TLV value too long');
+	return Buffer.concat([Buffer.from([tag, buf.length]), buf]);
 }
 function zatcaQrBase64(inv) {
-  // Prefer DB settings (PUT /api/admin/zatca/settings), fall back to env (12-factor).
-  let seller = process.env.DYPOS_SELLER_NAME || 'DyPOS Store';
-  let vat = process.env.DYPOS_VAT_NUMBER || '';
-  try {
-    const s = db.prepare('SELECT seller_name,vat_number FROM zatca_settings WHERE id=?').get('default');
-    if (s?.seller_name) seller = s.seller_name;
-    if (s?.vat_number) vat = s.vat_number;
-  } catch { /* settings table missing pre-v6 — env fallback */ }
-  if (!vat) return null; // not configured → caller falls back to JSON QR
-  const ts = String(inv.created_at || new Date().toISOString());
-  const total = Number(inv.total || 0).toFixed(2);
-  const tax = Number(inv.tax_amount || 0).toFixed(2);
-  const raw = Buffer.concat([tlv(1, seller), tlv(2, vat), tlv(3, ts), tlv(4, total), tlv(5, tax)]);
-  return raw.toString('base64');
+	// Prefer DB settings (PUT /api/admin/zatca/settings), fall back to env (12-factor).
+	let seller = process.env.DYPOS_SELLER_NAME || 'DyPOS Store';
+	let vat = process.env.DYPOS_VAT_NUMBER || '';
+	try {
+		const s = db.prepare('SELECT seller_name,vat_number FROM zatca_settings WHERE id=?').get('default');
+		if (s?.seller_name) seller = s.seller_name;
+		if (s?.vat_number) vat = s.vat_number;
+	} catch {
+		/* settings table missing pre-v6 — env fallback */
+	}
+	if (!vat) return null; // not configured → caller falls back to JSON QR
+	const ts = String(inv.created_at || new Date().toISOString());
+	const total = Number(inv.total || 0).toFixed(2);
+	const tax = Number(inv.tax_amount || 0).toFixed(2);
+	const raw = Buffer.concat([tlv(1, seller), tlv(2, vat), tlv(3, ts), tlv(4, total), tlv(5, tax)]);
+	return raw.toString('base64');
 }
 
 function invoiceHtml(inv, items, payments, qr) {
-  const dir = 'rtl';
-  return `<!doctype html><html lang="ar" dir="${dir}"><head><meta charset="utf-8"/>
+	const dir = 'rtl';
+	return `<!doctype html><html lang="ar" dir="${dir}"><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>فاتورة ${esc(inv.number)}</title>
 <style>
@@ -74,19 +80,26 @@ ${qr ? `<div class="qr"><img src="${qr}" width="120" height="120" alt="QR"/><div
 }
 
 function escXml(s) {
-  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+	return String(s ?? '')
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&apos;');
 }
 function sellerIdentity() {
-  let seller = process.env.DYPOS_SELLER_NAME || 'DyPOS Store';
-  let vat = process.env.DYPOS_VAT_NUMBER || '';
-  let cr = '';
-  try {
-    const s = db.prepare('SELECT seller_name,vat_number,cr_number FROM zatca_settings WHERE id=?').get('default');
-    if (s?.seller_name) seller = s.seller_name;
-    if (s?.vat_number) vat = s.vat_number;
-    if (s?.cr_number) cr = s.cr_number;
-  } catch { /* pre-v6 fallback to env */ }
-  return { seller, vat, cr };
+	let seller = process.env.DYPOS_SELLER_NAME || 'DyPOS Store';
+	let vat = process.env.DYPOS_VAT_NUMBER || '';
+	let cr = '';
+	try {
+		const s = db.prepare('SELECT seller_name,vat_number,cr_number FROM zatca_settings WHERE id=?').get('default');
+		if (s?.seller_name) seller = s.seller_name;
+		if (s?.vat_number) vat = s.vat_number;
+		if (s?.cr_number) cr = s.cr_number;
+	} catch {
+		/* pre-v6 fallback to env */
+	}
+	return { seller, vat, cr };
 }
 
 /**
@@ -95,18 +108,22 @@ function sellerIdentity() {
  * discount/tax/total), TaxTotal, LegalMonetaryAmount. No external dependency.
  */
 function invoiceUbl(inv, items, { seller, vat, cr }) {
-  const cur = escXml(inv.currency || 'SAR');
-  const issueDate = String(inv.created_at || new Date().toISOString()).slice(0, 10);
-  const issueTime = String(inv.created_at || new Date().toISOString()).slice(11, 19) || '00:00:00';
-  const lines = items.map((it, i) => `    <cac:InvoiceLine>
+	const cur = escXml(inv.currency || 'SAR');
+	const issueDate = String(inv.created_at || new Date().toISOString()).slice(0, 10);
+	const issueTime = String(inv.created_at || new Date().toISOString()).slice(11, 19) || '00:00:00';
+	const lines = items
+		.map(
+			(it, i) => `    <cac:InvoiceLine>
       <cbc:ID>${i + 1}</cbc:ID>
       <cbc:InvoicedQuantity unitCode="${escXml(it.uom || 'PCE')}">${fmt(it.qty)}</cbc:InvoicedQuantity>
       <cbc:LineExtensionAmount currencyID="${cur}">${fmt(Number(it.qty) * Number(it.unit_price) - Number(it.discount))}</cbc:LineExtensionAmount>
       <cac:Item><cbc:Name>${escXml(it.product_name)}</cbc:Name>${it.barcode ? `<cac:SellersItemIdentification><cbc:ID>${escXml(it.barcode)}</cbc:ID></cac:SellersItemIdentification>` : ''}</cac:Item>
       <cac:Price><cbc:PriceAmount currencyID="${cur}">${fmt(it.unit_price)}</cbc:PriceAmount>${Number(it.discount) ? `<cbc:AllowanceCharge><cbc:ChargeIndicator>false</cbc:ChargeIndicator><cbc:Amount currencyID="${cur}">${fmt(it.discount)}</cbc:Amount></cbc:AllowanceCharge>` : ''}</cac:Price>
       <cac:TaxTotal><cbc:TaxAmount currencyID="${cur}">${fmt(it.tax_amount)}</cbc:TaxAmount><cac:TaxSubtotal><cbc:TaxableAmount currencyID="${cur}">${fmt(Number(it.qty) * Number(it.unit_price) - Number(it.discount))}</cbc:TaxableAmount><cbc:TaxAmount currencyID="${cur}">${fmt(it.tax_amount)}</cbc:TaxAmount><cac:TaxCategory><cbc:Percent>${fmt(it.tax_rate)}</cbc:Percent><cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:TaxCategory></cac:TaxSubtotal></cac:TaxTotal>
-    </cac:InvoiceLine>`).join('\n');
-  return `<?xml version="1.0" encoding="UTF-8"?>
+    </cac:InvoiceLine>`,
+		)
+		.join('\n');
+	return `<?xml version="1.0" encoding="UTF-8"?>
 <Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
   <cbc:ProfileID>reporting:1.0</cbc:ProfileID>
   <cbc:ID>${escXml(inv.number)}</cbc:ID>
@@ -134,72 +151,95 @@ ${lines}
 }
 
 // GET /api/print/invoice/:id — HTML printable (QR included). ADMIN/MANAGER/CASHIER.
-router.get('/invoice/:id', ah(async (req, res) => {
-  const id = String(req.params.id).slice(0, 64);
-  const inv = db.prepare('SELECT * FROM invoices WHERE id=?').get(id);
-  if (!inv) return res.status(404).json({ error: 'الفاتورة غير موجودة' });
-  try {
-    assertRecordTenant(req, inv);
-  } catch {
-    return res.status(404).json({ error: 'الفاتورة غير موجودة' });
-  }
-  const items = db.prepare('SELECT * FROM invoice_items WHERE invoice_id=? ORDER BY rowid').all(id);
-  const pays = db.prepare('SELECT * FROM payments WHERE invoice_id=? ORDER BY created_at').all(id);
-  // ?format=xml — UBL 2.1 machine invoice (ZATCA SDF subset, offline-capable)
-  if (String(req.query.format || '').toLowerCase() === 'xml') {
-    const xml = invoiceUbl(inv, items, sellerIdentity());
-    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-store');
-    res.setHeader('Content-Disposition', `attachment; filename="${String(inv.number).replace(/[^A-Za-z0-9-_]/g, '_')}.xml"`);
-    req.audit?.('print.invoice_xml', { invoiceId: id });
-    return res.send(xml);
-  }
-  // Best-effort QR: ZATCA TLV when configured, else JSON payload (dev/compat)
-  let qr = null;
-  let qrKind = 'json';
-  try {
-    const zatca = zatcaQrBase64(inv);
-    if (zatca) {
-      qr = await QRCode.toDataURL(zatca, { margin: 1, width: 160 });
-      qrKind = 'zatca-tlv';
-    } else {
-      const payload = JSON.stringify({ n: inv.number, t: inv.total, c: inv.currency || 'SAR', d: inv.created_at });
-      qr = await QRCode.toDataURL(payload, { margin: 1, width: 160 });
-    }
-  } catch { qr = null; }
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('X-QR-Kind', qrKind);
-  return res.send(invoiceHtml({ ...inv, _version: VERSION, _businessName: getSetting('business_name', '') }, items, pays, qr));
-}));
+router.get(
+	'/invoice/:id',
+	ah(async (req, res) => {
+		const id = String(req.params.id).slice(0, 64);
+		const inv = db.prepare('SELECT * FROM invoices WHERE id=?').get(id);
+		if (!inv) return res.status(404).json({ error: 'الفاتورة غير موجودة' });
+		try {
+			assertRecordTenant(req, inv);
+		} catch {
+			return res.status(404).json({ error: 'الفاتورة غير موجودة' });
+		}
+		const items = db.prepare('SELECT * FROM invoice_items WHERE invoice_id=? ORDER BY rowid').all(id);
+		const pays = db.prepare('SELECT * FROM payments WHERE invoice_id=? ORDER BY created_at').all(id);
+		// ?format=xml — UBL 2.1 machine invoice (ZATCA SDF subset, offline-capable)
+		if (String(req.query.format || '').toLowerCase() === 'xml') {
+			const xml = invoiceUbl(inv, items, sellerIdentity());
+			res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+			res.setHeader('Cache-Control', 'no-store');
+			res.setHeader(
+				'Content-Disposition',
+				`attachment; filename="${String(inv.number).replace(/[^A-Za-z0-9-_]/g, '_')}.xml"`,
+			);
+			req.audit?.('print.invoice_xml', { invoiceId: id });
+			return res.send(xml);
+		}
+		// Best-effort QR: ZATCA TLV when configured, else JSON payload (dev/compat)
+		let qr = null;
+		let qrKind = 'json';
+		try {
+			const zatca = zatcaQrBase64(inv);
+			if (zatca) {
+				qr = await QRCode.toDataURL(zatca, { margin: 1, width: 160 });
+				qrKind = 'zatca-tlv';
+			} else {
+				const payload = JSON.stringify({
+					n: inv.number,
+					t: inv.total,
+					c: inv.currency || 'SAR',
+					d: inv.created_at,
+				});
+				qr = await QRCode.toDataURL(payload, { margin: 1, width: 160 });
+			}
+		} catch {
+			qr = null;
+		}
+		res.setHeader('Content-Type', 'text/html; charset=utf-8');
+		res.setHeader('Cache-Control', 'no-store');
+		res.setHeader('X-QR-Kind', qrKind);
+		return res.send(
+			invoiceHtml({ ...inv, _version: VERSION, _businessName: getSetting('business_name', '') }, items, pays, qr),
+		);
+	}),
+);
 
 // GET /api/print/daily?date=YYYY-MM-DD — daily Z report (HTML)
 router.get('/daily', (req, res) => {
-  let scopeTenant = null;
-  try {
-    scopeTenant = resolveTenantFilter(req).tenantId || null;
-    if (scopeTenant && req.user?.tenantId && String(scopeTenant) !== String(req.user.tenantId)) {
-      throw Object.assign(new Error('غير موجود'), { statusCode: 404 });
-    }
-    scopeTenant = scopeTenant || req.user?.tenantId || null;
-  } catch (e) {
-    return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
-  }
-  const raw = String(req.query.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return res.status(400).json({ error: 'صيغة التاريخ غير صالحة' });
-  const { from, to } = dayRange(raw);
-  const tenWhere = scopeTenant ? ' AND i.tenant_id=?' : '';
-  const tenParams = scopeTenant ? [scopeTenant] : [];
-  const rows = db.prepare(`SELECT status, COUNT(*) c, COALESCE(SUM(total),0) s FROM invoices i WHERE i.created_at>=? AND i.created_at<?${tenWhere} GROUP BY status`).all(from, to, ...tenParams);
-  const pay = db.prepare(`SELECT p.method m, COALESCE(SUM(p.amount),0) s FROM payments p JOIN invoices i ON p.invoice_id=i.id WHERE i.created_at>=? AND i.created_at<?${tenWhere} GROUP BY p.method`).all(from, to, ...tenParams);
-  const html = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"/><title>تقرير ${esc(raw)}</title>
+	let scopeTenant = null;
+	try {
+		scopeTenant = resolveTenantFilter(req).tenantId || null;
+		if (scopeTenant && req.user?.tenantId && String(scopeTenant) !== String(req.user.tenantId)) {
+			throw Object.assign(new Error('غير موجود'), { statusCode: 404 });
+		}
+		scopeTenant = scopeTenant || req.user?.tenantId || null;
+	} catch (e) {
+		return res.status(e.statusCode || 400).json({ error: String(e.message).slice(0, 200) });
+	}
+	const raw = String(req.query.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return res.status(400).json({ error: 'صيغة التاريخ غير صالحة' });
+	const { from, to } = dayRange(raw);
+	const tenWhere = scopeTenant ? ' AND i.tenant_id=?' : '';
+	const tenParams = scopeTenant ? [scopeTenant] : [];
+	const rows = db
+		.prepare(
+			`SELECT status, COUNT(*) c, COALESCE(SUM(total),0) s FROM invoices i WHERE i.created_at>=? AND i.created_at<?${tenWhere} GROUP BY status`,
+		)
+		.all(from, to, ...tenParams);
+	const pay = db
+		.prepare(
+			`SELECT p.method m, COALESCE(SUM(p.amount),0) s FROM payments p JOIN invoices i ON p.invoice_id=i.id WHERE i.created_at>=? AND i.created_at<?${tenWhere} GROUP BY p.method`,
+		)
+		.all(from, to, ...tenParams);
+	const html = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"/><title>تقرير ${esc(raw)}</title>
 <style>body{font-family:system-ui,Tahoma;margin:24px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px;text-align:right}@media print{.no-print{display:none}}</style></head><body>
 <h3>تقرير يومي — ${esc(raw)}</h3><h4>الفواتير حسب الحالة</h4><table><tr><th>الحالة</th><th>العدد</th><th>الإجمالي</th></tr>${rows.map((r) => `<tr><td>${esc(r.status)}</td><td>${r.c}</td><td>${fmt(r.s)}</td></tr>`).join('') || '<tr><td colspan=3>لا توجد بيانات</td></tr>'}</table>
 <h4>المدفوعات حسب الطريقة</h4><table><tr><th>الطريقة</th><th>الإجمالي</th></tr>${pay.map((r) => `<tr><td>${esc(r.m)}</td><td>${fmt(r.s)}</td></tr>`).join('') || '<tr><td colspan=2>لا توجد بيانات</td></tr>'}</table>
 <div class="no-print" style="margin-top:12px"><button onclick="window.print()">طباعة</button></div></body></html>`;
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
-  return res.send(html);
+	res.setHeader('Content-Type', 'text/html; charset=utf-8');
+	res.setHeader('Cache-Control', 'no-store');
+	return res.send(html);
 });
 
 export default router;

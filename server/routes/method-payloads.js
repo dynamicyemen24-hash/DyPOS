@@ -34,7 +34,11 @@ export function parseMaybeJson(v) {
 	if (v == null) return v;
 	if (typeof v === 'object') return v;
 	if (typeof v === 'string') {
-		try { return JSON.parse(v); } catch { return v; }
+		try {
+			return JSON.parse(v);
+		} catch {
+			return v;
+		}
 	}
 	return v;
 }
@@ -49,7 +53,7 @@ export function mapInvoiceItemToRest(it) {
 	const lineGross = qty * rate;
 	// An absolute discount wins; a percentage is applied to the gross line. Both
 	// are re-clamped inside computeLineMinor, so this only chooses the intent.
-	const disc = discount > 0 ? discount : (discountPct > 0 ? (lineGross * discountPct) / 100 : 0);
+	const disc = discount > 0 ? discount : discountPct > 0 ? (lineGross * discountPct) / 100 : 0;
 	return {
 		productId,
 		qty,
@@ -76,7 +80,9 @@ export function mapPaymentsFromFrappe(payments) {
 	return payments
 		.filter((p) => p && !p.is_customer_credit)
 		.map((p) => ({
-			method: String(p.mode_of_payment || p.method || 'CASH').toUpperCase().slice(0, 20),
+			method: String(p.mode_of_payment || p.method || 'CASH')
+				.toUpperCase()
+				.slice(0, 20),
 			amount: toNum(p.amount),
 			reference: String(p.reference || '').slice(0, 128),
 		}))

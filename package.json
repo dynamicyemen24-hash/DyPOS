@@ -1,6 +1,6 @@
 {
   "name": "DyPOS",
-  "version": "1.44.2",
+  "version": "1.44.3",
   "description": "POS built on DyPOS that brings together real-time billing, stock management, multi-user access, offline mode, and direct ERP integration. Run your store or restaurant with confidence and control, while staying 100% open source.",
   "scripts": {
     "install:pos": "npm --prefix POS ci",
@@ -18,7 +18,7 @@
     "The root manifest orchestrates the workspaces: it holds no runtime code of",
     "its own. dompurify and baseline-browser-mapping were declared here while",
     "nothing at the root imported them (POS declares its own copies), and",
-    "playwright is a test-only tool used by the e2e specs — a dependency, so",
+    "playwright is a test-only tool used by the e2e specs â€” a dependency, so",
     "every production install of the root pulled a browser binary it never used."
   ],
   "devDependencies": {

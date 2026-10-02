@@ -30,38 +30,38 @@ const EXTRA_FILES = ['worker-api.js', 'POS/vite.config.js', 'POS/tailwind.config
 const SELF = resolve(import.meta.dirname, 'branding-integrity.test.js');
 
 function walk(dir, out = []) {
-  let entries;
-  try {
-    entries = readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return out;
-  }
-  for (const entry of entries) {
-    if (entry.name.startsWith('.') || SKIP_DIR.has(entry.name)) continue;
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) walk(full, out);
-    else {
-      const dot = entry.name.lastIndexOf('.');
-      if (dot !== -1 && SOURCE_EXT.has(entry.name.slice(dot))) out.push(full);
-    }
-  }
-  return out;
+	let entries;
+	try {
+		entries = readdirSync(dir, { withFileTypes: true });
+	} catch {
+		return out;
+	}
+	for (const entry of entries) {
+		if (entry.name.startsWith('.') || SKIP_DIR.has(entry.name)) continue;
+		const full = join(dir, entry.name);
+		if (entry.isDirectory()) walk(full, out);
+		else {
+			const dot = entry.name.lastIndexOf('.');
+			if (dot !== -1 && SOURCE_EXT.has(entry.name.slice(dot))) out.push(full);
+		}
+	}
+	return out;
 }
 
 const isTestFile = (file) => /\.(test|spec)\.[cm]?[jt]sx?$/.test(file);
 
 function activeFiles() {
-  const files = [];
-  for (const dir of ACTIVE_DIRS) files.push(...walk(join(REPO_ROOT, dir)));
-  for (const rel of EXTRA_FILES) {
-    try {
-      readFileSync(join(REPO_ROOT, rel));
-      files.push(join(REPO_ROOT, rel));
-    } catch {
-      /* optional */
-    }
-  }
-  return files.filter((f) => resolve(f) !== SELF);
+	const files = [];
+	for (const dir of ACTIVE_DIRS) files.push(...walk(join(REPO_ROOT, dir)));
+	for (const rel of EXTRA_FILES) {
+		try {
+			readFileSync(join(REPO_ROOT, rel));
+			files.push(join(REPO_ROOT, rel));
+		} catch {
+			/* optional */
+		}
+	}
+	return files.filter((f) => resolve(f) !== SELF);
 }
 
 /** Shipped code only: a test may name a banned pattern in order to assert it. */
@@ -76,91 +76,108 @@ const shippedFiles = () => activeFiles().filter((f) => !isTestFile(f));
  * naming convention, not prose, so they are never flagged.
  */
 const ALLOWED_TOKENS = new Set([
-  // method-router namespace (a protocol name, not prose)
-  'dypos', 'dyposclient', 'dyposapi', 'dypossession', 'dyposauth', 'dyposwww',
-  'dyposdb', 'dyposwhitelist', 'dyposget_value', 'dyposdelete_doc',
-  'dyposuser_roles', 'dyposrate_limit', 'dyposlocalization', 'dyposutilities',
-  'dyposinvoices', 'dyposadd_to_allow_list', 'dyposapp', 'dyposdesk',
-  'dyposuser', 'dyposversion', 'dyposdoctor', 'dyposorm',
+	// method-router namespace (a protocol name, not prose)
+	'dypos',
+	'dyposclient',
+	'dyposapi',
+	'dypossession',
+	'dyposauth',
+	'dyposwww',
+	'dyposdb',
+	'dyposwhitelist',
+	'dyposget_value',
+	'dyposdelete_doc',
+	'dyposuser_roles',
+	'dyposrate_limit',
+	'dyposlocalization',
+	'dyposutilities',
+	'dyposinvoices',
+	'dyposadd_to_allow_list',
+	'dyposapp',
+	'dyposdesk',
+	'dyposuser',
+	'dyposversion',
+	'dyposdoctor',
+	'dyposorm',
 ]);
 
 const GLUED = /\bdypos[A-Za-z0-9]+/g;
 
 describe('brand integrity guard', () => {
-  it('scans a non-empty active source set (guard is not vacuous)', () => {
-    const files = activeFiles();
-    assert.ok(files.length > 50, `expected a real source set, found ${files.length} files`);
-  });
+	it('scans a non-empty active source set (guard is not vacuous)', () => {
+		const files = activeFiles();
+		assert.ok(files.length > 50, `expected a real source set, found ${files.length} files`);
+	});
 
-  it('no brand-glued words (find/replace damage) in shipped code', () => {
-    assert.deepEqual(gluedHits(), [], 'glued brand tokens must be repaired, not renamed again');
-  });
+	it('no brand-glued words (find/replace damage) in shipped code', () => {
+		assert.deepEqual(gluedHits(), [], 'glued brand tokens must be repaired, not renamed again');
+	});
 
-  it('no dead desk-global references in the offline PWA', () => {
-    const hits = [];
-    for (const file of walk(join(REPO_ROOT, 'POS/src'))) {
-      const rel = relative(REPO_ROOT, file);
-      readFileSync(file, 'utf8')
-        .split(/\r?\n/)
-        .forEach((line, i) => {
-          if (/window\.dypos\./.test(line)) return; // the sanctioned runtime global
-          if (!/(?<![.\w$])dypos\.(session|user_roles|boot|conf)\b/.test(line)) return;
-          hits.push(`${rel}:${i + 1}  ${line.trim().slice(0, 100)}`);
-        });
-    }
-    assert.deepEqual(
-      hits,
-      [],
-      '`dypos.session.user` (and friends) do not exist in the standalone PWA — use the local session'
-    );
-  });
+	it('no dead desk-global references in the offline PWA', () => {
+		const hits = [];
+		for (const file of walk(join(REPO_ROOT, 'POS/src'))) {
+			const rel = relative(REPO_ROOT, file);
+			readFileSync(file, 'utf8')
+				.split(/\r?\n/)
+				.forEach((line, i) => {
+					if (/window\.dypos\./.test(line)) return; // the sanctioned runtime global
+					if (!/(?<![.\w$])dypos\.(session|user_roles|boot|conf)\b/.test(line)) return;
+					hits.push(`${rel}:${i + 1}  ${line.trim().slice(0, 100)}`);
+				});
+		}
+		assert.deepEqual(
+			hits,
+			[],
+			'`dypos.session.user` (and friends) do not exist in the standalone PWA — use the local session',
+		);
+	});
 
-  it('no legacy third-party identifiers in shipped code', () => {
-    const banned = [
-      'frappeError',
-      'frappeRequest',
-      'frappeClient',
-      'getFrappeBoot',
-      'NO_FRAPPE',
-      'X-Frappe-CSRF-Token',
-      'from "frappe-ui"',
-      "from 'frappe-ui'",
-      'window.frappe',
-    ];
-    for (const needle of banned) {
-      const hits = [];
-      for (const file of shippedFiles()) {
-        const rel = relative(REPO_ROOT, file);
-        readFileSync(file, 'utf8')
-          .split(/\r?\n/)
-          .forEach((line, i) => {
-            if (!line.includes(needle)) return;
-            hits.push(`${rel}:${i + 1}  ${line.trim().slice(0, 100)}`);
-          });
-      }
-      assert.deepEqual(hits, [], `${needle} must not exist in the active tree`);
-    }
-  });
+	it('no legacy third-party identifiers in shipped code', () => {
+		const banned = [
+			'frappeError',
+			'frappeRequest',
+			'frappeClient',
+			'getFrappeBoot',
+			'NO_FRAPPE',
+			'X-Frappe-CSRF-Token',
+			'from "frappe-ui"',
+			"from 'frappe-ui'",
+			'window.frappe',
+		];
+		for (const needle of banned) {
+			const hits = [];
+			for (const file of shippedFiles()) {
+				const rel = relative(REPO_ROOT, file);
+				readFileSync(file, 'utf8')
+					.split(/\r?\n/)
+					.forEach((line, i) => {
+						if (!line.includes(needle)) return;
+						hits.push(`${rel}:${i + 1}  ${line.trim().slice(0, 100)}`);
+					});
+			}
+			assert.deepEqual(hits, [], `${needle} must not exist in the active tree`);
+		}
+	});
 
-  it('the two documented legacy escapes stay deliberate, not accidental', () => {
-    // 1) VITE_DYPOS_BACKEND=frappe is still accepted so an old .env boots.
-    const adapters = readFileSync(join(REPO_ROOT, 'POS/src/adapters/index.js'), 'utf8');
-    assert.match(adapters, /backend === "method" \|\| backend === "frappe"/);
+	it('the two documented legacy escapes stay deliberate, not accidental', () => {
+		// 1) VITE_DYPOS_BACKEND=frappe is still accepted so an old .env boots.
+		const adapters = readFileSync(join(REPO_ROOT, 'POS/src/adapters/index.js'), 'utf8');
+		assert.match(adapters, /backend === "method" \|\| backend === "frappe"/);
 
-    // 2) DYPOS_FRAPPE_ORIGIN is still read as a fallback for DYPOS_DESK_ORIGIN.
-    const server = readFileSync(join(REPO_ROOT, 'server/server.js'), 'utf8');
-    assert.match(server, /DYPOS_DESK_ORIGIN \|\| process\.env\.DYPOS_FRAPPE_ORIGIN/);
-  });
+		// 2) DYPOS_FRAPPE_ORIGIN is still read as a fallback for DYPOS_DESK_ORIGIN.
+		const server = readFileSync(join(REPO_ROOT, 'server/server.js'), 'utf8');
+		assert.match(server, /DYPOS_DESK_ORIGIN \|\| process\.env\.DYPOS_FRAPPE_ORIGIN/);
+	});
 
-  it('the method bridge is reachable under its modern name only', () => {
-    const facade = readFileSync(join(REPO_ROOT, 'POS/src/adapters/index.js'), 'utf8');
-    assert.match(facade, /adapters\/method\/api\.js/);
-    assert.doesNotMatch(facade, /adapters\/frappe\/api\.js/);
-    // A path passed as a *variable* to import() is invisible to Rollup: the
-    // chunk never reaches dist/ and the lazy import 404s in production while
-    // dev keeps working. Both adapters must therefore be static specifiers.
-    assert.doesNotMatch(facade, /import\(\s*[A-Za-z_$]/);
-  });
+	it('the method bridge is reachable under its modern name only', () => {
+		const facade = readFileSync(join(REPO_ROOT, 'POS/src/adapters/index.js'), 'utf8');
+		assert.match(facade, /adapters\/method\/api\.js/);
+		assert.doesNotMatch(facade, /adapters\/frappe\/api\.js/);
+		// A path passed as a *variable* to import() is invisible to Rollup: the
+		// chunk never reaches dist/ and the lazy import 404s in production while
+		// dev keeps working. Both adapters must therefore be static specifiers.
+		assert.doesNotMatch(facade, /import\(\s*[A-Za-z_$]/);
+	});
 });
 
 /**
@@ -168,22 +185,22 @@ describe('brand integrity guard', () => {
  * word ("dyposerror", "dyposturned", "dyposis", "dyposdoctypes").
  */
 function gluedHits() {
-  const hits = [];
-  for (const file of shippedFiles()) {
-    const rel = relative(REPO_ROOT, file);
-    readFileSync(file, 'utf8')
-      .split(/\r?\n/)
-      .forEach((line, i) => {
-        for (const match of line.matchAll(GLUED)) {
-          const token = match[0];
-          if (token.includes('_')) continue; // deliberate snake_case prefix
-          if (ALLOWED_TOKENS.has(token)) continue;
-          // camelCase compounds (dyposApi, dyposMetrics, dyposId) are a
-          // deliberate, readable brand prefix — not glued prose.
-          if (/^dypos[A-Z]/.test(token)) continue;
-          hits.push(`${rel}:${i + 1}  ${token}  |  ${line.trim().slice(0, 100)}`);
-        }
-      });
-  }
-  return hits;
+	const hits = [];
+	for (const file of shippedFiles()) {
+		const rel = relative(REPO_ROOT, file);
+		readFileSync(file, 'utf8')
+			.split(/\r?\n/)
+			.forEach((line, i) => {
+				for (const match of line.matchAll(GLUED)) {
+					const token = match[0];
+					if (token.includes('_')) continue; // deliberate snake_case prefix
+					if (ALLOWED_TOKENS.has(token)) continue;
+					// camelCase compounds (dyposApi, dyposMetrics, dyposId) are a
+					// deliberate, readable brand prefix — not glued prose.
+					if (/^dypos[A-Z]/.test(token)) continue;
+					hits.push(`${rel}:${i + 1}  ${token}  |  ${line.trim().slice(0, 100)}`);
+				}
+			});
+	}
+	return hits;
 }

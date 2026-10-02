@@ -1,6 +1,6 @@
-﻿import test from "node:test";
-import assert from "node:assert/strict";
-import crypto from "node:crypto";
+﻿import test from 'node:test';
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import {
 	b64u,
 	fromB64u,
@@ -15,19 +15,19 @@ import {
 	FLAG_UP,
 	FLAG_UV,
 	FLAG_BS,
-} from "../lib/webauthn.js";
+} from '../lib/webauthn.js';
 
-const RP_ID = "dypos.smartportssoft.com";
-const ORIGINS = ["https://dypos.smartportssoft.com", "http://localhost:5173"];
+const RP_ID = 'dypos.smartportssoft.com';
+const ORIGINS = ['https://dypos.smartportssoft.com', 'http://localhost:5173'];
 
 // â”€â”€ a CBOR *writer*, so the test can mint real COSE keys â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function cbor(value) {
-	if (typeof value === "number") {
+	if (typeof value === 'number') {
 		if (value >= 0 && value < 24) return Buffer.from([value]);
 		// -1 - n: n=-1 -> 0x20, n=-2 -> 0x21, ... (never `-1 - n` with `|`,
 		// because -2|0x20 is -2 in JS, not 0x21).
 		if (value < 0 && value >= -24) return Buffer.from([0x20 | (-1 - value)]);
-		throw new Error("number out of test range");
+		throw new Error('number out of test range');
 	}
 	if (Buffer.isBuffer(value)) {
 		return Buffer.concat([Buffer.from([0x58, value.length]), value]);
@@ -47,18 +47,18 @@ function cbor(value) {
 }
 
 function coseFromPublicKey(publicKey) {
-	const jwk = publicKey.export({ format: "jwk" });
+	const jwk = publicKey.export({ format: 'jwk' });
 	return cbor({
 		1: 2, // kty: EC2
 		3: -7, // alg: ES256
-		"-1": 1, // crv: P-256
-		"-2": fromB64u(jwk.x),
-		"-3": fromB64u(jwk.y),
+		'-1': 1, // crv: P-256
+		'-2': fromB64u(jwk.x),
+		'-3': fromB64u(jwk.y),
 	});
 }
 
 function authData({ rpId = RP_ID, flags, signCount, credId, cose }) {
-	const parts = [crypto.createHash("sha256").update(rpId).digest()];
+	const parts = [crypto.createHash('sha256').update(rpId).digest()];
 	parts.push(Buffer.from([flags]));
 	const sc = Buffer.alloc(4);
 	sc.writeUInt32BE(signCount);
@@ -74,7 +74,7 @@ function authData({ rpId = RP_ID, flags, signCount, credId, cose }) {
 
 /** A software authenticator: enough to exercise every branch honestly. */
 function makeAuthenticator() {
-	const { publicKey, privateKey } = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+	const { publicKey, privateKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
 	const cose = coseFromPublicKey(publicKey);
 	const credId = crypto.randomBytes(32);
 	let counter = 0;
@@ -83,28 +83,44 @@ function makeAuthenticator() {
 	return {
 		credId,
 		cose,
-		register({ challenge = randomChallenge(), flags = FLAG_UP | FLAG_UV | FLAG_AT, rpId = RP_ID, origin = ORIGINS[0] } = {}) {
-			const cd = clientData("webauthn.create", challenge, origin);
+		register({
+			challenge = randomChallenge(),
+			flags = FLAG_UP | FLAG_UV | FLAG_AT,
+			rpId = RP_ID,
+			origin = ORIGINS[0],
+		} = {}) {
+			const cd = clientData('webauthn.create', challenge, origin);
 			return {
 				challenge,
 				clientDataJSON: b64u(cd),
 				attestationObject: b64u(
 					Buffer.from(
 						JSON.stringify({
-							fmt: "none",
+							fmt: 'none',
 							attStmt: {},
 							authData: b64u(authData({ rpId, flags, signCount: 0, credId, cose })),
 						}),
 					),
 				),
-				response: { transports: ["internal", "hybrid"] },
+				response: { transports: ['internal', 'hybrid'] },
 			};
 		},
-		assert({ challenge = randomChallenge(), flags = FLAG_UP | FLAG_UV, signCount, rpId = RP_ID, origin = ORIGINS[0], tamper = null } = {}) {
+		assert({
+			challenge = randomChallenge(),
+			flags = FLAG_UP | FLAG_UV,
+			signCount,
+			rpId = RP_ID,
+			origin = ORIGINS[0],
+			tamper = null,
+		} = {}) {
 			counter = signCount ?? counter + 1;
-			const cd = Buffer.from(JSON.stringify({ type: "webauthn.get", challenge, origin, crossOrigin: false }));
+			const cd = Buffer.from(JSON.stringify({ type: 'webauthn.get', challenge, origin, crossOrigin: false }));
 			const ad = authData({ rpId, flags, signCount: counter });
-			const signature = crypto.sign("sha256", Buffer.concat([ad, crypto.createHash("sha256").update(cd).digest()]), privateKey);
+			const signature = crypto.sign(
+				'sha256',
+				Buffer.concat([ad, crypto.createHash('sha256').update(cd).digest()]),
+				privateKey,
+			);
 			return {
 				challenge,
 				clientDataJSON: b64u(cd),
@@ -124,7 +140,7 @@ function storedFrom(registration) {
 	};
 }
 
-test("COSE ES256 key round-trips through the hand-rolled CBOR reader", () => {
+test('COSE ES256 key round-trips through the hand-rolled CBOR reader', () => {
 	const auth = makeAuthenticator();
 	const parsed = parseCoseKey(auth.cose);
 	assert.equal(parsed.kty, 2);
@@ -134,26 +150,26 @@ test("COSE ES256 key round-trips through the hand-rolled CBOR reader", () => {
 	assert.equal(parsed.y.length, 32);
 });
 
-test("authenticator data parses flags, counter and attested credential", () => {
+test('authenticator data parses flags, counter and attested credential', () => {
 	const auth = makeAuthenticator();
 	const reg = auth.register();
-	const att = JSON.parse(Buffer.from(reg.attestationObject, "base64url").toString());
-	const parsed = parseAuthenticatorData(Buffer.from(att.authData, "base64url"));
+	const att = JSON.parse(Buffer.from(reg.attestationObject, 'base64url').toString());
+	const parsed = parseAuthenticatorData(Buffer.from(att.authData, 'base64url'));
 	assert.equal(parsed.flags & FLAG_AT, FLAG_AT);
 	assert.equal(parsed.signCount, 0);
-	assert.equal(parsed.attestedCredentialData.credentialId.toString("hex"), auth.credId.toString("hex"));
+	assert.equal(parsed.attestedCredentialData.credentialId.toString('hex'), auth.credId.toString('hex'));
 });
 
 // The backup flag (BS = 1) is what tells the operator the credential also
 // lives in another place (a synced phone). The library parses it, and a
 // parsed-but-unasserted flag is how a real bit rots into a wrong UI.
-test("authenticator data reports the backup (synced) flag", () => {
+test('authenticator data reports the backup (synced) flag', () => {
 	const withBackup = makeAuthenticator();
 	const reg = withBackup.register({ flags: FLAG_UP | FLAG_UV | FLAG_AT | FLAG_BS });
-	const att = JSON.parse(Buffer.from(reg.attestationObject, "base64url").toString());
-	const parsed = parseAuthenticatorData(Buffer.from(att.authData, "base64url"));
+	const att = JSON.parse(Buffer.from(reg.attestationObject, 'base64url').toString());
+	const parsed = parseAuthenticatorData(Buffer.from(att.authData, 'base64url'));
 
-	assert.equal(parsed.flags & FLAG_BS, FLAG_BS, "BS must survive the parse");
+	assert.equal(parsed.flags & FLAG_BS, FLAG_BS, 'BS must survive the parse');
 	assert.equal(
 		verifyRegistration({
 			clientDataJSON: reg.clientDataJSON,
@@ -164,14 +180,14 @@ test("authenticator data reports the backup (synced) flag", () => {
 			challenge: reg.challenge,
 		}).backedUp,
 		true,
-		"a synced authenticator must be reported as backedUp",
+		'a synced authenticator must be reported as backedUp',
 	);
 
 	// And the negative half: an unbacked device must not claim to be.
 	const deviceOnly = makeAuthenticator();
 	const reg2 = deviceOnly.register({ flags: FLAG_UP | FLAG_UV | FLAG_AT });
-	const att2 = JSON.parse(Buffer.from(reg2.attestationObject, "base64url").toString());
-	const parsed2 = parseAuthenticatorData(Buffer.from(att2.authData, "base64url"));
+	const att2 = JSON.parse(Buffer.from(reg2.attestationObject, 'base64url').toString());
+	const parsed2 = parseAuthenticatorData(Buffer.from(att2.authData, 'base64url'));
 	assert.equal(parsed2.flags & FLAG_BS, 0);
 	assert.equal(
 		verifyRegistration({
@@ -183,11 +199,11 @@ test("authenticator data reports the backup (synced) flag", () => {
 			challenge: reg2.challenge,
 		}).backedUp,
 		false,
-		"an unbacked authenticator must not claim backedUp",
+		'an unbacked authenticator must not claim backedUp',
 	);
 });
 
-test("registration yields a storable credential", () => {
+test('registration yields a storable credential', () => {
 	const auth = makeAuthenticator();
 	const reg = auth.register();
 	const out = verifyRegistration({
@@ -200,13 +216,13 @@ test("registration yields a storable credential", () => {
 	});
 	assert.equal(out.credentialId, b64u(auth.credId));
 	assert.equal(out.algorithm, -7);
-	assert.deepEqual(out.transports, ["internal", "hybrid"]);
+	assert.deepEqual(out.transports, ['internal', 'hybrid']);
 	assert.equal(out.backedUp, false);
 });
 
-test("registration refuses a ceremony for another relying party", () => {
+test('registration refuses a ceremony for another relying party', () => {
 	const auth = makeAuthenticator();
-	const reg = auth.register({ rpId: "evil.example" });
+	const reg = auth.register({ rpId: 'evil.example' });
 	assert.throws(
 		() =>
 			verifyRegistration({
@@ -221,7 +237,7 @@ test("registration refuses a ceremony for another relying party", () => {
 	);
 });
 
-test("registration refuses a replayed challenge", () => {
+test('registration refuses a replayed challenge', () => {
 	const auth = makeAuthenticator();
 	const reg = auth.register();
 	assert.throws(
@@ -238,11 +254,11 @@ test("registration refuses a replayed challenge", () => {
 	);
 });
 
-test("registration refuses a foreign origin (phishing)", () => {
+test('registration refuses a foreign origin (phishing)', () => {
 	const auth = makeAuthenticator();
 	// The ceremony is performed on a look-alike site the user was lured to, so
 	// the clientData origin is one we do not serve.
-	const reg = auth.register({ origin: "https://dypos-typo.example" });
+	const reg = auth.register({ origin: 'https://dypos-typo.example' });
 	assert.throws(
 		() =>
 			verifyRegistration({
@@ -257,7 +273,7 @@ test("registration refuses a foreign origin (phishing)", () => {
 	);
 });
 
-test("biometric policy can demand user verification", () => {
+test('biometric policy can demand user verification', () => {
 	const auth = makeAuthenticator();
 	const reg = auth.register({ flags: FLAG_UP | FLAG_AT });
 	assert.throws(
@@ -274,7 +290,7 @@ test("biometric policy can demand user verification", () => {
 	);
 });
 
-test("a valid assertion logs in and advances the counter", () => {
+test('a valid assertion logs in and advances the counter', () => {
 	const auth = makeAuthenticator();
 	const reg = auth.register();
 	const stored = storedFrom(
@@ -302,7 +318,7 @@ test("a valid assertion logs in and advances the counter", () => {
 	assert.equal(result.userVerified, true);
 });
 
-test("a single-bit change in the signature is rejected", () => {
+test('a single-bit change in the signature is rejected', () => {
 	const auth = makeAuthenticator();
 	const reg = auth.register();
 	const stored = storedFrom(
@@ -326,10 +342,10 @@ test("a single-bit change in the signature is rejected", () => {
 		origin: ORIGINS,
 	});
 	assert.equal(result.ok, false);
-	assert.equal(result.reason, "signature_mismatch");
+	assert.equal(result.reason, 'signature_mismatch');
 });
 
-test("a cloned authenticator replaying a counter is rejected", () => {
+test('a cloned authenticator replaying a counter is rejected', () => {
 	const auth = makeAuthenticator();
 	const reg = auth.register();
 	const stored = storedFrom(
@@ -362,10 +378,10 @@ test("a cloned authenticator replaying a counter is rejected", () => {
 		origin: ORIGINS,
 	});
 	assert.equal(result.ok, false);
-	assert.equal(result.reason, "counter_replay");
+	assert.equal(result.reason, 'counter_replay');
 });
 
-test("an assertion without the user-presence flag is refused", () => {
+test('an assertion without the user-presence flag is refused', () => {
 	const auth = makeAuthenticator();
 	const reg = auth.register();
 	const stored = storedFrom(
@@ -393,19 +409,22 @@ test("an assertion without the user-presence flag is refused", () => {
 	);
 });
 
-test("the option builders request a resident key and user verification", () => {
+test('the option builders request a resident key and user verification', () => {
 	const opts = registrationOptions({
 		challenge: randomChallenge(),
 		rpId: RP_ID,
-		rpName: "DyPOS",
-		user: { id: "u1", username: "cashier" },
+		rpName: 'DyPOS',
+		user: { id: 'u1', username: 'cashier' },
 	});
-	assert.equal(opts.authenticatorSelection.userVerification, "required");
-	assert.equal(opts.authenticatorSelection.residentKey, "preferred");
+	assert.equal(opts.authenticatorSelection.userVerification, 'required');
+	assert.equal(opts.authenticatorSelection.residentKey, 'preferred');
 	assert.ok(opts.pubKeyCredParams.some((p) => p.alg === -7));
 	assert.ok(opts.pubKeyCredParams.some((p) => p.alg === -257));
 
-	const auth = authenticationOptions({ challenge: randomChallenge(), allow: [{ credential_id: b64u(Buffer.alloc(32)) }] });
-	assert.equal(auth.userVerification, "required");
+	const auth = authenticationOptions({
+		challenge: randomChallenge(),
+		allow: [{ credential_id: b64u(Buffer.alloc(32)) }],
+	});
+	assert.equal(auth.userVerification, 'required');
 	assert.equal(auth.allowCredentials.length, 1);
 });

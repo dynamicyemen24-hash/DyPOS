@@ -18,32 +18,41 @@ const { runBackup } = await import('../scripts/backup.mjs');
 const { default: db, migrate } = await import('../db/schema.js');
 
 before(() => {
-  migrate();
-  db.prepare(`INSERT INTO users (id,username,password_hash,full_name,role) VALUES (?,?,?,?,?)`)
-    .run('sched-u1', 'sched_admin', 'x', 'Sched Admin', 'ADMIN');
+	migrate();
+	db.prepare('INSERT INTO users (id,username,password_hash,full_name,role) VALUES (?,?,?,?,?)').run(
+		'sched-u1',
+		'sched_admin',
+		'x',
+		'Sched Admin',
+		'ADMIN',
+	);
 });
 
 after(() => {
-  try { db.close(); } catch { /* ignore */ }
-  rmSync(workdir, { recursive: true, force: true });
+	try {
+		db.close();
+	} catch {
+		/* ignore */
+	}
+	rmSync(workdir, { recursive: true, force: true });
 });
 
 describe('runBackup() import-safe snapshot', () => {
-  it('snapshots, verifies, and leaves the shared handle usable', async () => {
-    const r = await runBackup();
-    assert.strictEqual(r.ok, true, JSON.stringify(r));
-    assert.strictEqual(r.integrity, 'ok');
-    const files = readdirSync(process.env.DYPOS_BACKUP_DIR).filter((f) => f.endsWith('.db'));
-    assert.strictEqual(files.length, 1);
+	it('snapshots, verifies, and leaves the shared handle usable', async () => {
+		const r = await runBackup();
+		assert.strictEqual(r.ok, true, JSON.stringify(r));
+		assert.strictEqual(r.integrity, 'ok');
+		const files = readdirSync(process.env.DYPOS_BACKUP_DIR).filter((f) => f.endsWith('.db'));
+		assert.strictEqual(files.length, 1);
 
-    // The live handle must still serve traffic after an in-process backup.
-    const row = db.prepare('SELECT username FROM users WHERE id=?').get('sched-u1');
-    assert.strictEqual(row?.username, 'sched_admin');
+		// The live handle must still serve traffic after an in-process backup.
+		const row = db.prepare('SELECT username FROM users WHERE id=?').get('sched-u1');
+		assert.strictEqual(row?.username, 'sched_admin');
 
-    // Importing the module never auto-runs a backup (no side effects).
-    const before = readdirSync(process.env.DYPOS_BACKUP_DIR).length;
-    const again = await import('../scripts/backup.mjs');
-    assert.strictEqual(typeof again.runBackup, 'function');
-    assert.strictEqual(readdirSync(process.env.DYPOS_BACKUP_DIR).length, before);
-  });
+		// Importing the module never auto-runs a backup (no side effects).
+		const before = readdirSync(process.env.DYPOS_BACKUP_DIR).length;
+		const again = await import('../scripts/backup.mjs');
+		assert.strictEqual(typeof again.runBackup, 'function');
+		assert.strictEqual(readdirSync(process.env.DYPOS_BACKUP_DIR).length, before);
+	});
 });

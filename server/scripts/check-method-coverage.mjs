@@ -7,8 +7,8 @@
  *
  * Run: npm run contract (server/)
  */
-import { dirname, resolve } from 'path';
-import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { MIN_VERB_FLOOR, collectCallSites, evaluate } from './method-contract.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -20,28 +20,28 @@ const scan = collectCallSites(repoRoot);
 const result = evaluate(handlers, scan);
 
 console.log(
-  `method contract: ${result.verbCount} verbs / ${result.siteCount} call sites ` +
-    `in ${result.scannedFiles} files — ${result.verbCount - result.missing.length} covered, ` +
-    `${result.ignoredCount} non-verb strings ignored, ${handlers.size} handlers registered`,
+	`method contract: ${result.verbCount} verbs / ${result.siteCount} call sites ` +
+		`in ${result.scannedFiles} files — ${result.verbCount - result.missing.length} covered, ` +
+		`${result.ignoredCount} non-verb strings ignored, ${handlers.size} handlers registered`,
 );
 
 let failed = false;
 
 if (result.vacuous) {
-  failed = true;
-  console.error(
-    `VACUOUS SCAN: only ${result.verbCount} verbs found (floor ${MIN_VERB_FLOOR}) — ` +
-      'the collector probably stopped understanding the call sites',
-  );
+	failed = true;
+	console.error(
+		`VACUOUS SCAN: only ${result.verbCount} verbs found (floor ${MIN_VERB_FLOOR}) — ` +
+			'the collector probably stopped understanding the call sites',
+	);
 }
 
 if (result.missing.length) {
-  failed = true;
-  console.error('MISSING handlers:');
-  for (const { verb, sites } of result.missing) {
-    console.error(`  - ${verb}`);
-    for (const site of sites) console.error(`      ${site.file}:${site.line}  (${site.form})`);
-  }
+	failed = true;
+	console.error('MISSING handlers:');
+	for (const { verb, sites } of result.missing) {
+		console.error(`  - ${verb}`);
+		for (const site of sites) console.error(`      ${site.file}:${site.line}  (${site.form})`);
+	}
 }
 
 if (failed) process.exit(1);

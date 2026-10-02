@@ -21,13 +21,13 @@ export const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 
 /** الحدّ العام. استثناء الاستيراد الجماعي له سقفه الخاص في `routes/import.js`. */
 export const globalRateLimit = rateLimit({
-  windowMs: RATE_LIMIT_WINDOW_MS,
-  max: Number(process.env.DYPOS_RATE_LIMIT_MAX) || (isProduction ? 2000 : 1000),
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: createRateStore(RATE_LIMIT_WINDOW_MS, 'global'),
-  skip: (req) => HEALTH_PATHS.has(req.path) || req.path.startsWith('/api/import'),
-  message: { error: 'Too many requests. Please try again later.' },
+	windowMs: RATE_LIMIT_WINDOW_MS,
+	max: Number(process.env.DYPOS_RATE_LIMIT_MAX) || (isProduction ? 2000 : 1000),
+	standardHeaders: true,
+	legacyHeaders: false,
+	store: createRateStore(RATE_LIMIT_WINDOW_MS, 'global'),
+	skip: (req) => HEALTH_PATHS.has(req.path) || req.path.startsWith('/api/import'),
+	message: { error: 'Too many requests. Please try again later.' },
 });
 
 /**
@@ -40,11 +40,11 @@ export const globalRateLimit = rateLimit({
  * يعني نقطة حيّة بلا حماية من التخمين.
  */
 export const authRateLimit = rateLimit({
-  windowMs: RATE_LIMIT_WINDOW_MS,
-  max: Number(process.env.DYPOS_AUTH_LIMIT_MAX) || 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: createRateStore(RATE_LIMIT_WINDOW_MS, 'auth'),
-  message: { error: 'Too many login attempts. Please try again later.' },
-  skipSuccessfulRequests: true,
+	windowMs: RATE_LIMIT_WINDOW_MS,
+	max: Number(process.env.DYPOS_AUTH_LIMIT_MAX) || 30,
+	standardHeaders: true,
+	legacyHeaders: false,
+	store: createRateStore(RATE_LIMIT_WINDOW_MS, 'auth'),
+	message: { error: 'Too many login attempts. Please try again later.' },
+	skipSuccessfulRequests: true,
 });

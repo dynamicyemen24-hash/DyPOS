@@ -25,11 +25,14 @@
  * re-implementing it keeps that rule single-sourced — this file performs no DDL
  * of its own.
  */
-export function migrateInvoiceReturnTracking(db, addColumnIfMissing, { version = 24, description = 'invoice return tracking fields' } = {}) {
+export function migrateInvoiceReturnTracking(
+	db,
+	addColumnIfMissing,
+	{ version = 24, description = 'invoice return tracking fields' } = {},
+) {
 	addColumnIfMissing('invoices', 'returned_at', 'TEXT');
 	addColumnIfMissing('invoices', 'returned_by', 'TEXT');
-	db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
-		.run(version, description);
+	db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)').run(version, description);
 }
 
 export default migrateInvoiceReturnTracking;

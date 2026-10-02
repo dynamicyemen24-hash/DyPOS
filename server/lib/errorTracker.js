@@ -17,45 +17,45 @@
  * registerMetrics(app) / server.js — this bundle deliberately does NOT mount
  * /api/metrics). Idempotent.
  */
-import { logger } from "./logger.js"
-import { registerFeatures } from "../routes/features.js"
+import { logger } from './logger.js';
+import { registerFeatures } from '../routes/features.js';
 
-const MAX_STACK = 4096
-const MAX_MESSAGE = 2000
-const WEBHOOK_TIMEOUT_MS = 2000
-const RETRY_SLEEP_MS = 50
+const MAX_STACK = 4096;
+const MAX_MESSAGE = 2000;
+const WEBHOOK_TIMEOUT_MS = 2000;
+const RETRY_SLEEP_MS = 50;
 
-const mountedApps = new WeakSet()
+const mountedApps = new WeakSet();
 
 function truncateStack(err, message) {
-	const raw = err?.stack || message
-	return String(raw).slice(0, MAX_STACK)
+	const raw = err?.stack || message;
+	return String(raw).slice(0, MAX_STACK);
 }
 
 function webhookUrl() {
-	return process.env.DYPOS_ERROR_WEBHOOK_URL?.trim()
+	return process.env.DYPOS_ERROR_WEBHOOK_URL?.trim();
 }
 
 async function postWebhookOnce(url, body) {
 	try {
 		const res = await fetch(url, {
-			method: "POST",
-			headers: { "content-type": "application/json" },
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify(body),
 			signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
-		})
-		return res.status
+		});
+		return res.status;
 	} catch {
-		return null
+		return null;
 	}
 }
 
 async function deliverWebhook(url, body) {
 	try {
-		const first = await postWebhookOnce(url, body)
+		const first = await postWebhookOnce(url, body);
 		if (first !== null && first >= 500 && first < 600) {
-			await new Promise((resolve) => setTimeout(resolve, RETRY_SLEEP_MS))
-			await postWebhookOnce(url, body) // retry once on 5xx
+			await new Promise((resolve) => setTimeout(resolve, RETRY_SLEEP_MS));
+			await postWebhookOnce(url, body); // retry once on 5xx
 		}
 	} catch {
 		/* fire-and-forget: never throws, never blocks the request path */
@@ -68,13 +68,10 @@ async function deliverWebhook(url, body) {
  * @returns {{ level: string, service: string, message: string, stack: string, timestamp: string }} the sanitised log/webhook body
  */
 export function trackError(err, ctx = {}) {
-	const message = String(err?.message || err || "unknown error").slice(
-		0,
-		MAX_MESSAGE,
-	)
+	const message = String(err?.message || err || 'unknown error').slice(0, MAX_MESSAGE);
 	const body = {
-		level: ctx.level === "warn" ? "warn" : "error",
-		service: ctx.service || "dypos-server",
+		level: ctx.level === 'warn' ? 'warn' : 'error',
+		service: ctx.service || 'dypos-server',
 		req_id: ctx.req_id ?? undefined,
 		status: Number.isInteger(ctx.status) ? ctx.status : undefined,
 		op: ctx.op ?? undefined,
@@ -85,18 +82,18 @@ export function trackError(err, ctx = {}) {
 		message,
 		stack: truncateStack(err, message),
 		timestamp: new Date().toISOString(),
-	}
+	};
 	for (const key of Object.keys(body)) {
-		if (body[key] === undefined) delete body[key]
+		if (body[key] === undefined) delete body[key];
 	}
 	try {
-		logger.error({ ...body }, "error tracked")
+		logger.error({ ...body }, 'error tracked');
 	} catch {
 		/* logging must never throw */
 	}
-	const url = webhookUrl()
-	if (url) void deliverWebhook(url, body)
-	return body
+	const url = webhookUrl();
+	if (url) void deliverWebhook(url, body);
+	return body;
 }
 
 /**
@@ -109,22 +106,22 @@ export function trackError(err, ctx = {}) {
  */
 export function trackHttpError(req, err, status) {
 	return trackError(err, {
-		req_id: req?.id || req?.headers?.["x-request-id"],
+		req_id: req?.id || req?.headers?.['x-request-id'],
 		method: req?.method,
 		url: req?.originalUrl || req?.url,
 		user: req?.user?.username,
 		tenant_id: req?.user?.tenantId,
 		status,
-	})
+	});
 }
 
 export function errorTrackerMiddleware(err, req, res, next) {
 	try {
-		trackHttpError(req, err, res.statusCode >= 400 ? res.statusCode : undefined)
+		trackHttpError(req, err, res.statusCode >= 400 ? res.statusCode : undefined);
 	} catch {
 		/* tracking must never mask the underlying error */
 	}
-	next(err)
+	next(err);
 }
 
 /**
@@ -134,11 +131,11 @@ export function errorTrackerMiddleware(err, req, res, next) {
  * @returns {import('express').ErrorRequestHandler} the middleware (for manual placement)
  */
 export function registerErrorTracker(app) {
-	if (app && typeof app.use === "function" && !mountedApps.has(app)) {
-		app.use(errorTrackerMiddleware)
-		mountedApps.add(app)
+	if (app && typeof app.use === 'function' && !mountedApps.has(app)) {
+		app.use(errorTrackerMiddleware);
+		mountedApps.add(app);
 	}
-	return errorTrackerMiddleware
+	return errorTrackerMiddleware;
 }
 
 /**
@@ -149,8 +146,8 @@ export function registerErrorTracker(app) {
  * @returns {import('express').ErrorRequestHandler} the mounted error middleware
  */
 export function registerObservability(app) {
-	registerFeatures(app)
-	return registerErrorTracker(app)
+	registerFeatures(app);
+	return registerErrorTracker(app);
 }
 
 export default {
@@ -159,4 +156,4 @@ export default {
 	errorTrackerMiddleware,
 	registerErrorTracker,
 	registerObservability,
-}
+};

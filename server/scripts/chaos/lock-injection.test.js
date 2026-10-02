@@ -83,7 +83,7 @@ before(async () => {
 	const prod = await api(
 		'POST',
 		'/api/products',
-		{ name: 'Lock-Test-Rice', code: 'LOCK-RICE-' + Date.now(), unitPrice: 50 },
+		{ name: 'Lock-Test-Rice', code: `LOCK-RICE-${Date.now()}`, unitPrice: 50 },
 		token,
 	);
 	assert.equal(prod.status, 201, JSON.stringify(prod.body));
@@ -116,20 +116,11 @@ describe('Chaos: concurrent writer lock-injection', () => {
 		try {
 			// Read path must stay functional while another writer holds the lock.
 			const report = await api('GET', '/api/reports/summary', null, token);
-			assert.equal(
-				report.status,
-				200,
-				'read-only traffic must not be blocked by a concurrent writer',
-			);
+			assert.equal(report.status, 200, 'read-only traffic must not be blocked by a concurrent writer');
 
 			// The sale that collides with the reservation must surface as a
 			// transient, retryable 503 — never as a 500 or a fake 400.
-			const blocked = await api(
-				'POST',
-				'/api/invoices',
-				{ items: [{ productId, qty: 2 }] },
-				token,
-			);
+			const blocked = await api('POST', '/api/invoices', { items: [{ productId, qty: 2 }] }, token);
 			assert.equal(blocked.status, 503, JSON.stringify(blocked.body));
 			// FINDING (documented in docs/QA_ENGINEERING.md): routes that map
 			// lock errors INSIDE their own try/catch (see routes/invoices.js,

@@ -18,71 +18,77 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const TESTS_DIR = HERE;
 
 describe('/api/health is a contract, not an environment reading', () => {
-  it('no test file asserts a hard 200 (or "non-5xx") on /api/health', () => {
-    const offenders = [];
-    for (const file of readdirSync(TESTS_DIR).filter((n) => n.endsWith('.test.js'))) {
-      if (file === 'health-contract.test.js') continue;
-      const lines = readFileSync(join(TESTS_DIR, file), 'utf8').split('\n');
-      let insideHealthTest = false;
-      lines.forEach((line, i) => {
-        // Enter the scope of a test that talks to the health endpoint…
-        if (/\/api\/health\b|get\('\/health'\)|req\('GET', '\/api\/health'\)/.test(line)) {
-          insideHealthTest = true;
-          return;
-        }
-        // …and leave it at the end of that test case.
-        if (insideHealthTest && /^\s*\}\);/.test(line)) {
-          insideHealthTest = false;
-          return;
-        }
-        if (!insideHealthTest) return;
-        const code = line.replace(/\/\/.*$/, '');
-        if (/non-5xx/.test(code) || /status\s*<\s*500/.test(code) || /status,\s*200\)/.test(code)) {
-          offenders.push(`${file}:${i + 1} — ${code.trim()}`);
-        }
-      });
-    }
-    assert.deepStrictEqual(
-      offenders,
-      [],
-      `assert the contract (payload shape + status agreement), never a hard 200:\n${offenders.join('\n')}`,
-    );
-  });
+	it('no test file asserts a hard 200 (or "non-5xx") on /api/health', () => {
+		const offenders = [];
+		for (const file of readdirSync(TESTS_DIR).filter((n) => n.endsWith('.test.js'))) {
+			if (file === 'health-contract.test.js') continue;
+			const lines = readFileSync(join(TESTS_DIR, file), 'utf8').split('\n');
+			let insideHealthTest = false;
+			lines.forEach((line, i) => {
+				// Enter the scope of a test that talks to the health endpoint…
+				if (/\/api\/health\b|get\('\/health'\)|req\('GET', '\/api\/health'\)/.test(line)) {
+					insideHealthTest = true;
+					return;
+				}
+				// …and leave it at the end of that test case.
+				if (insideHealthTest && /^\s*\}\);/.test(line)) {
+					insideHealthTest = false;
+					return;
+				}
+				if (!insideHealthTest) return;
+				const code = line.replace(/\/\/.*$/, '');
+				if (/non-5xx/.test(code) || /status\s*<\s*500/.test(code) || /status,\s*200\)/.test(code)) {
+					offenders.push(`${file}:${i + 1} — ${code.trim()}`);
+				}
+			});
+		}
+		assert.deepStrictEqual(
+			offenders,
+			[],
+			`assert the contract (payload shape + status agreement), never a hard 200:\n${offenders.join('\n')}`,
+		);
+	});
 
-  it('the probe path for containers is /api/ready, which stays unconditional', () => {
-    const server = readFileSync(resolve(HERE, '..', 'server.js'), 'utf8');
-    assert.match(server, /\/api\/ready/);
-    assert.match(server, /\/api\/health/);
-  });
+	it('the probe path for containers is /api/ready, which stays unconditional', () => {
+		const server = readFileSync(resolve(HERE, '..', 'server.js'), 'utf8');
+		assert.match(server, /\/api\/ready/);
+		assert.match(server, /\/api\/health/);
+	});
 
-  /**
-   * Reproduced by actually running the stack: a freshly booted container
-   * answered `/api/ready` with 503, because `heapUsed / heapTotal` reads ~92%
-   * before V8 has grown the heap. `docker-compose.yml` health-checks that path
-   * for a 200, so the container went unhealthy on start and every sidecar gated
-   * on `service_healthy` (backup, cloudflared) never launched — the whole
-   * end-to-end deploy silently stood still.
-   */
-  it('the memory check does not fail a fresh process on heap ratio alone', () => {
-    const health = readFileSync(resolve(HERE, '..', 'lib', 'health-resources.js'), 'utf8');
-    // It must judge RSS against a real budget…
-    assert.match(health, /MEMORY_BUDGET_MB/);
-    assert.match(health, /DYPOS_MEMORY_BUDGET_MB/);
-    // …and the ratio only counts once the heap is big enough to mean anything.
-    assert.match(health, /HEAP_RATIO_FLOOR_MB/);
-    // A bare `heapUsagePercent < 90` verdict is the bug this replaced.
-    assert.doesNotMatch(health, /healthy:\s*heapUsagePercent\s*<\s*90/);
-    // The extracted checks must stay wired, or the endpoints lose two probes.
-    const server = readFileSync(resolve(HERE, '..', 'server.js'), 'utf8');
-    assert.match(server, /registerHealthCheck\("memory",\s*memoryCheck\)/);
-    assert.match(server, /registerHealthCheck\("disk",\s*diskCheck\)/);
-  });
+	/**
+	 * Reproduced by actually running the stack: a freshly booted container
+	 * answered `/api/ready` with 503, because `heapUsed / heapTotal` reads ~92%
+	 * before V8 has grown the heap. `docker-compose.yml` health-checks that path
+	 * for a 200, so the container went unhealthy on start and every sidecar gated
+	 * on `service_healthy` (backup, cloudflared) never launched — the whole
+	 * end-to-end deploy silently stood still.
+	 */
+	it('the memory check does not fail a fresh process on heap ratio alone', () => {
+		const health = readFileSync(resolve(HERE, '..', 'lib', 'health-resources.js'), 'utf8');
+		// It must judge RSS against a real budget…
+		assert.match(health, /MEMORY_BUDGET_MB/);
+		assert.match(health, /DYPOS_MEMORY_BUDGET_MB/);
+		// …and the ratio only counts once the heap is big enough to mean anything.
+		assert.match(health, /HEAP_RATIO_FLOOR_MB/);
+		// A bare `heapUsagePercent < 90` verdict is the bug this replaced.
+		assert.doesNotMatch(health, /healthy:\s*heapUsagePercent\s*<\s*90/);
+		// The extracted checks must stay wired, or the endpoints lose two probes.
+		// Quote-style agnostic on purpose: the source is free to use ' or " —
+		// what this asserts is the WIRING (memoryCheck/diskCheck registered under
+		// those names), not the formatter's opinion about quotes. A previous
+		// revision hard-coded the double-quoted form and failed the moment the
+		// server formatter (quoteStyle: single) reflowed server.js — a style
+		// change masquerading as a health regression.
+		const server = readFileSync(resolve(HERE, '..', 'server.js'), 'utf8');
+		assert.match(server, /registerHealthCheck\(\s*['"]memory['"]\s*,\s*memoryCheck\s*\)/);
+		assert.match(server, /registerHealthCheck\(\s*['"]disk['"]\s*,\s*diskCheck\s*\)/);
+	});
 
-  it('the compose healthcheck expects 200 on /api/ready', () => {
-    const compose = readFileSync(resolve(HERE, '..', '..', 'docker-compose.yml'), 'utf8');
-    assert.match(compose, /\/api\/ready/);
-    assert.match(compose, /statusCode===200/);
-    // Proves the two files are coupled: the endpoint must stay unconditional.
-    assert.match(compose, /condition:\s*service_healthy/);
-  });
+	it('the compose healthcheck expects 200 on /api/ready', () => {
+		const compose = readFileSync(resolve(HERE, '..', '..', 'docker-compose.yml'), 'utf8');
+		assert.match(compose, /\/api\/ready/);
+		assert.match(compose, /statusCode===200/);
+		// Proves the two files are coupled: the endpoint must stay unconditional.
+		assert.match(compose, /condition:\s*service_healthy/);
+	});
 });

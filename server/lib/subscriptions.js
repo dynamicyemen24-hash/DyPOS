@@ -69,8 +69,8 @@ export function addDays(isoDate, days) {
  */
 export function pageOf(q = {}, def = 50) {
 	return {
-		limit: Math.min(Math.max(parseInt(q.limit, 10) || def, 1), 200),
-		offset: Math.max(parseInt(q.offset, 10) || 0, 0),
+		limit: Math.min(Math.max(Number.parseInt(q.limit, 10) || def, 1), 200),
+		offset: Math.max(Number.parseInt(q.offset, 10) || 0, 0),
 	};
 }
 
@@ -129,14 +129,17 @@ export function listPlans(ctx, { active, limit = 100, offset = 0 } = {}) {
 
 export function createPlan(ctx, body = {}) {
 	assertManager(ctx);
-	const name = String(body?.name || '').trim().slice(0, 100);
+	const name = String(body?.name || '')
+		.trim()
+		.slice(0, 100);
 	const price = Number(body?.price);
 	// Explicitly supplied-but-invalid input is rejected; only an OMITTED interval
 	// falls back to the 30-day default (never silently coerce 0/"abc" to 30).
 	const rawInterval = body?.intervalDays ?? body?.interval_days;
-	const intervalDays =
-		rawInterval == null || rawInterval === '' ? 30 : Number.parseInt(rawInterval, 10);
-	const currency = String(body?.currency || 'SAR').toUpperCase().slice(0, 10);
+	const intervalDays = rawInterval == null || rawInterval === '' ? 30 : Number.parseInt(rawInterval, 10);
+	const currency = String(body?.currency || 'SAR')
+		.toUpperCase()
+		.slice(0, 10);
 	if (!name) throw new SubscriptionError('اسم الباقة مطلوب', 400);
 	if (!Number.isFinite(price) || !(price > 0) || price > 1_000_000) {
 		throw new SubscriptionError('سعر الباقة أكبر من صفر وأقل من 1,000,000', 400);
@@ -149,18 +152,17 @@ export function createPlan(ctx, body = {}) {
 
 	const id = uuid();
 	db.prepare(
-		`INSERT INTO subscription_plans (id,tenant_id,name,name_ar,price,currency,interval_days,created_by) VALUES (?,?,?,?,?,?,?,?)`,
-	)
-		.run(
-			id,
-			ctx.tenantId || '',
-			name,
-			String(body?.nameAr || '').slice(0, 100),
-			Math.round(price * 100) / 100,
-			currency,
-			intervalDays,
-			ctx?.user?.username || 'system',
-		);
+		'INSERT INTO subscription_plans (id,tenant_id,name,name_ar,price,currency,interval_days,created_by) VALUES (?,?,?,?,?,?,?,?)',
+	).run(
+		id,
+		ctx.tenantId || '',
+		name,
+		String(body?.nameAr || '').slice(0, 100),
+		Math.round(price * 100) / 100,
+		currency,
+		intervalDays,
+		ctx?.user?.username || 'system',
+	);
 	ctx?.audit?.('subscription.plan.create', { planId: id, name, price });
 	recordTrail(trailCtx(ctx), {
 		entity: 'SUBSCRIPTION_PLAN',
@@ -168,7 +170,12 @@ export function createPlan(ctx, body = {}) {
 		action: 'CREATE',
 		after: { name, price, intervalDays },
 	});
-	emit('subscription.plan_created', 'SUBSCRIPTION_PLAN', id, { name, price, currency, intervalDays });
+	emit('subscription.plan_created', 'SUBSCRIPTION_PLAN', id, {
+		name,
+		price,
+		currency,
+		intervalDays,
+	});
 	return { id, name, price, currency, interval_days: intervalDays };
 }
 
@@ -198,7 +205,7 @@ export function updatePlan(ctx, id, body = {}) {
 		params.push(Math.round(price * 100) / 100);
 	}
 	if (body?.intervalDays != null) {
-		const days = parseInt(body.intervalDays, 10);
+		const days = Number.parseInt(body.intervalDays, 10);
 		if (!(days >= 1 && days <= 3650)) throw new SubscriptionError('فترة غير صالحة', 400);
 		sets.push('interval_days=?');
 		params.push(days);
@@ -235,8 +242,7 @@ export function listSubscriptions(ctx, { status = '', customerId = '', limit = 5
 		base += ' AND s.customer_id=?';
 		params.push(String(customerId).slice(0, 64));
 	}
-	const total =
-		db.prepare(`SELECT COUNT(*) as c FROM customer_subscriptions s ${base}`).get(...params)?.c || 0;
+	const total = db.prepare(`SELECT COUNT(*) as c FROM customer_subscriptions s ${base}`).get(...params)?.c || 0;
 	const rows = db
 		.prepare(
 			`SELECT s.*, p.name AS plan_name, p.name_ar AS plan_name_ar, p.price, p.currency, p.interval_days, c.name AS customer_name
@@ -254,9 +260,7 @@ export function subscribeCustomer(ctx, body = {}) {
 	const customerId = String(body?.customerId || '').slice(0, 64);
 	const planId = String(body?.planId || '').slice(0, 64);
 	const autoRenew = body?.autoRenew === false ? 0 : 1;
-	const startDate = /^\d{4}-\d{2}-\d{2}$/.test(String(body?.startDate || ''))
-		? String(body.startDate)
-		: today();
+	const startDate = /^\d{4}-\d{2}-\d{2}$/.test(String(body?.startDate || '')) ? String(body.startDate) : today();
 
 	const plan = db.prepare('SELECT * FROM subscription_plans WHERE id=? AND is_active=1').get(planId);
 	if (!plan) throw new SubscriptionError('الباقة غير موجودة أو موقوفة', 404);
@@ -281,15 +285,16 @@ export function subscribeCustomer(ctx, body = {}) {
 		)
 		.get(customerId, planId);
 	if (dup) {
-		throw new SubscriptionError('العميل مشترك بالفعل في هذه الباقة', 409, { subscriptionId: dup.id });
+		throw new SubscriptionError('العميل مشترك بالفعل في هذه الباقة', 409, {
+			subscriptionId: dup.id,
+		});
 	}
 
 	const id = uuid();
 	const nextBillingDate = addDays(startDate, plan.interval_days);
 	db.prepare(
 		`INSERT INTO customer_subscriptions (id,tenant_id,customer_id,plan_id,status,start_date,next_billing_date,auto_renew) VALUES (?,?,?,?,'active',?,?,?)`,
-	)
-		.run(id, ctx.tenantId || '', customerId, planId, startDate, nextBillingDate, autoRenew);
+	).run(id, ctx.tenantId || '', customerId, planId, startDate, nextBillingDate, autoRenew);
 	ctx?.audit?.('subscription.subscribe', { subscriptionId: id, customerId, planId });
 	recordTrail(trailCtx(ctx), {
 		entity: 'SUBSCRIPTION',
@@ -321,10 +326,7 @@ export function transitionSubscription(ctx, id, { from = [], to, action = 'subsc
 	if (!from.includes(row.status)) {
 		throw new SubscriptionError(`لا يمكن تنفيذ الإجراء من الحالة الحالية (${row.status})`, 409);
 	}
-	db.prepare(`UPDATE customer_subscriptions SET status=?,updated_at=datetime('now') WHERE id=?`).run(
-		to,
-		subId,
-	);
+	db.prepare(`UPDATE customer_subscriptions SET status=?,updated_at=datetime('now') WHERE id=?`).run(to, subId);
 	ctx?.audit?.(action, { subscriptionId: subId, from: row.status, to });
 	recordTrail(trailCtx(ctx), {
 		entity: 'SUBSCRIPTION',
@@ -391,7 +393,7 @@ export function runBilling(ctx, body = {}) {
 				// 1) Period key first: a UNIQUE violation means this period is
 				//    already settled — nothing is charged, transaction rolls back.
 				db.prepare(
-					`INSERT INTO subscription_billings (tenant_id,subscription_id,customer_id,amount,currency,method,period_start,periods_consolidated) VALUES (?,?,?,?,?,?,?,?)`,
+					'INSERT INTO subscription_billings (tenant_id,subscription_id,customer_id,amount,currency,method,period_start,periods_consolidated) VALUES (?,?,?,?,?,?,?,?)',
 				).run(sub.tenant_id || '', sub.id, sub.customer_id, amount, sub.currency, 'due', periodStart, periods);
 				// 2) Wallet auto-pay (canonical ledger) when the balance covers it all.
 				if (Number(sub.auto_renew) === 1 && amount > 0 && balance >= amount - 0.005) {
@@ -401,10 +403,10 @@ export function runBilling(ctx, body = {}) {
 						sub.customer_id,
 					);
 					db.prepare(
-						`INSERT INTO loyalty_transactions (id,customer_id,points,amount,type,reference_type,reference_id,note) VALUES (?,?,?,?,?,?,?,?)`,
+						'INSERT INTO loyalty_transactions (id,customer_id,points,amount,type,reference_type,reference_id,note) VALUES (?,?,?,?,?,?,?,?)',
 					).run(uuid(), sub.customer_id, 0, -amount, 'WALLET_DEBIT', 'SUBSCRIPTION', sub.id, 'فوترة اشتراك');
 					db.prepare(
-						`INSERT INTO wallet_transactions (id,customer_id,amount,direction,balance_after,reference_type,reference_id,note,created_by) VALUES (?,?,?,?,?,?,?,?,?)`,
+						'INSERT INTO wallet_transactions (id,customer_id,amount,direction,balance_after,reference_type,reference_id,note,created_by) VALUES (?,?,?,?,?,?,?,?,?)',
 					).run(
 						uuid(),
 						sub.customer_id,
@@ -488,7 +490,9 @@ export function subscriptionReport(ctx) {
 	try {
 		const bScope = tenantClauseFor(ctx.tenantId, 'b');
 		const due = db
-			.prepare(`SELECT COUNT(*) as c, COALESCE(SUM(amount),0) as t FROM subscription_billings b WHERE method='due'${bScope.clause}`)
+			.prepare(
+				`SELECT COUNT(*) as c, COALESCE(SUM(amount),0) as t FROM subscription_billings b WHERE method='due'${bScope.clause}`,
+			)
 			.get(...bScope.params);
 		dueCount = due?.c || 0;
 		dueTotal = Math.round((Number(due?.t) || 0) * 100) / 100;

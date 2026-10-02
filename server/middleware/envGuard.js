@@ -18,8 +18,8 @@
  * unaffected.
  */
 export const KNOWN_LEAKED_SECRETS = [
-  'test-secret-for-testing-only-32-chars-minimum',
-  'dypos-dev-secret-change-in-production',
+	'test-secret-for-testing-only-32-chars-minimum',
+	'dypos-dev-secret-change-in-production',
 ];
 
 const isProduction = () => process.env.NODE_ENV === 'production';
@@ -30,45 +30,50 @@ const isProduction = () => process.env.NODE_ENV === 'production';
  * @returns {{ ok: boolean, checked: boolean, mode: string, problems: string[] }}
  */
 export function checkEnv(options = {}) {
-  if (process.env.NODE_ENV === 'test') {
-    return { ok: true, checked: false, mode: 'test', problems: [] };
-  }
-  const problems = [];
+	if (process.env.NODE_ENV === 'test') {
+		return { ok: true, checked: false, mode: 'test', problems: [] };
+	}
+	const problems = [];
 
-  const jwt = process.env.DYPOS_JWT_SECRET || '';
-  if (!jwt) {
-    problems.push('DYPOS_JWT_SECRET is missing — authentication is compromised without it.');
-  } else if (jwt.length < 32) {
-    problems.push(`DYPOS_JWT_SECRET is only ${jwt.length} chars — must be >= 32 (e.g. openssl rand -hex 32).`);
-  }
+	const jwt = process.env.DYPOS_JWT_SECRET || '';
+	if (!jwt) {
+		problems.push('DYPOS_JWT_SECRET is missing — authentication is compromised without it.');
+	} else if (jwt.length < 32) {
+		problems.push(`DYPOS_JWT_SECRET is only ${jwt.length} chars — must be >= 32 (e.g. openssl rand -hex 32).`);
+	}
 
-  if (!process.env.DYPOS_DB_PATH && !process.env.DYPOS_DATABASE_URL) {
-    problems.push('Neither DYPOS_DB_PATH nor DYPOS_DATABASE_URL is set — no storage target configured.');
-  }
+	if (!process.env.DYPOS_DB_PATH && !process.env.DYPOS_DATABASE_URL) {
+		problems.push('Neither DYPOS_DB_PATH nor DYPOS_DATABASE_URL is set — no storage target configured.');
+	}
 
-  const cors = String(process.env.DYPOS_CORS_ORIGIN || '').trim();
-  if (!cors) {
-    problems.push('DYPOS_CORS_ORIGIN is missing — browsers will block every cross-origin request.');
-  } else if (cors.split(',').map((s) => s.trim()).includes('*')) {
-    problems.push('DYPOS_CORS_ORIGIN contains "*" — wildcard CORS with credentials is a cross-site exfiltration hole.');
-  }
+	const cors = String(process.env.DYPOS_CORS_ORIGIN || '').trim();
+	if (!cors) {
+		problems.push('DYPOS_CORS_ORIGIN is missing — browsers will block every cross-origin request.');
+	} else if (
+		cors
+			.split(',')
+			.map((s) => s.trim())
+			.includes('*')
+	) {
+		problems.push('DYPOS_CORS_ORIGIN contains "*" — wildcard CORS with credentials is a cross-site exfiltration hole.');
+	}
 
-  const leakedKeys = Object.entries(process.env)
-    .filter(([, value]) => KNOWN_LEAKED_SECRETS.includes(String(value)))
-    .map(([key, value]) => `${key}="${value}"`);
-  for (const found of leakedKeys) {
-    problems.push(`Environment variable ${found} holds a known leaked credential — rotate it now.`);
-  }
+	const leakedKeys = Object.entries(process.env)
+		.filter(([, value]) => KNOWN_LEAKED_SECRETS.includes(String(value)))
+		.map(([key, value]) => `${key}="${value}"`);
+	for (const found of leakedKeys) {
+		problems.push(`Environment variable ${found} holds a known leaked credential — rotate it now.`);
+	}
 
-  const ok = problems.length === 0;
-  const mode = isProduction() ? 'production' : 'development';
-  const failFast = options.failFast !== false && isProduction();
-  if (!ok && failFast) {
-    for (const p of problems) console.error(`[DyPOS SECURITY] ${p}`);
-    console.error('[DyPOS FATAL] Environment guard failed — refusing to boot.');
-    process.exit(1);
-  }
-  return { ok, checked: true, mode, problems };
+	const ok = problems.length === 0;
+	const mode = isProduction() ? 'production' : 'development';
+	const failFast = options.failFast !== false && isProduction();
+	if (!ok && failFast) {
+		for (const p of problems) console.error(`[DyPOS SECURITY] ${p}`);
+		console.error('[DyPOS FATAL] Environment guard failed — refusing to boot.');
+		process.exit(1);
+	}
+	return { ok, checked: true, mode, problems };
 }
 
 /**
@@ -76,7 +81,7 @@ export function checkEnv(options = {}) {
  * dev/test it returns the report so callers can surface problems gracefully.
  */
 export function assertEnv(options = {}) {
-  return checkEnv(options);
+	return checkEnv(options);
 }
 
 /**
@@ -85,8 +90,8 @@ export function assertEnv(options = {}) {
  * the guard at boot (fail fast, production only).
  */
 export function registerEnvGuard(app, options = {}) {
-  assertEnv(options);
-  return app;
+	assertEnv(options);
+	return app;
 }
 
 export default { checkEnv, assertEnv, registerEnvGuard, KNOWN_LEAKED_SECRETS };

@@ -29,10 +29,10 @@ const isProduction = () => process.env.NODE_ENV === 'production';
  * in cspNonce.js validates origins identically instead of re-implementing it.
  */
 export function splitOrigins(raw) {
-  return String(raw || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
+	return String(raw || '')
+		.split(',')
+		.map((s) => s.trim())
+		.filter(Boolean);
 }
 
 /**
@@ -46,23 +46,23 @@ export function splitOrigins(raw) {
  * userinfo), and emit the parsed origin rather than the raw input.
  */
 export function toOriginWhitelist(candidates) {
-  const out = [];
-  for (const raw of candidates) {
-    const value = String(raw || '').trim();
-    // Whitespace, ';' and quoting chars can all terminate or forge a directive.
-    if (!value || /[\s;,<>"'()\\]/.test(value)) continue;
-    let url;
-    try {
-      url = new URL(value);
-    } catch {
-      continue;
-    }
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') continue;
-    if (url.pathname !== '/' || url.search || url.hash) continue;
-    if (url.username || url.password) continue;
-    out.push(url.origin);
-  }
-  return out;
+	const out = [];
+	for (const raw of candidates) {
+		const value = String(raw || '').trim();
+		// Whitespace, ';' and quoting chars can all terminate or forge a directive.
+		if (!value || /[\s;,<>"'()\\]/.test(value)) continue;
+		let url;
+		try {
+			url = new URL(value);
+		} catch {
+			continue;
+		}
+		if (url.protocol !== 'http:' && url.protocol !== 'https:') continue;
+		if (url.pathname !== '/' || url.search || url.hash) continue;
+		if (url.username || url.password) continue;
+		out.push(url.origin);
+	}
+	return out;
 }
 
 /**
@@ -70,54 +70,54 @@ export function toOriginWhitelist(candidates) {
  * @param {{ apiOrigins?: string, deskOrigin?: string, coop?: boolean }} [options]
  */
 export function securityHeaders(options = {}) {
-  // Resolved once at construction, not per request. These used to be declared
-  // here AND re-declared inside the middleware, which made the outer copies
-  // dead and recomputed the env lookups on every single response.
-  const apiOrigins = toOriginWhitelist(splitOrigins(options.apiOrigins ?? process.env.DYPOS_API_ORIGIN));
-  const deskOrigin = String(options.deskOrigin ?? process.env.DYPOS_FRAPPE_ORIGIN ?? '').trim();
-  const allowCode = options.coop !== false && !deskOrigin && String(process.env.DYPOS_COOP || '1') !== '0';
-  // Clickjacking: allowlisted origins may frame us only when explicitly allowed.
-  const allowFraming = options.allowFraming === true;
+	// Resolved once at construction, not per request. These used to be declared
+	// here AND re-declared inside the middleware, which made the outer copies
+	// dead and recomputed the env lookups on every single response.
+	const apiOrigins = toOriginWhitelist(splitOrigins(options.apiOrigins ?? process.env.DYPOS_API_ORIGIN));
+	const deskOrigin = String(options.deskOrigin ?? process.env.DYPOS_FRAPPE_ORIGIN ?? '').trim();
+	const allowCode = options.coop !== false && !deskOrigin && String(process.env.DYPOS_COOP || '1') !== '0';
+	// Clickjacking: allowlisted origins may frame us only when explicitly allowed.
+	const allowFraming = options.allowFraming === true;
 
-  return function securityHeadersMiddleware(req, res, next) {
-    if (isProduction()) {
-      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
-    }
-    // Skip CSP if already set by nonce middleware
-    if (!res.getHeader('Content-Security-Policy')) {
-      const connectSrc = ["'self'", ...toOriginWhitelist(splitOrigins(deskOrigin)), ...apiOrigins];
-      if (!connectSrc.some((o) => o.startsWith('http'))) connectSrc.push('https:', 'wss:');
-      const frameAncestors = ["'self'"];
-      if (allowFraming) frameAncestors.push(...toOriginWhitelist(splitOrigins(deskOrigin)));
-      const csp = [
-        "default-src 'self'",
-        `script-src 'self' blob:`,
-        `style-src 'self' 'unsafe-inline'`,
-        `img-src 'self' data: blob: https:`,
-        // No external font origin: the app self-hosts its fonts.
-        `font-src 'self' data:`,
-        `connect-src ${connectSrc.join(' ')}`,
-        `media-src 'self' blob:`,
-        `object-src 'none'`,
-        `base-uri 'self'`,
-        `form-action 'self'`,
-        `frame-ancestors ${frameAncestors.join(' ')}`,
-        'upgrade-insecure-requests',
-      ].join('; ');
-      res.setHeader('Content-Security-Policy', csp);
-    }
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    res.setHeader(
-      'Permissions-Policy',
-      'geolocation=(), microphone=(), camera=(), payment=(), usb=(), midi=(), sync-xhr=(), accelerometer=(), gyroscope=(), magnetometer=(), display-capture=(), fullscreen=(self), autoplay=(self)'
-    );
-    if (allowCode) res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-    if (req.path.startsWith('/api/') && !res.getHeader('Cache-Control')) {
-      res.setHeader('Cache-Control', 'no-store');
-    }
-    next();
-  };
+	return function securityHeadersMiddleware(req, res, next) {
+		if (isProduction()) {
+			res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+		}
+		// Skip CSP if already set by nonce middleware
+		if (!res.getHeader('Content-Security-Policy')) {
+			const connectSrc = ["'self'", ...toOriginWhitelist(splitOrigins(deskOrigin)), ...apiOrigins];
+			if (!connectSrc.some((o) => o.startsWith('http'))) connectSrc.push('https:', 'wss:');
+			const frameAncestors = ["'self'"];
+			if (allowFraming) frameAncestors.push(...toOriginWhitelist(splitOrigins(deskOrigin)));
+			const csp = [
+				"default-src 'self'",
+				`script-src 'self' blob:`,
+				`style-src 'self' 'unsafe-inline'`,
+				`img-src 'self' data: blob: https:`,
+				// No external font origin: the app self-hosts its fonts.
+				`font-src 'self' data:`,
+				`connect-src ${connectSrc.join(' ')}`,
+				`media-src 'self' blob:`,
+				`object-src 'none'`,
+				`base-uri 'self'`,
+				`form-action 'self'`,
+				`frame-ancestors ${frameAncestors.join(' ')}`,
+				'upgrade-insecure-requests',
+			].join('; ');
+			res.setHeader('Content-Security-Policy', csp);
+		}
+		res.setHeader('X-Content-Type-Options', 'nosniff');
+		res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+		res.setHeader(
+			'Permissions-Policy',
+			'geolocation=(), microphone=(), camera=(), payment=(), usb=(), midi=(), sync-xhr=(), accelerometer=(), gyroscope=(), magnetometer=(), display-capture=(), fullscreen=(self), autoplay=(self)',
+		);
+		if (allowCode) res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+		if (req.path.startsWith('/api/') && !res.getHeader('Cache-Control')) {
+			res.setHeader('Cache-Control', 'no-store');
+		}
+		next();
+	};
 }
 
 /**
@@ -125,8 +125,8 @@ export function securityHeaders(options = {}) {
  * orchestrator) before routes so every response carries the hardened headers.
  */
 export function registerSecurityHeaders(app, options = {}) {
-  app.use(securityHeaders(options));
-  return app;
+	app.use(securityHeaders(options));
+	return app;
 }
 
 export default { securityHeaders, registerSecurityHeaders };

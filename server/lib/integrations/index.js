@@ -5,14 +5,14 @@ import { ErpnextAdapter } from './adapters/erpnext.js';
 import { OdooAdapter } from './adapters/odoo.js';
 
 const adapters = new Map([
-  ['base', new BaseAdapter()],
-  ['erpnext', new ErpnextAdapter()],
-  ['odoo', new OdooAdapter()],
+	['base', new BaseAdapter()],
+	['erpnext', new ErpnextAdapter()],
+	['odoo', new OdooAdapter()],
 ]);
 
 export function initIntegrationTables() {
-  try {
-    db.exec(`
+	try {
+		db.exec(`
       CREATE TABLE IF NOT EXISTS integration_configs (
         id TEXT PRIMARY KEY,
         tenant_id TEXT NOT NULL DEFAULT 'STD',
@@ -54,35 +54,35 @@ export function initIntegrationTables() {
       CREATE INDEX IF NOT EXISTS idx_intrun_tenant ON integration_runs(tenant_id, status, id);
       CREATE INDEX IF NOT EXISTS idx_intcfg_tenant ON integration_configs(tenant_id, is_active);
     `);
-  } catch {
-    // best effort; routes stay alive
-  }
+	} catch {
+		// best effort; routes stay alive
+	}
 }
 
 export function listAdapters() {
-  return [...adapters.values()].map((a) => ({
-    key: a.key,
-    kind: a.kind,
-    displayName: a.displayName,
-    configSchema: a.configSchema(),
-  }));
+	return [...adapters.values()].map((a) => ({
+		key: a.key,
+		kind: a.kind,
+		displayName: a.displayName,
+		configSchema: a.configSchema(),
+	}));
 }
 
 export function getAdapter(key) {
-  return adapters.get(String(key || '').toLowerCase()) || null;
+	return adapters.get(String(key || '').toLowerCase()) || null;
 }
 
 /** Redact secrets before returning configs to API callers. */
 export function redactConfig(row) {
-  if (!row) return row;
-  const { credentials, ...rest } = row;
-  let credKeys = [];
-  try {
-    credKeys = Object.keys(JSON.parse(credentials || '{}'));
-  } catch {
-    credKeys = [];
-  }
-  return { ...rest, credential_keys: credKeys, secret_preview: '***' };
+	if (!row) return row;
+	const { credentials, ...rest } = row;
+	let credKeys = [];
+	try {
+		credKeys = Object.keys(JSON.parse(credentials || '{}'));
+	} catch {
+		credKeys = [];
+	}
+	return { ...rest, credential_keys: credKeys, secret_preview: '***' };
 }
 
 export default { listAdapters, getAdapter, redactConfig, initIntegrationTables };

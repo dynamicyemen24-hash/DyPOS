@@ -1,8 +1,14 @@
 const { DatabaseSync } = require('node:sqlite');
 const db = new DatabaseSync('./data/dypos.db');
 
-console.log('Tables:', db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map(r => r.name));
-console.log('Migration version:', db.prepare("SELECT * FROM schema_version ORDER BY version DESC LIMIT 1").get());
+console.log(
+	'Tables:',
+	db
+		.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+		.all()
+		.map((r) => r.name),
+);
+console.log('Migration version:', db.prepare('SELECT * FROM schema_version ORDER BY version DESC LIMIT 1').get());
 console.log('Currencies:', db.prepare('SELECT * FROM currencies').all());
 console.log('UOMs:', db.prepare('SELECT * FROM uoms').all());
 console.log('Tenants:', db.prepare('SELECT * FROM tenants').all());

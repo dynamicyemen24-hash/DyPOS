@@ -24,8 +24,8 @@ const SETUP = './tests/setup.js';
 
 const argv = process.argv.slice(2);
 const flag = (name, fallback) => {
-  const i = argv.indexOf(name);
-  return i === -1 ? fallback : argv[i + 1];
+	const i = argv.indexOf(name);
+	return i === -1 ? fallback : argv[i + 1];
 };
 const reporter = flag('--reporter', 'spec');
 const watch = argv.includes('--watch');
@@ -33,26 +33,26 @@ const consumed = new Set(['--reporter', reporter, '--watch']);
 const explicit = argv.filter((a) => !consumed.has(a) && !a.startsWith('--'));
 
 const files = explicit.length
-  ? explicit.map((f) => resolve(process.cwd(), f))
-  : readdirSync(TESTS_DIR)
-      .filter((f) => f.endsWith('.test.js'))
-      .sort()
-      .map((f) => join(TESTS_DIR, f));
+	? explicit.map((f) => resolve(process.cwd(), f))
+	: readdirSync(TESTS_DIR)
+			.filter((f) => f.endsWith('.test.js'))
+			.sort()
+			.map((f) => join(TESTS_DIR, f));
 
 if (files.length === 0) {
-  console.error('[DyPOS] no test files found — refusing to report a green run.');
-  process.exit(1);
+	console.error('[DyPOS] no test files found — refusing to report a green run.');
+	process.exit(1);
 }
 
 const args = ['--import', SETUP, ...(watch ? ['--watch'] : []), '--test', `--test-reporter=${reporter}`, ...files];
 const child = spawn(process.execPath, args, {
-  stdio: 'inherit',
-  cwd: resolve(import.meta.dirname, '..'),
+	stdio: 'inherit',
+	cwd: resolve(import.meta.dirname, '..'),
 });
 child.on('exit', (code, signal) => {
-  if (signal) {
-    console.error(`[DyPOS] test run killed by ${signal}`);
-    process.exit(1);
-  }
-  process.exit(code ?? 1);
+	if (signal) {
+		console.error(`[DyPOS] test run killed by ${signal}`);
+		process.exit(1);
+	}
+	process.exit(code ?? 1);
 });

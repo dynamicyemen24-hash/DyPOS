@@ -19,17 +19,17 @@ import { detectDevice, adaptationFor, deviceWarnings, serverWarnings } from '../
 const router = Router();
 
 router.get('/', (req, res) => {
-  const ua = String(req.headers['user-agent'] || '');
-  const device = detectDevice(ua);
-  const adaptation = adaptationFor(device);
-  const mem = process.memoryUsage();
-  const server = {
-    rss_mb: Math.round(mem.rss / 1048576),
-    heap_mb: Math.round(mem.heapUsed / 1048576),
-    uptime_s: Math.round(process.uptime()),
-  };
-  const warnings = [...deviceWarnings(device), ...serverWarnings(server)];
-  return res.json({ device, adaptation, server, warnings });
+	const ua = String(req.headers['user-agent'] || '');
+	const device = detectDevice(ua);
+	const adaptation = adaptationFor(device);
+	const mem = process.memoryUsage();
+	const server = {
+		rss_mb: Math.round(mem.rss / 1048576),
+		heap_mb: Math.round(mem.heapUsed / 1048576),
+		uptime_s: Math.round(process.uptime()),
+	};
+	const warnings = [...deviceWarnings(device), ...serverWarnings(server)];
+	return res.json({ device, adaptation, server, warnings });
 });
 
 export default router;

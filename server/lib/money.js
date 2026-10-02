@@ -13,30 +13,30 @@
  *   pctOf(1999, 15) → 300  (15% VAT, rounded half-up)
  */
 export function toMinor(major) {
-  const n = Number(major);
-  if (!Number.isFinite(n)) return 0;
-  return Math.round(n * 100);
+	const n = Number(major);
+	if (!Number.isFinite(n)) return 0;
+	return Math.round(n * 100);
 }
 
 export function toMajor(minor) {
-  return (Math.round(Number(minor) || 0)) / 100;
+	return Math.round(Number(minor) || 0) / 100;
 }
 
 /** Round half-up to 2 decimals (single canonical rounding for display/storage). */
 export function r2(n) {
-  return toMajor(toMinor(n));
+	return toMajor(toMinor(n));
 }
 
 /** Percent of a minor amount, rounded half-up to a minor unit. */
 export function pctOf(minor, rate) {
-  return Math.round((Math.round(Number(minor) || 0) * Number(rate || 0)) / 100);
+	return Math.round((Math.round(Number(minor) || 0) * Number(rate || 0)) / 100);
 }
 
 /** Clamp a minor amount into [0, capMinor]. */
 export function clampMinor(minor, capMinor) {
-  const m = Math.round(Number(minor) || 0);
-  const cap = Math.round(Number(capMinor) || 0);
-  return Math.max(0, Math.min(m, cap));
+	const m = Math.round(Number(minor) || 0);
+	const cap = Math.round(Number(capMinor) || 0);
+	return Math.max(0, Math.min(m, cap));
 }
 
 /**
@@ -61,25 +61,25 @@ export function clampMinor(minor, capMinor) {
  * @returns {{discountMinor:number, grossMinor:number, netMinor:number, taxMinor:number, totalMinor:number, taxRate:number}}
  */
 export function computeLineMinor(line = {}) {
-  const qty = Number(line.qty);
-  const price = Number(line.price);
-  const discountMinor = clampMinor(toMinor(line.discount), toMinor(qty * price));
-  const rate = Math.max(0, Math.min(Number(line.taxRate) || 0, 100));
-  const grossMinor = toMinor(qty * price) - discountMinor;
-  let netMinor = grossMinor;
-  let taxMinor = pctOf(grossMinor, rate);
-  if (line.taxInclusive && rate > 0) {
-    netMinor = Math.round((grossMinor * 100) / (100 + rate));
-    taxMinor = grossMinor - netMinor;
-  }
-  return {
-    discountMinor,
-    grossMinor,
-    netMinor,
-    taxMinor,
-    totalMinor: netMinor + taxMinor,
-    taxRate: rate,
-  };
+	const qty = Number(line.qty);
+	const price = Number(line.price);
+	const discountMinor = clampMinor(toMinor(line.discount), toMinor(qty * price));
+	const rate = Math.max(0, Math.min(Number(line.taxRate) || 0, 100));
+	const grossMinor = toMinor(qty * price) - discountMinor;
+	let netMinor = grossMinor;
+	let taxMinor = pctOf(grossMinor, rate);
+	if (line.taxInclusive && rate > 0) {
+		netMinor = Math.round((grossMinor * 100) / (100 + rate));
+		taxMinor = grossMinor - netMinor;
+	}
+	return {
+		discountMinor,
+		grossMinor,
+		netMinor,
+		taxMinor,
+		totalMinor: netMinor + taxMinor,
+		taxRate: rate,
+	};
 }
 
 export default { toMinor, toMajor, r2, pctOf, clampMinor, computeLineMinor };

@@ -16,58 +16,58 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const POS_PUBLIC_DIR = join(__dirname, '..', '..', 'POS', 'dist', 'pos');
 
 function readJson(name, fallback) {
-  try {
-    const raw = readFileSync(join(POS_PUBLIC_DIR, name), 'utf8');
-    return JSON.parse(raw);
-  } catch {
-    return fallback;
-  }
+	try {
+		const raw = readFileSync(join(POS_PUBLIC_DIR, name), 'utf8');
+		return JSON.parse(raw);
+	} catch {
+		return fallback;
+	}
 }
 
 const SEVERITIES = Object.freeze(['optional', 'recommended', 'critical']);
 
 function normalizeSeverity(value) {
-  const s = String(value || 'recommended').toLowerCase();
-  return SEVERITIES.includes(s) ? s : 'recommended';
+	const s = String(value || 'recommended').toLowerCase();
+	return SEVERITIES.includes(s) ? s : 'recommended';
 }
 
 /** Unified release feed: code version wins, static files enrich. */
 export function getReleaseFeed() {
-  const versionFile = readJson('version.json', {});
-  const releaseFile = readJson('release.json', {});
-  return {
-    version: VERSION,
-    build: versionFile.build || `DyPOS-${VERSION}`,
-    publishedAt: releaseFile.publishedAt || versionFile.timestamp || null,
-    target: releaseFile.target || 'https://dypos.smartportssoft.com/',
-    severity: normalizeSeverity(releaseFile.severity),
-    minVersion: String(releaseFile.minVersion || ''),
-    title: releaseFile.title || 'تحديث DyPOS الجديد متوفر الآن',
-    highlights: Array.isArray(releaseFile.highlights) ? releaseFile.highlights : [],
-  };
+	const versionFile = readJson('version.json', {});
+	const releaseFile = readJson('release.json', {});
+	return {
+		version: VERSION,
+		build: versionFile.build || `DyPOS-${VERSION}`,
+		publishedAt: releaseFile.publishedAt || versionFile.timestamp || null,
+		target: releaseFile.target || 'https://dypos.smartportssoft.com/',
+		severity: normalizeSeverity(releaseFile.severity),
+		minVersion: String(releaseFile.minVersion || ''),
+		title: releaseFile.title || 'تحديث DyPOS الجديد متوفر الآن',
+		highlights: Array.isArray(releaseFile.highlights) ? releaseFile.highlights : [],
+	};
 }
 
 /** Publish hook: stamp a new release without redeploying code. */
 export function publishRelease({ version, highlights, title, severity, minVersion }) {
-  const feed = {
-    version: String(version || VERSION),
-    publishedAt: new Date().toISOString(),
-    target: 'https://dypos.smartportssoft.com/',
-    severity: normalizeSeverity(severity),
-    minVersion: String(minVersion || ''),
-    title: String(title || 'تحديث DyPOS الجديد متوفر الآن'),
-    highlights: Array.isArray(highlights) ? highlights.slice(0, 20) : [],
-  };
-  writeFileSync(join(POS_PUBLIC_DIR, 'release.json'), JSON.stringify(feed, null, 2) + '\n');
-  const versionStamp = {
-    version: feed.version,
-    build: `DyPOS-${feed.version}-published`,
-    timestamp: feed.publishedAt,
-    buildDate: new Date(feed.publishedAt).toDateString(),
-    target: feed.target,
-  };
-  writeFileSync(join(POS_PUBLIC_DIR, 'version.json'), JSON.stringify(versionStamp, null, 2) + '\n');
-  return feed;
+	const feed = {
+		version: String(version || VERSION),
+		publishedAt: new Date().toISOString(),
+		target: 'https://dypos.smartportssoft.com/',
+		severity: normalizeSeverity(severity),
+		minVersion: String(minVersion || ''),
+		title: String(title || 'تحديث DyPOS الجديد متوفر الآن'),
+		highlights: Array.isArray(highlights) ? highlights.slice(0, 20) : [],
+	};
+	writeFileSync(join(POS_PUBLIC_DIR, 'release.json'), `${JSON.stringify(feed, null, 2)}\n`);
+	const versionStamp = {
+		version: feed.version,
+		build: `DyPOS-${feed.version}-published`,
+		timestamp: feed.publishedAt,
+		buildDate: new Date(feed.publishedAt).toDateString(),
+		target: feed.target,
+	};
+	writeFileSync(join(POS_PUBLIC_DIR, 'version.json'), `${JSON.stringify(versionStamp, null, 2)}\n`);
+	return feed;
 }
 
 export default { getReleaseFeed, publishRelease };

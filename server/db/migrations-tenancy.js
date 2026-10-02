@@ -12,8 +12,8 @@
  */
 
 export function migrateTenancy(db, addColumnIfMissing, currentVersion) {
-  if (currentVersion < 8) {
-    db.exec(`
+	if (currentVersion < 8) {
+		db.exec(`
       CREATE TABLE IF NOT EXISTS tenants (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -63,28 +63,30 @@ export function migrateTenancy(db, addColumnIfMissing, currentVersion) {
       CREATE INDEX IF NOT EXISTS idx_trail_entity ON audit_trail(entity_type, entity_id, id);
       CREATE INDEX IF NOT EXISTS idx_trail_tenant ON audit_trail(tenant_id, created_at DESC);
     `);
-    addColumnIfMissing('products', 'tenant_id', 'TEXT');
-    addColumnIfMissing('products', 'created_by', 'TEXT');
-    addColumnIfMissing('products', 'updated_by', 'TEXT');
-    addColumnIfMissing('customers', 'tenant_id', 'TEXT');
-    addColumnIfMissing('customers', 'created_by', 'TEXT');
-    addColumnIfMissing('customers', 'updated_by', 'TEXT');
-    addColumnIfMissing('invoices', 'tenant_id', 'TEXT');
-    addColumnIfMissing('invoices', 'branch_id', 'TEXT');
-    addColumnIfMissing('invoices', 'created_by', 'TEXT');
-    addColumnIfMissing('invoices', 'updated_by', 'TEXT');
-    addColumnIfMissing('shifts', 'tenant_id', 'TEXT');
-    addColumnIfMissing('shifts', 'branch_id', 'TEXT');
-    addColumnIfMissing('warehouses', 'tenant_id', 'TEXT');
-    addColumnIfMissing('warehouses', 'branch_id', 'TEXT');
-    addColumnIfMissing('users', 'tenant_id', 'TEXT');
-    db.exec(`
+		addColumnIfMissing('products', 'tenant_id', 'TEXT');
+		addColumnIfMissing('products', 'created_by', 'TEXT');
+		addColumnIfMissing('products', 'updated_by', 'TEXT');
+		addColumnIfMissing('customers', 'tenant_id', 'TEXT');
+		addColumnIfMissing('customers', 'created_by', 'TEXT');
+		addColumnIfMissing('customers', 'updated_by', 'TEXT');
+		addColumnIfMissing('invoices', 'tenant_id', 'TEXT');
+		addColumnIfMissing('invoices', 'branch_id', 'TEXT');
+		addColumnIfMissing('invoices', 'created_by', 'TEXT');
+		addColumnIfMissing('invoices', 'updated_by', 'TEXT');
+		addColumnIfMissing('shifts', 'tenant_id', 'TEXT');
+		addColumnIfMissing('shifts', 'branch_id', 'TEXT');
+		addColumnIfMissing('warehouses', 'tenant_id', 'TEXT');
+		addColumnIfMissing('warehouses', 'branch_id', 'TEXT');
+		addColumnIfMissing('users', 'tenant_id', 'TEXT');
+		db.exec(`
       CREATE INDEX IF NOT EXISTS idx_products_tenant ON products(tenant_id);
       CREATE INDEX IF NOT EXISTS idx_customers_tenant ON customers(tenant_id);
       CREATE INDEX IF NOT EXISTS idx_invoices_tenant ON invoices(tenant_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_shifts_tenant ON shifts(tenant_id, status);
     `);
-    db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
-      .run(8, 'Tenancy hierarchy + scoping + control fields + audit_trail');
-  }
+		db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)').run(
+			8,
+			'Tenancy hierarchy + scoping + control fields + audit_trail',
+		);
+	}
 }

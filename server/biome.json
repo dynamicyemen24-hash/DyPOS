@@ -10,7 +10,9 @@
 		"includes": ["**/*.js", "**/*.mjs", "**/*.cjs"]
 	},
 	"formatter": {
-		"enabled": false
+		"enabled": true,
+		"indentStyle": "tab",
+		"lineWidth": 120
 	},
 	"assist": { "actions": { "source": { "organizeImports": "off" } } },
 	"linter": {
@@ -19,11 +21,11 @@
 			"preset": "recommended",
 			"style": {
 				"useImportType": "error",
-				"useNodejsImportProtocol": "off",
-				"useTemplate": "off",
-				"useSingleVarDeclarator": "off",
-				"useNumberNamespace": "off",
-				"noUnusedTemplateLiteral": "off"
+				"useNodejsImportProtocol": "error",
+				"useTemplate": "error",
+				"useSingleVarDeclarator": "error",
+				"useNumberNamespace": "error",
+				"noUnusedTemplateLiteral": "error"
 			}
 		}
 	},

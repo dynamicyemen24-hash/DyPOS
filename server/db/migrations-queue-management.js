@@ -35,7 +35,7 @@ export function migrateQueueManagement(
 	// Injected for every LATE_MIGRATIONS step; unused here because the tables
 	// are created whole (no column is added to a pre-existing table).
 	_addColumnIfMissing,
-	{ version = 33, description = "queue management (tickets, counters, calls)" } = {},
+	{ version = 33, description = 'queue management (tickets, counters, calls)' } = {},
 ) {
 	db.exec(`
     -- الخدمات (كاشير، استقبال، دعم…)
@@ -170,9 +170,7 @@ export function migrateQueueManagement(
       ON queue_events(session_id, version);
   `);
 
-	db.prepare(
-		"INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)",
-	).run(version, description);
+	db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)').run(version, description);
 	return version;
 }
 

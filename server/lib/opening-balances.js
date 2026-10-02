@@ -108,10 +108,7 @@ export function parseAmountMinor(value, { field = 'المبلغ', row = null, al
 	}
 	const minor = toMinor(n);
 	if (Math.abs(minor) > MAX_AMOUNT_MINOR) {
-		throw new OpeningBalanceError(
-			`${field} يتجاوز الحد المسموح (${r2(MAX_AMOUNT_MINOR)})`,
-			row,
-		);
+		throw new OpeningBalanceError(`${field} يتجاوز الحد المسموح (${r2(MAX_AMOUNT_MINOR)})`, row);
 	}
 	return minor;
 }
@@ -173,16 +170,15 @@ export function normaliseFiscalYear(value, row = null) {
  * the labels in {@link ACCOUNT_TYPE_LABELS} are a real input format.
  */
 export function normaliseAccountType(value, row = null) {
-	const raw = String(value ?? '').trim().toLowerCase();
+	const raw = String(value ?? '')
+		.trim()
+		.toLowerCase();
 	if (!raw) throw new OpeningBalanceError('نوع الحساب مطلوب', row);
 	if (ACCOUNT_TYPES.includes(raw)) return raw;
 	for (const [type, label] of Object.entries(ACCOUNT_TYPE_LABELS)) {
 		if (label === raw) return type;
 	}
-	throw new OpeningBalanceError(
-		`نوع حساب غير معروف: ${value} (المسموح: ${ACCOUNT_TYPES.join('، ')})`,
-		row,
-	);
+	throw new OpeningBalanceError(`نوع حساب غير معروف: ${value} (المسموح: ${ACCOUNT_TYPES.join('، ')})`, row);
 }
 
 /**
@@ -242,21 +238,19 @@ export function buildProductIndex(db, tenantId = '') {
  * whole feature exists to remove.
  */
 export function summariseOpeningBalances(rows = []) {
-  const totals = Object.fromEntries(
-    ACCOUNT_TYPES.map((type) => [type, { amountMinor: 0, quantity: 0, count: 0 }]),
-  );
-  for (const row of rows) {
-    // An unknown type is still counted, never dropped: a row the summary cannot
-    // classify is data the caller must be able to see.
-    if (!totals[row.account_type]) totals[row.account_type] = { amountMinor: 0, quantity: 0, count: 0 };
-    const bucket = totals[row.account_type];
-    bucket.amountMinor += Number(row.amount_minor) || 0;
-    bucket.quantity += Number(row.quantity) || 0;
-    bucket.count += 1;
-  }
-  return Object.fromEntries(
-    Object.entries(totals).map(([type, v]) => [type, { ...v, amountMinor: Math.round(v.amountMinor) }]),
-  );
+	const totals = Object.fromEntries(ACCOUNT_TYPES.map((type) => [type, { amountMinor: 0, quantity: 0, count: 0 }]));
+	for (const row of rows) {
+		// An unknown type is still counted, never dropped: a row the summary cannot
+		// classify is data the caller must be able to see.
+		if (!totals[row.account_type]) totals[row.account_type] = { amountMinor: 0, quantity: 0, count: 0 };
+		const bucket = totals[row.account_type];
+		bucket.amountMinor += Number(row.amount_minor) || 0;
+		bucket.quantity += Number(row.quantity) || 0;
+		bucket.count += 1;
+	}
+	return Object.fromEntries(
+		Object.entries(totals).map(([type, v]) => [type, { ...v, amountMinor: Math.round(v.amountMinor) }]),
+	);
 }
 
 /**
@@ -290,7 +284,9 @@ export function normaliseOpeningBalance(input = {}, { row = null, tenantId = '',
 	}
 	const accountType = normaliseAccountType(input.accountType ?? input.account_type, row);
 	const accountId = String(input.accountId ?? input.account_id ?? '').trim();
-	const accountCode = String(input.accountCode ?? input.account_code ?? '').trim().slice(0, 128);
+	const accountCode = String(input.accountCode ?? input.account_code ?? '')
+		.trim()
+		.slice(0, 128);
 	// cash/supplier positions legitimately have no counterparty row.
 	if (accountType === 'customer' && !accountId) {
 		throw new OpeningBalanceError('معرّف العميل مطلوب لرصيد افتتاحي لعميل', row);
@@ -331,14 +327,18 @@ export function normaliseOpeningBalance(input = {}, { row = null, tenantId = '',
 		account_type: accountType,
 		account_id: accountId,
 		account_code: accountCode,
-		account_name: String(input.accountName ?? input.account_name ?? '').trim().slice(0, 256),
+		account_name: String(input.accountName ?? input.account_name ?? '')
+			.trim()
+			.slice(0, 256),
 		// Empty string (never `null`) so callers can bind it uniformly; the SQL
 		// layer writes NULL for '', because the column is a FOREIGN KEY and ''
 		// is a non-NULL value no `products.id` can satisfy.
 		product_id: productId,
 		amount_minor: amountMinor,
 		quantity,
-		notes: String(input.notes ?? '').trim().slice(0, 1000),
+		notes: String(input.notes ?? '')
+			.trim()
+			.slice(0, 1000),
 	};
 }
 

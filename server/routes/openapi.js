@@ -9,153 +9,490 @@ import { VERSION } from '../lib/version.js';
 const router = Router();
 
 const SPEC = {
-  openapi: '3.0.3',
-  info: {
-    title: 'DyPOS API',
-    version: VERSION,
-    description: 'Point of Sale REST API — auth, catalog, sales, stock, shifts, sync, import/export, webhooks, print, offers/coupons, wallet/loyalty. Idempotent invoice creation via `idempotencyKey`.',
-    license: { name: 'ISC' },
-  },
-  servers: [{ url: '/api', description: 'DyPOS server (same origin)' }],
-  tags: [
-    { name: 'auth', description: 'Login, register, sessions' },
-    { name: 'products', description: 'Catalog CRUD + search' },
-    { name: 'customers', description: 'Customers, loyalty, credit, wallet' },
-    { name: 'invoices', description: 'Sales, payments, void/return, coupons' },
-    { name: 'shifts', description: 'Open/close/handover, reports' },
-    { name: 'stock', description: 'Levels + adjustments + transfers' },
-    { name: 'sync', description: 'ERP checkpoint sync' },
-    { name: 'export', description: 'CSV/JSON bulk export (paginated)' },
-    { name: 'import', description: 'Bulk upsert (JSON/CSV, dryRun)' },
-    { name: 'webhooks', description: 'Subscriptions + outbox' },
-    { name: 'offers', description: 'Offers CRUD + coupons + validate + evaluate' },
-    { name: 'tenancy', description: 'Tenants → organizations → branches' },
-    { name: 'subscriptions', description: 'Recurring plans + customer subscriptions + billing runs' },
-    { name: 'masters', description: 'Currencies + UoMs + payment methods + business settings + fiscal years' },
-    { name: 'print', description: 'HTML receipts (ZATCA QR when configured)' },
-    { name: 'reports', description: 'Management aggregates (read-only)' },
-    { name: 'admin', description: 'Backups, integrity, users, audit (ADMIN)' },
-  ],
-  components: {
-    securitySchemes: { bearer: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
-    schemas: {
-      Error: { type: 'object', properties: { error: { type: 'string' } }, required: ['error'] },
-      Paginated: { type: 'object', properties: { limit: { type: 'integer' }, offset: { type: 'integer' }, total: { type: 'integer' }, hasMore: { type: 'boolean' } } },
-      Product: { type: 'object', properties: { id: { type: 'string' }, code: { type: 'string' }, name: { type: 'string' }, unitPrice: { type: 'number' }, taxRate: { type: 'number' } } },
-      SubscriptionPlan: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, nameAr: { type: 'string' }, price: { type: 'number' }, currency: { type: 'string' }, intervalDays: { type: 'integer' }, is_active: { type: 'integer' }, created_by: { type: 'string' }, created_at: { type: 'string' } } },
-      SubscriptionPlanCreate: { type: 'object', required: ['name', 'price', 'intervalDays'], properties: { name: { type: 'string', maxLength: 100 }, nameAr: { type: 'string', maxLength: 100 }, price: { type: 'number', minimum: 0.01, maximum: 1000000 }, intervalDays: { type: 'integer', minimum: 1, maximum: 3650 }, currency: { type: 'string', default: 'SAR' } } },
-      SubscriptionPlanUpdate: { type: 'object', properties: { name: { type: 'string', maxLength: 100 }, nameAr: { type: 'string', maxLength: 100 }, price: { type: 'number', minimum: 0.01, maximum: 1000000 }, intervalDays: { type: 'integer', minimum: 1, maximum: 3650 }, is_active: { type: 'integer', enum: [0, 1] } } },
-      SubscriptionSubscribe: { type: 'object', required: ['customerId', 'planId'], properties: { customerId: { type: 'string' }, planId: { type: 'string' }, autoRenew: { type: 'integer', enum: [0, 1], default: 0 } } },
-      Subscription: { type: 'object', properties: { id: { type: 'string' }, customerId: { type: 'string' }, customerName: { type: 'string' }, planId: { type: 'string' }, planName: { type: 'string' }, status: { type: 'string', enum: ['active', 'paused', 'cancelled', 'expired'] }, price: { type: 'number' }, currency: { type: 'string' }, intervalDays: { type: 'integer' }, start_date: { type: 'string' }, next_billing_date: { type: 'string' }, last_billed_at: { type: 'string' }, auto_renew: { type: 'integer' }, created_at: { type: 'string' }, updated_at: { type: 'string' } } },
-      SubscriptionBilling: { type: 'object', properties: { id: { type: 'string' }, subscription_id: { type: 'string' }, customer_id: { type: 'string' }, amount: { type: 'number' }, currency: { type: 'string' }, method: { type: 'string', enum: ['wallet', 'due'] }, billed_at: { type: 'string' }, period_start: { type: 'string', nullable: true }, periods_consolidated: { type: 'integer' }, tenant_id: { type: 'string' } } },
-      SubscriptionReport: { type: 'object', properties: { byStatus: { type: 'object', properties: { active: { type: 'integer' }, paused: { type: 'integer' }, cancelled: { type: 'integer' }, expired: { type: 'integer' } } }, mrr: { type: 'number' }, dueBillings: { type: 'object', properties: { count: { type: 'integer' }, total: { type: 'number' } } } } },
-      BillingRun: { type: 'object', properties: { date: { type: 'string' }, billed: { type: 'integer' }, wallet: { type: 'integer' }, due: { type: 'integer' }, skipped: { type: 'integer' }, results: { type: 'array', items: { $ref: '#/components/schemas/SubscriptionBilling' } } } },
-      BillingRunRequest: { type: 'object', properties: { date: { type: 'string' } } },
-    },
-  },
-  security: [{ bearer: [] }],
-  paths: {
-    '/auth/login': { post: { tags: ['auth'], security: [], summary: 'Login → JWT', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { username: { type: 'string' }, password: { type: 'string' } }, required: ['username', 'password'] } } } }, responses: { 200: { description: 'token + user' }, 401: { description: 'bad credentials' }, 429: { description: 'locked' } } } },
-    '/auth/register': { post: { tags: ['auth'], security: [], summary: 'Bootstrap or ADMIN-created user' } },
-    '/auth/logout': { post: { tags: ['auth'], summary: 'Revoke current token' } },
-    '/auth/logout-all': { post: { tags: ['auth'], summary: 'Revoke all sessions' } },
-    '/auth/refresh': { post: { tags: ['auth'], summary: 'Rotate current token (old dies)' } },
-    '/auth/forgot': { post: { tags: ['auth'], security: [], summary: 'Issue single-use reset token (no enumeration)' } },
-    '/auth/reset': { post: { tags: ['auth'], security: [], summary: 'Redeem reset token once' } },
-    '/auth/sessions': { get: { tags: ['auth'], summary: 'List my sessions' } },
-    '/auth/sessions/{id}': { delete: { tags: ['auth'], summary: 'Revoke one of my sessions' } },
-    '/auth/change-password': { post: { tags: ['auth'], summary: 'Change password (revokes other sessions)' } },
-    '/auth/me': { get: { tags: ['auth'], summary: 'Current user' } },
-    '/auth/users': { get: { tags: ['auth'], summary: 'List users (ADMIN, paginated)' } },
-    '/products': {
-      get: { tags: ['products'], summary: 'Search catalog (FTS5, cached 5s, ETag/304, ?count=false)', parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }, { name: 'category', in: 'query', schema: { type: 'string' } }, { name: 'brand', in: 'query', schema: { type: 'string' } }, { name: 'barcode', in: 'query', schema: { type: 'string' } }, { name: 'sort', in: 'query', schema: { type: 'string', enum: ['name', 'price', 'created'] } }, { name: 'order', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'] } }, { name: 'limit', in: 'query', schema: { type: 'integer' } }, { name: 'offset', in: 'query', schema: { type: 'integer' } }] },
-      post: { tags: ['products'], summary: 'Create product (invalidates catalog cache)' },
-    },
-    '/products/{id}': { get: { tags: ['products'], summary: 'Get product' }, put: { tags: ['products'], summary: 'Update product' }, patch: { tags: ['products'], summary: 'Partial update' }, delete: { tags: ['products'], summary: 'Soft-delete (ADMIN/MANAGER)' } },
-    '/products/{id}/toggle': { patch: { tags: ['products'], summary: 'Toggle active (ADMIN/MANAGER)' } },
-    '/customers': { get: { tags: ['customers'], summary: 'Search customers' }, post: { tags: ['customers'], summary: 'Create customer' } },
-    '/customers/{id}/balance': { get: { tags: ['customers'], summary: 'Loyalty/wallet/credit snapshot' } },
-    '/customers/{id}/wallet': { post: { tags: ['customers'], summary: 'Wallet credit/debit (ADMIN/MANAGER)' }, get: { tags: ['customers'], summary: 'Wallet ledger (v7, paginated)' } },
-    '/customers/{id}/loyalty/redeem': { post: { tags: ['customers'], summary: 'Redeem points → wallet (auto-tier)' } },
-    '/customers/{id}/loyalty': { get: { tags: ['customers'], summary: 'Points ledger (paginated)' } },
-    '/customers/{id}/credit/pay': { post: { tags: ['customers'], summary: 'Settle outstanding credit' } },
-    '/invoices': {
-      get: { tags: ['invoices'], summary: 'List invoices (total/hasMore, ?after= keyset, ?count=false)' },
-      post: { tags: ['invoices'], summary: 'Create sale (idempotent, optional couponCode; 409 when demand exceeds available stock)', requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/InvoiceCreate' } } } } },
-    },
-    '/invoices/{id}': { get: { tags: ['invoices'], summary: 'Get with items + payments' } },
-    '/invoices/{id}/audit': { get: { tags: ['invoices'], summary: 'Hash-chained mutation trail' } },
-    '/invoices/{id}/pay': { post: { tags: ['invoices'], summary: 'Atomic add-payment (409 on double-pay race, idempotencyKey dedupes)' } },
-    '/invoices/{id}/void': { post: { tags: ['invoices'], summary: 'Void + restore stock (ADMIN/MANAGER)' } },
-    '/invoices/{id}/return': { post: { tags: ['invoices'], summary: 'Return + restore stock, status RETURNED' } },
-    '/invoices/reports/daily': { get: { tags: ['invoices'], summary: 'Daily Z aggregates' } },
-    '/shifts/open': { post: { tags: ['shifts'], summary: 'Open shift (409 if already open)' } },
-    '/shifts': { get: { tags: ['shifts'], summary: 'Shift history (paginated)' } },
-    '/shifts/{id}/close': { post: { tags: ['shifts'], summary: 'Atomic close with variance gate' } },
-    '/shifts/{id}/handover': { post: { tags: ['shifts'], summary: 'Atomic close+open (cashier change)' } },
-    '/shifts/{id}/report': { get: { tags: ['shifts'], summary: 'Shift report (invoices × payments)' } },
-    '/shifts/{id}/xreport': { get: { tags: ['shifts'], summary: 'Mid-shift snapshot (no mutation)' } },
-    '/reports/summary': { get: { tags: ['reports'], summary: 'Range aggregates + top products (ADMIN/MANAGER/AUDITOR)' } },
-    '/stock': { get: { tags: ['stock'], summary: 'Bulk levels (limit/offset, low-stock filter)' } },
-    '/stock/adjust': { post: { tags: ['stock'], summary: 'Adjust qty (ADMIN/MANAGER, audited)' } },
-    '/stock/transfer': { post: { tags: ['stock'], summary: 'Transfer between warehouses (atomic, ADMIN/MANAGER)' } },
-    '/stock/reserve': { post: { tags: ['stock'], summary: 'Reserve available qty' } },
-    '/stock/release': { post: { tags: ['stock'], summary: 'Release a reservation' } },
-    '/tenants': { get: { tags: ['tenancy'], summary: 'List tenants' }, post: { tags: ['tenancy'], summary: 'Create tenant (ADMIN)' } },
-    '/orgs': { get: { tags: ['tenancy'], summary: 'List organizations (?tenant=)' }, post: { tags: ['tenancy'], summary: 'Create organization (ADMIN)' } },
-    '/branches': { get: { tags: ['tenancy'], summary: 'List branches (?org=, ?tenant=)' }, post: { tags: ['tenancy'], summary: 'Create branch (ADMIN/MANAGER)' } },
-    '/currencies': { get: { tags: ['masters'], summary: 'List currencies' }, post: { tags: ['masters'], summary: 'Create currency (ADMIN)' } },
-    '/currencies/convert': { post: { tags: ['masters'], summary: 'Convert amount (master rates)' } },
-    '/uoms': { get: { tags: ['masters'], summary: 'List UoMs (?category=)' }, post: { tags: ['masters'], summary: 'Create UoM (ADMIN/MANAGER)' } },
-    '/uoms/convert': { post: { tags: ['masters'], summary: 'Convert qty (same category)' } },
-    '/payment-methods': { get: { tags: ['masters'], summary: 'List payment methods (?active=)' }, post: { tags: ['masters'], summary: 'Create method (ADMIN)' } },
-    '/payment-methods/{code}/toggle': { patch: { tags: ['masters'], summary: 'Enable/disable method (ADMIN; CASH locked)' } },
-    '/settings': { get: { tags: ['masters'], summary: 'Business profile (country/currency/tax/invoice)' }, put: { tags: ['masters'], summary: 'Update profile keys (ADMIN, all-or-nothing)' } },
-    '/fiscal-years': { get: { tags: ['masters'], summary: 'List fiscal years' }, post: { tags: ['masters'], summary: 'Open a year (ADMIN)' } },
-    '/fiscal-years/{code}/close': { post: { tags: ['masters'], summary: 'Close year — posting then 409s (ADMIN)' } },
-    '/fiscal-years/{code}/reopen': { post: { tags: ['masters'], summary: 'Reopen a closed year (ADMIN)' } },
-    '/sync/pull': { get: { tags: ['sync'], summary: 'Checkpoint pull (hasMore)' } },
-    '/sync/push': { post: { tags: ['sync'], summary: 'Push UPSERT batch (ADMIN/MANAGER, fail-closed)' } },
-    '/sync/checkpoint': { get: { tags: ['sync'], summary: 'Max sync id' } },
-    '/export/{entity}': { get: { tags: ['export'], summary: 'CSV/JSON export (limit/offset, ADMIN/MANAGER/AUDITOR)' } },
-    '/export/{entity}/jobs': { post: { tags: ['export'], summary: 'Background export job up to 100k rows (202 + poll)' } },
-    '/export/jobs': { get: { tags: ['export'], summary: 'List export jobs' } },
-    '/import/{entity}': { post: { tags: ['import'], summary: 'Bulk upsert (dryRun, ADMIN/MANAGER)' } },
-    '/webhooks': { get: { tags: ['webhooks'], summary: 'List subscriptions (ADMIN/MANAGER/AUDITOR)' }, post: { tags: ['webhooks'], summary: 'Subscribe (HMAC secret, ADMIN)' } },
-    '/offers/offers': { get: { tags: ['offers'], summary: 'List offers' }, post: { tags: ['offers'], summary: 'Create offer (ADMIN/MANAGER)' } },
-    '/offers/coupons': { get: { tags: ['offers'], summary: 'List coupons' }, post: { tags: ['offers'], summary: 'Create coupon (ADMIN/MANAGER)' } },
-    '/offers/coupons/validate': { post: { tags: ['offers'], summary: 'Validate coupon (no side effects)' } },
-    '/offers/evaluate': { post: { tags: ['offers'], summary: 'Evaluate active offers over a cart (no side effects)' } },
-    '/print/invoice/{id}': { get: { tags: ['print'], summary: 'Printable HTML + QR (ZATCA-TLV when configured); ?format=xml for UBL 2.1' } },
-    '/print/daily': { get: { tags: ['print'], summary: 'Daily Z HTML' } },
-    '/admin/audit': { get: { tags: ['admin'], summary: 'Audit ringbuffer (ADMIN, filterable)' } },
-    '/admin/trail': { get: { tags: ['admin'], summary: 'Durable before/after trail (ADMIN)' } },
-    '/admin/chain/verify': { get: { tags: ['admin'], summary: 'Verify invoice hash chain (ADMIN)' } },
-    '/admin/zatca/settings': { get: { tags: ['admin'], summary: 'ZATCA identity (ADMIN)' }, put: { tags: ['admin'], summary: 'Update ZATCA identity (ADMIN)' } },
-    '/admin/users/{id}': { patch: { tags: ['admin'], summary: 'Disable/enable, change role (ADMIN)' } },
-    '/admin/backups/{file}': { delete: { tags: ['admin'], summary: 'Prune a snapshot (ADMIN)' } },
-    '/subscriptions': { get: { tags: ['subscriptions'], summary: 'List customer subscriptions (optionally by customerId/status)' } },
-    '/subscriptions/plans': { get: { tags: ['subscriptions'], summary: 'List subscription plans' }, post: { tags: ['subscriptions'], summary: 'Create a plan (ADMIN/MANAGER)' } },
-    '/subscriptions/plans/{id}': { patch: { tags: ['subscriptions'], summary: 'Update plan details (ADMIN/MANAGER)' } },
-    '/subscriptions/subscribe': { post: { tags: ['subscriptions'], summary: 'Subscribe a customer to a plan (ADMIN/MANAGER)' } },
-    '/subscriptions/{id}/pause': { post: { tags: ['subscriptions'], summary: 'Pause an active subscription' } },
-    '/subscriptions/{id}/resume': { post: { tags: ['subscriptions'], summary: 'Resume a paused subscription' } },
-    '/subscriptions/{id}/cancel': { post: { tags: ['subscriptions'], summary: 'Cancel subscription (active/paused only)' } },
-    '/subscriptions/run-billing': { post: { tags: ['subscriptions'], summary: 'Run billing for due subscriptions — wallet auto-pay or record due' } },
-    '/subscriptions/report': { get: { tags: ['subscriptions'], summary: 'Subscription summary: byStatus, mrr, dueBillings' } },
-    '/subscriptions/billings/{customerId}': { get: { tags: ['subscriptions'], summary: 'Billing history for one customer' } },
-    '/admin/api-keys': { get: { tags: ['admin'], summary: 'List machine keys (ADMIN)' }, post: { tags: ['admin'], summary: 'Issue machine key — secret shown once (ADMIN)' } },
-    '/health': { get: { tags: ['admin'], security: [], summary: 'Deep health (DB, cache, outbox, memory)' } },
-    '/device': { get: { tags: ['admin'], security: [], summary: 'Device class + UI adaptation hints + perf warnings (public, UA-driven)' } },
-    '/ready': { get: { tags: ['admin'], security: [], summary: 'Readiness (DB queryable)' } },
-    '/metrics': { get: { tags: ['admin'], summary: 'Prometheus exposition (token-gated when configured)' } },
-    '/openapi.json': { get: { tags: ['admin'], security: [], summary: 'This OpenAPI spec' } },
-  },
+	openapi: '3.0.3',
+	info: {
+		title: 'DyPOS API',
+		version: VERSION,
+		description:
+			'Point of Sale REST API — auth, catalog, sales, stock, shifts, sync, import/export, webhooks, print, offers/coupons, wallet/loyalty. Idempotent invoice creation via `idempotencyKey`.',
+		license: { name: 'ISC' },
+	},
+	servers: [{ url: '/api', description: 'DyPOS server (same origin)' }],
+	tags: [
+		{ name: 'auth', description: 'Login, register, sessions' },
+		{ name: 'products', description: 'Catalog CRUD + search' },
+		{ name: 'customers', description: 'Customers, loyalty, credit, wallet' },
+		{ name: 'invoices', description: 'Sales, payments, void/return, coupons' },
+		{ name: 'shifts', description: 'Open/close/handover, reports' },
+		{ name: 'stock', description: 'Levels + adjustments + transfers' },
+		{ name: 'sync', description: 'ERP checkpoint sync' },
+		{ name: 'export', description: 'CSV/JSON bulk export (paginated)' },
+		{ name: 'import', description: 'Bulk upsert (JSON/CSV, dryRun)' },
+		{ name: 'webhooks', description: 'Subscriptions + outbox' },
+		{ name: 'offers', description: 'Offers CRUD + coupons + validate + evaluate' },
+		{ name: 'tenancy', description: 'Tenants → organizations → branches' },
+		{
+			name: 'subscriptions',
+			description: 'Recurring plans + customer subscriptions + billing runs',
+		},
+		{
+			name: 'masters',
+			description: 'Currencies + UoMs + payment methods + business settings + fiscal years',
+		},
+		{ name: 'print', description: 'HTML receipts (ZATCA QR when configured)' },
+		{ name: 'reports', description: 'Management aggregates (read-only)' },
+		{ name: 'admin', description: 'Backups, integrity, users, audit (ADMIN)' },
+	],
+	components: {
+		securitySchemes: { bearer: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
+		schemas: {
+			Error: { type: 'object', properties: { error: { type: 'string' } }, required: ['error'] },
+			Paginated: {
+				type: 'object',
+				properties: {
+					limit: { type: 'integer' },
+					offset: { type: 'integer' },
+					total: { type: 'integer' },
+					hasMore: { type: 'boolean' },
+				},
+			},
+			Product: {
+				type: 'object',
+				properties: {
+					id: { type: 'string' },
+					code: { type: 'string' },
+					name: { type: 'string' },
+					unitPrice: { type: 'number' },
+					taxRate: { type: 'number' },
+				},
+			},
+			SubscriptionPlan: {
+				type: 'object',
+				properties: {
+					id: { type: 'string' },
+					name: { type: 'string' },
+					nameAr: { type: 'string' },
+					price: { type: 'number' },
+					currency: { type: 'string' },
+					intervalDays: { type: 'integer' },
+					is_active: { type: 'integer' },
+					created_by: { type: 'string' },
+					created_at: { type: 'string' },
+				},
+			},
+			SubscriptionPlanCreate: {
+				type: 'object',
+				required: ['name', 'price', 'intervalDays'],
+				properties: {
+					name: { type: 'string', maxLength: 100 },
+					nameAr: { type: 'string', maxLength: 100 },
+					price: { type: 'number', minimum: 0.01, maximum: 1000000 },
+					intervalDays: { type: 'integer', minimum: 1, maximum: 3650 },
+					currency: { type: 'string', default: 'SAR' },
+				},
+			},
+			SubscriptionPlanUpdate: {
+				type: 'object',
+				properties: {
+					name: { type: 'string', maxLength: 100 },
+					nameAr: { type: 'string', maxLength: 100 },
+					price: { type: 'number', minimum: 0.01, maximum: 1000000 },
+					intervalDays: { type: 'integer', minimum: 1, maximum: 3650 },
+					is_active: { type: 'integer', enum: [0, 1] },
+				},
+			},
+			SubscriptionSubscribe: {
+				type: 'object',
+				required: ['customerId', 'planId'],
+				properties: {
+					customerId: { type: 'string' },
+					planId: { type: 'string' },
+					autoRenew: { type: 'integer', enum: [0, 1], default: 0 },
+				},
+			},
+			Subscription: {
+				type: 'object',
+				properties: {
+					id: { type: 'string' },
+					customerId: { type: 'string' },
+					customerName: { type: 'string' },
+					planId: { type: 'string' },
+					planName: { type: 'string' },
+					status: { type: 'string', enum: ['active', 'paused', 'cancelled', 'expired'] },
+					price: { type: 'number' },
+					currency: { type: 'string' },
+					intervalDays: { type: 'integer' },
+					start_date: { type: 'string' },
+					next_billing_date: { type: 'string' },
+					last_billed_at: { type: 'string' },
+					auto_renew: { type: 'integer' },
+					created_at: { type: 'string' },
+					updated_at: { type: 'string' },
+				},
+			},
+			SubscriptionBilling: {
+				type: 'object',
+				properties: {
+					id: { type: 'string' },
+					subscription_id: { type: 'string' },
+					customer_id: { type: 'string' },
+					amount: { type: 'number' },
+					currency: { type: 'string' },
+					method: { type: 'string', enum: ['wallet', 'due'] },
+					billed_at: { type: 'string' },
+					period_start: { type: 'string', nullable: true },
+					periods_consolidated: { type: 'integer' },
+					tenant_id: { type: 'string' },
+				},
+			},
+			SubscriptionReport: {
+				type: 'object',
+				properties: {
+					byStatus: {
+						type: 'object',
+						properties: {
+							active: { type: 'integer' },
+							paused: { type: 'integer' },
+							cancelled: { type: 'integer' },
+							expired: { type: 'integer' },
+						},
+					},
+					mrr: { type: 'number' },
+					dueBillings: {
+						type: 'object',
+						properties: { count: { type: 'integer' }, total: { type: 'number' } },
+					},
+				},
+			},
+			BillingRun: {
+				type: 'object',
+				properties: {
+					date: { type: 'string' },
+					billed: { type: 'integer' },
+					wallet: { type: 'integer' },
+					due: { type: 'integer' },
+					skipped: { type: 'integer' },
+					results: { type: 'array', items: { $ref: '#/components/schemas/SubscriptionBilling' } },
+				},
+			},
+			BillingRunRequest: { type: 'object', properties: { date: { type: 'string' } } },
+		},
+	},
+	security: [{ bearer: [] }],
+	paths: {
+		'/auth/login': {
+			post: {
+				tags: ['auth'],
+				security: [],
+				summary: 'Login → JWT',
+				requestBody: {
+					required: true,
+					content: {
+						'application/json': {
+							schema: {
+								type: 'object',
+								properties: { username: { type: 'string' }, password: { type: 'string' } },
+								required: ['username', 'password'],
+							},
+						},
+					},
+				},
+				responses: {
+					200: { description: 'token + user' },
+					401: { description: 'bad credentials' },
+					429: { description: 'locked' },
+				},
+			},
+		},
+		'/auth/register': {
+			post: { tags: ['auth'], security: [], summary: 'Bootstrap or ADMIN-created user' },
+		},
+		'/auth/logout': { post: { tags: ['auth'], summary: 'Revoke current token' } },
+		'/auth/logout-all': { post: { tags: ['auth'], summary: 'Revoke all sessions' } },
+		'/auth/refresh': { post: { tags: ['auth'], summary: 'Rotate current token (old dies)' } },
+		'/auth/forgot': {
+			post: {
+				tags: ['auth'],
+				security: [],
+				summary: 'Issue single-use reset token (no enumeration)',
+			},
+		},
+		'/auth/reset': { post: { tags: ['auth'], security: [], summary: 'Redeem reset token once' } },
+		'/auth/sessions': { get: { tags: ['auth'], summary: 'List my sessions' } },
+		'/auth/sessions/{id}': { delete: { tags: ['auth'], summary: 'Revoke one of my sessions' } },
+		'/auth/change-password': {
+			post: { tags: ['auth'], summary: 'Change password (revokes other sessions)' },
+		},
+		'/auth/me': { get: { tags: ['auth'], summary: 'Current user' } },
+		'/auth/users': { get: { tags: ['auth'], summary: 'List users (ADMIN, paginated)' } },
+		'/products': {
+			get: {
+				tags: ['products'],
+				summary: 'Search catalog (FTS5, cached 5s, ETag/304, ?count=false)',
+				parameters: [
+					{ name: 'q', in: 'query', schema: { type: 'string' } },
+					{ name: 'category', in: 'query', schema: { type: 'string' } },
+					{ name: 'brand', in: 'query', schema: { type: 'string' } },
+					{ name: 'barcode', in: 'query', schema: { type: 'string' } },
+					{
+						name: 'sort',
+						in: 'query',
+						schema: { type: 'string', enum: ['name', 'price', 'created'] },
+					},
+					{ name: 'order', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'] } },
+					{ name: 'limit', in: 'query', schema: { type: 'integer' } },
+					{ name: 'offset', in: 'query', schema: { type: 'integer' } },
+				],
+			},
+			post: { tags: ['products'], summary: 'Create product (invalidates catalog cache)' },
+		},
+		'/products/{id}': {
+			get: { tags: ['products'], summary: 'Get product' },
+			put: { tags: ['products'], summary: 'Update product' },
+			patch: { tags: ['products'], summary: 'Partial update' },
+			delete: { tags: ['products'], summary: 'Soft-delete (ADMIN/MANAGER)' },
+		},
+		'/products/{id}/toggle': {
+			patch: { tags: ['products'], summary: 'Toggle active (ADMIN/MANAGER)' },
+		},
+		'/customers': {
+			get: { tags: ['customers'], summary: 'Search customers' },
+			post: { tags: ['customers'], summary: 'Create customer' },
+		},
+		'/customers/{id}/balance': {
+			get: { tags: ['customers'], summary: 'Loyalty/wallet/credit snapshot' },
+		},
+		'/customers/{id}/wallet': {
+			post: { tags: ['customers'], summary: 'Wallet credit/debit (ADMIN/MANAGER)' },
+			get: { tags: ['customers'], summary: 'Wallet ledger (v7, paginated)' },
+		},
+		'/customers/{id}/loyalty/redeem': {
+			post: { tags: ['customers'], summary: 'Redeem points → wallet (auto-tier)' },
+		},
+		'/customers/{id}/loyalty': {
+			get: { tags: ['customers'], summary: 'Points ledger (paginated)' },
+		},
+		'/customers/{id}/credit/pay': {
+			post: { tags: ['customers'], summary: 'Settle outstanding credit' },
+		},
+		'/invoices': {
+			get: {
+				tags: ['invoices'],
+				summary: 'List invoices (total/hasMore, ?after= keyset, ?count=false)',
+			},
+			post: {
+				tags: ['invoices'],
+				summary: 'Create sale (idempotent, optional couponCode; 409 when demand exceeds available stock)',
+				requestBody: {
+					required: true,
+					content: {
+						'application/json': { schema: { $ref: '#/components/schemas/InvoiceCreate' } },
+					},
+				},
+			},
+		},
+		'/invoices/{id}': { get: { tags: ['invoices'], summary: 'Get with items + payments' } },
+		'/invoices/{id}/audit': { get: { tags: ['invoices'], summary: 'Hash-chained mutation trail' } },
+		'/invoices/{id}/pay': {
+			post: {
+				tags: ['invoices'],
+				summary: 'Atomic add-payment (409 on double-pay race, idempotencyKey dedupes)',
+			},
+		},
+		'/invoices/{id}/void': {
+			post: { tags: ['invoices'], summary: 'Void + restore stock (ADMIN/MANAGER)' },
+		},
+		'/invoices/{id}/return': {
+			post: { tags: ['invoices'], summary: 'Return + restore stock, status RETURNED' },
+		},
+		'/invoices/reports/daily': { get: { tags: ['invoices'], summary: 'Daily Z aggregates' } },
+		'/shifts/open': { post: { tags: ['shifts'], summary: 'Open shift (409 if already open)' } },
+		'/shifts': { get: { tags: ['shifts'], summary: 'Shift history (paginated)' } },
+		'/shifts/{id}/close': {
+			post: { tags: ['shifts'], summary: 'Atomic close with variance gate' },
+		},
+		'/shifts/{id}/handover': {
+			post: { tags: ['shifts'], summary: 'Atomic close+open (cashier change)' },
+		},
+		'/shifts/{id}/report': {
+			get: { tags: ['shifts'], summary: 'Shift report (invoices × payments)' },
+		},
+		'/shifts/{id}/xreport': {
+			get: { tags: ['shifts'], summary: 'Mid-shift snapshot (no mutation)' },
+		},
+		'/reports/summary': {
+			get: {
+				tags: ['reports'],
+				summary: 'Range aggregates + top products (ADMIN/MANAGER/AUDITOR)',
+			},
+		},
+		'/stock': { get: { tags: ['stock'], summary: 'Bulk levels (limit/offset, low-stock filter)' } },
+		'/stock/adjust': { post: { tags: ['stock'], summary: 'Adjust qty (ADMIN/MANAGER, audited)' } },
+		'/stock/transfer': {
+			post: { tags: ['stock'], summary: 'Transfer between warehouses (atomic, ADMIN/MANAGER)' },
+		},
+		'/stock/reserve': { post: { tags: ['stock'], summary: 'Reserve available qty' } },
+		'/stock/release': { post: { tags: ['stock'], summary: 'Release a reservation' } },
+		'/tenants': {
+			get: { tags: ['tenancy'], summary: 'List tenants' },
+			post: { tags: ['tenancy'], summary: 'Create tenant (ADMIN)' },
+		},
+		'/orgs': {
+			get: { tags: ['tenancy'], summary: 'List organizations (?tenant=)' },
+			post: { tags: ['tenancy'], summary: 'Create organization (ADMIN)' },
+		},
+		'/branches': {
+			get: { tags: ['tenancy'], summary: 'List branches (?org=, ?tenant=)' },
+			post: { tags: ['tenancy'], summary: 'Create branch (ADMIN/MANAGER)' },
+		},
+		'/currencies': {
+			get: { tags: ['masters'], summary: 'List currencies' },
+			post: { tags: ['masters'], summary: 'Create currency (ADMIN)' },
+		},
+		'/currencies/convert': {
+			post: { tags: ['masters'], summary: 'Convert amount (master rates)' },
+		},
+		'/uoms': {
+			get: { tags: ['masters'], summary: 'List UoMs (?category=)' },
+			post: { tags: ['masters'], summary: 'Create UoM (ADMIN/MANAGER)' },
+		},
+		'/uoms/convert': { post: { tags: ['masters'], summary: 'Convert qty (same category)' } },
+		'/payment-methods': {
+			get: { tags: ['masters'], summary: 'List payment methods (?active=)' },
+			post: { tags: ['masters'], summary: 'Create method (ADMIN)' },
+		},
+		'/payment-methods/{code}/toggle': {
+			patch: { tags: ['masters'], summary: 'Enable/disable method (ADMIN; CASH locked)' },
+		},
+		'/settings': {
+			get: { tags: ['masters'], summary: 'Business profile (country/currency/tax/invoice)' },
+			put: { tags: ['masters'], summary: 'Update profile keys (ADMIN, all-or-nothing)' },
+		},
+		'/fiscal-years': {
+			get: { tags: ['masters'], summary: 'List fiscal years' },
+			post: { tags: ['masters'], summary: 'Open a year (ADMIN)' },
+		},
+		'/fiscal-years/{code}/close': {
+			post: { tags: ['masters'], summary: 'Close year — posting then 409s (ADMIN)' },
+		},
+		'/fiscal-years/{code}/reopen': {
+			post: { tags: ['masters'], summary: 'Reopen a closed year (ADMIN)' },
+		},
+		'/sync/pull': { get: { tags: ['sync'], summary: 'Checkpoint pull (hasMore)' } },
+		'/sync/push': {
+			post: { tags: ['sync'], summary: 'Push UPSERT batch (ADMIN/MANAGER, fail-closed)' },
+		},
+		'/sync/checkpoint': { get: { tags: ['sync'], summary: 'Max sync id' } },
+		'/export/{entity}': {
+			get: { tags: ['export'], summary: 'CSV/JSON export (limit/offset, ADMIN/MANAGER/AUDITOR)' },
+		},
+		'/export/{entity}/jobs': {
+			post: { tags: ['export'], summary: 'Background export job up to 100k rows (202 + poll)' },
+		},
+		'/export/jobs': { get: { tags: ['export'], summary: 'List export jobs' } },
+		'/import/{entity}': {
+			post: { tags: ['import'], summary: 'Bulk upsert (dryRun, ADMIN/MANAGER)' },
+		},
+		'/webhooks': {
+			get: { tags: ['webhooks'], summary: 'List subscriptions (ADMIN/MANAGER/AUDITOR)' },
+			post: { tags: ['webhooks'], summary: 'Subscribe (HMAC secret, ADMIN)' },
+		},
+		'/offers/offers': {
+			get: { tags: ['offers'], summary: 'List offers' },
+			post: { tags: ['offers'], summary: 'Create offer (ADMIN/MANAGER)' },
+		},
+		'/offers/coupons': {
+			get: { tags: ['offers'], summary: 'List coupons' },
+			post: { tags: ['offers'], summary: 'Create coupon (ADMIN/MANAGER)' },
+		},
+		'/offers/coupons/validate': {
+			post: { tags: ['offers'], summary: 'Validate coupon (no side effects)' },
+		},
+		'/offers/evaluate': {
+			post: { tags: ['offers'], summary: 'Evaluate active offers over a cart (no side effects)' },
+		},
+		'/print/invoice/{id}': {
+			get: {
+				tags: ['print'],
+				summary: 'Printable HTML + QR (ZATCA-TLV when configured); ?format=xml for UBL 2.1',
+			},
+		},
+		'/print/daily': { get: { tags: ['print'], summary: 'Daily Z HTML' } },
+		'/admin/audit': { get: { tags: ['admin'], summary: 'Audit ringbuffer (ADMIN, filterable)' } },
+		'/admin/trail': { get: { tags: ['admin'], summary: 'Durable before/after trail (ADMIN)' } },
+		'/admin/chain/verify': {
+			get: { tags: ['admin'], summary: 'Verify invoice hash chain (ADMIN)' },
+		},
+		'/admin/zatca/settings': {
+			get: { tags: ['admin'], summary: 'ZATCA identity (ADMIN)' },
+			put: { tags: ['admin'], summary: 'Update ZATCA identity (ADMIN)' },
+		},
+		'/admin/users/{id}': {
+			patch: { tags: ['admin'], summary: 'Disable/enable, change role (ADMIN)' },
+		},
+		'/admin/backups/{file}': { delete: { tags: ['admin'], summary: 'Prune a snapshot (ADMIN)' } },
+		'/subscriptions': {
+			get: {
+				tags: ['subscriptions'],
+				summary: 'List customer subscriptions (optionally by customerId/status)',
+			},
+		},
+		'/subscriptions/plans': {
+			get: { tags: ['subscriptions'], summary: 'List subscription plans' },
+			post: { tags: ['subscriptions'], summary: 'Create a plan (ADMIN/MANAGER)' },
+		},
+		'/subscriptions/plans/{id}': {
+			patch: { tags: ['subscriptions'], summary: 'Update plan details (ADMIN/MANAGER)' },
+		},
+		'/subscriptions/subscribe': {
+			post: { tags: ['subscriptions'], summary: 'Subscribe a customer to a plan (ADMIN/MANAGER)' },
+		},
+		'/subscriptions/{id}/pause': {
+			post: { tags: ['subscriptions'], summary: 'Pause an active subscription' },
+		},
+		'/subscriptions/{id}/resume': {
+			post: { tags: ['subscriptions'], summary: 'Resume a paused subscription' },
+		},
+		'/subscriptions/{id}/cancel': {
+			post: { tags: ['subscriptions'], summary: 'Cancel subscription (active/paused only)' },
+		},
+		'/subscriptions/run-billing': {
+			post: {
+				tags: ['subscriptions'],
+				summary: 'Run billing for due subscriptions — wallet auto-pay or record due',
+			},
+		},
+		'/subscriptions/report': {
+			get: { tags: ['subscriptions'], summary: 'Subscription summary: byStatus, mrr, dueBillings' },
+		},
+		'/subscriptions/billings/{customerId}': {
+			get: { tags: ['subscriptions'], summary: 'Billing history for one customer' },
+		},
+		'/admin/api-keys': {
+			get: { tags: ['admin'], summary: 'List machine keys (ADMIN)' },
+			post: { tags: ['admin'], summary: 'Issue machine key — secret shown once (ADMIN)' },
+		},
+		'/health': {
+			get: { tags: ['admin'], security: [], summary: 'Deep health (DB, cache, outbox, memory)' },
+		},
+		'/device': {
+			get: {
+				tags: ['admin'],
+				security: [],
+				summary: 'Device class + UI adaptation hints + perf warnings (public, UA-driven)',
+			},
+		},
+		'/ready': { get: { tags: ['admin'], security: [], summary: 'Readiness (DB queryable)' } },
+		'/metrics': {
+			get: { tags: ['admin'], summary: 'Prometheus exposition (token-gated when configured)' },
+		},
+		'/openapi.json': { get: { tags: ['admin'], security: [], summary: 'This OpenAPI spec' } },
+	},
 };
 
 router.get('/openapi.json', (_req, res) => {
-  res.set('Cache-Control', 'public, max-age=3600');
-  res.json(SPEC);
+	res.set('Cache-Control', 'public, max-age=3600');
+	res.json(SPEC);
 });
 
 export default router;

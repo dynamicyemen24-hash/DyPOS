@@ -307,7 +307,7 @@ export function migrateInitial(db, addColumnIfMissing, currentVersion) {
 
 		// ── v2: correctness + scale ──────────────────────────────────────
 		addColumnIfMissing('invoices', 'currency', "TEXT NOT NULL DEFAULT 'SAR'");
-		addColumnIfMissing('invoices', 'channel_id', 'TEXT NOT NULL DEFAULT \'\'');
+		addColumnIfMissing('invoices', 'channel_id', "TEXT NOT NULL DEFAULT ''");
 		addColumnIfMissing('invoices', 'idempotency_key', 'TEXT');
 		db.exec(`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_number ON invoices(number);
@@ -322,7 +322,9 @@ export function migrateInitial(db, addColumnIfMissing, currentVersion) {
       CREATE INDEX IF NOT EXISTS idx_sync_entity ON sync_log(entity_type, status, id);
       CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
     `);
-		db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)')
-			.run(2, 'Auto-migration v2');
+		db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)').run(
+			2,
+			'Auto-migration v2',
+		);
 	}
 }
