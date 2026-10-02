@@ -13,7 +13,7 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -85,5 +85,47 @@ describe('live verification probe (scripts/verify-live.mjs)', () => {
 		assert.match(live, /\/api\/edge-health/);
 		assert.match(live, /\/api\/ready/);
 		assert.match(live, /ready\.database_bound === true/);
+	});
+});
+
+/**
+ * The nightly load test spent its whole run measuring the rate limiter.
+ *
+ * server/middleware/rate-limiters.js promises in its own header that both
+ * limits are env-tunable "BECAUSE the load test needs them raised without
+ * touching code" — and the workflow never passed them. Result: 996 successes
+ * then 429 for the remaining 24,813 requests, reported as "96% error rate"
+ * while the API was perfectly healthy. A gate that cries wolf is worse than no
+ * gate, so the promise in the code header is now pinned HERE, where it is read.
+ */
+describe('nightly load-test budgets', () => {
+	const nightly = readFileSync(join(REPO, '.github', 'workflows', 'nightly-load-test.yml'), 'utf8');
+
+	it("boots the API with a global rate limit above the run's request budget", () => {
+		const budget = Number(nightly.match(/DYPOS_RATE_LIMIT_MAX=(\d+)/)?.[1]);
+		assert.ok(Number.isFinite(budget), 'the boot step must set DYPOS_RATE_LIMIT_MAX');
+		// The k6 stages issue ~25,813 requests; 100k leaves ~4x headroom while
+		// staying finite so flood protection is NOT disabled by the test.
+		assert.ok(
+			budget >= 100000,
+			`DYPOS_RATE_LIMIT_MAX=${budget} is below the ~25,813-request budget — the SLOs would measure the limiter, not the invoice path`,
+		);
+		assert.ok(budget <= 1e9, 'a finite budget keeps flood protection alive during the run');
+	});
+
+	it('names the reproduction that proves the limiter was the wall', () => {
+		// Without this, the number looks arbitrary and the next person "tidies"
+		// it back to the default. The repro is the evidence.
+		assert.match(nightly, /repro-rate-wall\.mjs/);
+		assert.ok(
+			existsSync(join(REPO, 'server', 'tests', 'load', 'repro-rate-wall.mjs')),
+			'the repro script referenced by the workflow must exist',
+		);
+	});
+
+	it('keeps the auth limiter at its default on purpose', () => {
+		// setup() logs in once per run and successful logins are not counted, so
+		// raising this would be silencing a protection that is not in the way.
+		assert.doesNotMatch(nightly, /DYPOS_AUTH_LIMIT_MAX=/);
 	});
 });

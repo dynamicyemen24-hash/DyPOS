@@ -1,5 +1,5 @@
 /**
- * DyPOS single source of truth for the server version (C3) v1.44.3
+ * DyPOS single source of truth for the server version (C3) v1.44.4
  *
  * 1.44.3 -- the last deferred debt items closed. `formatter.enabled` is on
  * for the server and all five style rules it had been carrying as exemptions
@@ -51,19 +51,19 @@
  * registry moved to `stores/itemListRegistry.js` with 12 new unit tests
  * behind a lowered file-size cap.
  *
- * 1.41.1 â€” the production dependency audit is clean again: `@vue/test-utils`
+ * 1.41.1 — the production dependency audit is clean again: `@vue/test-utils`
  * sat in `dependencies` while only tests import it, so the chain
  * `js-beautify -> editorconfig -> minimatch -> brace-expansion` was audited as
  * PRODUCTION and failed `npm audit --omit=dev` (one high DoS advisory on a
  * library the PWA never ships). Moved to `devDependencies`; the packaged
  * bundle is byte-identical.
  *
- * 1.41.0 â€” the login family frames the 1200x630 sharing card as a figure at
+ * 1.41.0 — the login family frames the 1200x630 sharing card as a figure at
  * its native aspect ratio instead of stretching it behind live copy, and the
  * POS `biome check .` gate is green again (10 files were never formatted).
  *
  * Bumped with every change, as the deploy gate compares the live
  * /version.json against this number.
  */
-export const VERSION = '1.44.3';
+export const VERSION = '1.44.4';
 export default VERSION;

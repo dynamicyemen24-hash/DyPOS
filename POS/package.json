@@ -1,7 +1,7 @@
 {
 	"name": "pos-next-frontend",
 	"private": true,
-	"version": "1.44.3",
+	"version": "1.44.4",
 	"type": "module",
 	"scripts": {
 		"dev": "vite",
@@ -61,7 +61,7 @@
 		"Removed because nothing referenced them: @pinia/testing (no test uses",
 		"createTestingPinia), @iconify-json/lucide (no icon consumer),",
 		"core-js-compat + @babel/helper-compilation-targets (leftovers of a",
-		"manual target computation â€” Vite computes its own), and browserslist",
+		"manual target computation — Vite computes its own), and browserslist",
 		"(Vite depends on it; declaring it only froze a version by accident).",
 		"The old \"resolutions\" block was yarn-only config in an npm-only repo, so",
 		"it never applied. baseline-browser-mapping went with it: there is no",

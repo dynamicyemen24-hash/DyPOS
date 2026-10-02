@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest"
-import { readFileSync } from "node:fs"
+import { readFileSync, readdirSync } from "node:fs"
 import { join } from "node:path"
+
+/** Every file under a directory tree, recursively. */
+function walk(dir) {
+	const out = []
+	for (const entry of readdirSync(dir, { withFileTypes: true })) {
+		const full = join(dir, entry.name)
+		if (entry.isDirectory()) out.push(...walk(full))
+		else out.push(full)
+	}
+	return out
+}
 
 const ROOT = process.cwd()
 const read = (rel) => readFileSync(join(ROOT, rel), "utf8")
@@ -121,5 +132,60 @@ describe("standalone boot — zero network without user demand", () => {
 		// The main thread is the one that pushes it, on boot and on change.
 		expect(workerClient).toContain("SET_LINK_CONSENT")
 		expect(workerClient).toContain("subscribeLinkConsent")
+	})
+
+	/**
+	 * «يجب أن يعمل بلا إنترنت»Turns into a concrete, buildable rule:
+	 * the shipped app may not name a machine. A hardcoded host, port or IP in
+	 * src/ is a dependency on somebody else's socket — the app would then work
+	 * only on the desk where that address happened to resolve, which is the
+	 * exact failure this product exists to avoid.
+	 *
+	 * Same-origin is not a dependency: the service worker precaches it, and the
+	 * edge worker serves the same shell. `location` is resolved at runtime by
+	 * the browser on whatever origin the app was installed from.
+	 */
+	it("no shipped file names a host, port or IP address", () => {
+		const banned = [
+			/\blocalhost\b/,
+			/\b127\.0\.0\.1\b/,
+			/\b0\.0\.0\.0\b/,
+			/\b192\.168\.\d{1,3}\.\d{1,3}\b/,
+			/\b10\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/,
+			/:\/\/\w+(?::\d+)?\//, // any absolute origin in code
+		]
+		const allow = new Set([
+			// The company's own site, shown as a contact link, is not a transport.
+			"src/utils/brand.js",
+			// `location.hostname === "localhost"` is a RUNTIME READ of whatever
+			// origin the browser is on — it binds to no machine, it adapts to all
+			// of them. Only a hardcoded TARGET would be a dependency.
+			"src/socket.js",
+			// "requires a secure context (HTTPS or localhost)" is an error MESSAGE,
+			// naming the two contexts where SubtleCrypto exists. No URL is built.
+			"src/utils/zatca/hash.js",
+		])
+		const offenders = []
+		for (const file of walk(join(ROOT, "src"))) {
+			const rel = file
+				.slice(ROOT.length + 1)
+				.split("\\")
+				.join("/")
+			if (allow.has(rel)) continue
+			const source = readFileSync(file, "utf8")
+			// Comments are documentation; only CODE may not name a machine.
+			const code = source
+				.split("\n")
+				.filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+				.join("\n")
+			for (const re of banned) {
+				const hit = code.match(re)
+				if (hit) offenders.push(`${rel}: ${hit[0]}`)
+			}
+		}
+		expect(
+			offenders,
+			`shipped code must resolve its origin at runtime:\n${offenders.join("\n")}`,
+		).toEqual([])
 	})
 })

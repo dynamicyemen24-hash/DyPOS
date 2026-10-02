@@ -1,5 +1,5 @@
 ﻿/**
- * Crypto integrity guard â€” enforces docs/LEGACY_DECISION.md.
+ * Crypto integrity guard — enforces docs/LEGACY_DECISION.md.
  *
  * The abandoned `legacy/pos_next` React app contains files that CLAIM to be a
  * "ZATCA Phase 2" implementation while shipping broken primitives: a 32-bit XOR
@@ -12,7 +12,7 @@
  *   2. the quarantine markers on the legacy files must stay in place.
  *
  * Rule scope is deliberately narrow. The active `cacheManager` legitimately uses
- * a djb2-style roll to version a *cache structure* â€” that is not a credential
+ * a djb2-style roll to version a *cache structure* — that is not a credential
  * and is not flagged here. Only high-precision, zero-false-positive patterns
  * are asserted.
  */
@@ -56,7 +56,7 @@ const SELF = resolve(import.meta.dirname, 'crypto-integrity.test.js');
  *
  * These rules protect SHIPPED code. A test is allowed to name a forbidden
  * pattern in order to assert its absence (e.g. `expect(xml).not.toContain(
- * "urn:sunat")`) â€” that is the guard working, not a violation. Flagging such a
+ * "urn:sunat")`) — that is the guard working, not a violation. Flagging such a
  * test would make it impossible to test for the very defects we forbid.
  */
 function isTestFile(file) {
@@ -69,7 +69,7 @@ function activeFiles() {
 	return files.filter((f) => resolve(f) !== SELF);
 }
 
-/** Shipped code only â€” used by the pattern rules. */
+/** Shipped code only — used by the pattern rules. */
 function shippedFiles() {
 	return activeFiles().filter((f) => !isTestFile(f));
 }

@@ -1,13 +1,13 @@
 /**
- * Ù†Ø¸Ø§Ù… Ø§Ù„Ø·ÙˆØ§Ø¨ÙŠØ± â€” Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹ ÙÙˆÙ‚ IndexedDB Ø­Ù‚ÙŠÙ‚ÙŠ.
+ * نظام الطوابير — المستودع فوق IndexedDB حقيقي.
  *
- * `queueDomain.test.js` ÙŠØ«Ø¨Øª Ø£Ù† Ø§Ù„Ù‚ÙˆØ§Ø¹Ø¯ ØµØ­ÙŠØ­Ø©. Ù‡Ø°Ø§ ÙŠØ«Ø¨Øª Ø£Ù†Ù‡Ø§ **ØªÙØ·Ø¨ÙŽÙ‘Ù‚**:
- * Ø§Ù„Ø£Ø±Ù‚Ø§Ù… ØªÙÙ‚Ø±Ø£ Ù…Ù† ÙÙ‡Ø§Ø±Ø³ DexieØŒ ÙˆØ§Ù„Ù…Ø¹Ø§Ù…Ù„Ø§Øª ØªÙÙ‚ÙÙ„ØŒ ÙˆØ§Ù„Ù…Ø¹Ø§Ù…Ù„Ø§Øª Ø§Ù„Ù…ØªØ²Ø§Ù…Ù†Ø©
- * Ø¹Ù„Ù‰ Ù†ÙØ³ Ø§Ù„ÙƒØ§ÙˆÙ†ØªØ± Ù„Ø§ ØªÙ†Ø§Ø¯ÙŠ ØªØ°ÙƒØ±ØªÙŠÙ†.
+ * `queueDomain.test.js` يثبت أن القواعد صحيحة. هذا يثبت أنها **تُطبَّق**:
+ * الأرقام تُقرأ من فهارس Dexie، والمعاملات تُقفل، والمعاملات المتزامنة
+ * على نفس الكاونتر لا تنادي تذكرتين.
  *
- * Ù„Ù…Ø§Ø°Ø§ IndexedDB Ø­Ù‚ÙŠÙ‚ÙŠ Ù„Ø§ Ø¬Ø¯ÙˆÙ„ ÙˆÙ‡Ù…ÙŠ: Ø§Ù„Ù…Ù„Ù `setupIndexedDB.js` ÙŠÙ†Øµ Ø¹Ù„Ù‰
- * Ø£Ù† Ø¯Ù„Ø§Ù„Ø© Ø§Ù„Ù…Ø¹Ø§Ù…Ù„Ø§Øª (ÙƒÙ„-Ø£Ùˆ-Ù„Ø§-Ø´ÙŠØ¡ Ø¹Ø¨Ø± Ø«Ù„Ø§Ø«Ø© Ø¬Ø¯Ø§ÙˆÙ„) Ù‡ÙŠ Ø¯Ù„Ø§Ù„Ø© Dexie
- * Ù†ÙØ³Ù‡Ø§. Ø§Ø®ØªØ¨Ø§Ø±Ù‡Ø§ Ø¨Ø¨Ø¯ÙŠÙ„ Ù…ÙƒØªÙˆØ¨ ÙŠØ¯ÙˆÙŠÙ‹Ø§ ÙŠØ¤ÙƒØ¯ Ø§Ù„Ø¨Ø¯ÙŠÙ„.
+ * لماذا IndexedDB حقيقي لا جدول وهمي: الملف `setupIndexedDB.js` ينص على
+ * أن دلالة المعاملات (كل-أو-لا-شيء عبر ثلاثة جداول) هي دلالة Dexie
+ * نفسها. اختبارها ببديل مكتوب يدويًا يؤكد البديل.
  */
 import { beforeEach, describe, expect, it } from "vitest"
 
@@ -22,11 +22,11 @@ const TENANT = "acme"
 const OTHER_TENANT = "globex"
 
 /**
- * Ø§Ù„Ù‚Ø§Ø¹Ø¯Ø© ØªÙÙ†Ø´Ø£ Ø¨Ù€ IndexedDB ÙˆÙ‡Ù…ÙŠ **Ù…Ø´ØªØ±Ùƒ Ø¨ÙŠÙ† Ù…Ù„ÙØ§Øª Ø§Ù„Ø§Ø®ØªØ¨Ø§Ø±** (Ø§Ù„Ø§Ø³Ù…
- * Ù†ÙØ³Ù‡ `DyPOS-Offline-v1`)ØŒ ÙÙ‚Ø§Ø¹Ø¯Ø© Ø¨Ù‚ÙŠØª Ù…Ù† Ù…Ù„Ù Ø¢Ø®Ø± Ù‚Ø¯ ØªÙƒÙˆÙ† Ø¹Ù†Ø¯ Ø¥ØµØ¯Ø§Ø± 5 â€”
- * ÙˆÙ‚Ø¨Ù„ ØªØ±Ù‚ÙŠØ© Dexie Ù„Ø§ ÙŠØ¸Ù‡Ø± Ø¬Ø¯ÙˆÙ„Ù Ø§Ù„Ø·Ø§Ø¨ÙˆØ± Ø¥Ø·Ù„Ø§Ù‚Ù‹Ø§ ÙˆÙŠÙ‚Ø±Ø£ ÙƒÙ„ Ø§Ø³ØªØ¯Ø¹Ø§Ø¡
- * `NotFoundError` Ø¹Ù„Ù‰ Ø£Ù†Ù‡ Ø®Ø·Ø£ Ù…Ø®Ø·Ø·. Ù„Ø°Ù„Ùƒ ÙŠÙÙ†Ø´Ø£ Ø§Ù„Ø¥ØµØ¯Ø§Ø± Ø§Ù„Ø­Ø§Ù„ÙŠ ØµØ±Ø§Ø­Ø©Ù‹
- * Ù‚Ø¨Ù„ Ø£ÙˆÙ„ Ø§Ø³ØªØ®Ø¯Ø§Ù…ØŒ ÙˆÙŠÙØ­Ø°Ù Ø¨Ø¹Ø¯Ù‡.
+ * القاعدة تُنشأ بـ IndexedDB وهمي **مشترك بين ملفات الاختبار** (الاسم
+ * نفسه `DyPOS-Offline-v1`)، فقاعدة بقيت من ملف آخر قد تكون عند إصدار 5 —
+ * وقبل ترقية Dexie لا يظهر جدولُ الطابور إطلاقًا ويقرأ كل استدعاء
+ * `NotFoundError` على أنه خطأ مخطط. لذلك يُنشأ الإصدار الحالي صراحةً
+ * قبل أول استخدام، ويُحذف بعده.
  */
 const openCurrent = async () => {
 	await db.open()
@@ -38,7 +38,7 @@ const openCurrent = async () => {
 	)
 }
 
-/** ÙŠÙ„ØªÙ‚Ø· Ø±Ù…Ø² Ø®Ø·Ø£ Ø§Ù„Ø·Ø§Ø¨ÙˆØ± Ù…Ù† Ø¹Ù…Ù„ÙŠØ© ØºÙŠØ± Ù…ØªØ²Ø§Ù…Ù†Ø©. */
+/** يلتقط رمز خطأ الطابور من عملية غير متزامنة. */
 const codeOf = async (fn) => {
 	try {
 		await fn()
@@ -51,13 +51,13 @@ const codeOf = async (fn) => {
 	throw new Error("expected the call to reject, it resolved")
 }
 
-/** Ø®Ø¯Ù…Ø© ÙˆØ§Ø­Ø¯Ø© Ù„ÙƒÙ„ Ù…Ø³ØªØ£Ø¬Ø± â€” Ø¥ØµØ¯Ø§Ø± Ø§Ù„ØªØ°ÙƒØ±Ø© Ù„Ø§ ÙŠÙ‚Ø¨Ù„ Ø®Ø¯Ù…Ø© Ù…Ù† Ù…Ø³ØªØ£Ø¬Ø± Ø¢Ø®Ø±. */
+/** خدمة واحدة لكل مستأجر — إصدار التذكرة لا يقبل خدمة من مستأجر آخر. */
 const seedService = async (tenantId = TENANT) => {
 	await db.queueServices.add({
 		id: `svc-${tenantId}`,
 		tenantId,
 		code: "GEN",
-		name: "Ø§Ù„Ø§Ø³ØªÙ‚Ø¨Ø§Ù„",
+		name: "الاستقبال",
 		nameEn: "Reception",
 		prefix: "A",
 		active: 1,
@@ -167,12 +167,12 @@ describe("queue session and numbering", () => {
 })
 
 describe("counter lifecycle and the atomic call", () => {
-	/** Ø¬Ù„Ø³Ø© + ÙƒØ§ÙˆÙ†ØªØ± Ù…ÙØªÙˆØ­ØŒ Ø¬Ø§Ù‡Ø²Ø§Ù† Ù„Ù„Ù†Ø¯Ø§Ø¡. */
+	/** جلسة + كاونتر مفتوح، جاهزان للنداء. */
 	const ready = async (tenantId = TENANT) => {
 		const serviceId = await seedService(tenantId)
 		const session = await repo.openSession(tenantId, "20260101")
 		const counter = await repo.createCounter(tenantId, session.id, {
-			name: "ÙƒØ§ÙˆÙ†ØªØ± Ù¡",
+			name: "كاونتر ١",
 		})
 		await repo.openCounter(tenantId, counter.id)
 		const issue = () =>
@@ -205,7 +205,7 @@ describe("counter lifecycle and the atomic call", () => {
 	it("refuses a second call on an occupied counter", async () => {
 		// Two cashiers pressing "call next" on one window. The second press
 		// must fail loudly with the SPECIFIC reason (COUNTER_BUSY), not a
-		// generic database error â€” the message is what the cashier reads.
+		// generic database error — the message is what the cashier reads.
 		const { counter, issue } = await ready()
 		await issue()
 		await issue()
@@ -231,7 +231,7 @@ describe("counter lifecycle and the atomic call", () => {
 
 		const calledId = fulfilled[0].value.ticket.id
 		expect([a.id, b.id]).toContain(calledId)
-		// And the stored counter agrees with the winner â€” no lost update.
+		// And the stored counter agrees with the winner — no lost update.
 		const snapshot = await repo.getSnapshot(TENANT, session.id)
 		expect(snapshot.counters[0].currentTicketId).toBe(calledId)
 	})
@@ -296,7 +296,7 @@ describe("counter lifecycle and the atomic call", () => {
 		const snapshot = await repo.getSnapshot(TENANT, session.id)
 		expect(snapshot.counters[0].currentTicketId).toBeUndefined()
 
-		// The skipped customer is callable again â€” that is the whole point.
+		// The skipped customer is callable again — that is the whole point.
 		const recalled = await repo.callNext(TENANT, counter.id, 8_000)
 		expect(recalled.ticket.id).toBe(first.id)
 		expect(recalled.ticket.callCount).toBe(2)
@@ -305,7 +305,7 @@ describe("counter lifecycle and the atomic call", () => {
 	it("transfers a ticket to a free counter and releases the first", async () => {
 		const { session, counter, issue } = await ready()
 		const other = await repo.createCounter(TENANT, session.id, {
-			name: "ÙƒØ§ÙˆÙ†ØªØ± Ù¢",
+			name: "كاونتر ٢",
 		})
 		await repo.openCounter(TENANT, other.id)
 		await issue()
@@ -324,7 +324,7 @@ describe("counter lifecycle and the atomic call", () => {
 	it("refuses a transfer onto an occupied counter", async () => {
 		const { session, counter, issue } = await ready()
 		const other = await repo.createCounter(TENANT, session.id, {
-			name: "ÙƒØ§ÙˆÙ†ØªØ± Ù¢",
+			name: "كاونتر ٢",
 		})
 		await repo.openCounter(TENANT, other.id)
 		await issue()
@@ -351,7 +351,7 @@ describe("counter lifecycle and the atomic call", () => {
 
 	it("scopes every counter read to its tenant", async () => {
 		// Invariant 1: a foreign counter is refused. The refusal must also
-		// leave it untouched â€” a cross-tenant open would be a write leak.
+		// leave it untouched — a cross-tenant open would be a write leak.
 		const { counter } = await ready(OTHER_TENANT)
 		await repo.closeCounter(OTHER_TENANT, counter.id) // parked, free
 		expect(await codeOf(() => repo.openCounter(TENANT, counter.id))).toBe(

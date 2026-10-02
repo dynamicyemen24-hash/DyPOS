@@ -1,7 +1,7 @@
 # AGENTS.md — Repo conventions for AI coding agents
 
 > This repo is Arabic-first (UI, messages, commit bodies) with English code.
-> Production: https://dypos.smartportssoft.com/ · Version single source: `1.44.3`
+> Production: https://dypos.smartportssoft.com/ · Version single source: `1.44.4`
 > (root `package.json` + `POS/package.json` + `server/package.json` + `server/lib/version.js`
 > + `worker-api.js` `API_VERSION` — the edge's copy, asserted by both suites).
 
@@ -14,12 +14,12 @@
 ## Verify before you claim done (all must be green)
 
 ```powershell
-# server/ — 615 tests / 183 suites
+# server/ — 620 tests / 185 suites
 npm test                              # = node scripts/run-tests.mjs
 npx @biomejs/biome check .
 npm run parity
 npm run contract
-# POS/ — 1287 tests / 95 files
+# POS/ — 1291 tests / 95 files
 npm run test:run
 npx biome check src/<touched-file>
 # production, from the repo root (after a deploy)
@@ -27,7 +27,7 @@ npm run verify:live                   # = node scripts/verify-live.mjs
 ```
 
 Test counts are *measured* by the runners, never estimated: server
-`615 tests / 183 suites`, POS `1287 tests / 95 files`.
+`620 tests / 185 suites`, POS `1291 tests / 95 files`.
 
 `POS/node_modules` is disposable — if a command hangs on `npx … Ok to proceed?`,
 the install is missing: `npm ci` in `POS/` (and add the package to
@@ -146,6 +146,13 @@ manifest breaks both the build and any test that compiles CSS).
   suite. Assert the contract (payload shape + status/`status` agreement), never a
   hard `200`; `/api/ready` is the container probe path. Four tests still did
   (auth/version/scale/scale8) and failed on the CI runner while passing locally.
+- **Never run the two suites concurrently on one machine and call the result a
+  regression.** Measured here: `scale.test.js` alone fails 13 assertions with
+  HTTP 401 (its registration→login→invoice chain times out under CPU contention),
+  and the full server suite reports one failed file — yet `npm test` in isolation,
+  on the identical code, is 620/185 green. CI runs them in separate jobs for this
+  reason. A red suite beside a busy `vitest` is a measurement artefact, not a
+  defect; confirm with a serial run before touching any code.
 - **`npm ci` in `server/` can leave you unable to run the suite.** `better-sqlite3@13.0.3`
   ships no prebuilt binary for Node 24 on Windows, so the install falls back to
   `node-gyp`, which needs Python; without it the install dies halfway and the

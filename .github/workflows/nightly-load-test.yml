@@ -58,10 +58,26 @@ jobs:
         run: |
           set -e
           npm ci --no-audit --no-fund
+          # The load-test budget MUST be raised here, and the code already says so:
+          # server/middleware/rate-limiters.js states in its own header that both
+          # limits are env-tunable "BECAUSE the load test needs them raised without
+          # touching code". This step never passed them, so the job spent the whole
+          # run measuring the limiter instead of the invoice path.
+          #
+          # Proof (server/tests/load/repro-rate-wall.mjs, same request shape as k6):
+          #   without this -> 2xx=996  429=404  (the limiter closes at 1000/15min)
+          #   with this    -> 2xx=1400 429=0
+          # and 996 is exactly the `checks_passes` the nightly run reported.
+          #
+          # 200000 is ~8x the 25,813 requests the last run issued, so the SLOs
+          # measure the invoice path — and it stays FINITE, so flood protection is
+          # still switched on. The auth limiter is deliberately left at its default:
+          # setup() logs in once per run and successful logins are not counted.
           DYPOS_PORT=3001 \
           DYPOS_HOST=127.0.0.1 \
           DYPOS_DB_PATH="$RUNNER_TEMP/dypos-load.db" \
           DYPOS_JWT_SECRET="load-test-jwt-secret-32-characters-minimum" \
+          DYPOS_RATE_LIMIT_MAX=200000 \
             nohup node entrypoint.js > "$RUNNER_TEMP/dypos-server.log" 2>&1 &
           for i in $(seq 1 60); do
             if curl -fsS --max-time 2 http://127.0.0.1:3001/api/ready > /dev/null; then

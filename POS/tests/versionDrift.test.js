@@ -79,4 +79,28 @@ describe("version single source", () => {
 	it("the edge worker's API_VERSION matches the app version", () => {
 		expect(edgeWorkerVersion).toBe(serverLibVersion)
 	})
+
+	// A lockfile is a build input like any other, and it is the one nobody
+	// edits by hand: server/package-lock.json sat at 1.41.2 while its package
+	// was at 1.44.x — three releases of drift that no gate could see, because
+	// the existing checks all read package.json and never the lock.
+	it.each([
+		"package-lock.json",
+		"POS/package-lock.json",
+		"server/package-lock.json",
+	])("%s declares the same version as its package", (lockfile) => {
+		const lockDir = lockfile.includes("/") ? lockfile.split("/")[0] : "."
+		const manifest =
+			lockDir === "." ? "package.json" : `${lockDir}/package.json`
+		const expected = readJson(path.join(REPO_ROOT, manifest)).version
+		const lock = readJson(path.join(REPO_ROOT, lockfile))
+		expect(lock.version, `${lockfile} root version`).toBe(expected)
+		// lockfileVersion 3 keeps the root entry under packages[""] too.
+		if (lock.packages?.[""]) {
+			expect(
+				lock.packages[""].version,
+				`${lockfile} packages[""] version`,
+			).toBe(expected)
+		}
+	})
 })
