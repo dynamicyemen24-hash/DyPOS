@@ -187,7 +187,12 @@ export async function pushPendingChanges(protocol, store, opts = {}) {
 				operation: op.operation,
 				payload,
 				local_rev: payload._localRev ?? null,
-				idempotency_key: op.idempotencyKey || `op:${op.id}:${op.createdAt}`,
+				// مفتاح عدم التكرار ثابت لكل مستند (entityType/entityId/operation):
+				// صفّان محليّان مكرّران لنفس الفاتورة (double-tap/retry) يحملان
+				// نفس المفتاح فيُدمج الثاني دمجًا آمنًا بدل فاتورة مكرّرة.
+				idempotency_key:
+					op.idempotencyKey ||
+					`op:${op.entityType}:${op.entityId}:${op.operation}`,
 			})
 			await store.markSynced(
 				op.id,

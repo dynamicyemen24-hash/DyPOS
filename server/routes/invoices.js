@@ -9,7 +9,6 @@ import { computeCouponDiscount } from './offers.js';
 import { appendChain } from '../lib/chain.js';
 import { toMinor, toMajor, clampMinor, computeLineMinor } from '../lib/money.js';
 import { assertNonCashNotOverpaid } from '../lib/payment-invariants.js';
-import { dayRange } from '../lib/dates.js';
 import { assertTenantScope, resolveTenantFilter, assertRecordTenant } from '../lib/tenant.js';
 import { findCoupon } from '../lib/coupon-scope.js';
 import { assertCurrency, assertUom } from '../lib/fx.js';
@@ -21,10 +20,15 @@ import { emit as emitRealtime } from '../lib/realtime.js';
 import { ensureOpenFiscalPeriod, ensureOpenFiscalYear, yearOf } from './fiscal.js';
 import { invoicePrefix, getSetting, defaultTaxRate, stockControlMode, stockWarningThreshold } from '../lib/settings.js';
 import { decrementStock } from '../lib/stockPolicy.js';
+import invoiceDailyRoutes from './invoice-daily.js';
 
 const cryptoId = () => crypto.randomUUID();
 
 const router = Router();
+
+// Daily Z report lives in routes/invoice-daily.js and mounts FIRST: its
+// /reports/daily must win over this router's /:id ("reports" as an id).
+router.use(invoiceDailyRoutes);
 
 // Payment-method master validation (user-managed in masters.js — the same
 // currencies/UoMs pattern). Unknown or disabled methods → 400 Arabic;
@@ -633,35 +637,6 @@ router.post('/', validate(invoiceSchema), (req, res) => {
 		return res.status(status).json({ error: String(e.message || '').slice(0, 300) });
 	}
 });
-
-// GET /api/invoices/reports/daily — MUST be before /:id so "reports" isn't treated as an id
-router.get(
-	'/reports/daily',
-	ah(async (req, res) => {
-		const raw = String(req.query.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
-		if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return res.status(400).json({ error: 'صيغة التاريخ غير صالحة (YYYY-MM-DD)' });
-		const terminalId = req.query.terminal ? String(req.query.terminal).slice(0, 32) : null;
-		// Sargable range (index-seek on idx_invoices_created, not a date() full scan).
-		const { from, to } = dayRange(raw);
-		let sql = `SELECT COUNT(*) as orders_count, COALESCE(SUM(total),0) as gross_sales, COALESCE(SUM(CASE WHEN status='RETURNED' THEN total ELSE 0 END),0) as refunds, COALESCE(SUM(discount_amount),0) as discounts, COALESCE(SUM(tax_amount),0) as tax_amount, COALESCE(SUM(paid_amount),0) as net_sales FROM invoices WHERE created_at>=? AND created_at<? AND status NOT IN ('EXPIRED')`;
-		const params = [from, to];
-		if (terminalId) {
-			sql += ' AND terminal_id=?';
-			params.push(terminalId);
-		}
-		const stats = db.prepare(sql).get(...params);
-		const payMethods = db
-			.prepare(
-				`SELECT p.method, COALESCE(SUM(p.amount),0) as total FROM payments p JOIN invoices i ON p.invoice_id=i.id WHERE i.created_at>=? AND i.created_at<? AND i.status NOT IN ('EXPIRED') ${terminalId ? 'AND i.terminal_id=?' : ''} GROUP BY p.method`,
-			)
-			.all(...(terminalId ? [from, to, terminalId] : [from, to]));
-		return res.json({
-			date: raw,
-			...stats,
-			payment_methods: Object.fromEntries(payMethods.map((p) => [p.method, p.total])),
-		});
-	}),
-);
 
 // GET /api/invoices — capped pagination + بحث نصي q (رقم/عميل/حالة) + total/hasMore
 // Billions-scale access: ?after=<id> keyset cursor (stable, O(log n)) beats deep

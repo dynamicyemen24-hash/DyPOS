@@ -1,18 +1,18 @@
 <!--
   =============================================================================
-  DyPOS â€” Subscriber Registration Page
+  DyPOS — Subscriber Registration Page
   Production Grade / End-to-End SaaS
   =============================================================================
 
-  Ø§Ù„Ù…Ø³Ø¤ÙˆÙ„ÙŠØ§Øª:
+  المسؤوليات:
   - Subscriber registration UI
   - Form validation (Arabic)
   - API registration via the method router
   - Success/error feedback
   - Navigation back to login
 
-  Ø§Ù„Ù…Ø¨Ø¯Ø£:
-  Register â†’ Verify â†’ Login
+  المبدأ:
+  Register → Verify → Login
   -->
 
 <script setup>
@@ -86,8 +86,8 @@ const showConfirmPassword = ref(false)
  * The password rules are the POLICY's, not this page's.
  *
  * This screen used to hardcode a 6-character minimum and keep a private
- * copy of the strength scoring, while `utils/passwordPolicy.js` â€” the
- * module `usePasswordReset` judges with â€” said 8. Two screens then gave
+ * copy of the strength scoring, while `utils/passwordPolicy.js` — the
+ * module `usePasswordReset` judges with — said 8. Two screens then gave
  * two different answers to "is this password valid": an account could be
  * registered with six characters and be refused the same value later.
  * One module, one answer, both screens.
@@ -144,7 +144,7 @@ const log = logger.create("Register")
 async function detectOfflineMode() {
 	if (!isBrowser) return false
 
-	// Standalone-first (user-mandated): no boot probe â€” pinging the backend
+	// Standalone-first (user-mandated): no boot probe — pinging the backend
 	// to decide the mode was itself an undemanded connection. Pure local
 	// state: standalone until the user demands server linkage.
 	return !isLinkEnabled()
@@ -202,7 +202,7 @@ async function attemptOfflineRegistration(userData) {
 		log.error("Offline registration failed:", error)
 		return {
 			success: false,
-			error: error.message || "ÙØ´Ù„ Ø§Ù„ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ù…Ø­Ù„ÙŠ",
+			error: error.message || "فشل التسجيل المحلي",
 		}
 	}
 }
@@ -296,7 +296,7 @@ async function submitRegistration() {
 		const errorMessage =
 			error?.message ||
 			error?.response?.data?.message ||
-			"Ø­Ø¯Ø« Ø®Ø·Ø£ Ø£Ø«Ù†Ø§Ø¡ Ø§Ù„ØªØ³Ø¬ÙŠÙ„. ÙŠØ±Ø¬Ù‰ Ø§Ù„Ù…Ø­Ø§ÙˆÙ„Ø© Ù…Ø±Ø© Ø£Ø®Ø±Ù‰."
+			"حدث خطأ أثناء التسجيل. يرجى المحاولة مرة أخرى."
 
 		registerError.value = errorMessage
 
@@ -338,7 +338,7 @@ onMounted(async () => {
 
 	window.addEventListener("online", () => {
 		if (isOfflineMode.value) {
-			log.info("Connection restored â€” switching to online mode")
+			log.info("Connection restored — switching to online mode")
 			isOfflineMode.value = false
 			showOfflineIndicator.value = false
 		}
@@ -346,7 +346,7 @@ onMounted(async () => {
 
 	window.addEventListener("offline", () => {
 		if (!isOfflineMode.value) {
-			log.info("Connection lost â€” switching to offline mode")
+			log.info("Connection lost — switching to offline mode")
 			isOfflineMode.value = true
 			showOfflineIndicator.value = true
 		}
@@ -378,16 +378,16 @@ onUnmounted(() => {
 			aria-live="polite"
 		>
 			<FeatherIcon name="wifi-off" :size="16" aria-hidden="true" />
-			<span>وضع عدم الاتصال — Ø³ÙŠØªÙ… Ø­ÙØ¸ Ø§Ù„Ø­Ø³Ø§Ø¨ Ù…Ø­Ù„ÙŠÙ‹Ø§</span>
+			<span>وضع عدم الاتصال — سيتم حفظ الحساب محليًا</span>
 		</div>
 
 		<!--
-			Ù„Ø§ Ù„ÙˆØ­Ø© Ù‡ÙˆÙŠØ© ÙˆÙ„Ø§ ØµÙˆØ± Ù‡Ù†Ø§.
+			لا لوحة هوية ولا صور هنا.
 
-			ÙƒØ§Ù†Øª Ø¹Ù…ÙˆØ¯Ù‹Ø§ ÙƒØ§Ù…Ù„Ù‹Ø§ Ø¨ØµÙˆØ±Ø© 1200Ã—630 ÙˆØ´Ø¹Ø§Ø± ÙˆØªØ°ÙŠÙŠÙ„ØŒ ÙØ¨Ù‚ÙŠ Ø¨Ø¹Ø¯
-			Ø­Ø°Ù Ø§Ù„ØµÙˆØ± ÙØ±Ø§ØºÙ‹Ø§ Ù…ÙŠØªÙ‹Ø§ ÙŠØ´Ø¯Ù‘ Ø§Ù„Ø¹ÙŠÙ† Ø¨Ù„Ø§ Ù…Ø¹Ù„ÙˆÙ…Ø©: Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù… Ù‡Ù†Ø§
-			Ù„Ù… signingStyle ÙŠØ­ØªØ§Ø¬ Ù†Ù…ÙˆØ°Ø¬Ù‹Ø§ Ù„Ø§ Ø¥Ø¹Ù„Ø§Ù†Ù‹Ø§. Ø§Ù„Ø§Ø¹ØªÙ…Ø§Ø¯_
-			ÙŠØªØ£ØªÙ‰ Ù…Ù† `CompanyFooter` Ù†ØµÙ‹Ù‘Ø§ ÙÙŠ Ø£Ø³ÙÙ„ Ø§Ù„ØµÙØ­Ø©.
+			كانت عمودًا كاملًا بصورة 1200×630 وشعار وتذييل، فبقي بعد
+			حذف الصور فراغًا ميتًا يشدّ العين بلا معلومة: المستخدم هنا
+			لم signingStyle يحتاج نموذجًا لا إعلانًا. الاعتماد_
+			يتأتى من `CompanyFooter` نصًّا في أسفل الصفحة.
 		-->
 
 		<!-- =================================================================
@@ -402,15 +402,15 @@ onUnmounted(() => {
 
 					<div>
 						<span class="dy-register__section-label">
-							ØªØ³Ø¬ÙŠÙ„ Ø­Ø³Ø§Ø¨ Ø¬Ø¯ÙŠØ¯
+							تسجيل حساب جديد
 						</span>
 
 						<h2 class="dy-register__title">
-							Ø¥Ù†Ø´Ø§Ø¡ Ø­Ø³Ø§Ø¨ Ø§Ù„Ù…Ø´ØªØ±Ùƒ
+							إنشاء حساب المشترك
 						</h2>
 
 						<p class="dy-register__subtitle">
-							Ø£Ø¯Ø®Ù„ Ø¨ÙŠØ§Ù†Ø§ØªÙƒ Ù„Ø¨Ø¯Ø¡ Ø§Ø³ØªØ®Ø¯Ø§Ù… Ù†Ù‚Ø·Ø© Ø§Ù„Ø¨ÙŠØ¹ Ø§Ù„Ø°ÙƒÙŠØ©.
+							أدخل بياناتك لبدء استخدام نقطة البيع الذكية.
 						</p>
 					</div>
 
@@ -425,7 +425,7 @@ onUnmounted(() => {
 							:size="18"
 							aria-hidden="true"
 						/>
-						Ø§Ù„Ø¹ÙˆØ¯Ø© Ø¥Ù„Ù‰ ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„
+						العودة إلى تسجيل الدخول
 					</a>
 				</header>
 
@@ -445,12 +445,12 @@ onUnmounted(() => {
 					</div>
 
 					<h3 class="dy-register__success-title">
-						ØªÙ… Ø¥Ù†Ø´Ø§Ø¡ Ø§Ù„Ø­Ø³Ø§Ø¨ Ø¨Ù†Ø¬Ø§Ø­!
+						تم إنشاء الحساب بنجاح!
 					</h3>
 
 					<p class="dy-register__success-message">
-						Ù…Ø±Ø­Ø¨Ù‹Ø§ Ø¨Ùƒ ÙÙŠ DyPOS. ÙŠÙ…ÙƒÙ†Ùƒ Ø§Ù„Ø¢Ù† ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„
-						Ù„Ø¨Ø¯Ø¡ Ø§Ø³ØªØ®Ø¯Ø§Ù… Ù†Ù‚Ø·Ø© Ø§Ù„Ø¨ÙŠØ¹.
+						مرحبًا بك في DyPOS. يمكنك الآن تسجيل الدخول
+						لبدء استخدام نقطة البيع.
 					</p>
 
 					<ActionButton
@@ -458,7 +458,7 @@ onUnmounted(() => {
 						size="lg"
 						@click="goToLogin"
 					>
-						Ø§Ù„Ø§Ù†ØªÙ‚Ø§Ù„ Ø¥Ù„Ù‰ ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„
+						الانتقال إلى تسجيل الدخول
 					</ActionButton>
 				</div>
 
@@ -479,7 +479,7 @@ onUnmounted(() => {
 
 					<div class="dy-register__error-content">
 						<strong>
-							ØªØ¹Ø°Ø± Ø¥Ù†Ø´Ø§Ø¡ Ø§Ù„Ø­Ø³Ø§Ø¨
+							تعذر إنشاء الحساب
 						</strong>
 
 						<span>
@@ -490,7 +490,7 @@ onUnmounted(() => {
 					<button
 						type="button"
 						class="dy-register__error-close"
-						aria-label="Ø¥ØºÙ„Ø§Ù‚ Ø±Ø³Ø§Ù„Ø© Ø§Ù„Ø®Ø·Ø£"
+						aria-label="إغلاق رسالة الخطأ"
 						@click="registerError = ''"
 					>
 						<FeatherIcon
@@ -516,7 +516,7 @@ onUnmounted(() => {
 							for="dypos-register-name"
 							class="dy-register__label"
 						>
-							Ø§Ù„Ø§Ø³Ù… Ø§Ù„ÙƒØ§Ù…Ù„ <span class="dy-register__required" aria-hidden="true">*</span>
+							الاسم الكامل <span class="dy-register__required" aria-hidden="true">*</span>
 						</label>
 
 						<div class="dy-register__input-wrap">
@@ -535,7 +535,7 @@ onUnmounted(() => {
 								:class="{ 'dy-register__input--error': fullNameError }"
 								type="text"
 								dir="rtl"
-								placeholder="Ø£Ø¯Ø®Ù„ Ø§Ø³Ù…Ùƒ Ø§Ù„ÙƒØ§Ù…Ù„"
+								placeholder="أدخل اسمك الكامل"
 								:disabled="isSubmitting"
 								required
 								spellcheck="false"
@@ -565,7 +565,7 @@ onUnmounted(() => {
 							for="dypos-register-email"
 							class="dy-register__label"
 						>
-							Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ <span class="dy-register__required" aria-hidden="true">*</span>
+							البريد الإلكتروني <span class="dy-register__required" aria-hidden="true">*</span>
 						</label>
 
 						<div class="dy-register__input-wrap">
@@ -616,7 +616,7 @@ onUnmounted(() => {
 								for="dypos-register-password"
 								class="dy-register__label"
 							>
-								ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± <span class="dy-register__required" aria-hidden="true">*</span>
+								كلمة المرور <span class="dy-register__required" aria-hidden="true">*</span>
 							</label>
 
 							<span
@@ -633,7 +633,7 @@ onUnmounted(() => {
 							v-if="password.value"
 							:password="password"
 							:show-label="false"
-							aria-label="Ù‚ÙˆØ© ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±"
+							aria-label="قوة كلمة المرور"
 						/>
 
 						<div class="dy-register__input-wrap">
@@ -651,7 +651,7 @@ onUnmounted(() => {
 								:class="{ 'dy-register__input--error': passwordError }"
 								:type="showPassword ? 'text' : 'password'"
 								dir="ltr"
-								placeholder="6 Ø£Ø­Ø±Ù Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„"
+								placeholder="6 أحرف على الأقل"
 								:disabled="isSubmitting"
 								required
 								spellcheck="false"
@@ -666,8 +666,8 @@ onUnmounted(() => {
 								class="dy-register__password-toggle"
 								:aria-label="
 									showPassword
-										? 'Ø¥Ø®ÙØ§Ø¡ ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±'
-										: 'Ø¥Ø¸Ù‡Ø§Ø± ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±'
+										? 'إخفاء كلمة المرور'
+										: 'إظهار كلمة المرور'
 								"
 								:aria-pressed="showPassword"
 								:disabled="isSubmitting"
@@ -699,7 +699,7 @@ onUnmounted(() => {
 							for="dypos-register-confirm"
 							class="dy-register__label"
 						>
-							ØªØ£ÙƒÙŠØ¯ ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± <span class="dy-register__required" aria-hidden="true">*</span>
+							تأكيد كلمة المرور <span class="dy-register__required" aria-hidden="true">*</span>
 						</label>
 
 						<div class="dy-register__input-wrap">
@@ -717,7 +717,7 @@ onUnmounted(() => {
 								:class="{ 'dy-register__input--error': confirmPasswordError }"
 								:type="showConfirmPassword ? 'text' : 'password'"
 								dir="ltr"
-								placeholder="Ø£Ø¹Ø¯ ÙƒØªØ§Ø¨Ø© ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±"
+								placeholder="أعد كتابة كلمة المرور"
 								:disabled="isSubmitting"
 								required
 								spellcheck="false"
@@ -732,8 +732,8 @@ onUnmounted(() => {
 								class="dy-register__password-toggle"
 								:aria-label="
 									showConfirmPassword
-										? 'Ø¥Ø®ÙØ§Ø¡ ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±'
-										: 'Ø¥Ø¸Ù‡Ø§Ø± ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±'
+										? 'إخفاء كلمة المرور'
+										: 'إظهار كلمة المرور'
 								"
 								:disabled="isSubmitting"
 								@click="showConfirmPassword = !showConfirmPassword"
@@ -764,7 +764,7 @@ onUnmounted(() => {
 							for="dypos-register-phone"
 							class="dy-register__label"
 						>
-							Ø±Ù‚Ù… Ø§Ù„Ù‡Ø§ØªÙ
+							رقم الهاتف
 						</label>
 
 						<div class="dy-register__input-wrap">
@@ -798,7 +798,7 @@ onUnmounted(() => {
 							for="dypos-register-company"
 							class="dy-register__label"
 						>
-							Ø§Ø³Ù… Ø§Ù„Ø´Ø±ÙƒØ© / Ø§Ù„Ù…Ø¤Ø³Ø³Ø©
+							اسم الشركة / المؤسسة
 						</label>
 
 						<div class="dy-register__input-wrap">
@@ -815,7 +815,7 @@ onUnmounted(() => {
 								class="dy-register__input"
 								type="text"
 								dir="rtl"
-								placeholder="Ø£Ø¯Ø®Ù„ Ø§Ø³Ù… Ø´Ø±ÙƒØªÙƒ"
+								placeholder="أدخل اسم شركتك"
 								:disabled="isSubmitting"
 								spellcheck="false"
 								@input="clearErrors"
@@ -843,13 +843,13 @@ onUnmounted(() => {
 							/>
 
 							<span id="dypos-register-terms-desc">
-								Ø£ÙˆØ§ÙÙ‚ Ø¹Ù„Ù‰
+								أوافق على
 								<a href="/terms" class="dy-register__link">
-									Ø´Ø±ÙˆØ· Ø§Ù„Ø§Ø³ØªØ®Ø¯Ø§Ù…
+									شروط الاستخدام
 								</a>
-								Ùˆ
+								و
 								<a href="/privacy" class="dy-register__link">
-									Ø³ÙŠØ§Ø³Ø© Ø§Ù„Ø®ØµÙˆØµÙŠØ©
+									سياسة الخصوصية
 								</a>
 							</span>
 						</label>
@@ -880,22 +880,22 @@ onUnmounted(() => {
 							aria-hidden="true"
 						/>
 
-						{{ isSubmitting ? 'Ø¬Ø§Ø±ÙŠ Ø§Ù„ØªØ³Ø¬ÙŠÙ„...' : 'Ø¥Ù†Ø´Ø§Ø¡ Ø§Ù„Ø­Ø³Ø§Ø¨' }}
+						{{ isSubmitting ? 'جاري التسجيل...' : 'إنشاء الحساب' }}
 					</ActionButton>
 
 					<ActionButton
 						variant="subtle"
 						size="lg"
 						@click="goToLogin"
-						:title="__('Ø¹ÙˆØ¯Ø© Ù„Ù„ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„')"
-						:aria-label="__('Ø¹ÙˆØ¯Ø© Ù„Ù„ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„')"
+						:title="__('عودة إلى تسجيل الدخول')"
+						:aria-label="__('عودة إلى تسجيل الدخول')"
 					>
 						<FeatherIcon name="arrow-left" class="h-[16px] w-[16px]" />
-						<span>Ø¹ÙˆØ¯Ø© Ù„Ù„ØªØ³Ø¬ÙŠÙ„</span>
+						<span>عودة إلى تسجيل الدخول</span>
 					</ActionButton>
 				</form>
 
-				<!-- Footer â€” Ø§Ø³Ù… Ø§Ù„Ø´Ø±ÙƒØ© + Ø±Ø§Ø¨Ø· Ù…ÙˆÙ‚Ø¹Ù‡Ø§ Ø§Ù„Ø±Ø³Ù…ÙŠ -->
+				<!-- Footer — اسم الشركة + رابط موقعها الرسمي -->
 
 				<CompanyFooter class="dy-register__footer" />
 			</div>
@@ -905,7 +905,7 @@ onUnmounted(() => {
 
 <style scoped>
 /* =============================================================================
-   DyPOS â€” Subscriber Registration Page
+   DyPOS — Subscriber Registration Page
    RTL-first / Arabic-first / Production Grade
    ============================================================================= */
 
@@ -915,8 +915,8 @@ onUnmounted(() => {
 
 	position: relative;
 	/* A single centered column. This was a two-column grid whose left cell
-	   held the 1200Ã—630 artwork; removing the artwork without touching the
-	   grid would have left a guaranteed-empty column â€” the "stupid space".
+	   held the 1200×630 artwork; removing the artwork without touching the
+	   grid would have left a guaranteed-empty column — the "stupid space".
 	   One column, one job. */
 	display: flex;
 	align-items: center;
@@ -1414,7 +1414,7 @@ onUnmounted(() => {
 }
 
 .dy-register--offline .dy-register__title::after {
-	content: " (ØºÙŠØ± Ù…ØªØµÙ„)";
+	content: " (غير متصل)";
 	color: var(--dy-amber-600);
 	font-weight: 600;
 	font-size: 0.9em;

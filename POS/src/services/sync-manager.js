@@ -212,23 +212,45 @@ export async function pushLocalChange(
 	operation,
 	payload,
 ) {
-	// إضافة للـ queue
-	await db.syncQueue.add({
-		entityType,
-		entityId,
-		operation,
-		payload: {
-			...payload,
-			_localRev: Date.now().toString(),
-			_localUpdatedAt: new Date().toISOString(),
-		},
-		createdAt: new Date(),
-		attemptCount: 0,
-		status: "pending",
-	})
-
-	// زيادة عد التغييرات منذ الأخير
-	syncState.sinceLastOnlineChanges++
+	// منع التكرار من المصدر: نفس المستند المعلق (entityType/entityId/operation)
+	// يُحدَّث بدل تكرار الصف — الضغطة المزدوجة أو إعادة المحاولة بعد نجاح
+	// الحفظ المحلي لا تُنشئ فاتورة ثانية أبدًا.
+	const existing = await db.syncQueue
+		.where("entityId")
+		.equals(String(entityId))
+		.toArray()
+	const dup = (existing || []).find(
+		(row) =>
+			row &&
+			row.status === "pending" &&
+			String(row.entityType) === String(entityType) &&
+			String(row.operation) === String(operation),
+	)
+	const freshPayload = {
+		...payload,
+		_localRev: Date.now().toString(),
+		_localUpdatedAt: new Date().toISOString(),
+	}
+	if (dup?.id != null) {
+		await db.syncQueue.update(dup.id, {
+			payload: freshPayload,
+			attemptCount: 0,
+			status: "pending",
+		})
+	} else {
+		// إضافة للـ queue
+		await db.syncQueue.add({
+			entityType,
+			entityId,
+			operation,
+			payload: freshPayload,
+			createdAt: new Date(),
+			attemptCount: 0,
+			status: "pending",
+		})
+		// زيادة عد التغييرات منذ الأخير
+		syncState.sinceLastOnlineChanges++
+	}
 
 	// الدفع الفوري اتصال شبكي: فقط بوضع `auto` من المستخدم (مع الربط).
 	// بدونه تبقى العملية في الطابور المحلي حتى «مزامنة الآن».

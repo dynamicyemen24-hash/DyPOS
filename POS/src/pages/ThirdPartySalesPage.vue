@@ -157,7 +157,7 @@
 						{{ actionError }}
 					</p>
 					<div class="third-party-sales__actions">
-						<ActionButton type="submit" size="lg" touch :loading="saving">
+						<ActionButton type="submit" size="lg" touch :loading="saving" :disabled="saving">
 							حفظ البيع محليًا
 						</ActionButton>
 					</div>
@@ -246,7 +246,7 @@
 							</label>
 							<div class="third-party-sales__actions">
 								<ActionButton type="submit" theme="green"
-	variant="solid" :loading="saving">
+									variant="solid" :loading="saving" :disabled="saving">
 									اعتماد التسوية
 								</ActionButton>
 								<ActionButton variant="ghost" @click="settlementTarget = null">
@@ -354,7 +354,15 @@ const saving = ref(false)
 const actionError = ref("")
 const loadError = ref("")
 const settlementTarget = ref(null)
-const settlementDraft = reactive({ amount: 0, method: "cash", reference: "" })
+const settlementDraft = reactive({
+	amount: 0,
+	method: "cash",
+	reference: "",
+	idempotencyKey: "",
+})
+// مفتاح ثابت لمسودة البيع: إعادة المحاولة بعد فشل النقل تُعيد نفس المفتاح
+// فيُدمج التكرار بدل عملية بيع مكرّرة.
+const saleDraftKey = ref(generateUUID())
 
 const preview = computed(() => {
 	try {
@@ -404,10 +412,15 @@ async function loadSales() {
 }
 
 async function submitSale() {
+	if (saving.value) return
 	actionError.value = ""
 	saving.value = true
 	try {
-		await createThirdPartySale({ ...draft, sellerName })
+		await createThirdPartySale({
+			...draft,
+			sellerName,
+			saleId: saleDraftKey.value,
+		})
 		Object.assign(draft, {
 			itemName: "",
 			buyerName: "",
@@ -421,6 +434,7 @@ async function submitSale() {
 			buyerPaymentReference: "",
 			notes: "",
 		})
+		saleDraftKey.value = generateUUID()
 		await loadSales()
 	} catch (error) {
 		actionError.value =
@@ -436,11 +450,12 @@ function openSettlement(sale) {
 	settlementDraft.amount = toMajor(sale.ownerDueMinor)
 	settlementDraft.method = "cash"
 	settlementDraft.reference = ""
+	settlementDraft.idempotencyKey = generateUUID()
 }
 
 async function submitSettlement() {
 	const sale = settlementTarget.value
-	if (!sale) return
+	if (!sale || saving.value) return
 	actionError.value = ""
 	saving.value = true
 	try {
@@ -449,7 +464,7 @@ async function submitSettlement() {
 			amount: settlementDraft.amount,
 			method: settlementDraft.method,
 			reference: settlementDraft.reference,
-			idempotencyKey: generateUUID(),
+			idempotencyKey: settlementDraft.idempotencyKey || generateUUID(),
 		})
 		settlementTarget.value = null
 		await loadSales()

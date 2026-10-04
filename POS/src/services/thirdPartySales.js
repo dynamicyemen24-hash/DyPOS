@@ -121,7 +121,9 @@ export function previewThirdPartySale(input) {
 
 export async function createThirdPartySale(input) {
 	const now = new Date()
-	const id = generateUUID()
+	// مفتاح ثابت لكل مسودة: إعادة المحاولة بنفس المفتاح تُعيد السجل
+	// الأصلي بدل عملية بيع مكرّرة (الضغطة المزدوجة/انقطاع النقل).
+	const id = String(input.saleId || input.idempotencyKey || generateUUID())
 	const actorId = sessionUser()
 	if (!actorId) throw new Error("يجب تسجيل الدخول لتسجيل البيع")
 	const amounts = calculateAmounts(input)
@@ -171,6 +173,8 @@ export async function createThirdPartySale(input) {
 		db.thirdPartySaleEvents,
 		db.syncQueue,
 		async () => {
+			const replay = await db.thirdPartySales.get(id)
+			if (replay) return
 			await db.thirdPartySales.add(sale)
 			await db.thirdPartySaleEvents.add(event)
 			await db.syncQueue.add(buildSyncRow(SALE_ENTITY, id, "create", sale, now))
@@ -179,7 +183,8 @@ export async function createThirdPartySale(input) {
 			)
 		},
 	)
-	return sale
+	const stored = await db.thirdPartySales.get(id)
+	return stored || sale
 }
 
 export async function listThirdPartySales({ status = "" } = {}) {

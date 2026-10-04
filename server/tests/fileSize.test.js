@@ -84,7 +84,11 @@ const CAPS = [
 	// there instead of here.
 	// 888 → 1546 → 1428 — formatter reflow, same cause. Long SQL template
 	// strings were packed several per line; each now occupies its own.
-	['routes/invoices.js', 1428],
+	// 1428 → 1400: the daily Z report left for routes/invoice-daily.js (with
+	// tenant isolation on both aggregates), mounted first via router.use so
+	// /reports/daily still beats /:id on the same mount point.
+	['routes/invoices.js', 1400],
+	['routes/invoice-daily.js', 65],
 	// 615 → 601: the two rate limiters (global + auth) moved to
 	// middleware/rate-limiters.js, and HEALTH_PATHS to lib/health-paths.js so the
 	// limiter and the request logger exempt exactly the same three probes.

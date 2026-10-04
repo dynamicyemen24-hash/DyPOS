@@ -119,6 +119,12 @@
  *
  * Bumped with every change, as the deploy gate compares the live
  * /version.json against this number.
+ *
+ * 1.45.1 -- the transaction-safety round: duplicate sales on retry are
+ * impossible (stable idempotency from cart-open through the sync queue to the
+ * server dedupe), the daily Z report is tenant-isolated, zero-value invoices
+ * cannot be issued, the registration screen reads clean Arabic again, and an
+ * import-time crash in the brand module (TDZ) is fixed. All suites green.
  */
-export const VERSION = '1.45.0';
+export const VERSION = '1.45.1';
 export default VERSION;

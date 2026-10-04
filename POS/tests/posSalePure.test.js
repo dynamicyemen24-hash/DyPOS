@@ -18,6 +18,7 @@ import {
 	normalizePaymentErrorPure,
 	normalizeProduct,
 	normalizeSaleCustomer,
+	newSaleSequence,
 	roundMoney,
 } from "@/utils/posSalePure"
 
@@ -265,5 +266,34 @@ describe("getPopularityBoost", () => {
 		expect(getPopularityBoost(m, { id: "b" })).toBe(0)
 		expect(getPopularityBoost(m, { id: "zzz" })).toBe(0)
 		expect(getPopularityBoost(null, null)).toBe(0)
+	})
+})
+
+describe("newSaleSequence", () => {
+	it("is deterministic for the same inputs", () => {
+		expect(newSaleSequence(1000, "abcdef12")).toBe(
+			newSaleSequence(1000, "abcdef12"),
+		)
+		expect(newSaleSequence(1000, "abcdef12")).toBe("SALE-1000-ABCDEF12")
+	})
+	it("never collides within the same millisecond", () => {
+		// crypto-shaped salts (like the UUIDs the page passes): 8 chars of
+		// entropy each, so 200 same-millisecond sales stay distinct.
+		const keys = new Set(
+			Array.from({ length: 200 }, (_, i) =>
+				newSaleSequence(1000, `${i}-f47ac10b58cc4372a5670e02b2c3d479`),
+			),
+		)
+		expect(keys.size).toBe(200)
+	})
+	it("differs across timestamps", () => {
+		expect(newSaleSequence(1000, "s")).not.toBe(newSaleSequence(1001, "s"))
+	})
+	it("mints unique crypto-strong keys by default", () => {
+		const a = newSaleSequence()
+		const b = newSaleSequence()
+		expect(a).toMatch(/^SALE-\d+-[0-9A-Z]{8}$/)
+		expect(b).toMatch(/^SALE-\d+-[0-9A-Z]{8}$/)
+		expect(a).not.toBe(b)
 	})
 })

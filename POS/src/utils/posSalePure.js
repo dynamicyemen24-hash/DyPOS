@@ -291,3 +291,37 @@ export function getPopularityBoost(boostMap, product) {
 	const boost = boostMap?.get(String(product?.id))
 	return Number.isFinite(boost) ? boost : 0
 }
+
+/**
+ * مولد الملح الافتراضي لتسلسل البيع — الوحيد المسموح له بالعشوائية هنا:
+ * crypto قوي أولًا، وعدّاد زمني احتياطي لسياقات غير الآمنة (HTTP محلي).
+ * لا Math.random أبدًا (بوابة التشفير تمنعه لمفاتيح عدم التكرار).
+ */
+let saleSaltCounter = 0
+function defaultSaleSalt() {
+	try {
+		const uuid = globalThis.crypto?.randomUUID?.()
+		if (typeof uuid === "string" && uuid) return uuid
+	} catch {
+		/* non-secure context: the counter fallback below stays unique */
+	}
+	saleSaltCounter += 1
+	return `t${Date.now().toString(36)}-${saleSaltCounter.toString(36)}`
+}
+
+/**
+ * تسلسل فريد لكل عملية بيع.
+ *
+ * الطابع الزمني وحده يتصادم عند بيعين في نفس الميلي ثانية (طرفيتان أو نقرة
+ * سريعة)، والملح — crypto قوي افتراضيًا — يمنع دمج عمليتين في مفتاح عدم
+ * تكرار واحد. المتصل في الاختبارات يمرّر القيم صراحة (حتمية كاملة).
+ */
+export function newSaleSequence(now = Date.now(), salt = defaultSaleSalt()) {
+	const rand = String(salt ?? "")
+		.replace(/^0\./, "")
+		.replace(/[^0-9A-Za-z]/g, "")
+		.slice(0, 8)
+		.toUpperCase()
+		.padEnd(8, "0")
+	return `SALE-${now}-${rand}`
+}

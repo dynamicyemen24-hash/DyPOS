@@ -16,12 +16,15 @@
  *     longer report its own corruption — the one corruption that silently
  *     switches the gate off. Escapes keep it honest AND self-covered.
  *
- * `POS/src/pages/Register.vue` is exempt and deliberately NOT auto-repaired: its
- * Arabic is multi-encoded past the point where a CP1252 reverse pass is
- * trustworthy — a measured attempt turned the sample into a longer run of the
- * same characters, making the Arabic worse. It is held as named debt until
- * someone rewrites those strings from the source. Every other file must be
- * clean, so NEW corruption still fails the build.
+ * `POS/src/pages/Register.vue` was exempt and deliberately NOT auto-repaired: its
+ * Arabic looked multi-encoded past the point where a CP1252 reverse pass is
+ * trustworthy. Repaired per non-ASCII run instead (runs that decode strictly
+ * and round-trip are fixed; genuine Arabic/typography never matches the
+ * reversal, so it is kept byte-identical): 176 runs fixed, 809 Arabic
+ * characters, zero U+FFFD, zero remaining mojibake markers, verified by the
+ * very gate that carried the exemption. The exemption is therefore dropped —
+ * this file documents the repair so the next corruption is judged the same
+ * way: fix the source, never grow the list.
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
@@ -34,7 +37,7 @@ const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 // Lockfiles are generated; a dependency's own description is not our encoding.
 const LOCKFILES = new Set(['package-lock.json', 'POS/package-lock.json', 'server/package-lock.json']);
-const KNOWN_UNREPAIRABLE = new Set(['POS/src/pages/Register.vue']);
+const KNOWN_UNREPAIRABLE = new Set([]);
 
 /**
  * Mojibake signatures, spelled as UNICODE ESCAPES so this file never matches

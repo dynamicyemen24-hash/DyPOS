@@ -92,6 +92,7 @@ import {
 	getPopularityBoost,
 	normalizePaymentErrorPure,
 	normalizeProduct,
+	newSaleSequence,
 } from "@/utils/posSalePure"
 import { getCurrencySymbol } from "@/utils/currency"
 import { session } from "@/stores/session"
@@ -306,7 +307,7 @@ const { notification, showNotification } = saleNotification
 
 const busy = ref(false)
 
-const saleSequence = ref(`SALE-${Date.now()}`)
+const saleSequence = ref(newSaleSequence())
 
 /* ============================================================================
  * Payment Methods
@@ -412,14 +413,13 @@ const remainingAmount = computed(() => {
 	return calcRemaining(total.value, amountReceived.value)
 })
 
-const canCheckout = computed(() => {
-	return (
+const canCheckout = computed(
+	() =>
 		cart.value.length > 0 &&
-		total.value >= 0 &&
+		total.value > 0 &&
 		!paymentProcessing.value &&
-		!busy.value
-	)
-})
+		!busy.value,
+)
 
 const canConfirmPayment = computed(() => {
 	if (!canCheckout.value) {
@@ -1034,7 +1034,7 @@ function startNewSale() {
 	paymentAmount.value = ""
 	paymentMethod.value = "cash"
 	searchQuery.value = ""
-	saleSequence.value = `SALE-${Date.now()}`
+	saleSequence.value = newSaleSequence()
 	syncState.value = "ready"
 
 	focusSearch()
