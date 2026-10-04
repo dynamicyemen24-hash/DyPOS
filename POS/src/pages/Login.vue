@@ -40,6 +40,7 @@ import LoginAppearanceBar from "@/components/common/LoginAppearanceBar.vue"
 import LoginContextChips from "@/components/common/LoginContextChips.vue"
 import LoginPinForm from "@/components/common/LoginPinForm.vue"
 import LoginSecurityPanel from "@/components/common/LoginSecurityPanel.vue"
+import InstallCredentialsCard from "@/components/common/InstallCredentialsCard.vue"
 import DyPanel from "@/components/common/DyPanel.vue"
 import ShiftOpsPanel from "@/components/common/ShiftOpsPanel.vue"
 import LoginSessionLockDialog from "@/components/common/LoginSessionLockDialog.vue"
@@ -108,11 +109,8 @@ import {
 	handleAuthFailure,
 	handleAuthSuccess,
 	handleSessionExpiry,
-	handleSessionIdleTimeout,
-	handleSessionAbsoluteTimeout,
-	installSecurityMonitor,
-	checkSessionSecurity,
 } from "@/utils/securityHardening"
+import { createSessionSecurityMonitor } from "@/composables/useLoginSecurityMonitor"
 
 /* ============================================================================
  * Constants
@@ -347,47 +345,13 @@ const retryAfterSeconds = useSecondsRemaining(
 	computed(() => rateLimitState.value?.retryAfterMs),
 )
 
-// Security hardening: install session activity monitoring and enforce
-// session expiry, idle timeout, and absolute timeout policies.
-let stopSecurityMonitor = null
-
-/**
- * The periodic policy check.
- *
- * It used to be assigned to a local `const interval` that was never stored
- * and never cleared — the timer outlived the component and kept calling
- * `checkSessionSecurity()` on a page that was no longer mounted. A login
- * screen is entered and left repeatedly (every session expiry, every
- * back-navigation), so those timers accumulate.
- */
-let securityCheckTimer = null
-
-function installSessionSecurityMonitor() {
-	if (stopSecurityMonitor) return
-
-	stopSecurityMonitor = installSecurityMonitor()
-
-	// Periodic session security check (independent of user activity).
-	securityCheckTimer = setInterval(() => {
-		const status = checkSessionSecurity()
-		if (status !== "valid") {
-			if (status === "idle_timeout") handleSessionIdleTimeout()
-			if (status === "absolute_timeout") handleSessionAbsoluteTimeout()
-		}
-	}, 60 * 1000)
-}
-
-/** Idempotent teardown — safe to call even if the monitor was never installed. */
-function stopSessionSecurityMonitor() {
-	if (stopSecurityMonitor) {
-		stopSecurityMonitor()
-		stopSecurityMonitor = null
-	}
-	if (securityCheckTimer) {
-		clearInterval(securityCheckTimer)
-		securityCheckTimer = null
-	}
-}
+// Security hardening: session activity monitoring + expiry/idle/absolute
+// timeout policies live in `composables/useLoginSecurityMonitor.js` — keeping
+// the timer and its stop handle in one closure is what makes the leak
+// impossible (see that file for the timer that used to outlive the page).
+const securityMonitor = createSessionSecurityMonitor()
+const installSessionSecurityMonitor = securityMonitor.start
+const stopSessionSecurityMonitor = securityMonitor.stop
 
 /* ============================================================================
  * Computed
@@ -1453,6 +1417,10 @@ watch(
          =============================================================== -->
 
         <LoginSessionLockDialog />
+
+        <!-- بيانات التثبيت — تُعرض مرة واحدة. التفصيل في المكوّن. -->
+        <InstallCredentialsCard />
+
 <TouchKeyboard
             v-model:is-open="showKeyboard"
             :model-value="password"

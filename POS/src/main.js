@@ -1080,6 +1080,15 @@ async function initializeOfflineSystems() {
 		// the same PBKDF2 hash `userRepository` verifies.
 		await import("./services/localUserSeed")
 			.then((m) => m.ensureInstallUser())
+			.then((result) => {
+				// A first run MINTED a password for this shop. The owner has to
+				// read it off one screen — an install that creates an account
+				// nobody can log into is a wall with no door, which is the exact
+				// problem this seed exists to solve.
+				return import("./services/localUserSeed").then((m) => {
+					if (result?.created) m.announceInstallCredentials(result)
+				})
+			})
 			.catch((error) => {
 				log.warn("Install user seed failed", error)
 			})

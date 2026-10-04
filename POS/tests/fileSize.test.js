@@ -127,11 +127,14 @@ const CAPS = [
 	// 1899 → 1890: ربط حالات الواجهة وتصحيح refs وترجمة PIN، ثم استخراج
 	//   التحقق من الحقول إلى composable قابل للاختبار. أضيفت بوابات القالب
 	//   والتخطيط المكتبي؛ الاتجاه downward فقط.
-	// 1725 → 1470: the workspace column's identity card moved into `DyPanel`
-	//   (LoginWorkspacePanel now renders it plus a slot), so the page stopped
-	//   carrying its own card markup. Measured by this gate's own counter.
-	//   Direction downward only.
-	["src/pages/Login.vue", 1470],
+	// 1725 → 1470 → 1439: the workspace column's identity card moved into `DyPanel`
+	//   (LoginWorkspacePanel now renders it plus a slot), then the session
+	//   security monitor pair moved to `composables/useLoginSecurityMonitor.js`.
+	//   Measured by this gate's own counter. Direction downward only.
+	["src/pages/Login.vue", 1439],
+	// The monitor this page used to own: interval + listener + stop in one
+	// closure, with `loginSecurityMonitor.test.js` freezing the contract.
+	["src/composables/useLoginSecurityMonitor.js", 80],
 	// 1845 → 1715, four extractions, every one of them paid for by a feature
 	// rather than by raising the number:
 	//
