@@ -62,7 +62,16 @@ const CAPS = [
 	// `components/pos/PosStockActions.vue` at the same time — four buttons that
 	// were three copies of one block, with «مخزون» appearing twice and both
 	// copies leading to the same destination. Direction: downward only.
-	["src/pages/POSSale.vue", 6165],
+	// 6165 → 6200: the barcode scanner branch was OPENED, and the page paid for
+	// it by extraction rather than by raising the cap. It shipped three dead
+	// contracts at once — an `instascan@3.2.1` dependency that does not exist
+	// on npm (so `npm ci` in CI died before a test ran), a
+	// `this.$root.$emit` inside `<script setup>` where `this` is `undefined`,
+	// and a STOP control with no OPEN control beside it — and the open/close
+	// flow moved to `composables/useBarcodeScanner.js` (-37). The remainder is
+	// the 14 lines of real markup the OPEN button needs. What is NOT allowed is
+	// raising this number to hide growth: the scanner file itself is capped too.
+	["src/pages/POSSale.vue", 6200],
 	// 6145 → 6159: the scanner's stop control became a real `ActionButton`
 	// after `:size="sm"` and a broken `aria-label` string made the whole SFC
 	// fail to compile. Fourteen lines of markup that the build previously

@@ -155,3 +155,9 @@ server/data/_probe.db
 .tmp-*.cjs
 /*-full.txt
 /shots/
+
+# Transient capture files from a backgrounded `git push` on Windows: the shell
+# redirects there, the push finishes, and the empty file is left behind. Twice
+# now it reached `git add -A` uninvited.
+/push.out
+/push.err

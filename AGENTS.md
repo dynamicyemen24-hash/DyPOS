@@ -19,7 +19,7 @@ npm test                              # = node scripts/run-tests.mjs
 npx @biomejs/biome check .
 npm run parity
 npm run contract
-# POS/ — 2133 tests / 120 files
+# POS/ — 2148 tests / 121 files
 npm run test:run
 npx biome check src/<touched-file>
 # production, from the repo root (after a deploy)
@@ -27,7 +27,7 @@ npm run verify:live                   # = node scripts/verify-live.mjs
 ```
 
 Test counts are *measured* by the runners, never estimated: server
-`684 tests / 198 suites`, POS `2133 tests / 120 files`.
+`684 tests / 198 suites`, POS `2148 tests / 121 files`.
 
 `POS/node_modules` is disposable — if a command hangs on `npx … Ok to proceed?`,
 the install is missing: `npm ci` in `POS/` (and add the package to
@@ -172,6 +172,23 @@ manifest breaks both the build and any test that compiles CSS).
   returned `-1` and `-1 < 0` passed on every run. Whenever a gate compares
   positions, it must FIRST prove both names were found. Same class as the
   glob-that-runs-nothing and the encoding gate that exempted itself.
+- **`node --test <file>` without `--import ./tests/setup.js` fails 20/20, and
+  the failures lie.** Running `subscriptions.test.js` bare gave 0/20 with
+  `المستأجر غير موجود` and 401s on `/tenants` — because `setup.js` is what
+  points the suite at a scratch DB and seeds the auth env. The file is green
+  through `npm test` (`node scripts/run-tests.mjs`, which injects
+  `--import ./tests/setup.js`). Diagnose with the runner, not with a bare
+  `node --test`, or you will "fix" a file that was never broken.
+- **A dependency version that does not exist on npm breaks the deploy and
+  nothing else.** `instascan@3.2.1` (published versions stop at `2.0.0-rc.4`)
+  sat in `POS/package.json`, so `npm ci` in CI died with `ETARGET` before a
+  single test ran — while 2148 local tests stayed green, because
+  `node_modules` was already populated and `vite build` never resolves an
+  import that does not exist: nothing imported it at all. The component read a
+  `window.Instascan` global instead (invariant 9). `tests/barcodeScanner.test.js`
+  now asserts the dependency is absent AND that no shipped code names the
+  global. For any camera/scanner work prefer the ENGINE primitive
+  (`BarcodeDetector`): no dependency, no network, invariant 8 intact.
 - **`npm ci` in `server/` can leave you unable to run the suite.** `better-sqlite3@13.0.3`
   ships no prebuilt binary for Node 24 on Windows, so the install falls back to
   `node-gyp`, which needs Python; without it the install dies halfway and the

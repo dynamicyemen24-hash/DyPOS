@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.44.7] - 2026-10-04 — ماسح الباركود كان غير قابل للوصول، والإصدار كان غير قابل للنشر
+
+### 🚨 Fixed — النشر كان يفشل قبل أول اختبار
+- **`instascan@3.2.1` غير موجود على npm** (النسخ المنشورة تتوقف عند `2.0.0-rc.4`). `npm ci`
+  في CI مات بـ `ETARGET` قبل أن يعمل أي اختبار، فلم يكن هناك ما يُشحن إطلاقًا. كان
+  الاعتماد في `package.json` لشيء **لا يستورده أي كود**: المكوّن يقرأ `window.Instascan` — وهو
+  global غير موجود standalone (ثابت 9)، فكان الماسح صامتًا بلا فعل على أي تثبيت مستقل،
+  بينما 2148 اختبارًا خضراء لأن `node_modules` ممتلئ و`vite build` لا يحلّ استيرادًا غير موجود.
+- **الحل: primitive المحرك لا حزمة**. أُعيد بناء `BarcodeScanner.vue` على `BarcodeDetector`
+  الأصلي: بلا اعتماد، بلا شبكة، **بلا global**. البوابة `tests/barcodeScanner.test.js`
+  (13 اختبارًا) تُثبت غياب الاعتماد، وغياب أي اسم `Instascan` في الكود المُشحن، وأربع حالات
+  تدهور صادقة بالعربية **تسمّي وسيلة التعافي**.
+
+### 🔧 Fixed — ثلاث عقد ميتة خلف نفس الباب
+- **`this.$root.$emit("start-scan")` داخل `<script setup>`**: `this` غير معرَّف هناك، فكان
+  النقر يرمي `TypeError: Cannot read properties of undefined (reading '$root')` ولم تُفتح
+  الكاميرا قط. ولا أحد كان يستمع لـ`start-scan` أصلًا — زر يُرسم ولا يفعل شيئًا.
+- **لا يوجد زر «فتح»**: شريط البحث كان يعرض زر **الإيقاف** فقط، فكان فرع الباركود كله غير
+  قابل للوصول و`scanBarcode` بلا مستدعٍ. العقدة صادقة، لكنها كانت معطّلة.
+- **`ref="video"` مقابل `videoRef`**: الاسم لا يطابق، فالـref لا يُربط أبدًا — ظهر ذلك
+  فور تركيب المكوّن في اختبار.
+- **الحدث كان يُصدر كائنًا**: `emit("scan-result", {code, format})` بينما
+  `POSSale.onBarcodeScan` يمرّره إلى `handleScan(code)` — أي `[object Object]`، فلا يطابق
+  أي باركود. صار يُصدر **النص**.
+
+### 📐 Paid for — الاستخراج لا رفع السقف
+منطق الفتح/الإغلاق انتقل إلى `composables/useBarcodeScanner.js` (−37 سطرًا في
+`POSSale.vue`). سقف الملف تحرّك 6165 → 6200 مع **14 سطرًا هي markup حقيقي لزر الفتح**،
+وهو موثّق في `tests/fileSize.test.js`.
+
+### 📝 Documentation
+- `AGENTS.md`: العدّادات المقاسة (684/198 خادم · 2148/121 POS)، ودرسان جديدان —
+  `node --test <file>` بلا `--import ./tests/setup.js` يفشل 20/20 بأخطاء **تكذب**
+  (المستأجر غير موجود / 401)، ونسخة اعتماد غير موجودة على npm تكسر النشر وحده.
+
+### ✅ Verified
+خادم 684/684 · POS 2148/121 · `biome` نظيف في الطرفين · `parity` ok · `contract` 75/75 ·
+`vue-tsc` نظيف · بناء PWA 137 entries · `verify:live` 6/6 على 1.44.7.
+
+---
+
 ## [1.44.7] - 2026-10-03 — تصميم شاشة الدخول، واتصال الخدمات وقت التشغيل
 
 ### 🎨 Fixed — تصميم شاشة الدخول كان مكسورًا فعلًا

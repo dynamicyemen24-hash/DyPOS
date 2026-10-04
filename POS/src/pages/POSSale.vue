@@ -95,6 +95,7 @@ import {
 import { getCurrencySymbol } from "@/utils/currency"
 import { session } from "@/stores/session"
 import BarcodeScanner from "@/components/BarcodeScanner.vue"
+import { useBarcodeScanner } from "@/composables/useBarcodeScanner"
 import { handleScan } from "@/utils/barcode-service.js"
 import { usePOSSettingsStore } from "@/stores/posSettings"
 import { logger } from "@/utils/logger"
@@ -199,9 +200,22 @@ const emit = defineEmits([
  * ========================================================================== */
 
 const searchInput = ref(null)
-const productGrid = ref(null)
-const scanning = ref(false)
-const showScanner = ref(false)
+/**
+ * Scanner state and the open/close flow, extracted to
+ * `composables/useBarcodeScanner.js` so this page stops growing (file-size
+ * ratchet). `notify` is the page's own Arabic toast, injected rather than
+ * imported, so the composable owns no UI.
+ */
+const {
+	scanning,
+	showScanner,
+	barcodeScanner,
+	open: openScanner,
+	close: closeScanner,
+	onRead: scannerRead,
+} = useBarcodeScanner({
+	notify: (message, kind) => showNotification(__(message), kind),
+})
 
 const searchQuery = ref("")
 const productView = ref("comfortable")
@@ -1404,17 +1418,21 @@ watch(
 		customer.value = value || null
 	},
 )
-async function scanBarcode() {
-	if (scanning.value) return
-	scanning.value = true
 
-	// Trigger the BarcodeScanner component to start listening.
-	// The component will emit 'scan-result' with { code, format }.
-	this.$root.$emit("start-scan")
+/**
+ * Open the camera scanner.
+ *
+ * The logic and the story of its three dead contracts now live in
+ * `composables/useBarcodeScanner.js`. It moved out because this file had
+ * crossed its ratchet cap, and the ratchets rule is: extract, then lower
+ * the number in the same commit.
+ */
+function scanBarcode() {
+	return openScanner()
 }
 
 function onBarcodeScan(code) {
-	scanning.value = false
+	scannerRead()
 	// Local cache first. `handleScan` never reaches the network on its own, so
 	// a miss is reported as a miss rather than becoming a silent request.
 	handleScan(code)
@@ -1744,28 +1762,45 @@ function onBarcodeScan(code) {
                         />
 
                         <!--
-							The scanner's stop control.
-							`:type` and `:size` were read as `type`/`size` — undefined
-							identifiers that made the SFC fail to compile, so the POS
-							build broke while every unit test stayed green (nothing mounts
-							this branch). The values are literal now, matching the other
-							controls in the search bar.
+							Scanner open/stop. `:type` and `:size` were read as
+							`type`/`size` — undefined identifiers that made the SFC
+							fail to compile, so the POS build broke while every unit
+							test stayed green (nothing mounts this branch). The values
+							are literal now, matching the other controls in the search
+							bar.
 						-->
 						<ActionButton
 							v-if="showScanner"
 							variant="subtle"
 							size="sm"
-							@click="showScanner = false"
+							@click="closeScanner"
 							:aria-label="__('إيقاف المسح')"
 						>
 							{{ __('إيقاف') }}
 						</ActionButton>
 
-                        <BarcodeScanner
-                            ref="barcodeScanner"
-                            @scan-result="onBarcodeScan"
-                            v-if="showScanner"
-                        />
+						<!--
+							The open side of the same control. It was MISSING: the
+							scanner could be closed but never opened, so the whole
+							barcode branch was unreachable and the open function had
+							no caller at all.
+						-->
+						<ActionButton
+							v-else
+							variant="subtle"
+							size="sm"
+							data-testid="open-scanner"
+							@click="scanBarcode"
+							:aria-label="__('مسح باركود بالكاميرا')"
+						>
+							{{ __('مسح') }}
+						</ActionButton>
+
+						<BarcodeScanner
+							ref="barcodeScanner"
+							@scan-result="onBarcodeScan"
+							v-if="showScanner"
+						/>
 
                         <input
                             ref="searchInput"
