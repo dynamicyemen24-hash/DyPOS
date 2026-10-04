@@ -7,9 +7,7 @@
 
 // Layout & Shell
 export { default as WorkShell } from "./WorkShell.vue"
-export { default as WorkPageHeader } from "./WorkPageHeader.vue"
 export { default as WorkToolbar } from "./WorkToolbar.vue"
-export { default as WorkBreadcrumb } from "./WorkBreadcrumb.vue"
 
 // Navigation
 export { default as WorkTabs } from "./WorkTabs.vue"
@@ -22,20 +20,12 @@ export { default as WorkChart } from "./WorkChart.vue"
 export { default as WorkFilters } from "./WorkFilters.vue"
 export { default as WorkFilterField } from "./WorkFilterField.vue"
 export { default as WorkSearch } from "./WorkSearch.vue"
-export { default as WorkPivotTable } from "./WorkPivotTable.vue"
-
-// Forms
-export { default as WorkForm } from "./WorkForm.vue"
-export { default as WorkFormField } from "./WorkFormField.vue"
-export { default as WorkFormFieldArray } from "./WorkFormFieldArray.vue"
-export { default as WorkWizard } from "./WorkWizard.vue"
 
 // Feedback & States
 export { default as WorkLoadingSkeleton } from "./WorkLoadingSkeleton.vue"
 export { default as WorkErrorState } from "./WorkErrorState.vue"
 export { default as WorkPermissionState } from "./WorkPermissionState.vue"
 export { default as WorkEmptyState } from "./WorkEmptyState.vue"
-export { default as WorkNotification } from "./WorkNotification.vue"
 // The imperative API lives in a plain module: `<script setup>` cannot hold ES
 // exports, and re-exporting `notify` from the SFC is a compile error — which is
 // why this file only ever "worked" while nothing compiled it.
@@ -52,13 +42,8 @@ export {
 	workNotifications,
 } from "./workNotifications.js"
 
-// Overlays
-export { default as WorkDialog } from "./WorkDialog.vue"
-export { default as WorkDrawer } from "./WorkDrawer.vue"
-
 // Actions
 export { default as WorkActions } from "./WorkActions.vue"
-export { default as WorkBatchActions } from "./WorkBatchActions.vue"
 
 // Permissions
 export {

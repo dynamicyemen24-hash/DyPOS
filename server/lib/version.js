@@ -1,5 +1,5 @@
 /**
- * DyPOS single source of truth for the server version (C3) v1.44.9
+ * DyPOS single source of truth for the server version (C3) v1.45.0
  *
  * 1.44.6 -- the round where a green suite stopped being evidence. Fourteen real
  * defects, and the reason no gate saw them is the same every time: a gate that
@@ -120,5 +120,5 @@
  * Bumped with every change, as the deploy gate compares the live
  * /version.json against this number.
  */
-export const VERSION = '1.44.9';
+export const VERSION = '1.45.0';
 export default VERSION;

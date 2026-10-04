@@ -19,7 +19,7 @@ npm test                              # = node scripts/run-tests.mjs
 npx @biomejs/biome check .
 npm run parity
 npm run contract
-# POS/ — 2180 tests / 123 files
+# POS/ — 2150 tests / 125 files
 npm run test:run
 npx biome check src/<touched-file>
 # production, from the repo root (after a deploy)
@@ -27,12 +27,53 @@ npm run verify:live                   # = node scripts/verify-live.mjs
 ```
 
 Test counts are *measured* by the runners, never estimated: server
-`684 tests / 198 suites`, POS `2180 tests / 123 files`.
+`684 tests / 198 suites`, POS `2150 tests / 125 files`.
 
 `POS/node_modules` is disposable — if a command hangs on `npx … Ok to proceed?`,
 the install is missing: `npm ci` in `POS/` (and add the package to
 `POS/package.json`; a dependency used by shipped code but absent from the
 manifest breaks both the build and any test that compiles CSS).
+
+## Product identity — who DyPOS is FOR
+
+**DyPOS is built for small commercial establishments**: the corner shop, the
+family-run supermarket, the single-branch café, the two-terminal restaurant,
+the neighbourhood workshop. That is not a market segment bolted on later — it
+is the constraint the whole architecture is derived from, and every rule below
+exists because of it.
+
+### S0 — Built for the small establishment, at its scale
+
+A small shop is not an enterprise that happens to be small. Its constraints are
+different, and a feature that violates them is a defect even if it works at
+1000 branches:
+
+- **Zero entry cost.** Installing must be: open the URL, install the PWA, sell.
+  No server purchase, no IT contract, no licence negotiation. That is why
+  SQLite is the production database (DB_DECISION.md: one node, tens of
+  points) and why the server is optional for 100% of the seller's job (S2).
+- **No per-seat metering.** Nothing may gate a feature by user count, branch
+  count, or "plan". A shop with four cashiers is not a bigger version of a shop
+  with one, and the product must not pretend otherwise. `legacy/pos_next`
+  carried `max_users` / `max_tenants` columns; the live tree must never
+  reintroduce that shape — a limit that appears in a schema is a limit a
+  customer will hit.
+- **One owner, not a department.** Setup, training and recovery must be
+  something a proprietor does between deliveries. A wizard that needs an
+  administrator is a wizard the shop never completes.
+- **Hardware reality.** A cheap tablet, a thermal printer, a cheap phone. Hence
+  the 44px touch targets, the density tokens, and the offline-first rule: a
+  shop with unreliable wifi must still open the till in the morning (S2).
+- **Arabic and RTL are the default, not a locale.** A secondary shop that needs
+  LTR must be able to switch, but no shop's primary language is optional.
+
+### S7b — No feature advertised unless it is reachable
+
+A control, a report, a wizard or a dashboard that no one can reach is a lie in
+the product, not a backlog item. Deleting unreachable UI is a *feature*
+delivery: 6228 lines of work-kit components shipped to every shop's browser
+while rendering nothing. `tests/deadExports.test.js` fails the build when a
+barrel exports a component no template renders and no registry mounts.
 
 ## Technical specification — binding for every developer (human or agent)
 
@@ -94,7 +135,7 @@ same commit. A backlog item nobody measures is a wish.
 | Metric | Where it is measured | Now | Direction |
 |---|---|---|---|
 | Server tests / suites | `server` `npm test` | **684 / 198** | up or flat |
-| POS tests / files | `POS` `npm run test:run` | **2180 / 123** | up or flat |
+| POS tests / files | `POS` `npm run test:run` | **2150 / 125** | up or flat |
 | Truthfulness gates | `truthfulness.test.js` | **12** | up or flat |
 | Runtime gates (server+P0) | `run-tests.mjs`, `vitest` | **320+** | up or flat |
 | Bundle budget (gzip JS+CSS) | `POS` `npm run size` | **≤ 900 KB** | down or flat |
@@ -117,6 +158,14 @@ file would be 6200 lines *and* nobody would know the debt was already paid.
 A change that moves a row the wrong way must either fix the underlying debt in
 the same commit (then move the cap down) or explain in `CHANGELOG.md` why the
 metric moved. Silence is not an option.
+
+**Why the test COUNT can fall while the suite gets stronger.** Deleting 12 dead
+components (6228 lines) took their unit tests with them, so the count reads
+2150 where it read 2180. Three gates were added in the same round
+(`truthfulness`, `deadExports`, `cartLines`) and three new mount mechanisms
+were taught to the existing ones, so fewer assertions cover more of the
+product. A falling count is not automatically a regression — an UNEXPLAINED
+one is.
 
 ## Invariants (never break)
 
