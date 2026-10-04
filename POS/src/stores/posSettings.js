@@ -1196,6 +1196,31 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 	}
 
 	/**
+	 * هوية المشترك على الجهاز — تُستدعى من بذر المشترك الأول فقط.
+	 *
+	 * تدمج حقول الشركة/الفرع/العملة المعروفة في الحالة الحية فتقرأها التقارير
+	 * فورًا دون انتظار الخادم. الخادم (متى عاد) يبقى المرجع الأعلى عبر
+	 * `loadSettings`، فلا شيء هنا يمنع المزامنة.
+	 */
+	function applySubscriberProfile(patch = {}) {
+		const allowed = [
+			"company_name",
+			"company_address",
+			"company_phone",
+			"company_email",
+			"company_tax_id",
+			"branch_name",
+			"branch_code",
+			"currency",
+		]
+		for (const key of allowed) {
+			if (patch[key] !== undefined) settings.value[key] = patch[key]
+		}
+		applyToRuntime()
+		return true
+	}
+
+	/**
 	 * Validate discount amount against max discount setting
 	 * @param {number} discountPercentage - The discount percentage to validate
 	 * @returns {boolean} - True if discount is allowed, false otherwise
@@ -1474,6 +1499,7 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		loadSettings,
 		reloadSettings,
 		resetSettings,
+		applySubscriberProfile,
 		applyToRuntime,
 		getSettingsByModule,
 		validateDiscount,

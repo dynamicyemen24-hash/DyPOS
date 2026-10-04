@@ -187,6 +187,11 @@ const CAPS = [
 	// (tests/itemListRegistry.test.js, 12 checks). The cap moves downward only.
 	["src/stores/itemSearch.js", 2561],
 	["src/stores/itemListRegistry.js", 178],
+	// بذر المشترك الأول (رويال، مأرب): يعمل باشتراك صريح فقط، والوحدة تحمل
+	// سقفها الخاص حتى لا تنمو داخلها بيانات متجر آخر. الاتجاه نزول فقط.
+	// الهوية في `firstSubscriberProfile.js` بسقفها الخاص.
+	["src/services/firstSubscriberSeed.js", 294],
+	["src/services/firstSubscriberProfile.js", 60],
 	// 1188 → 1150 → 1145: column layout and cell formatting moved to focused modules as
 	// the frozen-grid contract grew; the narrow-screen contract (scrollable
 	// table + pinned key column, WCAG 2.5.8) then moved to

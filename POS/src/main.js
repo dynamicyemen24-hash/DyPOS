@@ -1093,6 +1093,15 @@ async function initializeOfflineSystems() {
 				log.warn("Install user seed failed", error)
 			})
 
+		// Provision the first subscriber (Royal, Marib) — explicit opt-in only
+		// (`dypos.first_subscriber=royal-marib` on this device). Company,
+		// users and opening stock from the owner's own keys, one-shot.
+		await import("./services/firstSubscriberSeed")
+			.then((m) => m.ensureFirstSubscriber())
+			.catch((error) => {
+				log.warn("First subscriber seed skipped", error)
+			})
+
 		// Initialize offline numbering (for invoice numbers)
 		await import("./services/offline-numbering").catch((error) => {
 			log.warn("Offline numbering init failed", error)

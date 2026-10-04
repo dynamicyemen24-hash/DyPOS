@@ -1,5 +1,5 @@
 /**
- * DyPOS single source of truth for the server version (C3) v1.46.0
+ * DyPOS single source of truth for the server version (C3) v1.47.0
  *
  * 1.44.6 -- the round where a green suite stopped being evidence. Fourteen real
  * defects, and the reason no gate saw them is the same every time: a gate that
@@ -134,6 +134,10 @@
  * with all clear paths synced, customer display follows the effective
  * (pinned) account, payment methods show loading + retry, barcode lookup is
  * offline-first with honest miss, and stock auto-sync requires link consent.
+ *
+ * 1.47.0 -- first-subscriber provisioning (Royal International, Marib):
+ * opt-in IndexedDB seed (company/branch/warehouse/YER + owner-supplied users
+ * + owner-supplied opening stock), one-shot with secret-key deletion.
  */
-export const VERSION = '1.46.0';
+export const VERSION = '1.47.0';
 export default VERSION;

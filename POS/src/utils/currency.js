@@ -110,6 +110,7 @@ const SYMBOLS = {
 	INR: "₹",
 	EGP: "E£",
 	SAR: "ر.س",
+	YER: "ر.ي",
 	AED: "د.إ",
 	QAR: "ر.ق",
 	KWD: "د.ك",
