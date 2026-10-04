@@ -49,6 +49,7 @@ import {
 import { terminateSession } from "@/utils/auth"
 import { createSaleNotification } from "@/composables/useSaleNotification"
 import { createSalePrint } from "@/composables/useSalePrint"
+import { createCartLines } from "@/composables/useCartLines"
 import { useSaleStatusLabel } from "@/composables/useSaleStatus"
 import {
 	createHeaderActions,
@@ -246,7 +247,6 @@ const saleStatusLabel = useSaleStatusLabel(syncState)
 
 const activeProductIndex = ref(-1)
 
-const quantityEditor = ref(null)
 const quantityInput = ref(null)
 
 const discountValue = ref(0)
@@ -638,147 +638,62 @@ function handleScanSubmit() {
 /* ============================================================================
  * Cart Operations
  * ========================================================================== */
+/**
+ * Cart line behaviour now lives in `composables/useCartLines.js`.
+ *
+ * The wrappers below keep the page's call signature (`removeItem(item)`) so the
+ * template is untouched, while the RULES — the 9999 clamp, "quantity <= 1
+ * removes the line", "an emptied field removes the line" — live in one place
+ * with their own tests. Behaviour is unchanged by design: a cart line that
+ * behaves differently after a refactor is a cashier charged the wrong number.
+ */
+const cartLines = createCartLines({
+	normalizeProduct,
+	onProductAdded: trackProductAdded,
+	isEmpty: () => cartEmpty.value,
+	notify: (message, kind) => showNotification(message, kind),
+})
 
-let cartIdCounter = 0
+const quantityEditor = cartLines.quantityEditor
 
 function addProduct(product) {
-	const normalized = normalizeProduct(product)
-
-	if (!normalized || normalized.disabled) {
-		return
-	}
-
-	// الكاشير الذكي: تتبع سلوك الكاشير (بيع سريع/توصيات مستقبلية).
-	trackProductAdded({ productId: normalized.id, name: normalized.name })
-
-	const existing = cart.value.find((item) => item.productId === normalized.id)
-
-	if (existing) {
-		existing.quantity += 1
-
-		emit("product-selected", normalized)
-
-		return
-	}
-
-	cartIdCounter += 1
-	cart.value.push({
-		id: `${normalized.id}-${Date.now()}-${cartIdCounter}`,
-
-		productId: normalized.id,
-
-		code: normalized.code,
-
-		name: normalized.name,
-
-		image: normalized.image,
-
-		unit: normalized.unit,
-
-		quantity: 1,
-
-		unitPrice: Number(normalized.price) || 0,
-
-		discount: 0,
-
-		taxRate: Number(normalized.taxRate ?? 0),
-
-		notes: "",
-	})
-
-	emit("product-selected", normalized)
+	const normalized = cartLines.addToCart(product, cart.value)
+	if (normalized) emit("product-selected", normalized)
 }
 
 function incrementItem(item) {
-	if (!item) {
-		return
-	}
-
-	item.quantity = Math.max(1, Number(item.quantity || 0) + 1)
+	cartLines.incrementItem(item)
 }
 
 function decrementItem(item) {
-	if (!item) {
-		return
-	}
-
-	const quantity = Number(item.quantity || 0)
-
-	if (quantity <= 1) {
-		removeItem(item)
-		return
-	}
-
-	item.quantity = quantity - 1
+	cartLines.decrementItem(item, cart.value)
 }
 
 function setItemQuantity(item, quantity) {
-	if (!item) {
-		return
-	}
-
-	const parsed = Number(quantity)
-
-	if (!Number.isFinite(parsed) || parsed <= 0) {
-		removeItem(item)
-		return
-	}
-
-	item.quantity = Math.min(9999, Math.floor(parsed))
+	cartLines.setItemQuantity(item, quantity, cart.value)
 }
 
 function removeItem(item) {
-	const index = cart.value.findIndex((entry) => entry.id === item.id)
-
-	if (index === -1) {
-		return
-	}
-
-	cart.value.splice(index, 1)
+	cartLines.removeItem(item, cart.value)
 }
 
 function clearCart() {
-	if (cartEmpty.value) {
-		return
-	}
-
-	cart.value = []
-
-	discountValue.value = 0
-
-	showClearCartDialog.value = false
-
-	showNotification("تم إفراغ السلة", "success")
-}
-
-/* ============================================================================
- * Quantity Editor
- * ========================================================================== */
-
-function openQuantityEditor(item) {
-	quantityEditor.value = item
-
-	nextTick(() => {
-		quantityInput.value?.focus?.()
-
-		quantityInput.value?.select?.()
+	cartLines.clearLines(cart.value, {
+		discount: discountValue,
+		closeDialog: showClearCartDialog,
 	})
 }
 
+function openQuantityEditor(item) {
+	cartLines.openQuantityEditor(item, quantityInput)
+}
+
 function closeQuantityEditor() {
-	quantityEditor.value = null
-	// Return focus to search so the cashier never loses keyboard flow.
-	nextTick(() => focusSearch())
+	cartLines.closeQuantityEditor(focusSearch)
 }
 
 function commitQuantity() {
-	if (!quantityEditor.value) {
-		return
-	}
-
-	setItemQuantity(quantityEditor.value, quantityEditor.value.quantity)
-
-	closeQuantityEditor()
+	cartLines.commitQuantity(cart.value, quantityInput, focusSearch)
 }
 
 /* ============================================================================
@@ -1113,7 +1028,6 @@ function startNewSale() {
 	completedSale.value = null
 	receiptVisible.value = false
 	cart.value = []
-	cartIdCounter = 0
 	customer.value = props.initialCustomer || null
 	discountValue.value = 0
 	discountType.value = "amount"

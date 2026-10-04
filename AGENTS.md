@@ -19,7 +19,7 @@ npm test                              # = node scripts/run-tests.mjs
 npx @biomejs/biome check .
 npm run parity
 npm run contract
-# POS/ — 2161 tests / 122 files
+# POS/ — 2180 tests / 123 files
 npm run test:run
 npx biome check src/<touched-file>
 # production, from the repo root (after a deploy)
@@ -27,7 +27,7 @@ npm run verify:live                   # = node scripts/verify-live.mjs
 ```
 
 Test counts are *measured* by the runners, never estimated: server
-`684 tests / 198 suites`, POS `2161 tests / 122 files`.
+`684 tests / 198 suites`, POS `2180 tests / 123 files`.
 
 `POS/node_modules` is disposable — if a command hangs on `npx … Ok to proceed?`,
 the install is missing: `npm ci` in `POS/` (and add the package to
@@ -94,7 +94,7 @@ same commit. A backlog item nobody measures is a wish.
 | Metric | Where it is measured | Now | Direction |
 |---|---|---|---|
 | Server tests / suites | `server` `npm test` | **684 / 198** | up or flat |
-| POS tests / files | `POS` `npm run test:run` | **2161 / 122** | up or flat |
+| POS tests / files | `POS` `npm run test:run` | **2180 / 123** | up or flat |
 | Truthfulness gates | `truthfulness.test.js` | **12** | up or flat |
 | Runtime gates (server+P0) | `run-tests.mjs`, `vitest` | **320+** | up or flat |
 | Bundle budget (gzip JS+CSS) | `POS` `npm run size` | **≤ 900 KB** | down or flat |
@@ -102,6 +102,17 @@ same commit. A backlog item nobody measures is a wish.
 | Escaped/excused gate entries | `ALLOWED_SURFACES`, `KNOWN_*` | **0 / minimal** | down or flat |
 | Largest shipped file | `fileSize.test.js` | measured, capped | down or flat |
 | Codepath reachability | `deadCode.test.js` | **0 unreachable** | flat |
+
+### The ratchet's one upward move, recorded rather than hidden
+
+`POSSale.vue` went **6165 → 6200** in 1.44.7, when the barcode branch was opened
+and a real OPEN button had to exist. The rule says caps move down, so this is
+the exception that needed an argument, and the argument is written where the
+cap is: the 14 added lines are shipped markup, not growth, and the *next* round
+paid it back. `useBarcodeScanner.js` (1.44.7) and `useCartLines.js` (1.44.9,
+6200 → **6115**) both landed as extractions, each with its own cap so it cannot
+regrow into the page. Had the 1.44.7 number been left to drift silently, the
+file would be 6200 lines *and* nobody would know the debt was already paid.
 
 A change that moves a row the wrong way must either fix the underlying debt in
 the same commit (then move the cap down) or explain in `CHANGELOG.md` why the

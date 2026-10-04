@@ -71,7 +71,14 @@ const CAPS = [
 	// flow moved to `composables/useBarcodeScanner.js` (-37). The remainder is
 	// the 14 lines of real markup the OPEN button needs. What is NOT allowed is
 	// raising this number to hide growth: the scanner file itself is capped too.
-	["src/pages/POSSale.vue", 6200],
+	// 6200 → 6115: the cart-line rules moved to `composables/useCartLines.js`
+	// (−85 here, +164 there, with 16 tests freezing the behaviour). What moved
+	// is exactly what a cashier notices first: the 9999 clamp, "quantity <= 1
+	// removes the line", and "an emptied quantity field removes the line". The
+	// page keeps thin wrappers so the template is untouched, and the module
+	// carries its own cap so the extraction cannot regrow into the page.
+	["src/pages/POSSale.vue", 6115],
+	["src/composables/useCartLines.js", 200],
 	// 6145 → 6159: the scanner's stop control became a real `ActionButton`
 	// after `:size="sm"` and a broken `aria-label` string made the whole SFC
 	// fail to compile. Fourteen lines of markup that the build previously
