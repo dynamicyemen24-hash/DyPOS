@@ -32,19 +32,26 @@ export async function handleScan(code) {
 
 	const store = useItemSearchStore()
 
-	// The store already keeps the cached list search reads from; duplicating
-	// the match loop here is how two implementations of "find by code" drift.
-	const match =
-		(await store.searchByBarcode(trimmed)) ||
+	// Offline-first: local cache first — never a surprise network call.
+	// The store's searchByBarcode is server-bound (requires posProfile and
+	// throws offline), so it is best-effort only with a local fallback.
+	const localMatch =
 		store.items?.find?.(
 			(item) =>
 				item.barcode === trimmed ||
 				item.sku === trimmed ||
 				item.item_code === trimmed,
-		) ||
-		null
+		) || null
+	if (localMatch) return { found: true, product: localMatch }
 
-	return { found: Boolean(match), product: match || null }
+	try {
+		const remote = await store.searchByBarcode(trimmed)
+		if (remote) return { found: true, product: remote }
+	} catch {
+		// Offline / no profile / server error → honest miss, not a throw.
+	}
+
+	return { found: false, product: null }
 }
 
 export default handleScan

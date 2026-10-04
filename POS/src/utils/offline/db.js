@@ -91,6 +91,9 @@ const CURRENT_SCHEMA = {
 	// the server-side one-time gate in apply_offers.
 	one_time_redemptions: "&customer",
 
+	// Shift operations queue for offline shift creation/closing
+	shift_queue: "++id, type, entityId, offline_id, created_at, synced",
+
 	// ** ZATCA Compliance Tables **
 	// ZATCA audit trail - tracks all invoices for ZATCA compliance
 	zatca_audit_trail: "++id, invoice_id, timestamp, hash_value, status",

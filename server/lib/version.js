@@ -1,5 +1,5 @@
 /**
- * DyPOS single source of truth for the server version (C3) v1.45.0
+ * DyPOS single source of truth for the server version (C3) v1.46.0
  *
  * 1.44.6 -- the round where a green suite stopped being evidence. Fourteen real
  * defects, and the reason no gate saw them is the same every time: a gate that
@@ -125,6 +125,15 @@
  * server dedupe), the daily Z report is tenant-isolated, zero-value invoices
  * cannot be issued, the registration screen reads clean Arabic again, and an
  * import-time crash in the brand module (TDZ) is fixed. All suites green.
+ *
+ * 1.46.0 -- operational maturity End-to-End: login shift dialog rewired to its
+ * contract (v-model + shift-opened/dialog-closed), PIN unified through the
+ * single authentication path, auth errors Arabic with recovery and never leak
+ * English transport text, offline shift queue fixed (indexed keys + drain on
+ * reconnect) with offline close wired, sale search debounced + grid-windowed
+ * with all clear paths synced, customer display follows the effective
+ * (pinned) account, payment methods show loading + retry, barcode lookup is
+ * offline-first with honest miss, and stock auto-sync requires link consent.
  */
-export const VERSION = '1.45.1';
+export const VERSION = '1.46.0';
 export default VERSION;

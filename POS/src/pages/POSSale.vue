@@ -35,6 +35,7 @@ New Sale
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
+import { useDebounceFn } from "@vueuse/core"
 import { useRouter } from "vue-router"
 
 import { FeatherIcon } from "dypos-ui"
@@ -62,6 +63,7 @@ import { useConnectionWatch } from "@/composables/useConnectionWatch"
 import { gridNextIndex, readDirectionRTL } from "@/utils/gridNavigation"
 import POSHeader from "@/components/pos/POSHeader.vue"
 import OperatorMenu from "@/components/pos/OperatorMenu.vue"
+import OpenInvoiceTabs from "@/components/pos/OpenInvoiceTabs.vue"
 import PosKioskActions from "@/components/pos/PosKioskActions.vue"
 import PosHeaderActionGroup from "@/components/pos/PosHeaderActionGroup.vue"
 import PosStockActions from "@/components/pos/PosStockActions.vue"
@@ -69,12 +71,15 @@ import PosToolsMenu from "@/components/pos/PosToolsMenu.vue"
 import SmartCashierDock from "@/components/pos/SmartCashierDock.vue"
 import SyncStatusIndicator from "@/components/pos/SyncStatusIndicator.vue"
 import SyncCenterDialog from "@/components/sale/SyncCenterDialog.vue"
+import HeldSalesDialog from "@/components/sale/HeldSalesDialog.vue"
 import AutocompleteSelect from "@/components/common/AutocompleteSelect.vue"
 import IconButton from "@/components/ui/IconButton.vue"
 
 import { useSmartCashier } from "@/composables/useSmartCashier"
-import { useDebouncedSearch } from "@/composables/useDebouncedSearch"
 import { useCrashResume } from "@/composables/useCrashResume"
+import { useOpenInvoices } from "@/composables/useOpenInvoices"
+import { useSaleCustomer } from "@/composables/useSaleCustomer"
+import { usePaymentMethods } from "@/composables/usePaymentMethods"
 import {
 	buildPaymentBlock,
 	buildSalePayloadPure,
@@ -101,12 +106,10 @@ import { useBarcodeScanner } from "@/composables/useBarcodeScanner"
 import { handleScan } from "@/utils/barcode-service.js"
 import { usePOSSettingsStore } from "@/stores/posSettings"
 import { logger } from "@/utils/logger"
-import { searchCachedCustomers } from "@/utils/offline/cache.js"
 import { __ } from "@/utils/translation"
 import {
 	buildProductIndex,
 	DEFAULT_FUZZY_SCAN_LIMIT,
-	resolveScanIntent,
 	searchProductIndex,
 } from "@/utils/smartSearch"
 
@@ -215,6 +218,7 @@ const {
 	open: openScanner,
 	close: closeScanner,
 	onRead: scannerRead,
+	submitScan: submitScanProduct,
 } = useBarcodeScanner({
 	notify: (message, kind) => showNotification(__(message), kind),
 })
@@ -232,8 +236,6 @@ const customer = ref(props.initialCustomer || null)
 
 const customerOptions = ref([])
 const customerSearchLoading = ref(false)
-
-const heldSalesCount = ref(0)
 
 const loadingProducts = ref(false)
 const loadingCart = ref(false)
@@ -309,27 +311,76 @@ const busy = ref(false)
 
 const saleSequence = ref(newSaleSequence())
 
+// Holds applyCustomerPolicy once useSaleCustomer is initialized — lets the
+// open-invoice adapter enforce the pinned policy on resume without a
+// use-before-define in setup order.
+const applyCustomerPolicyRef = ref(null)
+
+/* ============================================================================
+ * Open Invoices — فواتير متعددة مفتوحة بتبويبات
+ *
+ * الصفحة تملك سلة حية واحدة (refs أدناه)؛ المتحكم يركن الحالة الكاملة جانبًا
+ * ويستعيدها عند الطلب. المحوّل يقرأ/يكتب refs الصفحة، فتبقى الحالة الحية
+ * في مكان واحد ولا تتشتت.
+ * ========================================================================== */
+const openInvoices = useOpenInvoices({
+	readActive: () => {
+		if (cartEmpty.value) return null
+		return {
+			id: saleSequence.value,
+			label: "",
+			createdAt: new Date().toISOString(),
+			cart: JSON.parse(JSON.stringify(cart.value)),
+			customer: customer.value ? { ...customer.value } : null,
+			discountType: discountType.value,
+			discountValue: discountValue.value,
+			paymentMethod: paymentMethod.value,
+			paymentAmount: paymentAmount.value,
+			saleSequence: saleSequence.value,
+		}
+	},
+	writeActive: (snapshot) => {
+		cart.value = Array.isArray(snapshot.cart) ? snapshot.cart : []
+		customer.value = snapshot.customer || null
+		discountType.value = snapshot.discountType || "amount"
+		discountValue.value = Number(snapshot.discountValue) || 0
+		paymentMethod.value = snapshot.paymentMethod || "cash"
+		paymentAmount.value = snapshot.paymentAmount ?? ""
+		saleSequence.value = snapshot.saleSequence || newSaleSequence()
+		resetSaleState()
+		try {
+			applyCustomerPolicyRef.value?.()
+		} catch {
+			// Policy applied on next tick via watcher; never break resume.
+		}
+	},
+	clearActive: () => {
+		cart.value = []
+		customer.value = null
+		resetSaleState()
+		saleSequence.value = newSaleSequence()
+		applyCustomerPolicy()
+	},
+	isActiveEmpty: () => cartEmpty.value,
+	notify: (message, kind) => showNotification(message, kind),
+})
+
+/** شارة الرأس: عدد الفواتير المركونة (كانت عدّادًا لا يُعيد شيئًا). */
+const heldSalesCount = computed(() => openInvoices.parked.value.length)
+
 /* ============================================================================
  * Payment Methods
  * ========================================================================== */
 
-const paymentMethods = [
-	{
-		id: "cash",
-		label: "نقدي",
-		icon: "credit-card",
-	},
-	{
-		id: "card",
-		label: "بطاقة",
-		icon: "credit-card",
-	},
-	{
-		id: "mixed",
-		label: "دفع مختلط",
-		icon: "layers",
-	},
-]
+const posSettingsStore = usePOSSettingsStore()
+
+const {
+	paymentMethods,
+	isLoading: paymentMethodsLoading,
+	loadPaymentMethods: reloadPaymentMethods,
+} = usePaymentMethods({
+	posProfile: computed(() => posSettingsStore.posProfile || "default"),
+})
 
 /* ============================================================================
  * Product Normalization — canonical pure implementation in
@@ -512,12 +563,16 @@ const productUsageBoosts = computed(() => {
 
 /** نتيجة البحث الذكية (دقيق أولًا، ثم تقريبي عند الخطأ الإملائي). */
 const smartSearchResult = computed(() => {
-	return searchProductIndex(productSearchIndex.value, searchQuery.value, {
-		limit: 160,
-		fuzzyScanLimit: DEFAULT_FUZZY_SCAN_LIMIT,
-		popularity: (product) =>
-			getPopularityBoost(productUsageBoosts.value, product),
-	})
+	return searchProductIndex(
+		productSearchIndex.value,
+		searchQuerySettled.value,
+		{
+			limit: 160,
+			fuzzyScanLimit: DEFAULT_FUZZY_SCAN_LIMIT,
+			popularity: (product) =>
+				getPopularityBoost(productUsageBoosts.value, product),
+		},
+	)
 })
 
 /** المنتجات المعروضة في الشبكة. */
@@ -542,9 +597,7 @@ function applyDidYouMean() {
 		return
 	}
 
-	searchQuery.value = suggestion
-
-	emit("search", suggestion)
+	handleSearch(suggestion)
 
 	nextTick(() => {
 		activeProductIndex.value = -1
@@ -577,9 +630,34 @@ function handleSearch(value) {
 	const query = typeof value === "string" ? value : searchQuery.value
 
 	searchQuery.value = query
+	pushSettledQuery(query)
 
 	emit("search", query)
 }
+
+// البحث الثقيل (فهرس + تقريبي) يعمل على نسخة مستقرة من الاستعلام: الكتابة
+// تبقى فورية في الحقل، وإعادة الحساب تنهار لكل دفعة keystrokes بدل كل حرف —
+// وهذا هو عنق الزجاجة الرئيسي مع الكتالوجات الكبيرة.
+const searchQuerySettled = ref("")
+const pushSettledQuery = useDebounceFn((query) => {
+	searchQuerySettled.value = query
+}, 120)
+
+/** نافذة العرض: الشبكة ترسم أول 48 بطاقة فقط بدل 160 — الباقي بزر. */
+const PRODUCT_GRID_LIMIT = 48
+const visibleProductLimit = ref(PRODUCT_GRID_LIMIT)
+
+const visibleProducts = computed(() =>
+	filteredProducts.value.slice(0, visibleProductLimit.value),
+)
+
+function showMoreProducts() {
+	visibleProductLimit.value += PRODUCT_GRID_LIMIT
+}
+
+watch(searchQuerySettled, () => {
+	visibleProductLimit.value = PRODUCT_GRID_LIMIT
+})
 
 async function focusSearch() {
 	await nextTick()
@@ -590,49 +668,24 @@ async function focusSearch() {
 /**
  * المسح/الكتابة السريعة: Enter في حقل البحث = «أضف الآن».
  *
- * ثورة تشغيلية للكاشير: لا نقر على الشبكة، لا عودة بالماوس — مسح متواصل
- * بيد واحدة. القرار يُتخذ فقط عند وجود مطابقة قاطعة (باركود/رمز/نتيجة وحيدة)،
- * وإلا نُبقي القائمة أمام الكاشير للاختيار.
+ * المنطق في `composables/useBarcodeScanner.js#submitScan` (مُستخرج لتهدئة
+ * الرافعة)؛ هنا فقط ربط refs الصفحة. السلوك حرفيًا كما كان.
  */
 function handleScanSubmit() {
-	const intent = resolveScanIntent(
-		productSearchIndex.value,
-		searchQuery.value,
-		{
-			minLength: 3,
-			popularity: (product) =>
-				getPopularityBoost(productUsageBoosts.value, product),
+	submitScanProduct({
+		index: productSearchIndex.value,
+		query: searchQuery.value,
+		boosts: productUsageBoosts.value,
+		addProduct,
+		clearQuery: () => {
+			handleSearch("")
 		},
-	)
-
-	if (intent.action === "add" && intent.product) {
-		addProduct(intent.product)
-
-		searchQuery.value = ""
-
-		emit("search", "")
-
-		activeProductIndex.value = -1
-
-		const reasonLabel =
-			intent.reason === "barcode"
-				? "مسح باركود"
-				: intent.reason === "code"
-					? "رمز صنف"
-					: "إضافة سريعة"
-
-		showNotification(`${reasonLabel}: أُضيف «${intent.product.name}»`, "success")
-
-		nextTick(() => {
-			searchInput.value?.focus?.()
-		})
-
-		return
-	}
-
-	if (intent.action === "empty" && searchQuery.value.trim()) {
-		showNotification("لا يوجد منتج مطابق — تحقق من الرمز", "warning")
-	}
+		resetActiveIndex: () => {
+			activeProductIndex.value = -1
+		},
+		focusSearch: () => focusSearch(),
+		tell: (message, kind) => showNotification(message, kind),
+	})
 }
 
 /* ============================================================================
@@ -723,117 +776,64 @@ function removeDiscount() {
 }
 
 /* ============================================================================
- * Customer
+ * Customer — owned by composables/useSaleCustomer.js (ratchet extraction:
+ * select/search/clear + the pinned-account policy moved out verbatim).
  * ========================================================================== */
+const saleSettingsStore = usePOSSettingsStore()
 
-function selectCustomer(selectedValue) {
-	if (!selectedValue) {
-		customer.value = null
-		showCustomerPanel.value = false
+const {
+	selectCustomer,
+	clearCustomer,
+	handleCustomerSearch,
+	isCustomerPinned,
+	effectiveCustomer,
+	applyCustomerPolicy,
+} = useSaleCustomer({
+	customer,
+	customerOptions,
+	customerSearchLoading,
+	showCustomerPanel,
+	getCustomerMode: () => saleSettingsStore.customerMode,
+	getPinnedCustomer: () => saleSettingsStore.pinnedCustomer,
+	notify: (message, kind) => showNotification(message, kind),
+	logError: (message, error) => logger?.error?.(message, error),
+})
+
+applyCustomerPolicyRef.value = applyCustomerPolicy
+
+/* ============================================================================
+ * Hold Sale — تعليق حقيقي عبر متحكم الفواتير المفتوحة
+ *
+ * العدّاد القديم كان يعدّ أحداثًا لا يمكن إعادة فتحها؛ الآن تُركن الحالة
+ * الكاملة (السلة، العميل، الخصم، الدفعة) وتُستعاد من التبويبات.
+ * ========================================================================== */
+function holdSale() {
+	if (!props.allowHold || busy.value) {
 		return
 	}
-	const match = customerOptions.value.find(
-		(option) => option.value === selectedValue,
-	)
 
-	customer.value = match
-		? {
-				id: match?.id ?? selectedValue,
-				name: match?.name ?? match?.label ?? selectedValue,
-				customer_name: match?.customer_name ?? match?.label ?? selectedValue,
-			}
-		: null
-
-	showCustomerPanel.value = false
-}
-
-async function handleCustomerSearch(query) {
-	// Debounced + stale-guarded via useDebouncedSearch: rapid keystrokes
-	// collapse into one IndexedDB lookup and late responses never overwrite
-	// newer ones. Empty query (panel open) runs immediately, no debounce lag.
-	if (!String(query || "").trim()) {
-		await customerSearch.runImmediate(query)
-		return
+	const result = openInvoices.parkActive()
+	if (result.ok) {
+		emit("sale-held", { invoiceId: result.id })
 	}
-	customerSearch.setQuery(query)
-}
-
-// Single professional search pipeline for the customer dialog.
-const customerSearch = useDebouncedSearch(
-	async (query) => searchCachedCustomers(query, 100),
-	{ delay: 250 },
-)
-
-watch(customerSearch.results, (rows) => {
-	customerOptions.value = (rows || []).map((c) => ({
-		value: c.name ?? c.customer_name,
-		id: c.name,
-		label: c.customer_name || c.name,
-		name: c.customer_name || c.name,
-		customer_name: c.customer_name || c.name,
-		subtitle: c.mobile_no || "",
-	}))
-})
-
-watch(customerSearch.isSearching, (searching) => {
-	customerSearchLoading.value = searching
-})
-
-watch(customerSearch.error, (error) => {
-	if (!error) return
-	logger?.error?.("DyPOS customer search failed", error)
-	customerOptions.value = []
-})
-
-watch(showCustomerPanel, (isOpen) => {
-	if (isOpen) {
-		handleCustomerSearch("")
-	}
-})
-
-function clearCustomer() {
-	customer.value = null
 }
 
 /* ============================================================================
- * Hold Sale
+ * Held Sales Dialog Handlers
  * ========================================================================== */
 
-async function holdSale() {
-	if (!props.allowHold || cartEmpty.value || busy.value) {
-		return
-	}
+function handleSwitchHeld(event) {
+	openInvoices.resumeInvoice(event)
+	showHeldSalesPanel.value = false
+}
 
-	busy.value = true
+function handleCloseHeld(event) {
+	openInvoices.closeParked(event)
+}
 
-	try {
-		const payload = buildSalePayload()
-
-		/*
-		 * طبقة persistence الفعلية يمكن ربطها هنا.
-		 * لا نستخدم localStorage مباشرة لحفظ عملية بيع
-		 * حساسة في production.
-		 */
-
-		emit("sale-held", payload)
-
-		heldSalesCount.value += 1
-
-		cart.value = []
-
-		resetSaleState()
-
-		showNotification("تم تعليق عملية البيع", "success")
-	} catch (error) {
-		logger?.error?.("DyPOS hold sale failed", error)
-
-		showNotification(
-			"تعذّر تعليق عملية البيع. لم تتأثر الفاتورة — أعد المحاولة.",
-			"error",
-		)
-	} finally {
-		busy.value = false
-	}
+function handleNewHeld() {
+	openInvoices.newInvoice()
+	showHeldSalesPanel.value = false
 }
 
 function resetSaleState() {
@@ -858,7 +858,7 @@ function resetSaleState() {
 function buildSalePayload() {
 	return buildSalePayloadPure({
 		clientSequence: saleSequence.value,
-		customer: customer.value,
+		customer: effectiveCustomer.value,
 		cart: cart.value,
 		pricing: {
 			subtotal: subtotal.value,
@@ -980,6 +980,17 @@ async function confirmPayment() {
 
 		emit("sale-completed", completedSale.value)
 
+		// فاتورة مستأنفة أُتمّت: تُشطب من المركونة بصمت (بلا تنبيه فوق الإيصال).
+		if (openInvoices.activeInvoiceId.value) {
+			openInvoices.closeParked(openInvoices.activeInvoiceId.value, {
+				silent: true,
+			})
+			openInvoices.activeInvoiceId.value = null
+			// Persist immediately — the debounced write leaves an 800ms
+			// window where a power cut would resurrect a paid invoice.
+			void openInvoices.flush()
+		}
+
 		showNotification("تم إتمام عملية البيع بنجاح", "success")
 
 		// درج النقود: يُفتح تلقائياً عند البيع النقدي (حسب الإعدادات).
@@ -1033,9 +1044,11 @@ function startNewSale() {
 	discountType.value = "amount"
 	paymentAmount.value = ""
 	paymentMethod.value = "cash"
-	searchQuery.value = ""
+	handleSearch("")
 	saleSequence.value = newSaleSequence()
 	syncState.value = "ready"
+	openInvoices.activeInvoiceId.value = null
+	applyCustomerPolicy()
 
 	focusSearch()
 }
@@ -1047,8 +1060,6 @@ function startNewSale() {
  * وضع الدفع + عرض الضريبة) ويمرّرها إلى مسودة الانهيار. عند فتح الصفحة وسلة
  * فارغة وتوافُر مسودة صالحة، تُعرض أزرار «استئناف البيع» / «تجاهل».
  * ========================================================================== */
-
-const saleSettingsStore = usePOSSettingsStore()
 
 const crashResume = useCrashResume({
 	getItems: () => cart.value,
@@ -1246,7 +1257,7 @@ const { handleOnline, handleOffline } = useConnectionWatch(isOnline, syncState)
 const GRID_COLUMNS = 4
 
 function handleProductGridKeydown(event) {
-	const items = filteredProducts.value
+	const items = visibleProducts.value
 
 	if (!items.length) {
 		return
@@ -1289,6 +1300,9 @@ onMounted(async () => {
 	window.addEventListener("offline", handleOffline)
 
 	window.addEventListener("beforeunload", captureCrashDraft)
+
+	// استعادة الفواتير المركونة من الجلسة السابقة (لا تمس السلة الحية).
+	void openInvoices.boot()
 
 	await nextTick()
 
@@ -1439,14 +1453,14 @@ function onBarcodeScan(code) {
                 <div class="dy-pos-sale__object-header-content">
                     <div
                         v-if="
-                            customer
+                            effectiveCustomer
                         "
                         class="dy-pos-sale__object-header-left"
                     >
                         <div class="dy-pos-sale__object-header-avatar">
                             <FeatherIcon
                                 :name="
-                                    customer
+                                    effectiveCustomer
                                         ? 'user'
                                         : 'user-plus'
                                 "
@@ -1456,8 +1470,14 @@ function onBarcodeScan(code) {
                         <strong
                             class="dy-pos-sale__object-header-customer"
                         >
-                            {{ customer.name || 'عميل نقدي' }}
+                            {{ effectiveCustomer.name || 'عميل نقدي' }}
                         </strong>
+                        <span
+                            v-if="isCustomerPinned"
+                            class="dy-pos-sale__customer-pinned"
+                        >
+                            حساب مثبت
+                        </span>
                     </div>
 
                     <div
@@ -1762,7 +1782,7 @@ function onBarcodeScan(code) {
                             class="dy-pos-sale__search-clear"
                             aria-label="مسح البحث"
                             @click="
-                                searchQuery = ''
+                                handleSearch('')
                             "
                         >
                             <FeatherIcon
@@ -2017,7 +2037,7 @@ function onBarcodeScan(code) {
                         size="sm"
                         variant="subtle"
                         @click="
-                            searchQuery = ''
+                            handleSearch('')
                         "
                     >
                         عرض كل المنتجات
@@ -2042,7 +2062,7 @@ function onBarcodeScan(code) {
                         v-for="(
                             product,
                             index
-                        ) in filteredProducts"
+                        ) in visibleProducts"
                         :key="
                             product.id
                         "
@@ -2129,6 +2149,27 @@ function onBarcodeScan(code) {
                         </span>
                     </button>
                 </div>
+
+                <div
+                    v-if="
+                        filteredProducts.length >
+                        visibleProducts.length
+                    "
+                    class="dy-pos-sale__more"
+                >
+                    <ActionButton
+                        size="md"
+                        variant="subtle"
+                        @click="showMoreProducts"
+                    >
+                        عرض المزيد ({{
+                            formatNumber(
+                                filteredProducts.length -
+                                    visibleProducts.length,
+                            )
+                        }})
+                    </ActionButton>
+                </div>
             </section>
 
             <!-- =============================================================
@@ -2140,6 +2181,16 @@ function onBarcodeScan(code) {
                 data-testid="pos-cart"
                 aria-label="سلة البيع"
             >
+                <OpenInvoiceTabs
+                    :invoices="openInvoices.parked.value"
+                    :active-id="openInvoices.activeInvoiceId.value"
+                    :show-park="allowHold"
+                    @new="openInvoices.newInvoice()"
+                    @switch="openInvoices.resumeInvoice($event)"
+                    @park="holdSale()"
+                    @close="openInvoices.closeParked($event)"
+                />
+
                 <!-- Cart header -->
 
                 <header
@@ -2209,7 +2260,7 @@ function onBarcodeScan(code) {
                     >
                         <FeatherIcon
                             :name="
-                                customer
+                                effectiveCustomer
                                     ? 'user'
                                     : 'user-plus'
                             "
@@ -2222,14 +2273,14 @@ function onBarcodeScan(code) {
                     >
                         <strong>
                             {{
-                                customer?.name ||
+                                effectiveCustomer?.name ||
                                 "عميل نقدي"
                             }}
                         </strong>
 
                         <small>
                             {{
-                                customer
+                                effectiveCustomer
                                     ? "عميل محدد"
                                     : "اضغط لاختيار عميل"
                             }}
@@ -2928,6 +2979,15 @@ function onBarcodeScan(code) {
                         <!-- Methods -->
 
                         <div
+                            v-if="paymentMethodsLoading"
+                            class="dy-pos-sale__payment-loading"
+                            role="status"
+                            aria-live="polite"
+                        >
+                            <span>جارٍ تحميل طرق الدفع…</span>
+                        </div>
+
+                        <div
                             class="dy-pos-sale__payment-methods"
                             role="radiogroup"
                             aria-label="طريقة الدفع"
@@ -2969,6 +3029,16 @@ function onBarcodeScan(code) {
                                 </span>
                             </button>
                         </div>
+
+                        <button
+                            type="button"
+                            class="dy-pos-sale__payment-refresh"
+                            :disabled="paymentMethodsLoading"
+                            aria-label="تحديث طرق الدفع"
+                            @click="reloadPaymentMethods"
+                        >
+                            {{ paymentMethodsLoading ? "جارٍ التحديث…" : "تحديث طرق الدفع" }}
+                        </button>
 
                         <!-- Cash amount -->
 
@@ -3376,73 +3446,18 @@ function onBarcodeScan(code) {
         </Teleport>
 
         <!-- =================================================================
-             Held Sales
+             Held Sales — owned by components/sale/HeldSalesDialog.vue
              =============================================================== -->
 
-        <Teleport to="body">
-            <div
-                v-if="
-                    showHeldSalesPanel
-                "
-                class="dy-pos-sale__overlay"
-                role="dialog"
-                aria-modal="true"
-                aria-label="المبيعات المعلقة"
-                @click.self="
-                    showHeldSalesPanel =
-                        false
-                "
-            >
-                <section
-                    class="dy-pos-sale__dialog dy-pos-sale__held-dialog"
-                >
-                    <header>
-                        <div>
-                            <span>
-                                العمليات المؤجلة
-                            </span>
-
-                            <h2>
-                                المبيعات المعلقة
-                            </h2>
-                        </div>
-
-                        <button
-                            type="button"
-                            aria-label="إغلاق"
-                            @click="
-                                showHeldSalesPanel =
-                                    false
-                            "
-                        >
-                            <FeatherIcon
-                                name="x"
-                                :size="20"
-                            />
-                        </button>
-                    </header>
-
-                    <div
-                        class="dy-pos-sale__held-empty"
-                    >
-                        <span>
-                            <FeatherIcon
-                                name="pause-circle"
-                                :size="28"
-                            />
-                        </span>
-
-                        <strong>
-                            المبيعات المعلقة
-                        </strong>
-
-                        <p>
-                            سيتم عرض العمليات المعلقة من طبقة إدارة المبيعات عند توفرها.
-                        </p>
-                    </div>
-                </section>
-            </div>
-        </Teleport>
+        <HeldSalesDialog
+            :show="showHeldSalesPanel"
+            :invoices="openInvoices.parked.value"
+            :active-id="openInvoices.activeInvoiceId.value"
+            @close="showHeldSalesPanel = false"
+            @switch="handleSwitchHeld($event)"
+            @close-invoice="handleCloseHeld($event)"
+            @new="handleNewHeld"
+        />
 
         <!-- =================================================================
              Shortcuts Help (؟)
@@ -4028,6 +4043,13 @@ function onBarcodeScan(code) {
     overscroll-behavior: contain;
 }
 
+.dy-pos-sale__more {
+    display: flex;
+    justify-content: center;
+
+    padding: 8px 0 12px;
+}
+
 .dy-pos-sale__product {
     position: relative;
 
@@ -4036,6 +4058,11 @@ function onBarcodeScan(code) {
 
     min-width: 0;
     min-height: 180px;
+
+    /* rendering fast path: off-screen cards skip layout/paint until near
+       the viewport (with an intrinsic placeholder so scrollbars stay put) */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 220px;
 
     padding: 10px;
 
@@ -5795,57 +5822,6 @@ function onBarcodeScan(code) {
     font-weight: 750;
 
     cursor: pointer;
-}
-
-.dy-pos-sale__held-empty {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    flex-direction: column;
-
-    gap: 8px;
-
-    min-height: 260px;
-
-    padding: 30px;
-
-    color:
-        var(--dy-text-muted);
-
-    text-align: center;
-}
-
-.dy-pos-sale__held-empty > span {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    width: 60px;
-    height: 60px;
-
-    margin-bottom: 4px;
-
-    border-radius: 18px;
-
-    background:
-        var(--dy-surface-soft);
-}
-
-.dy-pos-sale__held-empty strong {
-    color:
-        var(--dy-text-strong);
-
-    font-size: 0.9rem;
-}
-
-.dy-pos-sale__held-empty p {
-    max-width: 340px;
-
-    margin: 0;
-
-    font-size: 0.75rem;
-    line-height: 1.8;
 }
 
 .dy-pos-sale__shortcuts-list {

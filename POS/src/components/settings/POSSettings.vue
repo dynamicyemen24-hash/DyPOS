@@ -787,15 +787,12 @@
 												:max="60"
 												:step="1"
 											/>
-											<CheckboxField
-												v-model="settings.require_customer_on_sale"
-												:label="__('Require customer on sale')"
-												:description="
-													__(
-														'Block submitting a sale without a customer (turn off to allow quick walk-in sales)',
-													)
-												"
-											/>
+										<CustomerAccountFields
+											v-model:mode="settings.customer_mode"
+											v-model:pinned="settings.pinned_customer"
+											:require-customer="settings.require_customer_on_sale"
+											@update:require-customer="settings.require_customer_on_sale = $event"
+										/>
 											<div class="p-2 rounded hover:bg-gray-50 transition-colors">
 												<label
 													for="dypos-default-payment-method"
@@ -1539,6 +1536,7 @@
 
 <script setup>
 import CheckboxField from "@/components/settings/CheckboxField.vue"
+import CustomerAccountFields from "@/components/settings/CustomerAccountFields.vue"
 import NumberField from "@/components/settings/NumberField.vue"
 import SelectField from "@/components/settings/SelectField.vue"
 import IndustryProfilePicker from "@/components/settings/IndustryProfilePicker.vue"
@@ -1557,6 +1555,7 @@ import TranslatedHTML from "../common/TranslatedHTML.vue"
 import { useQzTray } from "@/composables/useQzTray"
 import { useAppTheme } from "@/composables/useAppTheme"
 import PrintMonitor from "@/components/printing/PrintMonitor.vue"
+import { createStockSyncApplier } from "@/composables/useStockSyncApply"
 import { __ } from "@/utils/translation"
 
 const log = logger.create("POSSettings")
@@ -1603,6 +1602,8 @@ const settings = ref({
 	autosave_interval_seconds: 2,
 	desktop_recent_invoices_count: 10,
 	require_customer_on_sale: 1,
+	customer_mode: "variable",
+	pinned_customer: "",
 	default_payment_method: "",
 	allow_negative_stock: 0,
 	tax_inclusive: 0,
@@ -2007,37 +2008,18 @@ async function updateStockSyncStatus() {
 	}
 }
 
-// Apply stock sync configuration to worker
-async function applyStockSyncConfig() {
-	try {
-		const intervalMs = stockSyncIntervalSeconds.value * 1000
-
-		if (stockSyncEnabled.value) {
-			// Configure and start sync
-			await offlineWorker.configureStockSync({
-				intervalMs,
-			})
-			await offlineWorker.startStockSync()
-		} else {
-			// Stop sync
-			await offlineWorker.stopStockSync()
-		}
-
-		// Update status
-		await updateStockSyncStatus()
-
-		// Save to localStorage
-		saveStockSyncSettings()
-
-		// Emit sync configuration change event
-		emitStockSyncConfigured({
-			enabled: stockSyncEnabled.value,
-			intervalMs: intervalMs,
-		})
-	} catch (error) {
-		log.error("Failed to apply stock sync config:", error)
-	}
-}
+// Apply stock sync configuration to worker (extracted ratchet module).
+const applyStockSyncConfig = createStockSyncApplier({
+	enabledRef: stockSyncEnabled,
+	intervalSecondsRef: stockSyncIntervalSeconds,
+	statusRef: stockSyncStatus,
+	worker: offlineWorker,
+	save: saveStockSyncSettings,
+	refreshStatus: updateStockSyncStatus,
+	emitConfigured: emitStockSyncConfigured,
+	notifyError: showError,
+	log,
+})
 
 // Format sync time for display
 function formatSyncTime(timestamp) {

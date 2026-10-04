@@ -125,6 +125,10 @@
 					<div v-if="createShiftResource.error" class="rounded-md bg-red-50 p-4">
 						<p class="text-sm text-red-800">{{ createShiftResource.error }}</p>
 					</div>
+
+					<div v-if="openError" class="rounded-md bg-red-50 p-4">
+						<p class="text-sm text-red-800">{{ openError }}</p>
+					</div>
 				</div>
 
 				<!-- Step 3: Resume or Open New -->
@@ -251,8 +255,10 @@ import { Button, Dialog, Input } from "dypos-ui"
 import { createResource } from "dypos-ui"
 import { computed, ref, watch } from "vue"
 import { logger } from "@/utils/logger"
+import { __ } from "@/utils/translation"
 
-const log = logger.create("ShiftOpening")
+const log = logger.create("ShiftOpeningDialog")
+
 import { useShift } from "../composables/useShift"
 import { useFormatters } from "../composables/useFormatters"
 import ShiftClosingDialog from "./ShiftClosingDialog.vue"
@@ -269,8 +275,14 @@ const open = computed({
 	set: (value) => emit("update:modelValue", value),
 })
 
-const { createOpeningShift, getOpeningDialogData, checkOpeningShift } =
-	useShift()
+const {
+	createOpeningShift,
+	getOpeningDialogData,
+	checkOpeningShift,
+	loadPosProfiles,
+	loadDialogData,
+	createOpeningShiftOffline,
+} = useShift()
 const { formatDateTime } = useFormatters()
 
 const step = ref(1)
@@ -280,8 +292,9 @@ const existingShift = ref(null)
 const showClosingDialog = ref(false)
 const closingExistingShift = ref(false)
 const restartProfileName = ref(null)
+const openError = ref("")
 
-// Get POS Profiles
+// Get POS Profiles - use offline-first loader
 const profilesResource = createResource({
 	url: "DyPOS.api.pos_profile.get_pos_profiles",
 	auto: false,
@@ -332,11 +345,15 @@ async function initDialog() {
 	selectedProfile.value = null
 	existingShift.value = null
 	openingBalances.value = {}
+	openError.value = ""
 	dialogDataResource.reset()
 
 	try {
-		// Await profile fetch to ensure data is loaded before proceeding
-		await profilesResource.fetch()
+		// Load profiles offline-first (cache first, then server)
+		const profiles = await loadPosProfiles()
+		if (profiles && profiles.length > 0) {
+			profilesResource.data = profiles
+		}
 
 		// Check if user already has an open shift
 		const checkResult = await checkOpeningShift.fetch()
@@ -355,6 +372,7 @@ function resetDialog() {
 	selectedProfile.value = null
 	openingBalances.value = {}
 	existingShift.value = null
+	openError.value = ""
 	profilesResource.reset()
 	dialogDataResource.reset()
 	createShiftResource.reset()
@@ -366,7 +384,16 @@ function selectPosProfile(profile) {
 
 async function nextStep() {
 	if (step.value === 1 && selectedProfile.value) {
-		await dialogDataResource.fetch()
+		openError.value = ""
+		// Load dialog data offline-first
+		const dialogData = await loadDialogData(selectedProfile.value.name)
+		if (dialogData) {
+			dialogDataResource.data = dialogData
+		} else {
+			await dialogDataResource.fetch({
+				pos_profile: selectedProfile.value.name,
+			})
+		}
 		step.value = 2
 	}
 }
@@ -374,6 +401,7 @@ async function nextStep() {
 async function openShift() {
 	if (!selectedProfile.value) return
 
+	openError.value = ""
 	// Prepare balance details
 	const balance_details = paymentMethods.value.map((method) => ({
 		mode_of_payment: method.mode_of_payment,
@@ -383,16 +411,25 @@ async function openShift() {
 	}))
 
 	try {
-		await createShiftResource.submit({
+		// Try offline-first shift creation
+		const result = await createOpeningShiftOffline({
 			pos_profile: selectedProfile.value.name,
 			company: selectedProfile.value.company,
 			balance_details,
 		})
 
-		emit("shift-opened")
-		closeDialog("shift-opened")
+		if (result.ok) {
+			emit("shift-opened")
+			closeDialog("shift-opened")
+		} else {
+			log.error("Error opening shift:", result.error)
+			openError.value =
+				"تعذر فتح الوردية. تحقق من الاتصال وحاول مرة أخرى — يمكنك البيع دون اتصال وستُزامَن الوردية لاحقًا."
+		}
 	} catch (error) {
 		log.error("Error opening shift:", error)
+		openError.value =
+			"تعذر فتح الوردية بسبب خطأ غير متوقع. أعد المحاولة، وإن تكرر تواصل مع المدير."
 	}
 }
 

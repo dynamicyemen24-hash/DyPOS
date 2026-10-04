@@ -1,8 +1,8 @@
 # DyPOS Deployment Guide — dypos.smartportssoft.com
 
-## حالة النشر الآن (2026-10-03)
-- **الإصدار الحي:** `1.44.6` على `https://dypos.smartportssoft.com/`؛ تحقق النطاق 6/6، وWorker مربوط بـD1.
-- **المزامنة الخلفية متوقفة:** `/api/health` يعيد `503 UPSTREAM_MISCONFIGURED` لأن أصل Express لم يُجهز أو يُربط. هذا لا يمنع البيع المحلي دون اتصال، لكنه يمنع المزامنة السحابية.
+## حالة النشر الآن (2026-10-04)
+- **الإصدار الحي:** `1.45.1` على `https://dypos.smartportssoft.com/`؛ تحقق النطاق 6/6، وWorker مربوط بـD1.
+- **المزامنة الخلفية:** `/api/health` يعيد `503 UPSTREAM_MISCONFIGURED` لأن أصل Express لم يُجهز أو يُربط. هذا لا يمنع البيع المحلي دون اتصال، لكنه يمنع المزامنة السحابية. شاشة الدخول تُظهر رسالة واضحة: «خدمة المزامنة غير متاحة حاليًا. يعمل البيع المحلي دون اتصال.»
 - **بيانات المشترك:** لم تُزرع بيانات؛ قواعد المستودع لا تثبت أنها المصدر المعتمد لبيانات المشترك الأول.
 - اجتازت بوابات هذا الإصدار اختبارات POS والخادم، Biome، schema parity، method contract، وميزانية الحزمة.
 
@@ -134,13 +134,13 @@ node scripts/verify-live.mjs --site=http://127.0.0.1:8080    # أي أصل آخ�
 احتياطية، ثم استيرادًا تجريبيًا على قاعدة منفصلة قبل cutover.
 
 ## Version Info (حالي)
-- **Version:** `1.44.6` (single source: root `package.json`)
-- **Date:** October 3, 2026
+- **Version:** `1.45.1` (single source: root `package.json`)
+- **Date:** October 4, 2026
 - **Framework:** Vue 3 + Chart.js + dypos-ui
 - **PWA:** Yes (SW root scope، `build:pages` → `POS/dist/pos`)
 - **Deploy:** push to `main` → GitHub Actions → Cloudflare Pages + `dypos-api` Worker → `npm run verify:live`
-- **Live:** النطاق وWorker على `1.44.6`، والتحقق الحي 6/6؛ API sync backend غير متاح حتى توفير أصل Express.
-- **Tests:** POS 2094 اختبارًا / 114 ملفًا · server 627 اختبارًا / 187 مجموعة · method contract 75 فعلًا / 104 موقع استدعاء / 249 معالجًا · Biome وPG parity ناجحان.
+- **Live:** النطاق وWorker على `1.45.1`، والتحقق الحي 6/6؛ API sync backend غير متاح حتى توفير أصل Express. شاشة الدخول تعرض رسالة واضحة للبائع: «خدمة المزامنة غير متاحة حاليًا. يعمل البيع المحلي دون اتصال.»
+- **Tests:** POS 2210 اختبارًا / 129 ملفًا · server 685 اختبارًا / 198 مجموعة · method contract 75 فعلًا / 104 موقع استدعاء / 249 معالجًا · Biome وPG parity ناجحان.
 
 ## Backend topology (why `/api` needs an origin)
 - Cloudflare Pages serves the frontend from `dypos-pos`; a separate `dypos-api` Worker owns

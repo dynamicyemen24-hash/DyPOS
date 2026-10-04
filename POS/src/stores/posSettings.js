@@ -57,6 +57,8 @@ export const SETTINGS_FIELDS = {
 
 	// Inventory & Stock
 	allow_negative_stock: CHECKBOX("allowNegativeStock"),
+	stock_control_mode: SELECT("stockControlMode", ["strict", "warn", "off"]),
+	stock_warning_threshold: NUMBER("stockWarningThreshold", { min: 0, step: 1 }),
 	allow_user_to_edit_rate: CHECKBOX("allowUserToEditRate"),
 	input_qty: CHECKBOX("inputQty"),
 	show_variants_as_items: CHECKBOX("showVariantsAsItems"),
@@ -114,6 +116,8 @@ export const SETTINGS_FIELDS = {
 	allow_customer_purchase_order: CHECKBOX("allowCustomerPurchaseOrder"),
 	allow_duplicate_customer_names: CHECKBOX("allowDuplicateCustomerNames"),
 	require_customer_on_sale: CHECKBOX("requireCustomerOnSale"),
+	customer_mode: SELECT("customerMode", ["variable", "pinned"]),
+	pinned_customer: TEXT("pinnedCustomer"),
 
 	// Loyalty & Wallet
 	enable_loyalty_program: CHECKBOX("enableLoyaltyProgram"),
@@ -282,6 +286,8 @@ export const SETTINGS_MODULES = [
 		icon: "box",
 		fields: [
 			"allow_negative_stock",
+			"stock_control_mode",
+			"stock_warning_threshold",
 			"allow_user_to_edit_rate",
 			"input_qty",
 			"show_variants_as_items",
@@ -339,6 +345,8 @@ export const SETTINGS_MODULES = [
 			"allow_customer_purchase_order",
 			"allow_duplicate_customer_names",
 			"require_customer_on_sale",
+			"customer_mode",
+			"pinned_customer",
 		],
 	},
 	{
@@ -523,164 +531,173 @@ const NUMERIC_LOCALES = {
 // =============================================================================
 
 export const usePOSSettingsStore = defineStore("posSettings", () => {
+	// Single defaults implementation (S3): the initial state AND resetSettings()
+	// share the builder below, so a new key can never exist in one and miss the other.
+	function buildDefaultSettings() {
+		return {
+			// ---- Module: Core ----
+			pos_profile: "",
+			enabled: 0,
+
+			// ---- Module: Billing & Payments ----
+			allow_credit_sale: 0,
+			allow_customer_credit_payment: 0,
+			allow_write_off_change: 0,
+			allow_partial_payment: 0,
+			use_exact_amount: 0,
+			disable_rounded_total: 1,
+			default_payment_method: "",
+
+			// ---- Module: Operations & Returns ----
+			allow_sales_order: 0,
+			allow_select_sales_order: 0,
+			create_only_sales_order: 0,
+			allow_return: 0,
+			allow_return_without_invoice: 0,
+			allow_free_batch_return: 0,
+			allow_change_posting_date: 0,
+			allow_submissions_in_background_job: 0,
+
+			// ---- Module: Inventory & Stock ----
+			// allow_negative_stock is the per-item escape hatch; stock_control_mode is
+			// the shop-wide policy that decides whether a short sale is refused
+			// (strict) or completed with an Arabic warning (warn, default).
+			allow_negative_stock: 0,
+			stock_control_mode: "warn", // strict | warn | off
+			stock_warning_threshold: 0, // remaining qty at/below which a warning fires
+			allow_user_to_edit_rate: 0,
+			input_qty: 0,
+			show_variants_as_items: 0,
+			cart_lifo: 0,
+
+			// ---- Module: Catalog & Display ----
+			default_card_view: 0,
+			display_item_code: 0,
+			display_discount_percentage: 0,
+			display_discount_amount: 0,
+			show_customer_balance: 0,
+			hide_expected_amount: 0,
+
+			// ---- Module: Discounts & Promotions ----
+			max_discount_allowed: 0,
+			use_percentage_discount: 0,
+			allow_user_to_edit_additional_discount: 0,
+			allow_user_to_edit_item_discount: 1,
+			minimum_discount: 0,
+			maximum_discount: 0,
+			fetch_coupon: 0,
+
+			// ---- Module: Taxation ----
+			tax_regime: "standard", // standard, vat, gst, sales_tax, none
+			tax_inclusive: 0, // Prices include tax
+			decimal_precision: "2",
+			tax_rounding_method: "standard",
+			tax_registration_no: "",
+
+			// ---- Module: Customers ----
+			allow_customer_purchase_order: 0,
+			allow_duplicate_customer_names: 0,
+			require_customer_on_sale: 1,
+			// variable = cashier picks per sale; pinned = every sale uses pinned_customer
+			customer_mode: "variable", // variable, pinned
+			pinned_customer: "",
+
+			// ---- Module: Loyalty & Wallet ----
+			enable_loyalty_program: 0,
+			default_loyalty_program: "",
+			wallet_account: "",
+			auto_create_wallet: 1,
+			loyalty_to_wallet: 1,
+
+			// ---- Module: Invoicing & E-Documents ----
+			invoice_format: "standard", // standard, simplified, tax, electronic
+
+			// ---- Module: Printing & Peripherals ----
+			allow_print_last_invoice: 0,
+			allow_print_draft_invoices: 0,
+			silent_print: 0,
+			auto_kick_drawer_on_cash: 1,
+
+			// ---- Module: Desktop & Recovery ----
+			auto_save_open_invoice: 1,
+			autosave_interval_seconds: 2,
+			desktop_recent_invoices_count: 10,
+
+			// ---- Module: Localization (country-agnostic, empty = auto/system) ----
+			locale: "", // UI locale; "" = detect (browser -> server -> app default)
+			timezone: "", // "" = browser/system timezone
+			currency: "", // "" = system default currency
+			date_format: "yyyy-mm-dd",
+			number_format: "#,###.##",
+			// Display digits are LATIN by default in EVERY UI language; "arab" is an
+			// explicit operator choice (see utils/currency.js).
+			number_system: "latn",
+			currency_precision: 2, // money decimals (halala = 2)
+			float_precision: 3, // quantity decimals
+			rounding_method: "Banker's Rounding",
+			rtl_support: 0,
+			currency_symbol_position: "left",
+
+			// ---- Module: Offline & Sync ----
+			allow_delete_offline_invoice: 0,
+			offline_sync_interval: 30, // seconds
+			offline_cache_expiry_days: 30,
+
+			// ---- Module: Search & Performance ----
+			use_limit_search: 0,
+			search_limit: 1000,
+
+			// ---- Module: Security & Audit ----
+			enable_session_lock: 0,
+			session_lock_timeout: 5, // minutes
+			audit_trail_enabled: 1,
+
+			// ---- Module: Sales Team ----
+			enable_sales_persons: "Disabled", // Disabled, Single, Multiple
+
+			// ---- Module: Delivery & Fulfillment ----
+			use_delivery_charges: 0,
+			auto_set_delivery_charges: 0,
+
+			// ---- Module: Company & Branches (report header source) ----
+			company_name: "",
+			company_logo: "",
+			company_address: "",
+			company_phone: "",
+			company_email: "",
+			company_tax_id: "",
+			branch_name: "",
+			branch_code: "",
+			branch_address: "",
+
+			// ---- Module: Compliance & E-Invoicing (generic, not country-exclusive) ----
+			einvoice_enabled: 0, // e-invoicing / electronic documents
+			einvoice_framework: "none", // none, zatca, gcc_bims, eu_vies, us_sales_tax, custom
+			einvoice_region: "", // "SA", "AE", "EU", "US", ...
+			einvoice_provider: "", // zatca-fatooh, tabadul, peppol, avalara, ...
+			einvoice_registration_no: "",
+			einvoice_transmission: "portal", // portal, realtime, offline
+			food_safety_tracking: 0, // food safety lot tracking (SFDA / FSMA / ...)
+			data_retention_days: 3650, // invoice/audit retention (local law / ISO 9001)
+
+			// Legacy aliases (deprecated; kept for backward compatibility with the
+			// POS Settings doctype. Superseded by einvoice_framework and
+			// food_safety_tracking.)
+			enable_zalina: 0,
+			enable_sfd: 0,
+
+			// ---- Module: Notifications ----
+			enableEmailNotification: 0,
+			enableSmsNotification: 0,
+			smsRecipientPhone: "",
+			enableWhatsAppNotification: 0,
+			whatsappNumber: "",
+			emailRecipient: "",
+		}
+	}
+
 	// State (grouped by operational module; flat keys keep doctype compat)
-	const settings = ref({
-		// ---- Module: Core ----
-		pos_profile: "",
-		enabled: 0,
-
-		// ---- Module: Billing & Payments ----
-		allow_credit_sale: 0,
-		allow_customer_credit_payment: 0,
-		allow_write_off_change: 0,
-		allow_partial_payment: 0,
-		use_exact_amount: 0,
-		disable_rounded_total: 1,
-		default_payment_method: "",
-
-		// ---- Module: Operations & Returns ----
-		allow_sales_order: 0,
-		allow_select_sales_order: 0,
-		create_only_sales_order: 0,
-		allow_return: 0,
-		allow_return_without_invoice: 0,
-		allow_free_batch_return: 0,
-		allow_change_posting_date: 0,
-		allow_submissions_in_background_job: 0,
-
-		// ---- Module: Inventory & Stock ----
-		// allow_negative_stock is the per-item escape hatch; stock_control_mode is
-		// the shop-wide policy that decides whether a short sale is refused
-		// (strict) or completed with an Arabic warning (warn, default).
-		allow_negative_stock: 0,
-		stock_control_mode: "warn", // strict | warn | off
-		stock_warning_threshold: 0, // remaining qty at/below which a warning fires
-		allow_user_to_edit_rate: 0,
-		input_qty: 0,
-		show_variants_as_items: 0,
-		cart_lifo: 0,
-
-		// ---- Module: Catalog & Display ----
-		default_card_view: 0,
-		display_item_code: 0,
-		display_discount_percentage: 0,
-		display_discount_amount: 0,
-		show_customer_balance: 0,
-		hide_expected_amount: 0,
-
-		// ---- Module: Discounts & Promotions ----
-		max_discount_allowed: 0,
-		use_percentage_discount: 0,
-		allow_user_to_edit_additional_discount: 0,
-		allow_user_to_edit_item_discount: 1,
-		minimum_discount: 0,
-		maximum_discount: 0,
-		fetch_coupon: 0,
-
-		// ---- Module: Taxation ----
-		tax_regime: "standard", // standard, vat, gst, sales_tax, none
-		tax_inclusive: 0, // Prices include tax
-		decimal_precision: "2",
-		tax_rounding_method: "standard",
-		tax_registration_no: "",
-
-		// ---- Module: Customers ----
-		allow_customer_purchase_order: 0,
-		allow_duplicate_customer_names: 0,
-		require_customer_on_sale: 1,
-
-		// ---- Module: Loyalty & Wallet ----
-		enable_loyalty_program: 0,
-		default_loyalty_program: "",
-		wallet_account: "",
-		auto_create_wallet: 1,
-		loyalty_to_wallet: 1,
-
-		// ---- Module: Invoicing & E-Documents ----
-		invoice_format: "standard", // standard, simplified, tax, electronic
-
-		// ---- Module: Printing & Peripherals ----
-		allow_print_last_invoice: 0,
-		allow_print_draft_invoices: 0,
-		silent_print: 0,
-		auto_kick_drawer_on_cash: 1,
-
-		// ---- Module: Desktop & Recovery ----
-		auto_save_open_invoice: 1,
-		autosave_interval_seconds: 2,
-		desktop_recent_invoices_count: 10,
-
-		// ---- Module: Localization (country-agnostic, empty = auto/system) ----
-		locale: "", // UI locale; "" = detect (browser -> server -> app default)
-		timezone: "", // "" = browser/system timezone
-		currency: "", // "" = system default currency
-		date_format: "yyyy-mm-dd",
-		number_format: "#,###.##",
-		// Display digits are LATIN by default in EVERY UI language; "arab" is an
-		// explicit operator choice (see utils/currency.js).
-		number_system: "latn",
-		currency_precision: 2, // money decimals (halala = 2)
-		float_precision: 3, // quantity decimals
-		rounding_method: "Banker's Rounding",
-		rtl_support: 0,
-		currency_symbol_position: "left",
-
-		// ---- Module: Offline & Sync ----
-		allow_delete_offline_invoice: 0,
-		offline_sync_interval: 30, // seconds
-		offline_cache_expiry_days: 30,
-
-		// ---- Module: Search & Performance ----
-		use_limit_search: 0,
-		search_limit: 1000,
-
-		// ---- Module: Security & Audit ----
-		enable_session_lock: 0,
-		session_lock_timeout: 5, // minutes
-		audit_trail_enabled: 1,
-
-		// ---- Module: Sales Team ----
-		enable_sales_persons: "Disabled", // Disabled, Single, Multiple
-
-		// ---- Module: Delivery & Fulfillment ----
-		use_delivery_charges: 0,
-		auto_set_delivery_charges: 0,
-
-		// ---- Module: Company & Branches (report header source) ----
-		company_name: "",
-		company_logo: "",
-		company_address: "",
-		company_phone: "",
-		company_email: "",
-		company_tax_id: "",
-		branch_name: "",
-		branch_code: "",
-		branch_address: "",
-
-		// ---- Module: Compliance & E-Invoicing (generic, not country-exclusive) ----
-		einvoice_enabled: 0, // e-invoicing / electronic documents
-		einvoice_framework: "none", // none, zatca, gcc_bims, eu_vies, us_sales_tax, custom
-		einvoice_region: "", // "SA", "AE", "EU", "US", ...
-		einvoice_provider: "", // zatca-fatooh, tabadul, peppol, avalara, ...
-		einvoice_registration_no: "",
-		einvoice_transmission: "portal", // portal, realtime, offline
-		food_safety_tracking: 0, // food safety lot tracking (SFDA / FSMA / ...)
-		data_retention_days: 3650, // invoice/audit retention (local law / ISO 9001)
-
-		// Legacy aliases (deprecated; kept for backward compatibility with the
-		// POS Settings doctype. Superseded by einvoice_framework and
-		// food_safety_tracking.)
-		enable_zalina: 0,
-		enable_sfd: 0,
-
-		// ---- Module: Notifications ----
-		enableEmailNotification: 0,
-		enableSmsNotification: 0,
-		smsRecipientPhone: "",
-		enableWhatsAppNotification: 0,
-		whatsappNumber: "",
-		emailRecipient: "",
-	})
+	const settings = ref(buildDefaultSettings())
 
 	const isLoading = ref(false)
 	const isLoaded = ref(false)
@@ -823,6 +840,14 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 	)
 	const requireCustomerOnSale = computed(
 		() => settings.value.require_customer_on_sale !== 0,
+	)
+	// variable = cashier picks a customer per sale; pinned = every sale is
+	// booked on pinned_customer (fixed account from settings).
+	const customerMode = computed(() =>
+		settings.value.customer_mode === "pinned" ? "pinned" : "variable",
+	)
+	const pinnedCustomer = computed(() =>
+		String(settings.value.pinned_customer || "").trim(),
 	)
 
 	// ================================================================
@@ -1165,146 +1190,7 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 	}
 
 	function resetSettings() {
-		settings.value = {
-			// ---- Module: Core ----
-			pos_profile: "",
-			enabled: 0,
-
-			// ---- Module: Billing & Payments ----
-			allow_credit_sale: 0,
-			allow_customer_credit_payment: 0,
-			allow_write_off_change: 0,
-			allow_partial_payment: 0,
-			use_exact_amount: 0,
-			disable_rounded_total: 1,
-			default_payment_method: "",
-
-			// ---- Module: Operations & Returns ----
-			allow_sales_order: 0,
-			allow_select_sales_order: 0,
-			create_only_sales_order: 0,
-			allow_return: 0,
-			allow_return_without_invoice: 0,
-			allow_free_batch_return: 0,
-			allow_change_posting_date: 0,
-			allow_submissions_in_background_job: 0,
-
-			// ---- Module: Inventory & Stock ----
-			allow_negative_stock: 0,
-			stock_control_mode: "warn",
-			stock_warning_threshold: 0,
-			allow_user_to_edit_rate: 0,
-			input_qty: 0,
-			show_variants_as_items: 0,
-			cart_lifo: 0,
-
-			// ---- Module: Catalog & Display ----
-			default_card_view: 0,
-			display_item_code: 0,
-			display_discount_percentage: 0,
-			display_discount_amount: 0,
-			show_customer_balance: 0,
-			hide_expected_amount: 0,
-
-			// ---- Module: Discounts & Promotions ----
-			max_discount_allowed: 0,
-			use_percentage_discount: 0,
-			allow_user_to_edit_additional_discount: 0,
-			allow_user_to_edit_item_discount: 1,
-			minimum_discount: 0,
-			maximum_discount: 0,
-			fetch_coupon: 0,
-
-			// ---- Module: Taxation ----
-			tax_regime: "standard",
-			tax_inclusive: 0,
-			decimal_precision: "2",
-			tax_rounding_method: "standard",
-			tax_registration_no: "",
-
-			// ---- Module: Customers ----
-			allow_customer_purchase_order: 0,
-			allow_duplicate_customer_names: 0,
-			require_customer_on_sale: 1,
-
-			// ---- Module: Loyalty & Wallet ----
-			enable_loyalty_program: 0,
-			default_loyalty_program: "",
-			wallet_account: "",
-			auto_create_wallet: 1,
-			loyalty_to_wallet: 1,
-
-			// ---- Module: Invoicing & E-Documents ----
-			invoice_format: "standard",
-
-			// ---- Module: Printing & Peripherals ----
-			allow_print_last_invoice: 0,
-			allow_print_draft_invoices: 0,
-			silent_print: 0,
-			auto_kick_drawer_on_cash: 1,
-
-			// ---- Module: Desktop & Recovery ----
-			auto_save_open_invoice: 1,
-			autosave_interval_seconds: 2,
-			desktop_recent_invoices_count: 10,
-
-			// ---- Module: Localization (country-agnostic, empty = auto/system) ----
-			locale: "",
-			timezone: "",
-			currency: "",
-			date_format: "yyyy-mm-dd",
-			number_format: "#,###.##",
-			number_system: "latn",
-			currency_precision: 2,
-			float_precision: 3,
-			rounding_method: "Banker's Rounding",
-			rtl_support: 0,
-			currency_symbol_position: "left",
-
-			// ---- Module: Offline & Sync ----
-			allow_delete_offline_invoice: 0,
-			offline_sync_interval: 30,
-			offline_cache_expiry_days: 30,
-
-			// ---- Module: Search & Performance ----
-			use_limit_search: 0,
-			search_limit: 1000,
-
-			// ---- Module: Security & Audit ----
-			enable_session_lock: 0,
-			session_lock_timeout: 5,
-			audit_trail_enabled: 1,
-
-			// ---- Module: Sales Team ----
-			enable_sales_persons: "Disabled",
-
-			// ---- Module: Delivery & Fulfillment ----
-			use_delivery_charges: 0,
-			auto_set_delivery_charges: 0,
-
-			// ---- Module: Company & Branches ----
-			company_name: "",
-			company_logo: "",
-			company_address: "",
-			company_phone: "",
-			company_email: "",
-			company_tax_id: "",
-			branch_name: "",
-			branch_code: "",
-			branch_address: "",
-
-			// ---- Module: Compliance & E-Invoicing (generic) ----
-			einvoice_enabled: 0,
-			einvoice_framework: "none",
-			einvoice_region: "",
-			einvoice_provider: "",
-			einvoice_registration_no: "",
-			einvoice_transmission: "portal",
-			food_safety_tracking: 0,
-			data_retention_days: 3650,
-			enable_zalina: 0,
-			enable_sfd: 0,
-		}
+		settings.value = buildDefaultSettings()
 		isLoaded.value = false
 		applyToRuntime()
 	}
@@ -1485,6 +1371,8 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		allowCustomerPurchaseOrder,
 		allowDuplicateCustomerNames,
 		requireCustomerOnSale,
+		customerMode,
+		pinnedCustomer,
 
 		// Computed — Loyalty & Wallet
 		enableLoyaltyProgram,

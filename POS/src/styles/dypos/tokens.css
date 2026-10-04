@@ -45,6 +45,8 @@
 	--dy-brand-900: #1b327a;
 	--dy-brand-950: #14214b;
 
+	--dy-brand: var(--dy-brand-700);
+
 	--dy-brand-c-50: 238 244 255;
 	--dy-brand-c-100: 223 234 255;
 	--dy-brand-c-200: 197 216 254;

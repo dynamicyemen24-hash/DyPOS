@@ -172,6 +172,26 @@ export function normalizeSaleCustomer(customer) {
 		: null
 }
 
+/**
+ * Which customer a sale is booked on.
+ *
+ * variable (default) = the cashier's per-sale pick (or null = walk-in).
+ * pinned = the fixed account from settings; the pick is ignored so a locked
+ * screen can never leak a sale onto the wrong account. An empty pinned value
+ * falls back to the walk-in name instead of blocking the sale (offline-safe:
+ * settings may arrive before the customer master does).
+ */
+export function resolveSaleCustomer({ mode, pinned, selected, fallbackName }) {
+	if (mode === "pinned") {
+		const name =
+			String(pinned || "").trim() ||
+			String(fallbackName || "").trim() ||
+			"Walk-in Customer"
+		return { id: name, name, pinned: true }
+	}
+	return normalizeSaleCustomer(selected)
+}
+
 /** Cart lines → payload items. */
 export function buildSaleItems(cart) {
 	return (cart || []).map((item) => ({

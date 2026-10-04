@@ -5,8 +5,11 @@
  * (Login, session store, shift dialog, service workers).
  */
 
-const DEFAULT_MESSAGE = "تعذر تسجيل الدخول. حاول مرة أخرى."
-const OFFLINE_MESSAGE = "لا يوجد اتصال بالشبكة حاليًا."
+const DEFAULT_MESSAGE = "تعذر تسجيل الدخول. تحقق من البيانات وحاول مرة أخرى."
+const OFFLINE_MESSAGE =
+	"لا يوجد اتصال بالشبكة حاليًا. يمكنك المتابعة محليًا وستُزامَن العمليات عند عودة الاتصال."
+const UPSTREAM_UNAVAILABLE_MESSAGE =
+	"خدمة المزامنة غير متاحة حاليًا. يعمل البيع المحلي دون اتصال وستُرسل العمليات تلقائيًا عند عودة الخدمة."
 
 /**
  * Extract the closest HTTP status-like code from any error shape
@@ -39,27 +42,34 @@ export function normalizeAuthError(error, { online = true } = {}) {
 	const status = extractAuthStatus(error)
 
 	if (status === 401) {
-		return "البريد الإلكتروني أو كلمة المرور غير صحيحة."
+		return "البريد الإلكتروني أو كلمة المرور غير صحيحة. تحقق من البيانات وحاول مرة أخرى."
 	}
 
 	if (status === 403) {
-		return "ليس لديك صلاحية للوصول إلى نقطة البيع."
+		return "ليس لديك صلاحية للوصول إلى نقطة البيع. تواصل مع المدير لمنح الصلاحية."
 	}
 
 	if (status === 429) {
-		return "تم تجاوز عدد المحاولات المسموح بها. حاول لاحقًا."
+		return "تم تجاوز عدد المحاولات المسموح بها. انتظر قليلًا ثم حاول مرة أخرى."
+	}
+
+	if (status === 503) {
+		return UPSTREAM_UNAVAILABLE_MESSAGE
 	}
 
 	if (!online) {
 		return OFFLINE_MESSAGE
 	}
 
-	return (
+	// Never leak a raw (often English) transport message to the cashier:
+	// fall back to an Arabic message that names the recovery.
+	const raw =
 		error?.message ||
 		error?.response?.data?.message ||
 		error?.data?.message ||
-		DEFAULT_MESSAGE
-	)
+		""
+	if (raw && /[\u0600-\u06FF]/.test(raw)) return raw
+	return DEFAULT_MESSAGE
 }
 
 /**
@@ -109,6 +119,7 @@ export function requiresReauthentication(error) {
 export default {
 	DEFAULT_MESSAGE,
 	OFFLINE_MESSAGE,
+	UPSTREAM_UNAVAILABLE_MESSAGE,
 	extractAuthStatus,
 	normalizeAuthError,
 	isAuthExpiryError,

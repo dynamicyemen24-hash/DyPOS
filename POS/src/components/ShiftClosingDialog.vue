@@ -1082,7 +1082,8 @@ const open = computed({
 	set: (value) => emit("update:modelValue", value),
 })
 
-const { getClosingShiftData, submitClosingShift } = useShift()
+const { getClosingShiftData, submitClosingShift, submitClosingShiftOffline } =
+	useShift()
 const { formatCurrency, formatQuantity, formatDateTime, formatTime } =
 	useFormatters()
 const { showSuccess, showWarning } = useToast()
@@ -1215,11 +1216,21 @@ async function submitClosing() {
 			})
 		}
 
-		// Submit to server
-		const result = await submitResource.submit({
-			closing_shift: closingData.value,
-		})
-		const closingShiftName = result?.name ?? submitResource.data?.name
+		// Submit offline-first: server when online, queued when offline.
+		const result = await submitClosingShiftOffline(closingData.value)
+		if (!result.ok) {
+			throw result.error || new Error("offline queue failed")
+		}
+		if (result.offline) {
+			showWarning(
+				__("تم حفظ إغلاق الوردية على هذا الجهاز وسيُزامَن عند عودة الاتصال."),
+			)
+			emit("shift-closed")
+			closeDialog()
+			return
+		}
+		const closingShiftName =
+			result?.data?.name ?? submitResource.data?.name ?? result?.offlineId
 		if (closingShiftName) {
 			try {
 				await printEODReport(closingShiftName)
@@ -1250,7 +1261,7 @@ async function submitClosing() {
 	} catch (error) {
 		log.error("Error submitting closing shift:", error)
 		errorMessage.value =
-			"Failed to close shift. Please verify all amounts and try again."
+			"تعذر إغلاق الوردية. تحقق من المبالغ وحاول مرة أخرى — وإن كنت دون اتصال سيُحفظ الإغلاق على هذا الجهاز."
 	}
 }
 

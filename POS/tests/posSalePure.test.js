@@ -19,6 +19,7 @@ import {
 	normalizeProduct,
 	normalizeSaleCustomer,
 	newSaleSequence,
+	resolveSaleCustomer,
 	roundMoney,
 } from "@/utils/posSalePure"
 
@@ -295,5 +296,38 @@ describe("newSaleSequence", () => {
 		expect(a).toMatch(/^SALE-\d+-[0-9A-Z]{8}$/)
 		expect(b).toMatch(/^SALE-\d+-[0-9A-Z]{8}$/)
 		expect(a).not.toBe(b)
+	})
+})
+
+describe("resolveSaleCustomer", () => {
+	it("variable mode uses the cashier pick (null = walk-in)", () => {
+		expect(
+			resolveSaleCustomer({
+				mode: "variable",
+				selected: { id: "C1", name: "عميل" },
+			}),
+		).toEqual({ id: "C1", name: "عميل" })
+		expect(resolveSaleCustomer({ mode: "variable", selected: null })).toBeNull()
+	})
+	it("pinned mode ignores the pick and books the fixed account", () => {
+		expect(
+			resolveSaleCustomer({
+				mode: "pinned",
+				pinned: "  شركة النور  ",
+				selected: { id: "C9", name: "آخر" },
+			}),
+		).toEqual({ id: "شركة النور", name: "شركة النور", pinned: true })
+	})
+	it("pinned mode with empty value falls back to walk-in, never blocks", () => {
+		expect(resolveSaleCustomer({ mode: "pinned", pinned: "  " })).toEqual({
+			id: "Walk-in Customer",
+			name: "Walk-in Customer",
+			pinned: true,
+		})
+	})
+	it("unknown mode behaves as variable (fail-open to current behavior)", () => {
+		expect(
+			resolveSaleCustomer({ selected: { id: "C1", name: "عميل" } }),
+		).toEqual({ id: "C1", name: "عميل" })
 	})
 })

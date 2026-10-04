@@ -1749,6 +1749,64 @@
 }
 
 /* =============================================================================
+   Backend Unavailable Banner (503) — Offline mode works
+   ============================================================================= */
+
+.dy-login__backend-unavailable {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+
+	margin-bottom: var(--dy-space-5);
+
+	border-color: rgb(var(--dy-cyan-c-500) / 0.28);
+
+	background: rgb(var(--dy-cyan-c-500) / 0.07);
+
+	color: var(--dy-cyan-700);
+}
+
+.dy-login__backend-unavailable-icon {
+	display: inline-flex;
+	flex: 0 0 auto;
+	color: var(--dy-cyan-600);
+}
+
+.dy-login__backend-unavailable-content {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	font-size: 0.78rem;
+	strong {
+		color: var(--dy-text-strong);
+		font-size: 0.8rem;
+	}
+}
+
+.dy-login__backend-unavailable-action {
+	margin-left: auto;
+	padding: 4px 12px;
+	font-size: 0.75rem;
+	font-weight: 700;
+	border-radius: var(--dy-radius-md);
+	border: 1px solid currentColor;
+	background: transparent;
+	color: var(--dy-cyan-700);
+	cursor: pointer;
+	transition: background-color var(--dy-dur-fast) var(--dy-ease-standard);
+	white-space: nowrap;
+}
+
+.dy-login__backend-unavailable-action:hover {
+	background: rgb(var(--dy-cyan-c-500) / 0.12);
+}
+
+.dy-login__backend-unavailable-action:focus-visible {
+	outline: 2px solid var(--dy-cyan-600);
+	outline-offset: 2px;
+}
+
+/* =============================================================================
    Offline Indicator
    ============================================================================= */
 
@@ -1854,6 +1912,24 @@
 	background: rgb(var(--dy-amber-c-500) / 0.18);
 	border-bottom-color: rgb(var(--dy-amber-c-500) / 0.3);
 	color: var(--dy-amber-400);
+}
+
+.dy-login--dark .dy-login__backend-unavailable {
+	background: rgb(var(--dy-cyan-c-500) / 0.15);
+	border-color: rgb(var(--dy-cyan-c-500) / 0.3);
+	color: var(--dy-cyan-400);
+}
+
+.dy-login--dark .dy-login__backend-unavailable-icon {
+	color: var(--dy-cyan-500);
+}
+
+.dy-login--dark .dy-login__backend-unavailable-action {
+	color: var(--dy-cyan-400);
+}
+
+.dy-login--dark .dy-login__backend-unavailable-action:hover {
+	background: rgb(var(--dy-cyan-c-500) / 0.18);
 }
 
 /* The field keeps `--dy-input-bg`: overriding it with `--dy-surface` here made

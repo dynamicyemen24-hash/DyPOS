@@ -9,6 +9,7 @@ export function useLoginSessionBootstrap({
 	sessionReady,
 	isRuntimeReady,
 	emit,
+	onShiftRequired,
 }) {
 	const { isLocked: sessionLocked } = useSessionLock()
 
@@ -39,6 +40,11 @@ export function useLoginSessionBootstrap({
 
 			if (shiftState === "requires-opening") {
 				emit("shift-opening-required")
+				try {
+					if (typeof onShiftRequired === "function") onShiftRequired()
+				} catch {
+					// Dialog opening must never break bootstrap.
+				}
 				return
 			}
 

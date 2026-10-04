@@ -1,7 +1,7 @@
 # AGENTS.md — Repo conventions for AI coding agents
 
 > This repo is Arabic-first (UI, messages, commit bodies) with English code.
-> Production: https://dypos.smartportssoft.com/ · Version single source: `1.44.7`
+> Production: https://dypos.smartportssoft.com/ · Version single source: `1.45.1`
 > (root `package.json` + `POS/package.json` + `server/package.json` + `server/lib/version.js`
 > + `worker-api.js` `API_VERSION` — the edge's copy, asserted by both suites).
 
@@ -27,7 +27,7 @@ npm run verify:live                   # = node scripts/verify-live.mjs
 ```
 
 Test counts are *measured* by the runners, never estimated: server
-`684 tests / 198 suites`, POS `2152 tests / 125 files`.
+`685 tests / 198 suites`, POS `2210 tests / 129 files`.
 
 `POS/node_modules` is disposable — if a command hangs on `npx … Ok to proceed?`,
 the install is missing: `npm ci` in `POS/` (and add the package to
@@ -134,8 +134,8 @@ same commit. A backlog item nobody measures is a wish.
 
 | Metric | Where it is measured | Now | Direction |
 |---|---|---|---|
-| Server tests / suites | `server` `npm test` | **684 / 198** | up or flat |
-| POS tests / files | `POS` `npm run test:run` | **2152 / 125** | up or flat |
+| Server tests / suites | `server` `npm test` | **685 / 198** | up or flat |
+| POS tests / files | `POS` `npm run test:run` | **2210 / 129** | up or flat |
 | Truthfulness gates | `truthfulness.test.js` | **12** | up or flat |
 | Runtime gates (server+P0) | `run-tests.mjs`, `vitest` | **320+** | up or flat |
 | Bundle budget (gzip JS+CSS) | `POS` `npm run size` | **≤ 900 KB** | down or flat |
@@ -237,6 +237,16 @@ one is.
     `POS/tests/fileSize.test.js` + `server/tests/fileSize.test.js`. Caps only
     move **down** — extract a composable/module, then lower the number in the
     same commit. A backlog item nobody measures is a wish.
+
+12. **Three-tier architecture is mandatory**: Production DyPOS requires all
+    three tiers deployed and verified — PWA (Cloudflare Pages), API Edge Gateway
+    (Cloudflare Worker + D1), Authoritative Express Backend (Node.js + SQLite).
+    The edge worker MUST have a valid `BACKEND_URL` secret pointing to a healthy
+    Express origin. `npm run upstream` and `server/tests/api-upstream-config.test.js`
+    enforce this: a missing or self-referential backend fails the deploy.
+    - Gates: `upstream` script, `api-upstream-config.test.js`, `verify:live` 6/6
+    - The PWA works 100% offline without the backend, but login, sync, and any
+      `/api/*` call require the authoritative backend to be reachable.
 
 ## Gotchas
 

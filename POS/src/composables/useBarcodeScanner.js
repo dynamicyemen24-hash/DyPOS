@@ -27,6 +27,9 @@
  */
 import { nextTick, ref } from "vue"
 
+import { getPopularityBoost } from "@/utils/posSalePure"
+import { resolveScanIntent } from "@/utils/smartSearch"
+
 /** Terminal states: the scanner will never produce a code from these. */
 const DEAD_ENDS = new Set(["unsupported", "denied"])
 
@@ -74,7 +77,76 @@ export function useBarcodeScanner({ notify } = {}) {
 		scanning.value = false
 	}
 
-	return { scanning, showScanner, barcodeScanner, open, close, onRead }
+	/**
+	 * المسح/الكتابة السريعة: Enter في حقل البحث = «أضف الآن».
+	 *
+	 * Moved verbatim from `pages/POSSale.vue` (file-size ratchet): the page
+	 * owned scan-submit beside scan open/close, and the three belong to one
+	 * owner. Dependencies ride IN so the composable stays UI-free and the
+	 * page keeps its refs.
+	 *
+	 * @param {object} deps
+	 * @param {object} deps.index product search index
+	 * @param {string} deps.query current search text
+	 * @param {Map} deps.boosts popularity boosts
+	 * @param {(product:object)=>void} deps.addProduct cart adder
+	 * @param {()=>void} deps.clearQuery empties the search field
+	 * @param {()=>void} deps.resetActiveIndex clears grid highlight
+	 * @param {()=>void} deps.focusSearch returns focus to search
+	 * @param {(message:string,kind:string)=>void} deps.tell sale toast
+	 * @returns {boolean} true when a product was added
+	 */
+	function submitScan({
+		index,
+		query,
+		boosts,
+		addProduct,
+		clearQuery,
+		resetActiveIndex,
+		focusSearch,
+		tell,
+	}) {
+		const intent = resolveScanIntent(index, query, {
+			minLength: 3,
+			popularity: (product) => getPopularityBoost(boosts, product),
+		})
+
+		if (intent.action === "add" && intent.product) {
+			addProduct(intent.product)
+			clearQuery()
+			resetActiveIndex()
+
+			const reasonLabel =
+				intent.reason === "barcode"
+					? "مسح باركود"
+					: intent.reason === "code"
+						? "رمز صنف"
+						: "إضافة سريعة"
+
+			tell?.(`${reasonLabel}: أُضيف «${intent.product.name}»`, "success")
+
+			nextTick(() => {
+				focusSearch?.()
+			})
+
+			return true
+		}
+
+		if (intent.action === "empty" && String(query || "").trim()) {
+			tell?.("لا يوجد منتج مطابق — تحقق من الرمز", "warning")
+		}
+		return false
+	}
+
+	return {
+		scanning,
+		showScanner,
+		barcodeScanner,
+		open,
+		close,
+		onRead,
+		submitScan,
+	}
 }
 
 export default useBarcodeScanner

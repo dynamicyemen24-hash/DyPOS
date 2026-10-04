@@ -43,13 +43,19 @@ describe("normalizeAuthError", () => {
 		)
 	})
 
-	it("falls back to the error message when online", () => {
+	it("never leaks a raw English transport message to the cashier", () => {
+		// S5: user-facing text is Arabic and names a recovery — an English
+		// fetch/XHR message must fall back to the Arabic default.
 		expect(
 			normalizeAuthError({ message: "backend rejected" }, { online: true }),
-		).toBe("backend rejected")
+		).toContain("تعذر تسجيل الدخول")
 		expect(
 			normalizeAuthError({ response: { data: { message: "inner" } } }),
-		).toBe("inner")
+		).toContain("تعذر تسجيل الدخول")
+		// An Arabic server message is already suitable — pass it through.
+		expect(
+			normalizeAuthError({ message: "تعذر الوصول — حاول مرة أخرى" }),
+		).toContain("تعذر الوصول")
 	})
 })
 

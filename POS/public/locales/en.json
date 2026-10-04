@@ -105,6 +105,7 @@
 	"تم قفل المؤقت": "Timer Locked",
 	"المحاولة بعد": "Retry After",
 	"ثانية": "Second",
+	"خدمة المزامنة غير متاحة": "The sync service is currently unavailable. Local sales continue to work offline.",
 	"تعذر تسجيل الدخول": "Login Failed",
 	"إغلاق رسالة الخطأ": "Dismiss Error",
 	"إغلاق": "Close",

@@ -38,7 +38,15 @@ export const LOGIN_PROPS = Object.freeze({
  * `ready` is separate from `authenticated` on purpose — the shell waits for
  * `ready` before probing devices, and probing on `authenticated` would race the
  * session bootstrap.
+ * `shift-opening-required` asks the shell to open the shift dialog;
+ * `login-error` carries a handled bootstrap failure the shell may surface.
  */
-export const LOGIN_EMITS = Object.freeze(["authenticated", "ready", "error"])
+export const LOGIN_EMITS = Object.freeze([
+	"authenticated",
+	"ready",
+	"error",
+	"shift-opening-required",
+	"login-error",
+])
 
 export default LOGIN_PROPS

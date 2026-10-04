@@ -48,6 +48,8 @@ import LoginSessionTimeoutDialog from "@/components/common/LoginSessionTimeoutDi
 import TouchKeyboard from "@/components/common/TouchKeyboard.vue"
 import NotificationBar from "@/components/NotificationBar.vue"
 import { ActionButton } from "dypos-ui"
+import LoginBackendUnavailableBanner from "@/components/common/LoginBackendUnavailableBanner.vue"
+import LoginRateLimitWarning from "@/components/common/LoginRateLimitWarning.vue"
 import PasswordStrengthBar from "@/components/reports/dashboards/core/PasswordStrengthBar.vue"
 
 /*
@@ -98,7 +100,9 @@ import {
 	validatePinPair,
 } from "@/composables/usePinAuthRules"
 import { useLoginSessionBootstrap } from "@/composables/useLoginSessionBootstrap"
+import { useLoginShiftDialog } from "@/composables/useLoginShiftDialog"
 import { useLoginPinAuth } from "@/composables/useLoginPinAuth"
+import { useLoginBackendUnavailable } from "@/composables/useLoginBackendUnavailable"
 import { useLoginForm } from "@/composables/useLoginForm"
 import { useLoginMethods } from "@/composables/useLoginMethods"
 
@@ -208,8 +212,21 @@ const {
 	handleOffline,
 } = useLoginRuntime({ showOfflineReadiness: props.showOfflineReadiness })
 
-const shiftDialogOpen = ref(false)
-const shiftOpening = ref(false)
+const { isBackendUnavailable } = useLoginBackendUnavailable({
+	runtimeState,
+	isRateLimited,
+	isOnline,
+	isOfflineMode,
+	loginError,
+})
+
+const {
+	shiftDialogOpen,
+	shiftOpening,
+	openShiftDialog,
+	onShiftOpened,
+	onShiftDialogClosed,
+} = useLoginShiftDialog({ emit, isRuntimeReady })
 
 const authenticationCompleted = ref(false)
 
@@ -217,17 +234,11 @@ const authenticationCompleted = ref(false)
  * Extracted Composables
  * ========================================================================== */
 
-const {
-	bootstrapAuthenticatedSession,
-	resolveShiftState,
-	emitReady,
-	handleShiftConfirm,
-	handleShiftCancel,
-	cleanup,
-} = useLoginSessionBootstrap({
+const { bootstrapAuthenticatedSession, cleanup } = useLoginSessionBootstrap({
 	sessionReady,
 	isRuntimeReady,
 	emit,
+	onShiftRequired: openShiftDialog,
 })
 
 const {
@@ -340,11 +351,6 @@ const {
 
 const sessionSecondsLeft = useSecondsRemaining(sessionTimeRemaining)
 
-/** Lockout countdown, same derivation — see useSecondsRemaining. */
-const retryAfterSeconds = useSecondsRemaining(
-	computed(() => rateLimitState.value?.retryAfterMs),
-)
-
 // Security hardening: session activity monitoring + expiry/idle/absolute
 // timeout policies live in `composables/useLoginSecurityMonitor.js` — keeping
 // the timer and its stop handle in one closure is what makes the leak
@@ -443,6 +449,12 @@ const { locale: preferencesLocale, dir: preferencesDir } = useLoginPreferences()
 /** خطأ واحد واضح، ومسار واحد لعرضه وإخفائه. */
 function clearLoginError() {
 	loginError.value = ""
+}
+
+/** إعادة محاولة الخلفية: تنظف الخطأ ثم تعيد تهيئة التشغيل. */
+async function retryBackend() {
+	clearLoginError()
+	await prepareRuntime()
 }
 
 /* ============================================================================
@@ -582,8 +594,7 @@ async function handleKeyboardSubmit() {
 async function onPinAuthenticated(how) {
 	pinModeActive.value = false
 	showPinSetup.value = false
-	authenticationCompleted.value = true
-	log.info("DyPOS PIN authentication completed", how)
+	completeAuthentication(how === "pin_setup" ? "pin_setup" : "pin_login")
 	await bootstrapAuthenticatedSession()
 }
 
@@ -851,33 +862,17 @@ watch(
                     </button>
                 </section>
 
+                <!-- Backend Unavailable Banner (503) — Offline mode still works -->
+                <LoginBackendUnavailableBanner
+                    v-if="isBackendUnavailable"
+                    @retry="retryBackend"
+                />
+
                 <!-- Rate Limit Warning -->
-
-                <div
+                <LoginRateLimitWarning
                     v-if="isRateLimited"
-                    class="dy-login__rate-limit"
-                    role="alert"
-                    aria-live="assertive"
-                >
-                    <span class="dy-login__rate-limit-icon" aria-hidden="true">
-                        <FeatherIcon
-                            name="clock"
-                            :size="18"
-                        />
-                    </span>
-
-                    <div class="dy-login__rate-limit-content">
-                        <strong>
-                            {{ __('تم قفل المؤقت') }}
-                        </strong>
-
-                        <span>
-                            {{ __("المحاولة بعد") }}
-                            {{ retryAfterSeconds }}
-                            {{ __("ثانية") }}
-                        </span>
-                    </div>
-                </div>
+                    :retry-after-ms="rateLimitState.retryAfterMs"
+                />
 
                 <!-- Error -->
 
@@ -930,7 +925,6 @@ watch(
                      ================================================================= -->
 
                 <form
-                    v-else
                     ref="loginForm"
                     class="dy-login__form"
                     novalidate
@@ -1404,11 +1398,9 @@ watch(
 
         <ShiftOpeningDialog
             v-if="shiftDialogOpen"
-            :show="shiftDialogOpen"
-            :loading="shiftOpening"
-            @confirm="handleShiftConfirm"
-            @cancel="handleShiftCancel"
-            @close="handleShiftCancel"
+            v-model="shiftDialogOpen"
+            @shift-opened="onShiftOpened"
+            @dialog-closed="onShiftDialogClosed"
         />
 
         <!-- =================================================================

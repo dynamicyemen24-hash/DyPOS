@@ -83,7 +83,13 @@ const CAPS = [
 	// after `:size="sm"` and a broken `aria-label` string made the whole SFC
 	// fail to compile. Fourteen lines of markup that the build previously
 	// refused to bundle at all. Direction from here: downward only.
-	["src/components/settings/POSSettings.vue", 2105],
+	// 2105 → 2083: the stock-sync apply sequence (link guard + configure /
+	// start / stop) moved to `composables/useStockSyncApply.js` (+ the link
+	// guard module), so the page keeps wiring while the sequence has a home
+	// with its own caps below.
+	["src/components/settings/POSSettings.vue", 2083],
+	["src/composables/useStockSyncApply.js", 60],
+	["src/composables/useStockSyncLinkGuard.js", 50],
 	// The print composable gets a cap of its own: it is the module the three
 	// paths now share, so a fourth copy of the fallback chain is exactly the
 	// regression this table exists to catch.
@@ -127,11 +133,14 @@ const CAPS = [
 	// 1899 → 1890: ربط حالات الواجهة وتصحيح refs وترجمة PIN، ثم استخراج
 	//   التحقق من الحقول إلى composable قابل للاختبار. أضيفت بوابات القالب
 	//   والتخطيط المكتبي؛ الاتجاه downward فقط.
-	// 1725 → 1470 → 1439: the workspace column's identity card moved into `DyPanel`
-	//   (LoginWorkspacePanel now renders it plus a slot), then the session
-	//   security monitor pair moved to `composables/useLoginSecurityMonitor.js`.
+	// 1725 → 1470 → 1439 → 1430: the workspace column's identity card moved
+	//   into `DyPanel` (LoginWorkspacePanel now renders it plus a slot), then
+	//   the session security monitor pair moved to
+	//   `composables/useLoginSecurityMonitor.js`, then the shift-dialog wiring
+	//   (open/close transitions) moved to `composables/useLoginShiftDialog.js`.
 	//   Measured by this gate's own counter. Direction downward only.
-	["src/pages/Login.vue", 1439],
+	["src/pages/Login.vue", 1430],
+	["src/composables/useLoginShiftDialog.js", 60],
 	// The monitor this page used to own: interval + listener + stop in one
 	// closure, with `loginSecurityMonitor.test.js` freezing the contract.
 	["src/composables/useLoginSecurityMonitor.js", 80],
