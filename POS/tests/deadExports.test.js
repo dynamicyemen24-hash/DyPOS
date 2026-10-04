@@ -56,23 +56,57 @@ const barrels = files.filter((f) =>
 	/[/\\]components[/\\].*[/\\]index\.(js|ts)$/.test(f),
 )
 
-/** component name -> { barrel, spec } so a lazy import can be matched to it. */
-const exported = new Map()
+/**
+ * component name -> { barrel, spec } so a lazy import can be matched to it.
+ *
+ * ## Determinism — the first version of this gate was NOT
+ *
+ * `exported.set(name, …)` on a bare `Map` meant that whichever barrel was
+ * visited LAST won. `readdirSync` order is filesystem-dependent, so on CI
+ * (ext4, different inode order) the `queue/index.ts` barrel could be visited
+ * after `selfCheckout/index.js`, and `SelfCheckoutScreen` was reported dead
+ * there and alive on a Windows laptop. **The same commit passed locally and
+ * failed in production** — the worst possible shape for a gate, because a red
+ * deploy reads as "the product is broken".
+ *
+ * The fix is not sorting: it is refusing to guess. Every barrel that offers a
+ * name is COLLECTED, and a component is dead only when NO barrel entry can
+ * account for it. Order then cannot change the verdict.
+
+/**
+ * EVERY barrel that offers a given name, with the specs it points at.
+ *
+ * A name can live in more than one barrel (`work/index.js` re-exports members
+ * that `work/index.ts`-style barrels also list), and a single `Map` entry keeps
+ * only one of them. Which one survives depends on `readdirSync` order, which is
+ * filesystem-dependent — so the CI runner and a laptop disagreed, and CI was
+ * the one that said "dead". Collect them all and the order stops mattering.
+ */
+const barrelsByName = new Map()
 for (const barrel of barrels) {
 	const text = readFileSync(barrel, "utf8")
 	for (const m of text.matchAll(
 		/export\s*\{[^}]*?as\s+([A-Za-z_$][\w$]*)\s*\}\s*from\s*["']([^"']+\.vue)["']/g,
 	)) {
-		exported.set(m[1], { barrel, spec: m[2] })
+		if (!barrelsByName.has(m[1])) barrelsByName.set(m[1], [])
+		barrelsByName.get(m[1]).push([barrel, m[2]])
 	}
-	// A barrel re-exports more than components — `useCashierQueue` is a
-	// composable, consumed by `QueuePage.vue` as a plain named import, and the
-	// first run of this gate reported it dead for that reason. Only a `.vue`
-	// specifier can be RENDERED, so only those are in scope here; the
-	// `.js`/`.ts` exports belong to `deadCode.test.js`, which walks imports.
-	for (const m of text.matchAll(/export\s*\{\s*([A-Za-z_$][\w$]*)\s*\}/g)) {
-		if (!exported.has(m[1])) exported.set(m[1], { barrel, spec: null })
-	}
+}
+
+/**
+ * Resolve a barrel's specifier to a real file, or null.
+ *
+ * The spec is relative TO THE BARREL'S OWN DIRECTORY — `./sales/Sales.vue`
+ * from `reports/dashboards/index.js` means
+ * `reports/dashboards/sales/Sales.vue`. The first version inserted a `".."`
+ * before it, which resolved every dashboard one directory too high, made
+ * `existsSync` false, and turned all six live dashboards into "dead" again.
+ */
+function resolveSpec(barrel, spec) {
+	const abs = spec.startsWith(".")
+		? resolve(dirname(barrel), spec)
+		: resolve(SRC, spec.replace(/^@\//, ""))
+	return existsSync(abs) ? abs : null
 }
 
 /** Absolute paths reached through a literal `import("./x.vue")` anywhere. */
@@ -139,37 +173,10 @@ for (const file of files) {
 		usedTags.add(m[1])
 }
 
-/** The file a barrel export resolves to, or null when it is a bare export. */
-function sourceOf(entry) {
-	if (!entry.spec) return null
-	const abs = entry.spec.startsWith(".")
-		? resolve(entry.barrel, "..", entry.spec)
-		: resolve(SRC, entry.spec.replace(/^@\//, ""))
-	return existsSync(abs) ? abs : null
-}
-
-/**
- * Mounted = a literal tag, or a lazy import of the very file the barrel points at.
- *
- * A `spec: null` export (a composable or a helper, not a component) is NOT this
- * gate's business — `deadCode.test.js` judges reachability of those. Only a
- * barrel export that actually resolves to a `.vue` can be "dead UI".
- */
-function isMounted(name, entry) {
-	if (usedTags.has(name)) return true
-	const source = sourceOf(entry)
-	if (!source) return true // not a component export; out of scope
-	if (lazilyImported.has(source)) return true
-	// Mounted THROUGH its barrel: the route lazily imports the barrel module,
-	// and this component is a member of it.
-	const barrelFile = entry.barrel
-	return lazilyImported.has(barrelFile.replace(/\/index\.(js|ts)$/, ""))
-}
-
 describe("no dead component exports", () => {
 	it("found barrels, exports and tags (an empty scan is a silent green)", () => {
 		expect(barrels.length).toBeGreaterThan(0)
-		expect(exported.size).toBeGreaterThan(5)
+		expect(barrelsByName.size).toBeGreaterThan(5)
 		expect(usedTags.size).toBeGreaterThan(20)
 	})
 
@@ -180,18 +187,67 @@ describe("no dead component exports", () => {
 		expect(lazilyImported.size).toBeGreaterThan(3)
 	})
 
-	it("exports no component that is neither rendered nor lazily mounted", () => {
-		const dead = [...exported.entries()]
-			.filter(([name, entry]) => !isMounted(name, entry))
-			.map(([name]) => name)
-			.sort()
+	it("verdicts do not depend on directory-read order", () => {
+		// The CI failure this pins: the gate said "dead" on the runner and
+		// "alive" on a laptop for the SAME commit, because `readdirSync` order
+		// decided which barrel entry survived. A gate whose answer changes with
+		// the filesystem is worse than no gate — it teaches the team to
+		// re-run until green, which is exactly how a real defect survives.
+		const forward = judge([...barrels])
+		const reversed = judge([...barrels].reverse())
+		expect(reversed).toEqual(forward)
+		expect(forward).toEqual([])
+	})
 
+	it("exports no component that is neither rendered nor lazily mounted", () => {
 		expect(
-			dead,
+			judge(barrels),
 			"these components ship (a barrel exports them) but nothing renders or " +
 				"mounts them: no literal tag, no lazy import. Wire them up or " +
 				"delete them — a component that reaches every cashier's browser to " +
 				"display nothing is a defect that compiles green.",
 		).toEqual([])
 	})
+
+	it("would still catch a component that is genuinely dead", () => {
+		// Determinism is worthless if the verdict is always empty. This feeds
+		// the SAME judge a synthetic barrel whose component has no tag, no lazy
+		// import and no sibling that could mount it, and demands a verdict.
+		const fakeBarrel = join(SRC, "components", "work", "__probe__.index.js")
+		const collected = new Map()
+		collected.set("TotallyUnmountedWidget", [[fakeBarrel, "./__probe__.vue"]])
+		const verdict = judgeCollected(collected)
+		expect(verdict).toEqual(["TotallyUnmountedWidget"])
+	})
 })
+
+/** The dead-export verdict from an already-collected name → barrels map. */
+function judgeCollected(collected) {
+	const dead = []
+	for (const [name, entries] of collected) {
+		if (usedTags.has(name)) continue
+		const mounted = entries.some(([barrel, spec]) => {
+			const source = resolveSpec(barrel, spec)
+			if (source && lazilyImported.has(source)) return true
+			const base = barrel.replace(/[/\\]index\.(js|ts)$/, "")
+			return lazilyImported.has(barrel) || lazilyImported.has(base)
+		})
+		if (!mounted) dead.push(name)
+	}
+	return dead.sort()
+}
+
+/** The dead-export verdict for a given barrel visiting order. */
+function judge(barrelOrder) {
+	const collected = new Map()
+	for (const barrel of barrelOrder) {
+		const text = readFileSync(barrel, "utf8")
+		for (const m of text.matchAll(
+			/export\s*\{[^}]*?as\s+([A-Za-z_$][\w$]*)\s*\}\s*from\s*["']([^"']+\.vue)["']/g,
+		)) {
+			if (!collected.has(m[1])) collected.set(m[1], [])
+			collected.get(m[1]).push([barrel, m[2]])
+		}
+	}
+	return judgeCollected(collected)
+}

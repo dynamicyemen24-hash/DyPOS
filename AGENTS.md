@@ -19,7 +19,7 @@ npm test                              # = node scripts/run-tests.mjs
 npx @biomejs/biome check .
 npm run parity
 npm run contract
-# POS/ — 2150 tests / 125 files
+# POS/ — 2152 tests / 125 files
 npm run test:run
 npx biome check src/<touched-file>
 # production, from the repo root (after a deploy)
@@ -27,7 +27,7 @@ npm run verify:live                   # = node scripts/verify-live.mjs
 ```
 
 Test counts are *measured* by the runners, never estimated: server
-`684 tests / 198 suites`, POS `2150 tests / 125 files`.
+`684 tests / 198 suites`, POS `2152 tests / 125 files`.
 
 `POS/node_modules` is disposable — if a command hangs on `npx … Ok to proceed?`,
 the install is missing: `npm ci` in `POS/` (and add the package to
@@ -135,7 +135,7 @@ same commit. A backlog item nobody measures is a wish.
 | Metric | Where it is measured | Now | Direction |
 |---|---|---|---|
 | Server tests / suites | `server` `npm test` | **684 / 198** | up or flat |
-| POS tests / files | `POS` `npm run test:run` | **2150 / 125** | up or flat |
+| POS tests / files | `POS` `npm run test:run` | **2152 / 125** | up or flat |
 | Truthfulness gates | `truthfulness.test.js` | **12** | up or flat |
 | Runtime gates (server+P0) | `run-tests.mjs`, `vitest` | **320+** | up or flat |
 | Bundle budget (gzip JS+CSS) | `POS` `npm run size` | **≤ 900 KB** | down or flat |
@@ -161,7 +161,7 @@ metric moved. Silence is not an option.
 
 **Why the test COUNT can fall while the suite gets stronger.** Deleting 12 dead
 components (6228 lines) took their unit tests with them, so the count reads
-2150 where it read 2180. Three gates were added in the same round
+2152 where it read 2180. Three gates were added in the same round
 (`truthfulness`, `deadExports`, `cartLines`) and three new mount mechanisms
 were taught to the existing ones, so fewer assertions cover more of the
 product. A falling count is not automatically a regression — an UNEXPLAINED
@@ -268,17 +268,16 @@ one is.
   back to dead. That is how `WorkForm.vue` (unbalanced markup), `WorkWizard.vue`
   (unquoted attribute) and `WorkNotification.vue` (ES exports in `<script setup>`)
   stayed broken for months while every suite was green.
-- A `useDialog("key")` / `emit("x-clicked")` / `to: { name }` with no consumer is
-  a **dead contract**: a button that renders and does nothing, or a nav entry
-  that navigates nowhere. Wire the consumer or delete the contract — never leave
-  it "for later"; that is how settings and logout became unreachable while their
-  code sat fully written.
-- `users` has no `preferred_locale` — locale defaults to `'ar'`.
-- **`/api/health` returns 503 whenever *any* registered check degrades** (memory
-  and disk thresholds included), so it is environment-dependent under a parallel
-  suite. Assert the contract (payload shape + status/`status` agreement), never a
-  hard `200`; `/api/ready` is the container probe path. Four tests still did
-  (auth/version/scale/scale8) and failed on the CI runner while passing locally.
+- **A gate whose verdict depends on directory-read order will pass locally and
+  fail the deploy.** `deadExports.test.js` kept ONE `Map` entry per component
+  name, so whichever barrel `readdirSync` visited last won. On the CI runner
+  (ext4) that put `queue/index.ts` ahead of `selfCheckout/index.js`, and
+  `SelfCheckoutScreen` — a live 481-line customer screen — was reported dead
+  **while the same commit was green on the laptop**. Two lessons, both now in
+  the file: collect EVERY barrel that offers a name instead of keeping one, and
+  assert `judge(barrels) === judge(barrels.reverse())` so the next
+  filesystem-dependent verdict fails here instead of in production. A gate
+  that only works on the machine that wrote it is a gate nobody trusts.
 - **Never run the two suites concurrently on one machine and call the result a
   regression.** Measured here: `scale.test.js` alone fails 13 assertions with
   HTTP 401 (its registration→login→invoice chain times out under CPU contention),
@@ -387,3 +386,4 @@ one is.
   the CP1252 table, everything else by code point — then decoding the byte array
   as UTF-8. `StockImportExportDialog.vue` was the only such file in the tree;
   check `arabicChars > 0 && no U+FFFD` before claiming it fixed.
+
