@@ -78,17 +78,41 @@ describe("device catalog — zero network, device truth first", () => {
 		expect(global.fetch).not.toHaveBeenCalled()
 	})
 
-	it("counts unique device products for honest empty states", async () => {
+	it("counts unique device products and REPORTS whether that count is complete", async () => {
 		productRepository.search.mockResolvedValue([
 			{ id: 1, code: "A1", name: "أ", price: 1 },
 		])
 		searchCachedItems.mockResolvedValue([
 			{ id: 9, code: "A1", item_name: "مكرر", price: 2 },
 		])
-		await expect(countDeviceProducts()).resolves.toBe(1)
+		await expect(countDeviceProducts()).resolves.toEqual({
+			count: 1,
+			complete: true,
+		})
+
 		productRepository.search.mockResolvedValue([])
 		searchCachedItems.mockResolvedValue([])
-		await expect(countDeviceProducts()).resolves.toBe(0)
+		await expect(countDeviceProducts()).resolves.toEqual({
+			count: 0,
+			complete: true,
+		})
+	})
+
+	/**
+	 * The defect this pins: both sources used to be `.catch(() => [])`, so a
+	 * total failure answered `0` — "this shop has no products" — instead of
+	 * "we could not read the catalog". The count is now flagged incomplete.
+	 */
+	it("reports an INCOMPLETE count when a source fails, never a confident zero", async () => {
+		productRepository.search.mockRejectedValue(new Error("IndexedDB blocked"))
+		searchCachedItems.mockResolvedValue([
+			{ id: 4, code: "B1", name: "ب", price: 1 },
+		])
+
+		const result = await countDeviceProducts()
+
+		expect(result.complete).toBe(false)
+		expect(result.count).toBe(1)
 	})
 
 	it("merges customers with repository rows first", async () => {

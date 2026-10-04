@@ -71,21 +71,44 @@ export async function listDeviceProducts(limit = DEFAULT_PRODUCT_LIMIT) {
 }
 
 /**
- * عدد أصناف الجهاز (للحالات الصادقة: فارغ = بلا بيانات لا بلا شبكة).
- * @returns {Promise<number>}
+ * عدد أصناف الجهاز — مع **مصدر القياس**، لا رقمًا مُلفّقًا.
+ *
+ * ## لماذا تغيّر هذا
+ *
+ * كان يجمع مستودع الجهاز والكاش بـ`.catch(() => [])` على **كل** المصدرين، فإن
+ * فشل الاثنان معًا كان يُرجع `0` — أي «لا توجد أصناف» بينما الحقيقة «لم
+ * نعرف». هذا هو العيب الذي حذّر منه الدستور (القاعدة 9: القائمة الفارغة ليست
+ * قياسًا)، وقد خُفي خلف توثيق يقول إنه صادق.
+ *
+ * الآن يُرجع `{ count, complete }`:
+ *   - `complete: false` ⇐ فشل مصدر واحد على الأقل، فـ`count` **تقدير** لا
+ *     قياس، وعلى الواجهة أن تعرضه كلوحة «غير مكتمل» لا كرقم واثق.
+ *   - `complete: true`  ⇐ كل المصادر نجحت، فرقم قابل للاعتماد.
+ *
+ * @returns {Promise<{count: number, complete: boolean}>}
  */
 export async function countDeviceProducts() {
-	const [repoRows, cachedRows] = await Promise.all([
-		productRepository.search("", 2000).catch(() => []),
-		searchCachedItems("", 2000).catch(() => []),
+	const [repoResult, cacheResult] = await Promise.allSettled([
+		productRepository.search("", 2000),
+		searchCachedItems("", 2000),
 	])
+
+	const rows = []
+	let complete = true
+	if (repoResult.status === "fulfilled") rows.push(...(repoResult.value || []))
+	else complete = false
+	if (cacheResult.status === "fulfilled")
+		rows.push(...(cacheResult.value || []))
+	else complete = false
+
 	const seen = new Set()
-	for (const row of [...(repoRows || []), ...(cachedRows || [])]) {
+	for (const row of rows) {
 		const key = productKey(row)
 		if (key) seen.add(key)
 		else seen.add(`row:${seen.size}`)
 	}
-	return seen.size
+
+	return { count: seen.size, complete }
 }
 
 /**

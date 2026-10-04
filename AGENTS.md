@@ -19,7 +19,7 @@ npm test                              # = node scripts/run-tests.mjs
 npx @biomejs/biome check .
 npm run parity
 npm run contract
-# POS/ — 2148 tests / 121 files
+# POS/ — 2161 tests / 122 files
 npm run test:run
 npx biome check src/<touched-file>
 # production, from the repo root (after a deploy)
@@ -27,12 +27,85 @@ npm run verify:live                   # = node scripts/verify-live.mjs
 ```
 
 Test counts are *measured* by the runners, never estimated: server
-`684 tests / 198 suites`, POS `2148 tests / 121 files`.
+`684 tests / 198 suites`, POS `2161 tests / 122 files`.
 
 `POS/node_modules` is disposable — if a command hangs on `npx … Ok to proceed?`,
 the install is missing: `npm ci` in `POS/` (and add the package to
 `POS/package.json`; a dependency used by shipped code but absent from the
 manifest breaks both the build and any test that compiles CSS).
+
+## Technical specification — binding for every developer (human or agent)
+
+These are the acceptance criteria of the product. They are **not** aspirations:
+each line names the gate that enforces it, and a gate that stops enforcing it is
+itself a defect to be fixed in the same round that noticed it.
+
+### S1 — No fabricated data, ever
+The POS shows a shop's real numbers. No demo rows, no mock tables, no typed
+revenue, no placeholder totals, no "coming soon" figure that renders as a fact.
+Business constants (VAT rates, currency decimals, page sizes, barcode symbologies,
+permission tables) are **specification**, not data, and are allowed.
+
+- Gate: `POS/tests/truthfulness.test.js` (scans `src/` + server runtime dirs)
+- Rule: a failure is never a measurement — `.catch(() => [])` / `.catch(() => 0)`
+  on a *report* is forbidden. Legitimate fallbacks (memo cache, optional Redis,
+  a schema probe) are allowed because they return "not cached", not "none".
+- A count that merges several sources must report whether it is **complete**,
+  so a partial read can never render as a confident zero
+  (`device-catalog#countDeviceProducts` returns `{count, complete}`).
+
+### S2 — Offline is absolute, not a feature
+100% of the seller's job works with no network: sale, return, print, reports,
+stock count, shifts, customers. The server is optional and sync-only. Sync runs
+only on explicit user demand or a linkage the user set to `auto` (default `off`).
+- Gates: `standaloneBoot.test.js`, `offlineFirst.test.js`, `offlineSale.test.js`
+
+### S3 — One implementation per rule
+Money (`lib/money.js#computeLineMinor`), returns (`applyInvoiceReturn`), method
+handlers (`routes/method.js`), DDL (`db/schema.js` ↔ `schema-postgres.sql`).
+A second implementation is a defect even when both are correct.
+- Gates: `money-line.test.js`, `npm run contract`, `npm run parity`
+
+### S4 — Tenant fail-closed, secrets never leak
+Every list carries a tenant clause (403 spoofed / 404 foreign, never unscoped);
+`password_hash` and tokens are never selectable.
+- Gates: tenant suites in `server/tests`, `branding-integrity.test.js`
+
+### S5 — Honest UX
+Arabic user-facing text, and every error **names a recovery**. A dead control, a
+dead `emit`, an unreachable feature, or a component that renders but does nothing
+is a defect even though it compiles green.
+- Gates: `errorMessages.test.js`, `sfcCompiles.test.js`, `deadCode.test.js`,
+  `barcodeScanner.test.js` (the `this.$root` class)
+
+### S6 — Config follows the code
+Every path a build config names exists; every eagerly pre-bundled module is a
+declared dependency; the version single source is asserted across all five
+places.
+- Gates: `buildConfig.test.js`, `versionDrift.test.js`, `deadCode.test.js`
+
+### S7 — Measure, never wish
+File-size caps only move **down**; extract first, then lower the number in the
+same commit. A backlog item nobody measures is a wish.
+- Gates: `POS/tests/fileSize.test.js`, `server/tests/fileSize.test.js`
+
+## Development metrics — the numbers that must never regress
+
+| Metric | Where it is measured | Now | Direction |
+|---|---|---|---|
+| Server tests / suites | `server` `npm test` | **684 / 198** | up or flat |
+| POS tests / files | `POS` `npm run test:run` | **2161 / 122** | up or flat |
+| Truthfulness gates | `truthfulness.test.js` | **12** | up or flat |
+| Runtime gates (server+P0) | `run-tests.mjs`, `vitest` | **320+** | up or flat |
+| Bundle budget (gzip JS+CSS) | `POS` `npm run size` | **≤ 900 KB** | down or flat |
+| Dependency advisories (prod) | `npm audit --omit=dev` | **0** | flat |
+| Escaped/excused gate entries | `ALLOWED_SURFACES`, `KNOWN_*` | **0 / minimal** | down or flat |
+| Largest shipped file | `fileSize.test.js` | measured, capped | down or flat |
+| Codepath reachability | `deadCode.test.js` | **0 unreachable** | flat |
+
+A change that moves a row the wrong way must either fix the underlying debt in
+the same commit (then move the cap down) or explain in `CHANGELOG.md` why the
+metric moved. Silence is not an option.
 
 ## Invariants (never break)
 
@@ -189,6 +262,20 @@ manifest breaks both the build and any test that compiles CSS).
   now asserts the dependency is absent AND that no shipped code names the
   global. For any camera/scanner work prefer the ENGINE primitive
   (`BarcodeDetector`): no dependency, no network, invariant 8 intact.
+- **A gate must be proven to bite, and its FIRST run is a measurement, not a
+  verdict.** `truthfulness.test.js` (S1) went red on its first two runs — both
+  times on *its own* regex, never on the product:
+  `= {` matched `getCustomerBalance(id) {`, and `revenue:` matched an
+  accumulator's zero seed inside a real `reduce`. Fixing the detector is right;
+  allow-listing the file would have taught the gate nothing. The file now asserts
+  both directions (`mustCatch` / `mustNotCatch`), which is what separates a gate
+  from a decoration. The first run also found a genuine defect the tree had been
+  hiding behind a comment that said it was honest.
+- **Two sources merged into one number must report completeness.** A count that
+  reads several stores cannot tell "empty" from "unreadable" unless it says so.
+  `device-catalog#countDeviceProducts` returned `0` when both sources failed, and
+  its docstring claimed the opposite. It now returns `{count, complete}` and
+  `deviceCatalog.test.js` pins the incomplete case.
 - **`npm ci` in `server/` can leave you unable to run the suite.** `better-sqlite3@13.0.3`
   ships no prebuilt binary for Node 24 on Windows, so the install falls back to
   `node-gyp`, which needs Python; without it the install dies halfway and the
