@@ -1,5 +1,5 @@
 /**
- * DyPOS single source of truth for the server version (C3) v1.47.0
+ * DyPOS single source of truth for the server version (C3) v1.47.1
  *
  * 1.44.6 -- the round where a green suite stopped being evidence. Fourteen real
  * defects, and the reason no gate saw them is the same every time: a gate that
@@ -138,6 +138,11 @@
  * 1.47.0 -- first-subscriber provisioning (Royal International, Marib):
  * opt-in IndexedDB seed (company/branch/warehouse/YER + owner-supplied users
  * + owner-supplied opening stock), one-shot with secret-key deletion.
+ *
+ * 1.47.1 -- subscriber manager account: `yaqoub.sahel` (MANAGER, Royal tenant)
+ * joins the Royal fixture users — `npm run e2e:yaqoub` authenticates as him,
+ * and the seed no longer tells the operator to run itself first for an
+ * account it never created.
  */
-export const VERSION = '1.47.0';
+export const VERSION = '1.47.1';
 export default VERSION;

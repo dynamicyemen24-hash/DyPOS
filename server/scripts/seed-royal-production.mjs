@@ -5,7 +5,7 @@
  *
  * Creates SAMPLE fixture data for isolated development databases only:
  * - Tenant RGT (enterprise) + organization + 3 branches + warehouses
- * - 6 sample users with bcrypt hashes (cost 12, repo standard)
+ * - 7 sample users with bcrypt hashes (cost 12, repo standard)
  * - a development sync key for /api/sync (hash stored, secret printed once)
  * - 64-SKU Arabic-first cosmetics & perfumes catalog
  * - Opening stock per warehouse, customers, fiscal year, sequences, ZATCA
@@ -78,8 +78,12 @@ const BUSINESS_NAME_EN = 'Royal Global Cosmetics & Perfumes Trading';
 
 // username → [fullName, role, mustChange]
 // Passwords are NOT here on purpose — see passwordFor().
+// `yaqoub.sahel` is the subscriber's own manager: `npm run e2e:yaqoub`
+// authenticates as him, so the seed must create him (the run only
+// re-provisions the password, never the account).
 const USERS = [
 	['admin', 'مدير النظام العام', 'ADMIN', 1],
+	['yaqoub.sahel', 'يعقوب سهل — مدير المشترك', 'MANAGER', 1],
 	['sanaa.manager', 'مدير فرع صنعاء', 'MANAGER', 0],
 	['sanaa.cashier', 'كاشير صنعاء الأول', 'CASHIER', 0],
 	['sanaa.cashier2', 'كاشير صنعاء الثاني', 'CASHIER', 0],

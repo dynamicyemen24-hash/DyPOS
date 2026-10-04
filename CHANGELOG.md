@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.47.1] - 2026-10-05 — حساب المدير يعقوب في البذرة، والتشغيل النهائي محليًا
+
+### 👤 Fixed — الدخول بصلاحيات يعقوب
+- **`yaqoub.sahel` (MANAGER على مستأجر رويال)** انضم لمستخدمي بذرة رويال —
+  فحص `e2e:yaqoub` كان يطلب تشغيل البذرة أولًا لحساب لم تنشئه أبدًا.
+- كلمة المرور مولدة ولا تُحفظ في المستودع؛ التشغيل التشغيلي أخضر 17/17.
+
+### ✅ Measured
+- الخادم **685/685** · `e2e:yaqoub` **17/17** · الواجهة **2248/2248**.
 ## [1.47.0] - 2026-10-05 — اعتماد المشترك الأول: رويال العالمية (مأرب) في IndexedDB
 
 ### 🏪 Added — بذر المشترك الأول (اشتراك صريح فقط)
