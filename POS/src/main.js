@@ -55,6 +55,10 @@ import {
 } from "./utils/performance"
 
 import { isLinkEnabled, subscribeLinkConsent } from "./services/link-consent"
+import {
+	getServiceEndpoint,
+	SERVICE_ENDPOINTS,
+} from "./services/runtime-endpoints"
 
 import { applyThemeEarly } from "./composables/useAppTheme"
 import { enforceDefaultArabic } from "./composables/useLocale"
@@ -64,6 +68,7 @@ import translationPlugin from "./utils/translation"
 import { initSocket } from "./socket"
 
 import {
+	ActionButton,
 	Alert,
 	Badge,
 	Button,
@@ -76,6 +81,7 @@ import {
 	pageMetaPlugin,
 	resourcesPlugin,
 	setConfig,
+	setRuntimeApiBaseResolver,
 } from "dypos-ui"
 
 import "./index.css"
@@ -89,6 +95,9 @@ const isBrowser =
 	typeof window !== "undefined" && typeof document !== "undefined"
 
 const log = logger.create("Main")
+
+// Local-only resolver injection. It does not probe or initialize any network.
+setRuntimeApiBaseResolver(() => getServiceEndpoint(SERVICE_ENDPOINTS.API))
 
 /**
  * Prevent accidental duplicate bootstrap execution.
@@ -364,6 +373,7 @@ startBuildVersionWatchdog()
 
 const globalComponents = Object.freeze({
 	Button,
+	ActionButton,
 	TextInput,
 	Input,
 	FormControl,
@@ -953,11 +963,20 @@ async function initializeRealtimeSync() {
 		const tenantId = getSessionStore()?.tenantId || authState?.tenantId || null
 
 		const { registerRealtimeSync } = await import("./stores/realtime")
+		const apiBase = getServiceEndpoint(SERVICE_ENDPOINTS.API).replace(
+			/\/+$/,
+			"",
+		)
+		const realtimeUrl = new URL(
+			`${apiBase}/realtime/events`,
+			window.location.origin,
+		).toString()
 
 		// Standalone-first: an EventSource is a connection. The store honours
 		// `enabled: false` by staying pristine (no socket, no stream).
 		const teardown = registerRealtimeSync({
 			tenantId,
+			url: realtimeUrl,
 			enabled: isLinkEnabled(),
 		})
 

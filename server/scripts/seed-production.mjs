@@ -7,6 +7,8 @@
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 
+import { BASE_UOMS } from '../db/migrations-catalog-base-units.js';
+
 const db = new DatabaseSync('./data/dypos.db');
 
 // Helper for UUID generation
@@ -125,18 +127,17 @@ try {
     INSERT OR REPLACE INTO uoms (code, name, name_ar, category, factor_to_base, is_base, is_active, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, 1, datetime('now'))
   `);
-	const uoms = [
-		['Unit', 'Unit', 'قطعة', 'count', 1, 1],
-		['PCS', 'Pieces', 'قطع', 'count', 1, 0],
-		['DOZEN', 'Dozen', 'درزن', 'count', 12, 0],
-		['BOX', 'Box', 'كرتون', 'count', 12, 0],
-		['G', 'Gram', 'جرام', 'weight', 1, 1],
-		['KG', 'Kilogram', 'كيلوجرام', 'weight', 1000, 0],
-		['ML', 'Milliliter', 'ملليلتر', 'volume', 1, 1],
-		['L', 'Liter', 'لتر', 'volume', 1000, 0],
-		['Set', 'Set', 'مجموعة', 'count', 1, 1],
-	];
-	for (const u of uoms) {
+	/*
+	 * The unit catalog is NOT repeated here.
+	 *
+	 * This list used to be a second copy of `migrations-catalog-base-units.js`,
+	 * and it disagreed with it: three rows marked `is_base` in the `count`
+	 * category (`Unit`, `PCS`, `Set`) and a `BOX` factor of 12 against `PCS`'s 1.
+	 * A seed script runs by choice; a migration runs on every boot — so the
+	 * migration is the definition and this script imports it. That also means the
+	 * two can never drift again, which `tests/catalog-parity.test.js` enforces.
+	 */
+	for (const u of BASE_UOMS) {
 		setUom.run(...u);
 	}
 

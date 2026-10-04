@@ -68,6 +68,10 @@ import {
 	getLinkMode,
 	setLinkMode,
 } from "@/services/link-consent"
+import {
+	getServiceEndpoint,
+	SERVICE_ENDPOINTS,
+} from "@/services/runtime-endpoints"
 
 const i18n = {
 	install(app) {
@@ -93,6 +97,10 @@ beforeEach(() => {
 	syncPendingTo.mockClear()
 	vi.mocked(getOfflineInvoices).mockReset()
 	vi.mocked(getOfflineInvoices).mockResolvedValue([])
+	vi.stubGlobal(
+		"fetch",
+		vi.fn(async () => new Response("{}", { status: 200 })),
+	)
 })
 
 describe("SyncCenterDialog", () => {
@@ -163,14 +171,26 @@ describe("SyncCenterDialog", () => {
 			expect(getLinkMode()).toBe(LINK_MODES.STANDALONE)
 		})
 
-		it("the master toggle persists automation and reveals the triggers", async () => {
+		it("requires a separate explicit linkage grant before enabling automation", async () => {
 			const wrapper = openDialog()
 			await wrapper.vm.$nextTick()
 			const toggle = wrapper
 				.findAll("button")
 				.filter((b) => b.text().includes("تفعيل المزامنة التلقائية"))
 			expect(toggle.length).toBeGreaterThan(0)
-			await toggle[0].trigger("click")
+			expect(toggle[0].attributes("disabled")).toBeDefined()
+			const grant = wrapper
+				.findAll("button")
+				.find((button) => button.text().includes("السماح بالاتصال عند الطلب"))
+			expect(grant).toBeTruthy()
+			await grant.trigger("click")
+			await wrapper.vm.$nextTick()
+			expect(getLinkMode()).toBe(LINK_MODES.LINKED)
+			const enabledToggle = wrapper
+				.findAll("button")
+				.find((button) => button.text().includes("تفعيل المزامنة التلقائية"))
+			expect(enabledToggle.attributes("disabled")).toBeUndefined()
+			await enabledToggle.trigger("click")
 			await wrapper.vm.$nextTick()
 			expect(getAutomation().mode).toBe("auto")
 			expect(wrapper.text()).toContain("عند عودة الشبكة")
@@ -183,6 +203,10 @@ describe("SyncCenterDialog", () => {
 			const toggle = wrapper
 				.findAll("button")
 				.filter((b) => b.text().includes("تفعيل المزامنة التلقائية"))
+			const grant = wrapper
+				.findAll("button")
+				.find((button) => button.text().includes("السماح بالاتصال عند الطلب"))
+			await grant.trigger("click")
 			await toggle[0].trigger("click")
 			await wrapper.vm.$nextTick()
 			const selects = wrapper.findAll("select")
@@ -207,6 +231,42 @@ describe("SyncCenterDialog", () => {
 			expect(getLinkMode()).toBe(LINK_MODES.STANDALONE)
 			expect(wrapper.text()).toContain("مستقل — صفر اتصال")
 		})
+	})
+
+	it("saves service URLs locally without probing them", async () => {
+		const fetchSpy = vi.mocked(fetch)
+		const wrapper = openDialog()
+		await wrapper.vm.$nextTick()
+		const apiInput = wrapper.findAll('input[type="url"]')[0]
+		const platformInput = wrapper.findAll('input[type="url"]')[1]
+		await apiInput.setValue("https://api.example.test/api")
+		await platformInput.setValue("https://platform.example")
+		const save = wrapper
+			.findAll("button")
+			.find((button) => button.text().includes("حفظ العناوين"))
+		await save.trigger("click")
+		await wrapper.vm.$nextTick()
+		expect(getServiceEndpoint(SERVICE_ENDPOINTS.API)).toBe(
+			"https://api.example.test/api",
+		)
+		expect(getServiceEndpoint(SERVICE_ENDPOINTS.PLATFORM)).toBe(
+			"https://platform.example",
+		)
+		expect(fetchSpy).not.toHaveBeenCalled()
+	})
+
+	it("tests the configured API only after the explicit test button is clicked", async () => {
+		const fetchSpy = vi.mocked(fetch)
+		const wrapper = openDialog()
+		await wrapper.vm.$nextTick()
+		expect(fetchSpy).not.toHaveBeenCalled()
+		const testButton = wrapper
+			.findAll("button")
+			.find((button) => button.text().includes("اختبار API الآن"))
+		await testButton.trigger("click")
+		await wrapper.vm.$nextTick()
+		expect(fetchSpy).toHaveBeenCalledTimes(1)
+		expect(fetchSpy.mock.calls[0][0]).toBe("/api/health")
 	})
 
 	it("form validates before saving (no junk destinations)", async () => {

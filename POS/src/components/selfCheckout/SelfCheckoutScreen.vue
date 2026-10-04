@@ -21,9 +21,9 @@
 					العمل دون اتصال ليس حالة يظهرها مؤشر، بل الوضع الافتراضي:
 					لا مؤشر «متصل» ولا «غير متصل» يوحي بأن الشاشة تحتاج سيرفرًا.
 				-->
-				<DyButton variant="ghost" icon="refresh-cw" @click="loadCatalog">
+				<ActionButton variant="ghost" iconLeft="refresh-cw" @click="loadCatalog">
 					تحديث الأصناف
-				</DyButton>
+				</ActionButton>
 			</div>
 		</header>
 
@@ -142,20 +142,20 @@
 				<p v-if="error" class="self-checkout__error" role="alert">{{ error }}</p>
 
 				<div class="self-checkout__actions">
-					<DyButton
+					<ActionButton
 						v-if="!isOpen"
-						variant="primary"
+						variant="solid"
 						size="lg"
 						block
 						icon="play"
 						@click="startSession"
 					>
 						ابدأ الجلسة
-					</DyButton>
+					</ActionButton>
 
 					<template v-else>
-						<DyButton
-							variant="primary"
+						<ActionButton
+							variant="solid"
 							size="lg"
 							block
 							icon="credit-card"
@@ -163,10 +163,10 @@
 							@click="beginPayment"
 						>
 							ادفع — {{ money(totals.total) }}
-						</DyButton>
-						<DyButton variant="ghost" size="lg" block @click="cancel">
+						</ActionButton>
+						<ActionButton variant="ghost" size="lg" block @click="cancel">
 							إلغاء الجلسة
-						</DyButton>
+						</ActionButton>
 					</template>
 				</div>
 			</aside>
@@ -225,7 +225,7 @@
 					الحالات، وهي الحالة الأشيع في الكشك النقدي.
 				-->
 				<div v-if="method === 'cash'" class="self-checkout__quick">
-					<DyButton
+					<ActionButton
 						v-for="quick in quickTenders"
 						:key="quick"
 						variant="outline"
@@ -233,7 +233,7 @@
 						@click="bumpTenderMinor(quick)"
 					>
 						+{{ money(quick / 100) }}
-					</DyButton>
+					</ActionButton>
 				</div>
 
 				<!-- خطوة الدفع الفعلية لكل طريقة: انظر PAYMENT_STEPS -->
@@ -269,16 +269,17 @@
 				<p v-if="error" class="self-checkout__error" role="alert">{{ error }}</p>
 
 				<div class="self-checkout__actions-row">
-					<DyButton variant="ghost" size="lg" @click="backToCart">رجوع</DyButton>
-					<DyButton
-						variant="success"
+					<ActionButton variant="ghost" size="lg" @click="backToCart">رجوع</ActionButton>
+					<ActionButton
+						theme="green"
+						variant="solid"
 						size="lg"
 						:disabled="!canConfirm"
 						:loading="processing"
 						@click="confirmPayment"
 					>
 						تأكيد الدفع
-					</DyButton>
+					</ActionButton>
 				</div>
 			</div>
 		</div>
@@ -326,9 +327,9 @@
 				<p class="self-checkout__source" role="status">
 					حُفظت العملية محليًا. تبقى في الطابور حتى تطلب المزامنة.
 				</p>
-				<DyButton variant="primary" size="lg" block @click="dismissReceipt">
+				<ActionButton variant="solid" size="lg" block @click="dismissReceipt">
 					بدء عملية جديدة
-				</DyButton>
+				</ActionButton>
 </div>
 		</div>
 	</div>
@@ -342,7 +343,7 @@
 import { computed, onMounted } from "vue"
 import { FeatherIcon } from "dypos-ui"
 
-import DyButton from "@/components/ui/DyButton.vue"
+import { ActionButton } from "dypos-ui"
 import { formatNumberSafe, getCurrencySymbol } from "@/utils/currency"
 import { PAYMENT_METHODS, SESSION_STATES } from "./selfCheckoutState.js"
 import { useSelfCheckoutSession } from "./useSelfCheckoutSession.js"
@@ -462,7 +463,17 @@ function pressKey(key) {
 	setTenderMinor(Number(digits + key))
 }
 
-onMounted(loadCatalog)
+/**
+ * شاشة الكاشير الذاتي تبدأ بجلسة `IDLE`، و`addItem` يتجاهل الطلب إلا في
+ * `OPEN`. كان التركيب ينادي `loadCatalog` وحدها، فبقيت الحالة `IDLE` إلى الأبد
+ * فتصبح إضافة الصنف — أي أن **كل نقرة صنف كانت تُتجاهل بصمت** ولا يستطيع
+ * الكاشير الذاتي بيع أي شيء. `startSession` هي ما يفتح الجلسة، فصار نداءها
+ * جزءًا من التركيب لا خطوة اختيارية.
+ */
+onMounted(async () => {
+	startSession()
+	await loadCatalog()
+})
 </script>
 
 	<style scoped src="./selfCheckout.css"></style>

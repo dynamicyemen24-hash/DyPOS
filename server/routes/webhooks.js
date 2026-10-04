@@ -4,6 +4,7 @@ import db from '../db/schema.js';
 import { v4 as uuid } from 'uuid';
 import { eventMatches, dispatchBatch } from '../lib/webhooks.js';
 import { ah } from '../lib/async.js';
+import { recordTrail } from '../lib/trail.js';
 
 const router = Router();
 const isAdmin = (req) => req.user?.role === 'ADMIN';
@@ -55,12 +56,19 @@ router.post('/', (req, res) => {
 	return res.status(201).json({ id, url, events, secret_preview: `${sec.slice(0, 6)}…` });
 });
 
-// DELETE /api/webhooks/:id (ADMIN)
+// DELETE /api/webhooks/:id (ADMIN) — retire, never destroy.
+//
+// A retired subscription reads as gone: missing and already-inactive both
+// answer 404, which is the pre-void contract (a second DELETE of the same id
+// must not report success twice).
 router.delete('/:id', (req, res) => {
 	if (!isAdmin(req)) return res.status(403).json({ error: 'صلاحية غير كافية' });
-	const upd = db.prepare('DELETE FROM webhook_subscriptions WHERE id=?').run(String(req.params.id).slice(0, 64));
-	if (!upd.changes) return res.status(404).json({ error: 'الاشتراك غير موجود' });
-	req.audit?.('webhook.unsubscribe', { id: req.params.id });
+	const id = String(req.params.id).slice(0, 64);
+	const row = db.prepare('SELECT id, is_active FROM webhook_subscriptions WHERE id=?').get(id);
+	if (!row || Number(row.is_active) !== 1) return res.status(404).json({ error: 'الاشتراك غير موجود' });
+	db.prepare('UPDATE webhook_subscriptions SET is_active=0 WHERE id=?').run(id);
+	req.audit?.('webhook.unsubscribe', { id });
+	recordTrail(req, { entity: 'WEBHOOK_SUB', entityId: id, action: 'VOID' });
 	return res.json({ deleted: true });
 });
 

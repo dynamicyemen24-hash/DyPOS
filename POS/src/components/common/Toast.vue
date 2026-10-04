@@ -32,13 +32,15 @@
 							{{ toastNotification.message }}
 						</p>
 					</div>
-					<button
-						@click="hideToast"
-						:aria-label="__('Close')"
-						class="flex-shrink-0"
-					>
-						<FeatherIcon name="x" :class="['w-4 h-4', toastStyles.closeColor]" />
-					</button>
+<ActionButton
+					@click="hideToast"
+					:aria-label="__('Close')"
+					variant="ghost"
+					size="sm"
+					class="flex-shrink-0"
+				>
+					<FeatherIcon name="x" :class="['w-4 h-4', toastStyles.closeColor]" aria-hidden="true" />
+				</ActionButton>
 				</div>
 			</div>
 		</Transition>
@@ -50,7 +52,7 @@ import { computed } from "vue"
 import { useToast } from "@/composables/useToast"
 import { useLocale } from "@/composables/useLocale"
 import { __ } from "@/utils/translation"
-import { FeatherIcon } from "dypos-ui"
+import { ActionButton, FeatherIcon } from "dypos-ui"
 
 const { toastNotification, showToast, hideToast, pauseToast, resumeToast } =
 	useToast()

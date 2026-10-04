@@ -11,7 +11,7 @@
 import { onMounted } from "vue"
 import { useLiveCartRecovery } from "@/composables/useLiveCartRecovery"
 import { FeatherIcon } from "dypos-ui"
-import DyButton from "@/components/ui/DyButton.vue"
+import { ActionButton } from "dypos-ui"
 
 const {
 	pendingRecovery,
@@ -68,14 +68,14 @@ function formatSavedAt(iso) {
 				</div>
 
 				<div class="dy-recovery-banner__actions">
-					<DyButton
-						variant="primary"
+					<ActionButton
+						variant="solid"
 						size="sm"
 						:disabled="recovering"
 						@click="restoreLiveCart"
 					>
 						{{ recovering ? "جارٍ الاستعادة…" : "استعادة الفاتورة" }}
-					</DyButton>
+					</ActionButton>
 
 					<button
 						type="button"

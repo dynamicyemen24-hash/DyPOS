@@ -194,8 +194,10 @@ async function submit() {
 	}
 
 	if (!form.warehouseId) {
+		// The field keeps the terse label (it sits under the input); the toast is
+		// where the operator is looking, so it carries the action.
 		validationErrors.value.warehouseId = "المستودع مطلوب"
-		showError("المستودع مطلوب")
+		showError("المستودع مطلوب. اختر المستودع من القائمة ثم أعد المحاولة.")
 		return
 	}
 

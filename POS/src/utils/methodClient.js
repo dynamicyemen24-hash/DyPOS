@@ -19,6 +19,17 @@
  */
 import { logger } from "./logger"
 import { DATA_SOURCE, readLocalRows } from "./offline/localMirror"
+import {
+	getServiceEndpoint,
+	SERVICE_ENDPOINTS,
+} from "@/services/runtime-endpoints"
+
+/**
+ * `logger` وحده مدير بلا `warn` — الدوال الحية على النسخة المسماة فقط.
+ * كان المسار الاحتياطي (لا خادم) يسقط في معالج الخطأ نفسه بـ TypeError،
+ * أي أن انقطاع الشبكة كان يتحول إلى رفض غير معالَج بدل لوحة «غير متصل».
+ */
+const log = logger.create("MethodClient")
 
 export { DATA_SOURCE }
 
@@ -44,6 +55,11 @@ let firstPartyClient = null
 async function loadFirstPartyClient() {
 	if (!firstPartyClient) {
 		const kit = await import("dypos-ui")
+		if (Object.keys(kit).includes("setRuntimeApiBaseResolver")) {
+			kit.setRuntimeApiBaseResolver(() =>
+				getServiceEndpoint(SERVICE_ENDPOINTS.API),
+			)
+		}
 		firstPartyClient = (method, args) => kit.call(method, args)
 	}
 	return firstPartyClient
@@ -119,16 +135,17 @@ export async function methodGetListWithSource(doctype, options = {}) {
 		if (error?.code === NO_DYPOS_API) throw error
 		const local = await readLocalRows(doctype, { filters, limit, offset })
 		if (local.ok && local.rows.length > 0) {
-			logger.warn("server unreachable — serving mirrored local rows", {
+			log.warn("server unreachable — serving mirrored local rows", {
 				doctype,
 				rows: local.rows.length,
 				table: local.table,
 			})
 			return { rows: local.rows, source: DATA_SOURCE.LOCAL, error }
 		}
-		logger.warn("server unreachable and no local rows", {
+		log.warn("server unreachable and no local rows", {
 			doctype,
 			reason: local.reason,
+			error: String(error?.message || error).slice(0, 160),
 		})
 		return { rows: [], source: DATA_SOURCE.UNAVAILABLE, error }
 	}

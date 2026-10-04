@@ -102,7 +102,9 @@ export function useDashboardExport(options = {}) {
 		try {
 			const m = models?.value || models
 			if (!m) {
-				showError("No data to export")
+				showError(
+					"لا توجد بيانات للتصدير. عدّل نطاق التاريخ أو المرشحات ثم أعد المحاولة.",
+				)
 				return
 			}
 
@@ -111,7 +113,9 @@ export function useDashboardExport(options = {}) {
 			)
 
 			if (sections.length === 0) {
-				showError("No data to export")
+				showError(
+					"لا توجد بيانات للتصدير. عدّل نطاق التاريخ أو المرشحات ثم أعد المحاولة.",
+				)
 				return
 			}
 
@@ -121,7 +125,9 @@ export function useDashboardExport(options = {}) {
 
 			showSuccess("Exported as PDF-ready HTML")
 		} catch (err) {
-			showError(`PDF export failed: ${err?.message || err}`)
+			showError(
+				`تعذّر تصدير PDF: ${err?.message || err}. لم يُنشأ ملف — أعد المحاولة أو جرّب تصدير Excel.`,
+			)
 		}
 	}
 
@@ -131,7 +137,9 @@ export function useDashboardExport(options = {}) {
 	function exportTablePDF(rows, filename) {
 		try {
 			if (!rows || rows.length === 0) {
-				showError("No data to export")
+				showError(
+					"لا توجد بيانات للتصدير. عدّل نطاق التاريخ أو المرشحات ثم أعد المحاولة.",
+				)
 				return
 			}
 			const colKeys = Object.keys(rows[0])
@@ -164,7 +172,9 @@ export function useDashboardExport(options = {}) {
 			downloadFile(html, file, "text/html")
 			showSuccess(`Exported ${filename} as PDF-ready HTML`)
 		} catch (err) {
-			showError(`PDF export failed: ${err?.message || err}`)
+			showError(
+				`تعذّر تصدير PDF: ${err?.message || err}. لم يُنشأ ملف — أعد المحاولة أو جرّب تصدير Excel.`,
+			)
 		}
 	}
 
@@ -176,7 +186,9 @@ export function useDashboardExport(options = {}) {
 		try {
 			const m = models?.value || models
 			if (!m) {
-				showError("No data to export")
+				showError(
+					"لا توجد بيانات للتصدير. عدّل نطاق التاريخ أو المرشحات ثم أعد المحاولة.",
+				)
 				return
 			}
 
@@ -185,7 +197,9 @@ export function useDashboardExport(options = {}) {
 			)
 
 			if (sections.length === 0) {
-				showError("No data to export")
+				showError(
+					"لا توجد بيانات للتصدير. عدّل نطاق التاريخ أو المرشحات ثم أعد المحاولة.",
+				)
 				return
 			}
 
@@ -224,7 +238,9 @@ export function useDashboardExport(options = {}) {
 
 			showSuccess(`Exported as ${format.toUpperCase()}`)
 		} catch (err) {
-			showError(`Export failed: ${err?.message || err}`)
+			showError(
+				`تعذّر تصدير الملف: ${err?.message || err}. لم يُنشأ ملف — أعد المحاولة.`,
+			)
 		}
 	}
 
@@ -234,7 +250,9 @@ export function useDashboardExport(options = {}) {
 	function exportTable(rows, filename, format = "csv") {
 		try {
 			if (!rows || rows.length === 0) {
-				showError("No data to export")
+				showError(
+					"لا توجد بيانات للتصدير. عدّل نطاق التاريخ أو المرشحات ثم أعد المحاولة.",
+				)
 				return
 			}
 			const columns = Object.keys(rows[0]).map((k) => ({
@@ -246,7 +264,9 @@ export function useDashboardExport(options = {}) {
 			exportRows(rows, { format, filename, columns, title: filename })
 			showSuccess(`Exported ${filename}`)
 		} catch (err) {
-			showError(`Export failed: ${err?.message || err}`)
+			showError(
+				`تعذّر تصدير الملف: ${err?.message || err}. لم يُنشأ ملف — أعد المحاولة.`,
+			)
 		}
 	}
 

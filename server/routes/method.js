@@ -52,7 +52,12 @@ import {
 	loginIpLimiter,
 } from './auth.js';
 import { assertTenantScope, resolveTenantFilter } from '../lib/tenant.js';
+import { findCoupon } from '../lib/coupon-scope.js';
+import { validateCouponRow } from '../lib/coupon-validate.js';
+import { listActiveCoupons, listActiveOffers, readTenantScope } from '../lib/coupon-list.js';
 import { tenantColumnKnown } from '../lib/tenant-tables.js';
+import { recordTrail } from '../lib/trail.js';
+import { expireStaleDrafts } from '../lib/invoice-expiry.js';
 import { authAttempts } from '../middleware/metrics.js';
 import { logger } from '../lib/logger.js';
 import { VERSION } from '../lib/version.js';
@@ -710,7 +715,11 @@ def('dypos.client.has_permission', (params, req, res) => {
 	const doctype = String(params.doctype || '');
 	const permType = String(params.perm_type || params.permtype || 'read').toLowerCase();
 	const allowed = checkPermission(req.user.role, doctype, permType);
-	return res.json({ message: { has_permission: allowed } });
+	// Tenant scope: if the user belongs to a tenant, restrict permission to that tenant's resources.
+	// The permission matrix does not store tenant data, so we only expose the result and the tenant id
+	// for the client to handle tenant‑aware UI logic.
+	const tenantId = req.user.tenant_id || null;
+	return res.json({ message: { has_permission: allowed, tenant_id: tenantId } });
 });
 
 /**
@@ -898,16 +907,16 @@ def('dypos.delete_doc', (params, req, res) => {
 	if (!assertMethodRecordTenant(req, res, spec, name)) return;
 	const { where, count } = idLookupWhere(spec);
 	try {
-		// Soft-delete when is_active exists; hard-delete otherwise.
+		// Retire, never destroy: a table without an is_active flag cannot
+		// retire its rows, so the request is refused instead of deleting history.
 		const cols = db
 			.prepare(`PRAGMA table_info(${spec.table})`)
 			.all()
 			.map((c) => c.name);
-		if (cols.includes('is_active')) {
-			db.prepare(`UPDATE ${spec.table} SET is_active=0 WHERE ${where}`).run(...Array(count).fill(name));
-		} else {
-			db.prepare(`DELETE FROM ${spec.table} WHERE ${where}`).run(...Array(count).fill(name));
+		if (!cols.includes('is_active')) {
+			return methodError(res, 400, 'ValidationError', 'الحذف الفيزيائي مرفوض — يتطلب عمود حالة');
 		}
+		db.prepare(`UPDATE ${spec.table} SET is_active=0 WHERE ${where}`).run(...Array(count).fill(name));
 		return res.json({ message: { deleted: true } });
 	} catch (e) {
 		return methodError(res, mapErrorStatus(e), 'ValidationError', String(e.message || 'فشل الحذف').slice(0, 200));
@@ -1273,14 +1282,18 @@ def('DyPOS.api.items.get_item_details', (params, req, res) => {
 	} catch {
 		return methodError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح');
 	}
+	// Scope in the WHERE clause, then take the row. The previous shape checked the
+	// tenant AFTER `LIMIT 1`, which is unsound now that two tenants may own the
+	// same `code`: the caller got whichever row the planner returned first, and
+	// that foreign row decided whether they saw a product or a 404 (invariant 1).
+	const tenantClause = callerTenant ? ' AND (p.tenant_id=? OR p.tenant_id IS NULL)' : '';
 	try {
-		const row = db
-			.prepare(
-				`SELECT p.*, COALESCE(s.qty,0) as stock_qty FROM products p
+		const sql = `SELECT p.*, COALESCE(s.qty,0) as stock_qty FROM products p
        LEFT JOIN stock_levels s ON p.id=s.product_id AND s.warehouse_id=?
-       WHERE (p.code=? OR p.id=?) AND p.is_active=1 LIMIT 1`,
-			)
-			.get(warehouse, code, code);
+       WHERE (p.code=? OR p.id=?) AND p.is_active=1${tenantClause} LIMIT 1`;
+		const row = callerTenant
+			? db.prepare(sql).get(warehouse, code, code, callerTenant)
+			: db.prepare(sql).get(warehouse, code, code);
 		if (!row) return methodError(res, 404, 'NotFoundError', 'الصنف غير موجود');
 		if (row.tenant_id && callerTenant && String(row.tenant_id) !== String(callerTenant)) {
 			return methodError(res, 404, 'NotFoundError', 'الصنف غير موجود');
@@ -1352,22 +1365,10 @@ def('DyPOS.api.customers.get_customers', (params, req, res) => {
 // ── Offers ───────────────────────────────────────────────────────────────
 def('DyPOS.api.offers.get_offers', (_params, req, res) => {
 	if (!requireUser(req, res)) return;
-	let tenantClause = '';
-	const tenantParams = [];
+	const scopeRead = readTenantScope(req);
+	if (!scopeRead.ok) return methodError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح');
 	try {
-		const { tenantId } = resolveTenantFilter(req);
-		if (tenantId) {
-			tenantClause = ' AND (tenant_id=? OR tenant_id IS NULL)';
-			tenantParams.push(tenantId);
-		}
-	} catch {
-		return methodError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح');
-	}
-	try {
-		const rows = db
-			.prepare(`SELECT * FROM offers WHERE is_active=1${tenantClause} ORDER BY created_at DESC LIMIT 100`)
-			.all(...tenantParams);
-		return res.json({ message: rows });
+		return res.json({ message: listActiveOffers(db, scopeRead.tenantId) });
 	} catch {
 		return res.json({ message: [] });
 	}
@@ -1962,7 +1963,10 @@ function createOrFinalizeSale(req, payload) {
 		const grossMinor = subtotalMinor + taxTotalMinor;
 		let couponDiscountMinor = 0;
 		if (couponCodeRaw) {
-			const c = db.prepare('SELECT * FROM coupons WHERE code=?').get(couponCodeRaw);
+			// Scoped: a coupon is a PRICE, so an unscoped lookup lets one tenant's
+			// promotion discount another tenant's invoice — the same guard
+			// `routes/invoices.js` carries and these call sites did not.
+			const c = findCoupon(db, couponCodeRaw, scope.tenantId);
 			if (!c) throw Object.assign(new Error('الكوبون غير موجود'), { statusCode: 404 });
 			const r = computeCouponDiscount(c, toMajor(grossMinor));
 			if (!r.ok) throw Object.assign(new Error(r.error), { statusCode: 400 });
@@ -2499,7 +2503,10 @@ def('DyPOS.api.invoices.apply_offers', (params, req, res) => {
 		// Coupon from invoice_data.coupon_code → header discount (non-cumulative with offers beyond subtotal).
 		if (invoiceData.coupon_code) {
 			const code = String(invoiceData.coupon_code).trim().toUpperCase();
-			const c = db.prepare('SELECT * FROM coupons WHERE code=?').get(code);
+			// Scoped for the same reason as the other coupon lookups: a discount is
+			// money, so an unscoped row lets one tenant's promotion discount
+			// another tenant's invoice (invariant 1).
+			const c = findCoupon(db, code, scope.tenantId);
 			if (c) {
 				const r = computeCouponDiscount(c, subtotal);
 				if (r.ok) {
@@ -2539,20 +2546,11 @@ def('DyPOS.api.invoices.apply_offers', (params, req, res) => {
 
 def('DyPOS.api.invoices.cleanup_old_drafts', (params, req, res) => {
 	if (!requireUser(req, res)) return;
-	const hours = Math.min(Math.max(toNum(params.max_age_hours, 1), 0.01), 720);
 	try {
-		const upd = db.transaction(() => {
-			const stale = db
-				.prepare(`SELECT id FROM invoices WHERE status='DRAFT' AND created_at < datetime('now', ?)`)
-				.all(`-${hours} hours`);
-			for (const row of stale) {
-				db.prepare('DELETE FROM invoice_items WHERE invoice_id=?').run(row.id);
-				db.prepare('DELETE FROM payments WHERE invoice_id=?').run(row.id);
-				db.prepare('DELETE FROM invoices WHERE id=?').run(row.id);
-			}
-			return stale.length;
-		})();
-		return res.json({ message: { deleted: upd || 0, max_age_hours: hours } });
+		// The policy lives in lib/invoice-expiry.js: stale drafts EXPIRE with
+		// their lines kept as evidence — the verb stays a thin guard + call.
+		const { expired, maxAgeHours } = expireStaleDrafts(db, req, params.max_age_hours);
+		return res.json({ message: { deleted: expired || 0, max_age_hours: maxAgeHours } });
 	} catch (e) {
 		return res.json({ message: { deleted: 0, error: String(e.message).slice(0, 120) } });
 	}
@@ -3134,24 +3132,15 @@ def('DyPOS.api.auth.extend_session', (_p, req, res) => {
 // ── Offers: active coupons + validate ───────────────────────────────────
 def('DyPOS.api.offers.get_active_coupons', (_p, req, res) => {
 	if (!requireUser(req, res)) return;
+	const couponScope = readTenantScope(req);
+	if (!couponScope.ok) return methodError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح');
 	try {
-		const t = new Date().toISOString().slice(0, 10);
-		const rows = db
-			.prepare(
-				`SELECT id, code, discount_type, discount, max_discount, min_purchase, max_uses, used_count, valid_from, valid_to, is_active
-       FROM coupons WHERE is_active=1 AND (valid_from IS NULL OR valid_from<=?) AND (valid_to IS NULL OR valid_to>=?)
-       ORDER BY created_at DESC LIMIT 100`,
-			)
-			.all(t, t);
-		const mapped = rows.map((c) => ({
-			...c,
-			name: c.code,
-			coupon_name: c.code,
-			coupon_code: c.code,
-			doctype: 'POS Coupon',
-		}));
-		return res.json({ message: mapped });
+		return res.json({
+			message: listActiveCoupons(db, couponScope.tenantId, new Date().toISOString().slice(0, 10)),
+		});
 	} catch {
+		// A till must still open when the promotion list cannot be read, and an
+		// empty promotion list is not something a cashier acts on.
 		return res.json({ message: [] });
 	}
 });
@@ -3163,18 +3152,17 @@ def('DyPOS.api.offers.validate_coupon', (params, req, res) => {
 		.toUpperCase()
 		.slice(0, 64);
 	if (!code) return methodError(res, 400, 'ValidationError', 'الكود مطلوب');
+	// Scoped: an unscoped lookup lets any tenant probe another tenant's coupon
+	// codes and learn their validity window and type from the answer. The spoof
+	// guard in resolveTenantFilter also turns a bad scope into a clean refusal
+	// rather than a silent unscoped read (invariant 1).
+	const validateScope = readTenantScope(req);
+	if (!validateScope.ok) return methodError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح');
 	try {
-		const c = db.prepare('SELECT * FROM coupons WHERE code=?').get(code);
-		if (!c) return methodError(res, 404, 'NotFoundError', 'الكوبون غير موجود');
-		// subtotal unknown here — validate structure only; amount applied at cart/submit.
-		const t = new Date().toISOString().slice(0, 10);
-		if (c.valid_from && String(c.valid_from).slice(0, 10) > t)
-			return methodError(res, 400, 'ValidationError', 'الكوبون لم يبدأ بعد');
-		if (c.valid_to && String(c.valid_to).slice(0, 10) < t)
-			return methodError(res, 400, 'ValidationError', 'الكوبون منتهي');
-		if (Number(c.max_uses) > 0 && Number(c.used_count) >= Number(c.max_uses))
-			return methodError(res, 400, 'ValidationError', 'تجاوز حد الاستخدام');
-		if (Number(c.is_active) !== 1) return methodError(res, 400, 'ValidationError', 'الكوبون غير نشط');
+		const c = findCoupon(db, code, validateScope.tenantId);
+		const verdict = validateCouponRow(c, new Date().toISOString().slice(0, 10));
+		if (verdict.notFound) return methodError(res, 404, 'NotFoundError', 'الكوبون غير موجود');
+		if (!verdict.ok) return methodError(res, 400, 'ValidationError', verdict.message);
 		return res.json({
 			message: {
 				valid: true,
@@ -3906,9 +3894,11 @@ def('DyPOS.api.promotions.delete_coupon', (params, req, res) => {
 	if (!isPromoManager(req)) return methodError(res, 403, 'PermissionError', 'صلاحية غير كافية');
 	const row = couponByCode(req, res, params.coupon_name || params.coupon_code);
 	if (!row) return;
-	db.prepare('DELETE FROM coupons WHERE id=?').run(row.id);
+	// Retire, never delete: pricing history must survive the coupon.
+	db.prepare('UPDATE coupons SET is_active=0 WHERE id=?').run(row.id);
 	req.audit?.('coupon.delete', { couponId: row.id, code: row.code });
-	return res.json({ message: { deleted: true, message: 'تم حذف الكوبون' } });
+	recordTrail(req, { entity: 'COUPON', entityId: row.id, action: 'VOID', before: row });
+	return res.json({ message: { deleted: true, message: 'تم إيقاف الكوبون' } });
 });
 
 // ── Pricing-rule style schemes over the offers table ─────────────────────
@@ -4206,9 +4196,11 @@ def('DyPOS.api.promotions.delete_promotion', (params, req, res) => {
 	if (!isPromoManager(req)) return methodError(res, 403, 'PermissionError', 'صلاحية غير كافية');
 	const row = schemeByName(req, res, params.scheme_name || params.name);
 	if (!row) return;
-	db.prepare('DELETE FROM offers WHERE id=?').run(row.id);
+	// Retire, never delete: pricing history must survive the scheme.
+	db.prepare('UPDATE offers SET is_active=0 WHERE id=?').run(row.id);
 	req.audit?.('offer.delete', { offerId: row.id, name: row.name });
-	return res.json({ message: { deleted: true, message: 'تم حذف العرض' } });
+	recordTrail(req, { entity: 'OFFER', entityId: row.id, action: 'VOID', before: row });
+	return res.json({ message: { deleted: true, message: 'تم إيقاف العرض' } });
 });
 
 def('DyPOS.api.promotions.get_promotion_details', (params, req, res) => {

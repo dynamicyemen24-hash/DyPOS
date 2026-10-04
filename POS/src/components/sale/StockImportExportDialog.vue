@@ -501,12 +501,17 @@ function validateRows(rows) {
 		).trim()
 		const expiry_date = String(row.expiry_date || row.expiryDate || "").trim()
 
-		if (!product_code) errors.push("product_code required")
-		if (!warehouse_id) errors.push("warehouse_id required")
-		if (!Number.isFinite(qty)) errors.push("qty must be a number")
-		if (!uoms.value.find((u) => u.code === uom)) errors.push("invalid uom")
+		// The user editing a spreadsheet needs to know WHICH cell to fix, not
+		// that a validator ran. Each message names the field and what a valid
+		// value looks like, in Arabic — these strings are rendered verbatim in
+		// the preview table (AGENTS.md invariant 7).
+		if (!product_code) errors.push("رمز الصنف مطلوب")
+		if (!warehouse_id) errors.push("رمز المستودع مطلوب")
+		if (!Number.isFinite(qty)) errors.push("الكمية يجب أن تكون رقمًا")
+		if (!uoms.value.find((u) => u.code === uom))
+			errors.push(`وحدة القياس «${uom}» غير معرَّفة`)
 		if (!currencies.value.find((c) => c.code === currency))
-			errors.push("invalid currency")
+			errors.push(`العملة «${currency}» غير معرَّفة`)
 
 		return {
 			index: i,

@@ -6,7 +6,6 @@
  * cardinality-safe metrics, optional multi-core clustering.
  * Single source of truth: server/lib/version.js
  */
-import dotenv from 'dotenv';
 import express from 'express';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -17,8 +16,9 @@ import { join, dirname, resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync, mkdirSync } from 'node:fs';
 
-// Load environment variables FIRST
-dotenv.config();
+// Load the environment FIRST: see env.js. Do NOT move this below another
+// import — middleware/auth.js snapshots the values when it is evaluated.
+import './env.js';
 
 import { migrate, db, checkDbHealth } from './db/schema.js';
 import { assertDbModeSupported, describeDbMode, IS_READ_ONLY_REPLICA } from './db/mode.js';

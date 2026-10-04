@@ -1,0 +1,46 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"files.exclude": {
+			"**/node_modules": true,
+			"**/dist": true,
+			"**/dev-dist": true,
+			"**/.git": true,
+			"**/uploads": true,
+			"**/data": true
+		},
+		"search.exclude": {
+			"**/node_modules": true,
+			"**/dist": true,
+			"**/dev-dist": true,
+			"**/uploads": true,
+			"**/data": true,
+			"**/*.log": true
+		},
+		"git.ignoreRepository": true,
+
+		"files.watcherExclude": {
+			"**/node_modules/**": true,
+			"**/dist/**": true,
+			"**/dev-dist/**": true,
+			"**/server/data/**": true,
+			"**/server/uploads/**": true
+		},
+
+		"search.followSymlinks": false,
+		"files.eol": "\n",
+		"files.encoding": "utf8",
+
+		"terminal.integrated.cwd": "${workspaceFolder}",
+		"terminal.integrated.defaultProfile.windows": "PowerShell",
+
+		"chat.agent.enabled": true
+	},
+	"extensions": {
+		"recommendations": ["biomejs.biome"]
+	}
+}

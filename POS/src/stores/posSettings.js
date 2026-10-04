@@ -225,6 +225,14 @@ export const SETTINGS_FIELDS = {
 	// Legacy aliases (read-only; superseded by einvoice_framework / food_safety_tracking)
 	enable_zalina: CHECKBOX("enableZalinaLegacy"),
 	enable_sfd: CHECKBOX("enableSfdLegacy"),
+
+	// Notification preferences (optional – shown in the Settings UI)
+	enableEmailNotification: CHECKBOX("enableEmailNotification"),
+	enableSmsNotification: CHECKBOX("enableSmsNotification"),
+	smsRecipientPhone: TEXT("smsRecipientPhone"),
+	enableWhatsAppNotification: CHECKBOX("enableWhatsAppNotification"),
+	whatsappNumber: TEXT("whatsappNumber"),
+	emailRecipient: EMAIL("emailRecipient"),
 }
 
 // Operational modules: ordering matters for the UI tabs.
@@ -469,6 +477,20 @@ export const SETTINGS_MODULES = [
 			"enable_sfd",
 		],
 	},
+	{
+		key: "notifications",
+		label: "Notifications",
+		labelKey: "notifications",
+		icon: "bell",
+		fields: [
+			"enableEmailNotification",
+			"enableSmsNotification",
+			"smsRecipientPhone",
+			"enableWhatsAppNotification",
+			"whatsappNumber",
+			"emailRecipient",
+		],
+	},
 ]
 
 // =============================================================================
@@ -650,6 +672,14 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		// food_safety_tracking.)
 		enable_zalina: 0,
 		enable_sfd: 0,
+
+		// ---- Module: Notifications ----
+		enableEmailNotification: 0,
+		enableSmsNotification: 0,
+		smsRecipientPhone: "",
+		enableWhatsAppNotification: 0,
+		whatsappNumber: "",
+		emailRecipient: "",
 	})
 
 	const isLoading = ref(false)
@@ -1010,6 +1040,22 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 	const dataRetentionDays = computed(
 		() => Number.parseInt(settings.value.data_retention_days) || 3650,
 	)
+
+	// ---- Notification computed getters ----
+	const enableEmailNotification = computed(() =>
+		Boolean(settings.value.enableEmailNotification),
+	)
+	const enableSmsNotification = computed(() =>
+		Boolean(settings.value.enableSmsNotification),
+	)
+	const smsRecipientPhone = computed(
+		() => settings.value.smsRecipientPhone || "",
+	)
+	const enableWhatsAppNotification = computed(() =>
+		Boolean(settings.value.enableWhatsAppNotification),
+	)
+	const whatsappNumber = computed(() => settings.value.whatsappNumber || "")
+	const emailRecipient = computed(() => settings.value.emailRecipient || "")
 
 	// Backward-compatible getters: enableZATCA/enableSFD derive from the generic
 	// compliance framework (ZATCA region) OR the legacy doctype flags.
@@ -1525,6 +1571,12 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		einvoiceTransmission,
 		foodSafetyTracking,
 		dataRetentionDays,
+		enableEmailNotification,
+		enableSmsNotification,
+		smsRecipientPhone,
+		enableWhatsAppNotification,
+		whatsappNumber,
+		emailRecipient,
 
 		// Computed — Backward-compatible compliance getters
 		enableZATCA,

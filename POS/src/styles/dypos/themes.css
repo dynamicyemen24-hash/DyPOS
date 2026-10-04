@@ -117,6 +117,15 @@
 	/* النص/الأيقونة فوق primary */
 	--dy-primary-contrast: var(--dy-accent-foreground);
 
+	/*
+	 * الاسم الذي يرسمه ActionButton فعليًا (`text-[var(--dy-text-on-primary)]`).
+	 * كان معرّفًا في طبقة legacy وحدها، أي أن نص كل زر أساسي كان معلّقًا
+	 * بملف توافق يُستورَد أخيرًا — عطبه يُسقط النص بصمت. المالك هنا الآن
+	 * بالقيمة نفسها، فيبقى عقد الاتفاق في designTokens أخضر ويزول الاعتماد
+	 * الأحادي.
+	 */
+	--dy-text-on-primary: var(--dy-primary-contrast);
+
 	/* -------------------------------------------------------------------------
 	   النجاح — Success
 	   ------------------------------------------------------------------------- */
@@ -365,6 +374,9 @@
 
 	--dy-primary-contrast: var(--dy-accent-foreground);
 
+	/* المالك الداكن للاسم الذي يرسمه ActionButton — نفس عقد الفاتح. */
+	--dy-text-on-primary: var(--dy-primary-contrast);
+
 	/* -------------------------------------------------------------------------
 	   النجاح
 	   ------------------------------------------------------------------------- */
@@ -513,6 +525,7 @@
 	--dy-text: var(--dy-ink-900);
 	--dy-text-secondary: var(--dy-ink-600);
 	--dy-text-muted: var(--dy-ink-500);
+	--dy-text-on-primary: var(--dy-primary-contrast);
 	--dy-border: var(--dy-ink-200);
 	--dy-border-soft: var(--dy-ink-100);
 	--dy-border-strong: var(--dy-ink-300);
@@ -537,6 +550,7 @@
 		--dy-text-secondary: var(--dy-ink-400);
 		--dy-text-muted: var(--dy-ink-400);
 		--dy-text-link: var(--dy-accent-400);
+		--dy-text-on-primary: var(--dy-primary-contrast);
 
 		--dy-border: var(--dy-ink-800);
 		--dy-border-soft: var(--dy-ink-900);

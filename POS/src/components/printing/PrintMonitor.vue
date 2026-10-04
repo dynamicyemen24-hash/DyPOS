@@ -162,6 +162,7 @@ import { Dialog } from "dypos-ui"
 import { computed, onBeforeUnmount, ref, watch } from "vue"
 
 import { listPrintHistory, listPrintJobs } from "@/print/index"
+import { __ } from "@/utils/translation"
 
 const open = ref(false)
 

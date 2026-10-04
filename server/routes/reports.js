@@ -45,7 +45,7 @@ router.get('/summary', (req, res) => {
 		.prepare(`SELECT COUNT(*) as orders, COALESCE(SUM(i.total),0) as gross,
       COALESCE(SUM(i.discount_amount),0) as discounts, COALESCE(SUM(i.tax_amount),0) as tax,
       COALESCE(SUM(i.paid_amount),0) as paid
-    FROM invoices i WHERE i.created_at>=? AND i.created_at<?${tClause}${tenClause}`)
+    FROM invoices i WHERE i.created_at>=? AND i.created_at<? AND i.status NOT IN ('EXPIRED')${tClause}${tenClause}`)
 		.get(...params);
 	const byStatus = db
 		.prepare(`SELECT i.status, COUNT(*) as count, COALESCE(SUM(i.total),0) as total
@@ -54,7 +54,7 @@ router.get('/summary', (req, res) => {
 	const byMethod = db
 		.prepare(`SELECT p.method, COALESCE(SUM(p.amount),0) as total, COUNT(*) as count
     FROM payments p JOIN invoices i ON p.invoice_id=i.id
-    WHERE i.created_at>=? AND i.created_at<?${terminal ? ' AND i.terminal_id=?' : ''}${tenClause} GROUP BY p.method`)
+    WHERE i.created_at>=? AND i.created_at<? AND i.status NOT IN ('EXPIRED')${terminal ? ' AND i.terminal_id=?' : ''}${tenClause} GROUP BY p.method`)
 		.all(...params);
 	const top = db
 		.prepare(`SELECT ii.product_id, MAX(ii.product_name) as product_name,

@@ -15,12 +15,16 @@ import {
  * @param {Ref<boolean>} deps.showHeldSalesPanel
  * @param {Function} deps.openReturns
  * @param {Ref<boolean>} deps.showCustomerPanel
+ * @param {Ref<boolean>} [deps.showSyncCenter] - opens the sync/queue centre
+ * @param {Ref<boolean>} [deps.showOperatorMenu] - opens the operator menu
  * @returns {Object} headerActions map
  */
 export function createHeaderActions({
 	showHeldSalesPanel,
 	openReturns,
 	showCustomerPanel,
+	showSyncCenter,
+	showOperatorMenu,
 }) {
 	return {
 		held: () => {
@@ -41,6 +45,29 @@ export function createHeaderActions({
 		// button share one namespace and one dispatch path.
 		settlements: () => goToWorkScreens("settlements"),
 		stock: () => goToStockManagement(),
+
+		// ── Header affordances that used to be dead ──────────────────────────
+		// These three buttons rendered with a cursor and a chevron-down, so the
+		// cashier had every reason to expect a menu, and nothing happened. A
+		// dead button is worse than a missing one: it teaches the user that
+		// the screen lies. Each one now opens something that actually exists.
+		//
+		// connection: the online/offline badge. In an offline-first POS this is
+		// the question the cashier actually asks — "is my work safe?" — so it
+		// answers it: pending queue, last sync, sync now.
+		connection: () => {
+			showSyncCenter.value = true
+		},
+		// cashier: the operator chip. Standard POS behaviour (Oracle, SAP,
+		// Lightspeed): the name opens the operator menu — who you are, and the
+		// actions your role allows. The gear and the logout button stay where
+		// they are; this is the single place that says "you are X, role Y".
+		cashier: () => {
+			showOperatorMenu.value = true
+		},
+		// shift: shift settlement lives on the work screens, so the shift
+		// affordance lands there rather than inventing a second shift surface.
+		shift: () => goToWorkScreens("settlements"),
 	}
 }
 

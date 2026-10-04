@@ -300,6 +300,17 @@ describe('promotions CRUD', () => {
 
 		const del = await M('DyPOS.api.promotions.delete_coupon', adminToken, { coupon_name: coupon });
 		assert.strictEqual(del.body.message.deleted, true);
+
+		// No physical deletes: the default list drops the retired coupon while
+		// the disabled register keeps it — history survives the delete call.
+		const live = await M('DyPOS.api.promotions.get_coupons', cashierToken, {});
+		assert.ok(!live.body.message.some((c) => c.coupon_code === coupon));
+		const register = await M('DyPOS.api.promotions.get_coupons', cashierToken, {
+			include_disabled: true,
+		});
+		const retired = register.body.message.find((c) => c.coupon_code === coupon);
+		assert.ok(retired, 'voided coupon retained in the disabled register');
+		assert.strictEqual(retired.status, 'Disabled');
 	});
 
 	it('promotion lifecycle: create → list → details → toggle → delete', async () => {
@@ -418,7 +429,9 @@ describe('QZ certificate lifecycle', () => {
 });
 
 describe('doc types: POS Coupon / Shifts + order_by', () => {
-	const coupon = `MC-${stamp}`.slice(0, 20);
+	// Own code: the lifecycle suite above voids MC-<stamp> (retired, never
+	// destroyed), so reusing it here would collide with history (409).
+	const coupon = `MCA-${stamp}`.slice(0, 20);
 
 	it("get_list 'POS Coupon' resolves the alias and maps rows", async () => {
 		const create = await M('DyPOS.api.promotions.create_coupon', adminToken, {

@@ -127,9 +127,16 @@ describe("stock import dialog — file input wiring", () => {
 		const text = preview.text()
 		expect(text, "the valid row is counted").toContain("1")
 		expect(text, "the invalid row is counted").toContain("1")
+		// The message is rendered verbatim in the preview table, so it must be
+		// Arabic (AGENTS.md invariant 7) and must name the field to fix. The
+		// previous text was the English `qty must be a number`.
 		expect(text, "the bad qty is reported, not silently dropped").toContain(
-			"qty must be a number",
+			"الكمية",
 		)
+		expect(
+			text,
+			"a validation message reached the user in English",
+		).not.toMatch(/qty must be a number|product_code required|invalid uom/)
 
 		// Commit actions are reachable from the preview.
 		expect(preview.find("button").exists(), "preview renders no actions").toBe(

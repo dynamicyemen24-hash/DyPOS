@@ -40,6 +40,9 @@ describe('snapshotForMigration()', () => {
 		const maxRow = db.prepare('SELECT MAX(version) as v FROM schema_version').get();
 		const top = Number(maxRow?.v);
 		assert.ok(top > 0, 'migrated test db has versions');
+		// Delete the TOP version. `MIGRATION_VERSION` is now DERIVED from the ladder
+		// (the highest registered row), so removing this one row makes the database
+		// genuinely behind — which is the state this test exists to snapshot.
 		db.prepare('DELETE FROM schema_version WHERE version=?').run(top);
 
 		const snap = snapshotForMigration(backupDir);

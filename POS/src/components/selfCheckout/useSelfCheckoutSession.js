@@ -30,6 +30,7 @@ import {
 	evaluateTender,
 	idleSession,
 	paidSession,
+	paymentMethodById,
 	removeLine,
 	setLineQty,
 	summarizeCart,
@@ -136,7 +137,25 @@ export function useSelfCheckoutSession(options = {}) {
 	const tender = computed(() =>
 		evaluateTender(totalMinor.value, tenderMinor.value),
 	)
-	const canConfirm = computed(() => tender.value.paid && !processing.value)
+	/**
+	 * هل يمكن اعتماد الدفع الآن؟
+	 *
+	 * كان `tender.paid && !processing` وحده: على سلة **فارغة** الإجمالي صفر
+	 * والمدفوع صفر، فتصير `evaluateTender` تقول `paid === true` — أي أن الكاشير
+	 * الذاتي يقبل الدفع على سلة لا تحتوي شيئًا ويُصدر فاتورة صفرية تُدخل
+	 * سجلاً وهميًا في دفاتر المتجر.
+	 *
+	 * السلة الفارغة ليست «دفعت بالضبط»، تمامًا كما أن `canPay` يرفضها أصلًا.
+	 * والشرط الثاني قصدٌ لا تفصيل: الدفع يُعتمد في حالة `PAYING` فقط، فلا
+	 * يستطيع استدعاء الدالة من أي حالة أخرى إصدار فاتورة عارضة.
+	 */
+	const canConfirm = computed(
+		() =>
+			state.value === SESSION_STATES.PAYING &&
+			!isEmpty.value &&
+			tender.value.paid &&
+			!processing.value,
+	)
 
 	/** مصدر الكتالوج معرو — «لا توجد بيانات» ليست إجابة صادقة. */
 	const sourceNote = computed(() => {
@@ -146,6 +165,48 @@ export function useSelfCheckoutSession(options = {}) {
 			return "تعذّر الوصول للسيرفر ولا توجد نسخة محلية — الأصناف غير معروفة"
 		return ""
 	})
+	/**
+	 * ضبط المبلغ المُدفوع يدويًا عبر لوحة المفاتيح.
+	 *
+	 * كان `setTenderMinor` مُصدَّرًا بلا تعريف — ولوحة المفاتيح في
+	 * `SelfCheckoutScreen.vue` كانت تستدعي `undefined` عند كل ضغطة مفتاح، فلا
+	 * يستطيع العميل كتابة أي مبلغ.
+	 *
+	 * **لا يُقصّ المبلغ عند الإجمالي.** كان هذا الكود يقيّد `tenderMinor`
+	 * بـ`totalMinor`، فيرى عميل دفع 150 على فاتورة 125 عبارة «مدفوع بالضبط»
+	 * بلا ريال باقٍ — يظن أنه دفع 125 بينما أعطى 150، فيخرج من المحل وعليه 25.
+	 * `evaluateTender` تحسب الباقي من الطرفين، وهذا الموضع لا يحتاج أن يمنع
+	 * الفارق ولا أن يخفيه.
+	 *
+	 * ويبقى الحدّ في موضعه الصحيح: `evaluateTender` ترفض أي مبلغ يتجاوز
+	 * `MAX_TENDER_MINOR` كحارس ضد خطأ إدخال هائل.
+	 *
+	 * @param {number} minor المبلغ بوحدة العملة الأصغر
+	 */
+	function setTenderMinor(minor) {
+		const amount = Number(minor)
+		if (!Number.isFinite(amount) || amount < 0) return
+		tenderMinor.value = Math.floor(amount)
+		error.value = ""
+	}
+
+	/**
+	 * إضافة مبلغ سريع إلى ما كُتب (أزرار «+» فوق لوحة الأرقام).
+	 *
+	 * كان `bumpTenderMinor` مُصدَّرًا بلا تعريف، فكل أزرار المبلغ السريع في
+	 * شاشة الدفع كانت تستدعي `undefined` — والعميل الذي يفضّل الضغطة على زر
+	 * بدل الكتابة لم يكن يستطيع الدفع أصلًا.
+	 *
+	 * تجمع ولا تُستبدل: زر «+10» فوق مبلغ مكتوب يجب أن يرفعه عشرة، لا أن
+	 * يمسحه ويضع عشرة مكانه.
+	 *
+	 * @param {number} minor مقدار الإضافة بوحدة العملة الأصغر
+	 */
+	function bumpTenderMinor(minor) {
+		const delta = Number(minor)
+		if (!Number.isFinite(delta) || delta <= 0) return
+		setTenderMinor(tenderMinor.value + Math.floor(delta))
+	}
 
 	/**
 	 * تحميل الكتالوج. لا يرمي: الفشل يعلن `unavailable` صراحةً حتى لا
@@ -200,6 +261,24 @@ export function useSelfCheckoutSession(options = {}) {
 		cart.value = removeLine(cart.value, productId)
 	}
 
+	/**
+	 * اختيار طريقة الدفع.
+	 *
+	 * كان `chooseMethod` مُصدَّرًا من هذه الوحدة بلا تعريف — والزر في
+	 * `SelfCheckoutScreen.vue` يمرّر `option.id` إلى `undefined`، فلا يستطيع
+	 * العميل تغيير طريقة الدفع إلا إذا رجع وبدأ من جديد. التعريف هنا هو
+	 * المتّسق مع بقية الوحدة: يقبل **معرّف** طريقة (`option.id`)، ويتجاهل أي
+	 * معرّف غير معروف بدل أن يضبط حالة لا تطابق أي زر.
+	 *
+	 * مسموح في `OPEN` و`PAYING` معًا: تغيير الطريقة قبل الدفع مباشرةً إجراء
+	 * عادي، وبعد `beginPayment()` هو بالضبط ما تفعله هذه الشاشة.
+	 */
+	function chooseMethod(id) {
+		if (!paymentMethodById(id)) return
+		method.value = id
+		error.value = ""
+	}
+
 	/** يدخل وضع الدفع — الإضافات تتوقف هنا. */
 	function beginPayment() {
 		if (!canPay.value) return
@@ -209,15 +288,45 @@ export function useSelfCheckoutSession(options = {}) {
 	}
 
 	/**
+	 * يرجع العميل من شاشة الدفع إلى السلة.
+	 *
+	 * `backToCart` كان مُصدَّرًا من هذه الوحدة ولم يكن مُعرَّفًا فيها إطلاقًا —
+	 * فكان زر «رجوع» في `SelfCheckoutScreen.vue` يستدعي `undefined` ولا يفعل
+	 * شيئًا: عقد ميت من النوع الذي سجّله AGENTS.md. المُصلِح هنا هو أن يتوفّر
+	 * التنفيذ، لا أن يُحذف الزر، لأن الرجوع من الدفع إجراء مشروع يتتوقّعه
+	 * العميل: تغيير طريقة الدفع أو تصحيح مبلغ.
+	 *
+	 * والفرق الجوهري مع `cancel()`: `cancel()` **يمسح** الجلسة (ورقة بيضاء)،
+	 * أما هذا فيعيد إلى `OPEN` **مع الاحتفاظ بالسلة والمبلغ**، لأن العميل لم
+	 * يطلب إلغاء الطلب — طلب فقط أن يُرجع إلى ما قبل الدفع.
+	 *
+	 * مسموح فقط أثناء الدفع؛ بعد الإيصال تنتهي الجلسة، والعودة إليها تفتح
+	 * بيعًا جديدًا عبر `dismissReceipt()` لا استئنافًا لهذه.
+	 */
+	function backToCart() {
+		if (state.value !== SESSION_STATES.PAYING) return
+		state.value = SESSION_STATES.OPEN
+		tenderMinor.value = 0
+		error.value = ""
+	}
+
+	/**
 	 * يقرّ الدفع: يولّد رقم فاتورة محلي ذرّي، يبني سجل البيع، يدخله في
 	 * الطابور المحلي، ثم يفرغ الجلسة. لا شبكة في أي خطوة.
+	 *
+	 * `nextOfflineInvoiceNumber` تُعيد `{ invoiceNumber, seq, yyyymmdd }` — وهذا
+	 * الكود كان يقرأ `{ invoiceNo }` منها، فكان رقم الفاتورة `undefined` في كل
+	 * إيصال يُطبع، وبيعٌ بلا رقم لا يُراجَع ولا يُسترد. الاستدعاء الآخر في
+	 * المشروع (`stores/session.js`) يقرأ الاسم الصحيح، فالخلل كان هنا وحده.
+	 * إعادة التسمية صريحة `invoiceNumber: invoiceNo` حتى يبقى الاسم المحلي
+	 * قصيرًا كما في بقية الوحدة، من غير أن يمسّ العقد الخارجي.
 	 */
 	async function confirmPayment() {
 		if (!canConfirm.value) return
 		processing.value = true
 		error.value = ""
 		try {
-			const { invoiceNo } = await nextOfflineInvoiceNumber({
+			const { invoiceNumber: invoiceNo } = await nextOfflineInvoiceNumber({
 				branch: options.branch,
 				terminal: options.terminal,
 				kind: "selfCheckoutSeq",

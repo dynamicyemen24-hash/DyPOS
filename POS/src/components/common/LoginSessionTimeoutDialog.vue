@@ -15,7 +15,7 @@
 <script setup>
 import { FeatherIcon } from "dypos-ui"
 
-import DyButton from "@/components/ui/DyButton.vue"
+import { ActionButton } from "dypos-ui"
 import { __ } from "@/utils/translation"
 
 defineProps({
@@ -59,23 +59,24 @@ defineEmits(["extend", "dismiss"])
 				</p>
 
 				<div class="dy-login__timeout-actions">
-					<DyButton
-						variant="primary"
+					<ActionButton
+						variant="solid"
 						size="sm"
 						:loading="extending"
 						@click="$emit('extend')"
 					>
 						{{ __('تمديد الجلسة') }}
-					</DyButton>
+					</ActionButton>
 
-					<button
+					<ActionButton
 						type="button"
-						class="dy-login__timeout-logout"
+						variant="ghost"
+						size="sm"
 						@click="$emit('dismiss')"
 						:aria-label="__('تسجيل الخروج وإنهاء الجلسة')"
 					>
 						{{ __('تسجيل الخروج') }}
-					</button>
+					</ActionButton>
 				</div>
 			</div>
 		</div>

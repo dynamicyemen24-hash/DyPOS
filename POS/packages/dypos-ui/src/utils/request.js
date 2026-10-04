@@ -28,6 +28,13 @@ const CSRF_PLACEHOLDER = "{{ csrf_token }}"
 /** Method router prefix. Bare method names are resolved under it. */
 export const METHOD_PREFIX = "/api/method/"
 
+let runtimeApiBaseResolver = null
+
+/** Host injection point for per-device API routing; no import cycle required. */
+export function setRuntimeApiBaseResolver(resolver) {
+	runtimeApiBaseResolver = typeof resolver === "function" ? resolver : null
+}
+
 /**
  * Resolve a bare method name to a same-origin path.
  * @param {string} url
@@ -37,10 +44,18 @@ export function resolveUrl(url) {
 	if (!url || typeof url !== "string") {
 		throw new Error("[dypos-ui] options.url is required")
 	}
-	if (url.startsWith("/") || /^https?:\/\//i.test(url)) {
-		return url
+	if (/^https?:\/\//i.test(url)) return url
+	const resolved = url.startsWith("/") ? url : `${METHOD_PREFIX}${url}`
+	if (runtimeApiBaseResolver && resolved.startsWith("/api/")) {
+		const configuredBase = String(runtimeApiBaseResolver() || "").replace(
+			/\/+$/,
+			"",
+		)
+		if (configuredBase && configuredBase !== "/api") {
+			return `${configuredBase}${resolved.slice("/api".length)}`
+		}
 	}
-	return `${METHOD_PREFIX}${url}`
+	return resolved
 }
 
 /**

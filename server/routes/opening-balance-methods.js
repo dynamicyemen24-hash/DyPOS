@@ -24,6 +24,7 @@ import crypto from 'node:crypto';
 import db from '../db/schema.js';
 import { toMinor, toMajor } from '../lib/money.js';
 import { resolveTenantFilter, assertTenantScope } from '../lib/tenant.js';
+import { recordTrail } from '../lib/trail.js';
 import {
 	ACCOUNT_TYPES,
 	ACCOUNT_TYPE_LABELS,
@@ -88,7 +89,7 @@ export function registerOpeningBalanceVerbs(def, requireUser) {
 		}
 	};
 
-	const selectRows = (tenantId, { fiscalYear = '', accountType = '' } = {}) => {
+	const selectRows = (tenantId, { fiscalYear = '', accountType = '', includeVoided = false } = {}) => {
 		const where = ['1=1'];
 		const args = [];
 		if (tenantId) {
@@ -103,10 +104,16 @@ export function registerOpeningBalanceVerbs(def, requireUser) {
 			where.push('account_type=?');
 			args.push(String(accountType));
 		}
+		// Voided rows leave every default read surface; supervisors opt back
+		// in explicitly (the REST plane mirrors this with ?includeVoided=1).
+		if (!includeVoided) {
+			where.push("status='POSTED'");
+		}
 		return db
 			.prepare(
 				`SELECT id, tenant_id, fiscal_year, account_type, account_id, account_code,
-				        account_name, product_id, amount_minor, quantity, notes, created_at, updated_at
+				        account_name, product_id, amount_minor, quantity, notes, created_at, updated_at,
+				        status, voided_at, voided_by, void_reason
 				 FROM opening_balances WHERE ${where.join(' AND ')}
 				 ORDER BY fiscal_year DESC, account_type, account_name`,
 			)
@@ -137,6 +144,10 @@ export function registerOpeningBalanceVerbs(def, requireUser) {
 		  amount_minor=excluded.amount_minor,
 		  quantity=excluded.quantity,
 		  notes=excluded.notes,
+		  status='POSTED',
+		  voided_at=NULL,
+		  voided_by=NULL,
+		  void_reason=NULL,
 		  updated_at=datetime('now')
 	  `);
 		}
@@ -151,6 +162,9 @@ export function registerOpeningBalanceVerbs(def, requireUser) {
 		const rows = selectRows(tenantId, {
 			fiscalYear: params.fiscalYear || params.fiscal_year || '',
 			accountType: params.accountType || params.account_type || '',
+			includeVoided: ['1', 'true', 'yes'].includes(
+				String(params.includeVoided ?? params.include_voided ?? '').toLowerCase(),
+			),
 		});
 		return res.json({
 			message: {
@@ -254,10 +268,14 @@ export function registerOpeningBalanceVerbs(def, requireUser) {
 	});
 
 	/**
-	 * Delete one balance.
+	 * Void one balance — retire, never destroy.
 	 *
-	 * A foreign row answers 404 (NotFoundError), never 403: existence must not
-	 * leak, which is the same rule assertRecordTenant applies everywhere else.
+	 * An opening position is the baseline every later figure is measured
+	 * against, so the row stays with status='VOIDED' + who/when/why. Lists read
+	 * POSTED by default; supervisors keep the register through includeVoided
+	 * and the audit trail. A foreign row answers 404 (NotFoundError), never
+	 * 403: existence must not leak, which is the same rule assertRecordTenant
+	 * applies everywhere else.
 	 */
 	def('DyPOS.api.opening_balances.delete_opening_balance', (params, req, res) => {
 		if (!requireUser(req, res)) return;
@@ -280,8 +298,15 @@ export function registerOpeningBalanceVerbs(def, requireUser) {
 		} catch (error) {
 			return methodError(res, error?.statusCode || 403, 'PermissionError', error?.message || MESSAGES.invalidTenant);
 		}
-		db.prepare('DELETE FROM opening_balances WHERE id=?').run(id);
+		if (row.status === 'VOIDED') return res.json({ message: { deleted: true, id } });
+		const reason = String(params.reason || '')
+			.trim()
+			.slice(0, 500);
+		db.prepare(
+			"UPDATE opening_balances SET status='VOIDED',voided_at=datetime('now'),voided_by=?,void_reason=?,updated_at=datetime('now') WHERE id=?",
+		).run(String(req.user?.username || ''), reason, id);
 		req.audit?.('opening_balance.delete', { id, type: row.account_type });
+		recordTrail(req, { entity: 'OPENING_BALANCE', entityId: id, action: 'VOID', before: row });
 		return res.json({ message: { deleted: true, id } });
 	});
 

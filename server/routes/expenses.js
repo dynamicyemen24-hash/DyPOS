@@ -11,6 +11,7 @@ import { authMiddleware, requireRole } from '../middleware/auth.js';
 import { ah } from '../lib/async.js';
 import { VERSION } from '../lib/version.js';
 import { assertTenantScope, resolveTenantFilter } from '../lib/tenant.js';
+import { recordTrail } from '../lib/trail.js';
 
 const router = Router();
 
@@ -25,10 +26,15 @@ function ensureExpensesTable() {
       tenant_id TEXT,
       branch_id TEXT,
       created_by TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      status TEXT NOT NULL DEFAULT 'POSTED',
+      voided_at TEXT,
+      voided_by TEXT,
+      void_reason TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date DESC, id DESC);
     CREATE INDEX IF NOT EXISTS idx_expenses_cat ON expenses(category, date DESC);
+    CREATE INDEX IF NOT EXISTS idx_expenses_status ON expenses(status, date DESC);
   `);
 }
 
@@ -100,6 +106,12 @@ router.get(
 		}
 		let base = 'FROM expenses WHERE 1=1';
 		const params = [];
+		// Voided rows stay in the table but leave every default read surface;
+		// supervisors opt back in with ?includeVoided=1 (trail keeps the proof).
+		const includeVoided = ['1', 'true', 'yes'].includes(String(req.query.includeVoided || '').toLowerCase());
+		if (!includeVoided) {
+			base += " AND status='POSTED'";
+		}
 		if (scopeTenant) {
 			base += ' AND tenant_id=?';
 			params.push(scopeTenant);
@@ -148,6 +160,10 @@ router.get(
 		}
 		let base = 'FROM expenses WHERE 1=1';
 		const params = [];
+		const includeVoidedSummary = ['1', 'true', 'yes'].includes(String(req.query.includeVoided || '').toLowerCase());
+		if (!includeVoidedSummary) {
+			base += " AND status='POSTED'";
+		}
 		if (scopeTenant) {
 			base += ' AND tenant_id=?';
 			params.push(scopeTenant);
@@ -179,7 +195,12 @@ router.get(
 	}),
 );
 
-// DELETE /api/expenses/:id — void a wrongly recorded expense (ADMIN/MANAGER only)
+// DELETE /api/expenses/:id — VOID a wrongly recorded expense (ADMIN/MANAGER only).
+//
+// Retire, never destroy: the row stays with status='VOIDED' + who/when/why.
+// Lists and summaries read POSTED by default; supervisors keep the full
+// register through ?includeVoided=1 and the audit trail. A foreign id answers
+// 404 and never leaks existence; without a tenant scope the write is refused.
 router.delete(
 	'/:id',
 	authMiddleware,
@@ -187,9 +208,25 @@ router.delete(
 	ah(async (req, res) => {
 		ensureExpensesTable();
 		const id = String(req.params.id).slice(0, 64);
-		const del = db.prepare('DELETE FROM expenses WHERE id=?').run(id);
-		if (del.changes === 0) return res.status(404).json({ error: 'المصروف غير موجود' });
+		let scopeTenant = null;
+		try {
+			scopeTenant = assertTenantScope(req).tenantId;
+		} catch (e) {
+			return res.status(e.statusCode || 403).json({ error: String(e.message).slice(0, 200) });
+		}
+		const row = db.prepare('SELECT * FROM expenses WHERE id=?').get(id);
+		if (!row || (scopeTenant && row.tenant_id && String(row.tenant_id) !== String(scopeTenant))) {
+			return res.status(404).json({ error: 'المصروف غير موجود' });
+		}
+		if (row.status === 'VOIDED') return res.json({ deleted: true, expenseId: id, version: VERSION });
+		const reason = String(req.body?.reason || '')
+			.trim()
+			.slice(0, 500);
+		db.prepare(
+			"UPDATE expenses SET status='VOIDED',voided_at=datetime('now'),voided_by=?,void_reason=? WHERE id=?",
+		).run(req.user?.username || null, reason, id);
 		req.audit?.('expense.delete', { expenseId: id });
+		recordTrail(req, { entity: 'EXPENSE', entityId: id, action: 'VOID', before: row });
 		return res.json({ deleted: true, expenseId: id, version: VERSION });
 	}),
 );

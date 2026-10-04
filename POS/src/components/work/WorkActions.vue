@@ -21,7 +21,7 @@
     <!-- Primary Actions -->
     <div class="work-actions__primary">
       <slot name="primary">
-        <DyButton
+        <ActionButton
           v-for="action in primaryActions"
           :key="action.id"
           :variant="action.variant || 'primary'"
@@ -33,14 +33,14 @@
           @click="handleAction(action)"
         >
           {{ t(action.label) }}
-        </DyButton>
+        </ActionButton>
       </slot>
     </div>
 
     <!-- Secondary Actions -->
     <div v-if="secondaryActions.length || $slots.secondary" class="work-actions__secondary">
       <slot name="secondary">
-        <DyButton
+        <ActionButton
           v-for="action in secondaryActions"
           :key="action.id"
           :variant="action.variant || 'ghost'"
@@ -52,13 +52,13 @@
           @click="handleAction(action)"
         >
           {{ t(action.label) }}
-        </DyButton>
+        </ActionButton>
       </slot>
     </div>
 
     <!-- Overflow Menu -->
     <div v-if="overflowActions.length" class="work-actions__overflow">
-      <DyButton
+      <ActionButton
         type="button"
         variant="ghost"
         :size="size"
@@ -70,7 +70,7 @@
       >
         <FeatherIcon name="more-horizontal" class="w-5 h-5" aria-hidden="true" />
         <span class="sr-only">{{ t('moreActions') }}</span>
-      </DyButton>
+      </ActionButton>
 
       <Transition name="work-actions-dropdown">
         <div
@@ -103,7 +103,7 @@
 import { ref, computed, onMounted, onUnmounted } from "vue"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
-import DyButton from "@/components/ui/DyButton.vue"
+import { ActionButton } from "dypos-ui"
 
 const props = defineProps({
 	/** Primary actions */

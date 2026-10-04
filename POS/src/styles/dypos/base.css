@@ -196,7 +196,66 @@ p {
 }
 
 /* ============================================================================
-   06. NUMERIC / POS DATA
+   07. ARABIC TYPOGRAPHY — the wrapping and leading rules
+   -----------------------------------------------------------------------------
+   Arabic script has no inter-word spaces in the Latin sense and no
+   hyphenation: a long word cannot be broken by the browser, so `word-break:
+   break-all` is the only thing that keeps a long product name inside a 320px
+   column. It is applied HERE, at the root, because the alternative is every
+   screen author remembering it — and the symptom (a name clipped mid-word, or a
+   horizontal scrollbar on the till) only appears in Arabic, which is the locale
+   nobody tests in CI.
+
+   `line-break: strict` forbids a break that would leave a bare Arabic diacritic
+   or punctuation mark at the start of a line, which `auto` permits and which
+   reads as a typo to an Arabic-speaking cashier.
+
+   `overflow-wrap: break-word` is the safety net for the unbreakable case (a
+   pasted SKU, a URL in a note). It is NOT `anywhere`, which also breaks INSIDE
+   short words and visibly damages ordinary Arabic text.
+
+   Leading: Arabic glyphs sit on a taller baseline box than Latin (descenders and
+   the hamza need room), so the Latin-first 1.5 line-height clips the top of a
+   diacritic at small sizes. The token is a single number so a screen can tune
+   density without re-deriving it.
+   ============================================================================ */
+
+:root {
+	--dy-leading-ar: 1.7;
+	--dy-leading-ar-tight: 1.5;
+}
+
+body,
+button,
+input,
+textarea,
+select {
+	line-height: var(--dy-leading-ar);
+	word-break: normal;
+	line-break: strict;
+	overflow-wrap: break-word;
+}
+
+/* Inputs are single-line: `break-word` there only helps a long pasted SKU, and
+   `strict` costs nothing because there is no second line to break. */
+input,
+textarea {
+	line-height: var(--dy-leading-ar-tight);
+}
+
+/* Latin-only runs inside Arabic UI — a SKU, an email, a URL — must keep Latin
+   breaking rules, or the browser may split an English word mid-letter using
+   the Arabic rules above. */
+.dy-latin-run,
+[lang="en"] {
+	word-break: normal;
+	line-break: auto;
+	overflow-wrap: anywhere;
+	letter-spacing: 0;
+}
+
+/* ============================================================================
+   08. NUMERIC / POS DATA
    -----------------------------------------------------------------------------
    الأرقام في POS يجب أن تكون قابلة للمقارنة بصريًا.
    ============================================================================ */
@@ -209,6 +268,18 @@ p {
 	font-variant-numeric: tabular-nums lining-nums;
 	font-feature-settings: "tnum" 1, "lnum" 1;
 
+	/*
+	 * `direction: ltr` ALONE is not enough in an RTL document. It sets the
+	 * paragraph direction for the digits, but the bidi algorithm still resolves
+	 * the surrounding Arabic runs, so a value embedded mid-sentence renders as
+	 * "12.50 ر.س" with the currency on the wrong side of the number — the sign
+	 * drifts between layouts and a cashier reads "50.12".
+	 *
+	 * `unicode-bidi: isolate` makes the whole field its own neutral island: the
+	 * number keeps its own direction, its sign stays attached to it, and the
+	 * neighbouring Arabic text cannot reach inside. This is the difference
+	 * between a price that is always right and one that is right in English.
+	 */
 	direction: ltr;
 	unicode-bidi: isolate;
 }
@@ -770,6 +841,16 @@ hr {
 	select,
 	textarea {
 		font-size: max(1rem, var(--dy-text-base));
+		min-height: var(--dy-touch-min);
+	}
+
+	/* The unified kit family (ActionButton, and IconButton through it) sizes
+	   with Tailwind heights, so the `.dy-btn-*` rule above never reaches it.
+	   Text buttons get the same floor; icon-only keeps its square — a
+	   stretched icon button reads as a different control. The `:not` carries
+	   the extra specificity the Tailwind height needs to yield. */
+	.dy-action-btn:not(.dy-action-btn-icononly) {
+		height: auto;
 		min-height: var(--dy-touch-min);
 	}
 }

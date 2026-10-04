@@ -18,6 +18,7 @@
 
 import { logger } from "@/utils/logger"
 import { handleRateLimited, handleAuthFailure } from "@/utils/securityHardening"
+import { isLinkEnabled } from "@/services/link-consent"
 
 const log = logger.create("RateLimiterEnhanced")
 
@@ -195,6 +196,9 @@ class ServerRateLimitClient {
 	}
 
 	async checkLimit(key, windowMs, maxAttempts) {
+		if (!isLinkEnabled()) {
+			return { allowed: true, serverEnforced: false }
+		}
 		const cacheKey = `${key}:${windowMs}:${maxAttempts}`
 		const cached = this.cache.get(cacheKey)
 
@@ -215,6 +219,10 @@ class ServerRateLimitClient {
 					signal: AbortSignal.timeout(3000), // 3 second timeout
 				},
 			)
+
+			if (!response.ok) {
+				return { allowed: true, serverEnforced: false }
+			}
 
 			const responseTime = Date.now() - startTime
 			const result = {

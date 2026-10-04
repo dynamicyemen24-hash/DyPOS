@@ -44,8 +44,11 @@ describe("link consent — standalone-first", () => {
 
 	it("revokes linkage explicitly and forgets the grant", () => {
 		setLinkMode(LINK_MODES.LINKED, LINK_REASONS.SYNC_NOW)
+		setTriggerMode(AUTO_TRIGGERS.POLL, "auto")
 		setLinkMode(LINK_MODES.STANDALONE, LINK_REASONS.REVOKED)
 		expect(isLinkEnabled()).toBe(false)
+		expect(getAutomation().mode).toBe(AUTO_MODES.OFF)
+		expect(getAutomation()[AUTO_TRIGGERS.POLL]).toBe(AUTO_MODES.OFF)
 		expect(localStorage.getItem("DyPOS_link_consent")).toBeNull()
 	})
 

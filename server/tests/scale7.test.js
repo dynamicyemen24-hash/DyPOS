@@ -15,30 +15,93 @@ let cashier;
 let prodId;
 let tenantId;
 
+/**
+ * The seed admin's username — FIXED, not per-run.
+ *
+ * A `Date.now()` suffix here would create a NEW privileged account on every
+ * execution, which is exactly the kind of test-only privilege growth a security
+ * review would (rightly) flag. One stable account, created once, reused after.
+ */
+const SEED_ADMIN = 's7admin_seed';
+
 before(async () => {
 	server = http.createServer(app);
 	server.listen(0);
 	await once(server, 'listening');
 	port = server.address().port;
+
+	// The admin token has to come from somewhere EXISTING.
+	//
+	// This test used to register `role: 'ADMIN'` and rely on the bootstrap
+	// window — the one where the FIRST account on an empty database may be an
+	// ADMIN. That holds exactly once per database. Measured here: the dev
+	// database already held one `CASHIER` account, so every ADMIN registration
+	// returned 401 "التسجيل يتطلب صلاحية مدير", `admin` was `undefined`, and
+	// five downstream assertions failed with `tenantId: null` — a cascade from
+	// one environment assumption, with nothing pointing at the real cause.
+	//
+	// A test that only passes on a freshly-created database is a test that gets
+	// deleted rather than fixed. The admin is created FIRST while the bootstrap
+	// window is open (idempotent: a no-op when one already exists), and every
+	// later account is registered with the token from it.
 	const a = `s7admin_${Date.now()}`;
-	await req('POST', '/api/auth/register', {
+	const seed = await req('POST', '/api/auth/register', {
 		username: a,
 		password: 'Pass1234',
 		fullName: 'S7 Admin',
 		role: 'ADMIN',
 	});
-	admin = (await req('POST', '/api/auth/login', { username: a, password: 'Pass1234' })).body.token;
+	admin =
+		seed.status === 201
+			? (await req('POST', '/api/auth/login', { username: a, password: 'Pass1234' })).body.token
+			: await existingAdminToken();
+
 	const c = `s7cash_${Date.now()}`;
-	await req('POST', '/api/auth/register', {
-		username: c,
-		password: 'Pass1234',
-		fullName: 'S7 Cash',
-	});
+	await req(
+		'POST',
+		'/api/auth/register',
+		{
+			username: c,
+			password: 'Pass1234',
+			fullName: 'S7 Cash',
+		},
+		admin,
+	);
 	cashier = (await req('POST', '/api/auth/login', { username: c, password: 'Pass1234' })).body.token;
 	const p = await req('POST', '/api/products', { name: 'S7 Prod', code: `S7-${Date.now()}`, unitPrice: 100 }, admin);
 	prodId = p.body.id;
 	tenantId = (await req('POST', '/api/tenants', { name: 'S7 Tenant' }, admin)).body.id;
+
+	// Fail loudly here rather than as five unrelated assertions later.
+	assert.ok(admin, 'no ADMIN token: the test cannot establish its fixtures');
+	assert.ok(tenantId, 'no tenant: /api/tenants refused the ADMIN token');
 });
+
+/**
+ * Sign in as an admin that already exists, when the bootstrap window is shut.
+ *
+ * Only used on a database that has been used before. The password is created
+ * alongside the account the first time this test runs against it, so a repeat
+ * run is a sign-in rather than a new privilege escalation.
+ */
+async function existingAdminToken() {
+	const username = SEED_ADMIN;
+	const password = 'Pass1234';
+	const created = await req('POST', '/api/auth/register', {
+		username,
+		password,
+		fullName: 'S7 Seed Admin',
+		role: 'ADMIN',
+	});
+	// 201 → created (this call WAS inside the window); 401/403 → it already exists
+	// and we simply sign in below.
+	if (created.status !== 201 && created.status !== 403 && created.status !== 401) {
+		throw new Error(`seed admin registration returned ${created.status}: ${created.text}`);
+	}
+	const login = await req('POST', '/api/auth/login', { username, password });
+	assert.strictEqual(login.status, 200, `seed admin sign-in failed: ${login.text}`);
+	return login.body.token;
+}
 
 after(() => server.close());
 

@@ -236,25 +236,54 @@ export function buildPaymentBlock({ method, received, change, remaining }) {
 
 /**
  * Map backend/transport failures to Arabic cashier messages.
- * Verbatim branches: 409 → duplicate, 422 → invalid, offline → no connection,
- * else server message → error message → generic fallback.
+ *
+ * ## The rule this function exists to satisfy
+ *
+ * `DESIGN_SYSTEM_UX_STANDARD.md` §7: "Error states must explain recovery, not
+ * merely report failure." A message that only names the problem leaves a
+ * cashier with one option — tap again, which is what produced duplicate-sale
+ * reports. Every branch below therefore ends in an ACTION.
+ *
+ * ## The invariant that shapes the copy
+ *
+ * AGENTS.md invariant 8: the sale is written to IndexedDB FIRST and the server
+ * is reached second. So when the network is what failed, the honest and most
+ * reassuring sentence is that **the sale is safe on this device and will sync
+ * when the link returns**. Telling a cashier "the operation was not applied"
+ * during an offline blip makes them re-ring the sale and charge twice.
+ *
+ * Branch order is unchanged (409 → 422 → offline → server → generic); a server
+ * message is still preferred verbatim, and only a generic fallback is appended
+ * with the recovery line so the two never contradict.
+ *
+ * @param {unknown} error the rejection
+ * @param {boolean} isOnline whether the device currently believes it is online
+ * @returns {string} Arabic, actionable
  */
 export function normalizePaymentErrorPure(error, isOnline) {
 	const status = error?.status || error?.response?.status
+
+	// A duplicate means the sale DID land. The action is "look at the receipt",
+	// never "pay again".
 	if (status === 409) {
-		return "تمت معالجة عملية البيع مسبقًا أو تغيرت حالتها."
+		return "سبق أن عولجت هذه العملية. راجع الإيصال قبل إعادة المحاولة."
 	}
+
+	// 422 is a data problem, not a connection problem: retrying is pointless
+	// until the cart changes.
 	if (status === 422) {
-		return "تعذر اعتماد بيانات عملية البيع."
+		return "تعذر اعتماد بيانات العملية. راجع الأصناف والمبالغ ثم أعد المحاولة."
 	}
+
+	// The important one. The sale is already on this device.
 	if (!isOnline) {
-		return "الاتصال غير متاح. لم يتم اعتماد العملية."
+		return "لا يوجد اتصال بالخادم. حُفظت العملية على هذا الجهاز وستُرسل تلقائيًا عند عودة الاتصال."
 	}
-	return (
-		error?.response?.data?.message ||
-		error?.message ||
-		"تعذر إتمام عملية الدفع."
-	)
+
+	const server = error?.response?.data?.message || error?.message
+	if (server) return server
+
+	return "تعذر إتمام عملية الدفع. لم يُخصم أي مبلغ — أعد المحاولة."
 }
 
 /** Popularity boost lookup shared by exact + scan-intent ranking. */

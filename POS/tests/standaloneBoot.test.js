@@ -161,6 +161,9 @@ describe("standalone boot — zero network without user demand", () => {
 			// origin the browser is on — it binds to no machine, it adapts to all
 			// of them. Only a hardcoded TARGET would be a dependency.
 			"src/socket.js",
+			// The endpoint validator recognizes loopback/private LAN hostnames so
+			// it can allow explicit local HTTP bridges; it never selects one.
+			"src/services/runtime-endpoints.js",
 			// "requires a secure context (HTTPS or localhost)" is an error MESSAGE,
 			// naming the two contexts where SubtleCrypto exists. No URL is built.
 			"src/utils/zatca/hash.js",

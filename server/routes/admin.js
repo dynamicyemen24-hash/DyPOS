@@ -223,13 +223,17 @@ router.get('/audit', (req, res) => {
 	return res.json({ audit: rows, count: rows.length });
 });
 
-// GET /api/admin/trail?entity=&entityId=&username=&tenant=&limit=&offset= — durable before/after trail
+// GET /api/admin/trail?entity=&entityId=&username=&tenant=&action=&limit=&offset= — durable before/after trail
+// ?action=VOID|EXPIRE|DELETE builds the supervisory void register: every retired
+// record stays queryable with its before-image, actor and timestamp.
 router.get('/trail', (req, res) => {
 	const entity = req.query.entity ? String(req.query.entity).toUpperCase().slice(0, 32) : '';
 	const entityId = req.query.entityId ? String(req.query.entityId).slice(0, 64) : '';
 	const username = req.query.username ? String(req.query.username).slice(0, 64) : '';
 	const tenant = req.query.tenant ? String(req.query.tenant).slice(0, 64) : '';
+	const action = req.query.action ? String(req.query.action).toUpperCase().slice(0, 20) : '';
 	if (entity && !/^[A-Z_]{2,32}$/.test(entity)) return res.status(400).json({ error: 'كيان غير صالح' });
+	if (action && !/^[A-Z_]{2,20}$/.test(action)) return res.status(400).json({ error: 'إجراء غير صالح' });
 	const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 50, 1), 200);
 	const offset = Math.max(Number.parseInt(req.query.offset, 10) || 0, 0);
 	let base = 'FROM audit_trail WHERE 1=1';
@@ -249,6 +253,10 @@ router.get('/trail', (req, res) => {
 	if (tenant) {
 		base += ' AND tenant_id=?';
 		params.push(tenant);
+	}
+	if (action) {
+		base += ' AND action=?';
+		params.push(action);
 	}
 	let rows = [];
 	let total = 0;

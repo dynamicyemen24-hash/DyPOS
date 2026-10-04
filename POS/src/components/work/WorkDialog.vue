@@ -67,7 +67,7 @@
             <footer v-if="$slots.footer || showDefaultFooter" class="work-dialog__footer">
               <slot name="footer">
                 <div class="work-dialog__footer-actions">
-                  <DyButton
+                  <ActionButton
                     v-if="cancelLabel"
                     variant="ghost"
                     @click="handleCancel"
@@ -75,8 +75,8 @@
                     :aria-label="t(cancelLabel)"
                   >
                     {{ t(cancelLabel) }}
-                  </DyButton>
-                  <DyButton
+                  </ActionButton>
+                  <ActionButton
                     v-if="confirmLabel"
                     :variant="confirmVariant"
                     :loading="busy"
@@ -85,7 +85,7 @@
                     :aria-label="t(confirmLabel)"
                   >
                     {{ t(confirmLabel) }}
-                  </DyButton>
+                  </ActionButton>
                 </div>
               </slot>
             </footer>
@@ -100,7 +100,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
-import DyButton from "@/components/ui/DyButton.vue"
+import { ActionButton } from "dypos-ui"
 
 const props = defineProps({
 	modelValue: { type: Boolean, required: true },

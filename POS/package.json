@@ -1,7 +1,7 @@
 {
 	"name": "pos-next-frontend",
 	"private": true,
-	"version": "1.44.4",
+	"version": "1.44.7",
 	"type": "module",
 	"scripts": {
 		"dev": "vite",
@@ -33,7 +33,8 @@
 		"socket.io-client": "^4.7.2",
 		"vue": "3.5.43",
 		"vue-chartjs": "^5.3.4",
-		"vue-router": "^4.5.0"
+		"vue-router": "^4.5.0",
+		"instascan": "3.2.1"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "1.9.4",
@@ -70,6 +71,6 @@
 		"target ever becomes a requirement, declare the config and the package in the",
 		"same commit.",
 		"@vue/test-utils lives in devDependencies: the tests import it and shipped code does not, and as a production dependency it dragged js-beautify -> editorconfig -> minimatch -> brace-expansion into npm audit --omit=dev (one high advisory on a library the PWA never ships).",
-		"fake-indexeddb lives in devDependencies for the same reason: jsdom ships no IndexedDB, so every Dexie-backed test that opens the real db died with MissingAPIError before asserting anything. tests/setupIndexedDB.js installs the polyfill for the suite only. Tests that want a table double instead (offlineStore, repositories) keep using one \u2014 a fake exercises the harness, this exercises Dexie's own transactions."
+		"fake-indexeddb lives in devDependencies for the same reason: jsdom ships no IndexedDB, so every Dexie-backed test that opens the real db died with MissingAPIError before asserting anything. tests/setupIndexedDB.js installs the polyfill for the suite only. Tests that want a table double instead (offlineStore, repositories) keep using one — a fake exercises the harness, this exercises Dexie's own transactions."
 	]
 }

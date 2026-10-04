@@ -1,41 +1,39 @@
 # DyPOS Deployment Guide — dypos.smartportssoft.com
 
-## حالة النشر الآن (2026-09-30)
-- **الإصدار المستهدف:** `1.42.0`. إذا كان النطاق الحي يعرض إصدارًا أقدم، يعتبر النشر **فاشلًا** ولا يجوز اعتباره مكتملًا حتى تتطابق الواجهة والـAPI مع `main`.
-- **رمز Cloudflare سليم الآن — مُثبت بالقياس لا بالافتراض**: التشغيل `36703778984` (2026-09-30 10:39Z) اجتاز `pages-preflight`، ونشر Pages، ونشر `dypos-api`؛ سقطت خطوة واحدة فقط: `Live verify`. خلل `403 + code 10000` (غياب `Cloudflare Pages:Edit`) انتهى بعد تجديد الرمز في 2026-09-29 21:28Z.
-- **⚠️ العطل الوحيد المتبقي: `/api/health` → `503 UPSTREAM_MISCONFIGURED`** — بسببه يبقى `Live verify` و`Uptime Monitor` أحمرَّين. التفصيل والمعالجة في القسم «إحياء الـAPI الحيّ» أدناه. البوابة الآن تطبع اسم العطل لا رقمًا مجرّدًا.
-- كل بوابات ما قبل النشر خضراء (اختبارات + lint + parity + عقد + ميزانية البناء + `vue-tsc`).
+## حالة النشر الآن (2026-10-03)
+- **الإصدار الحي:** `1.44.6` على `https://dypos.smartportssoft.com/`؛ تحقق النطاق 6/6، وWorker مربوط بـD1.
+- **المزامنة الخلفية متوقفة:** `/api/health` يعيد `503 UPSTREAM_MISCONFIGURED` لأن أصل Express لم يُجهز أو يُربط. هذا لا يمنع البيع المحلي دون اتصال، لكنه يمنع المزامنة السحابية.
+- **بيانات المشترك:** لم تُزرع بيانات؛ قواعد المستودع لا تثبت أنها المصدر المعتمد لبيانات المشترك الأول.
+- اجتازت بوابات هذا الإصدار اختبارات POS والخادم، Biome، schema parity، method contract، وميزانية الحزمة.
 
 ### 🔴 إحياء الـAPI الحيّ — سبب احمرار `Live verify` و`Uptime Monitor`
 
-**القياس (2026-09-30):**
+**القياس (2026-10-03):**
 
 | المسار | الرد |
 |--------|------|
-| `/api/ready` | `200 {"status":"ready","database_bound":true}` — الحافة نفسها سليمة |
-| `/api/health` · `/api/ping` · `/api/version` | `503 {"code":"UPSTREAM_MISCONFIGURED","detail":"BACKEND_URL (https://dypos-api.smartportssoft.com) resolves to this worker (dypos.smartportssoft.com)…"}` |
+| `/api/ready` | `200 {"status":"ready","database_bound":true}` — الحافة وD1 سليمان |
+| `/api/health` | `503 UPSTREAM_MISCONFIGURED` — `BACKEND_URL` غير مضبوط إلى أصل خلفي صالح |
 
 **جذر السبب (ثلاث حقائق متسلسلة، لا استنتاج):**
 
-1. `wrangler.api.toml` يضبط `[vars] BACKEND_URL = "https://dypos-api.smartportssoft.com"`.
-2. ذلك المضيف مُدرج في `worker-edge-hosts.mjs#DYPOS_EDGE_HOSTS`، أي أنه **الـWorker نفسه** — فحارس `isSelfProxy` يرفض التوجيه (سلوك مقصود، مغطّى بـ`server/tests/worker-edge-hosts.test.js`)؛ ولو فتح الحارس لكان المرور إلى مضيف بلا سجل DNS ⇒ نفس النتيجة.
-3. **لا يوجد أصل خلفي أصلًا**: لا سجل DNS لـ`dypos-api.smartportssoft.com` (NXDOMAIN)، ولا خادم Express ولا نفق `cloudflared` مُشغَّلان على هذا النطاق. التطبيق يعمل اليوم بوضع Offline-First فقط (المبيعات محلية في IndexedDB، والمزامنة معلّقة).
+1. `wrangler.api.toml` لا يحتوي `BACKEND_URL` في `[vars]`، وهذا مقصود لتفادي self-proxy.
+2. النطاق السابق `dypos-api.smartportssoft.com` ليس أصلًا صالحًا للـWorker؛ الحارس يرفض توجيهه إلى نفسه.
+3. لم يُعثر على خدمة Express أو Docker daemon أو مشروع Railway مرتبط أو اعتماد Cloudflare Tunnel في بيئة الإصدار. لذلك يبقى التطبيق Offline-First والمزامنة معلّقة حتى توفير أصل Node.js موثوق.
 
 **المعالجة — بالترتيب، وكل خطوة تُقاس:**
 
 ```bash
-# 1) أصل مفوّض دائم (VPS أو حاوية) يشغّل الخادم
-cd server && npm ci && npm run migrate && node entrypoint.js
-#    أو من جذر المستودع: docker compose up -d
+# 1) وفّر مضيف Node.js دائمًا أو VPS، وانشر server/ مع تخزين دائم ونسخ احتياطي.
+#    لا تستخدم قاعدة التطوير أو البيانات التجريبية للمشترك.
 
-# 2) كشفه خلف نفق Cloudflare بلا منافذ مفتوحة
+# 2) اختياري: اكشف الخادم عبر Cloudflare Tunnel من المضيف نفسه
 CLOUDFLARED_TOKEN=<token> docker compose --profile tunnel up -d cloudflared
 #    Zero Trust → Networks → Tunnels → Create → Public hostname
 #    (مثال) api.dypos.smartportssoft.com → Service: http://dypos-server:3001
 
-# 3) توجيه الحافة إليه — ولا يجوز أبدًا أن يكون المضيف ذاته
+# 3) بعد التحقق من أصل API مستقل وصحي، وجّه الحافة إليه — لا إلى نطاق الحافة
 npx wrangler secret put BACKEND_URL --config wrangler.api.toml
-#    ثم احذف BACKEND_URL من [vars] في wrangler.api.toml حتى لا يعيد أي نشر كتابة القيمة الخاطئة
 
 # 4) البوابة الوحيدة التي تُقر
 npm run verify:live        # يجب أن تعطي 6/6
@@ -116,7 +114,7 @@ node scripts/verify-live.mjs --site=http://127.0.0.1:8080    # أي أصل آخ�
 - `/sw.js` → 200 (Service Worker بمدى الجذر = Offline-First)
 - `/manifest.webmanifest` → 200 (قابل للتثبيت)
 - `/pos/deep-link-probe` → 200 + قوقعة التطبيق (الرابط العميق لا يكسر Ctrl+F5)
-- `/api/health` → 200 + `version === package.json.version` (تطابق إصدار الـAPI مع الواجهة)
+- `/api/edge-health` + `/api/ready` → الإصدار المتوقع وD1 مربوطان؛ `/api/health` فحص اختياري لأصل Express ويظهر تحذيرًا عند غيابه
 
 > **نبض الإنتاج**: `.github/workflows/uptime.yml` يشغّل نفس السكربت كل 15 دقيقة.
 > الفحوص القديمة كانت تستطلع `/assets/DyPOS/pos/version.json` وتطلب حزمة `?v=` —
@@ -127,44 +125,22 @@ node scripts/verify-live.mjs --site=http://127.0.0.1:8080    # أي أصل آخ�
 للتوثيق التاريخي فقط. الإنتاج الحالي **Cloudflare Pages** عبر CI
 (`.github/workflows/deploy-cloudflare.yml`). لا يوجد IIS على خادم البناء.
 
-## Royal production runbook (subscriber #1)
-المشترك الأول: **رويال العالمية لتجارة أدوات التجميل والعطور** (`RGT`).
-```powershell
-cd server
-   node db/migrate.js      # schema v24
-npm run seed:royal      # 64 SKUs + stock + users (atomic, idempotent)
-npm run e2e:royal       # 14-check proof: login→shift→sale→pay→stock→void→close
-npm run e2e:yaqoub      # 17-check run as subscriber #1's own manager account
-```
-
-- البذر ذري (`BEGIN/COMMIT`) وآمن للمفاتيح (`ON CONFLICT DO UPDATE` — لا حذف).
-- كلمات المرور bcrypt حقيقية (تُطبع مرة واحدة)؛ حساب `admin` يُجبر على التغيير.
-- سكربت E2E يلغّي فاتورته ويغلق ورديته — قاعدة الإنتاج تبقى نظيفة.
-
-### The final operational run as subscriber #1
-
-`npm run e2e:yaqoub` boots a real Express server against the production database
-and authenticates as the human manager account itself (`yaqoub.sahel`), not a
-synthetic one: login, session identity, wrong-password rejection, unauthenticated
-read rejection, catalog, opening stock, shift open, paid invoice, stock
-decrement, daily report, customers, settings, shift settlement at variance 0 --
-then voids the invoice and restores stock. The last two checks are cleanup, not
-nails: the void keeps the audit row and the books stay clean.
-
-> The run re-provisions the `yaqoub.sahel` password (bcrypt cost 12) and sets
-> `must_change_password=0` so the run is repeatable. For the credential you
-> actually hand the subscriber: set `DYPOS_OP_PASSWORD=<their-code>` before the
-> run so that exact code is stored. **Rotate it on first login**
-> (`/api/auth/change-password`).
+## Subscriber #1 data safety
+الاسم المسجل للمشترك الأول (`RGT`) ليس إثباتًا أن قاعدة محلية أو ملف seed هو
+مصدر بياناته الحقيقي. `npm run seed:royal` ينشئ بيانات عينة ثابتة، ولذلك أصبح
+ممنوعًا في `NODE_ENV=production` ويرفض قواعد البيانات التي تحتوي مستأجرين أو
+منتجات أو فواتير. لا تشغّل `e2e:yaqoub` أو أي اختبار يكتب فواتير على قاعدة
+الإنتاج. استيراد بيانات العميل يتطلب ملفًا موثقًا منه، مراجعة مطابقة، نسخة
+احتياطية، ثم استيرادًا تجريبيًا على قاعدة منفصلة قبل cutover.
 
 ## Version Info (حالي)
-- **Version:** `1.42.0` (single source: root `package.json`)
-- **Date:** September 30, 2026
+- **Version:** `1.44.6` (single source: root `package.json`)
+- **Date:** October 3, 2026
 - **Framework:** Vue 3 + Chart.js + dypos-ui
 - **PWA:** Yes (SW root scope، `build:pages` → `POS/dist/pos`)
 - **Deploy:** push to `main` → GitHub Actions → Cloudflare Pages + `dypos-api` Worker → `npm run verify:live`
-- **Live قبل هذه الدفعة:** `https://dypos.smartportssoft.com/` يقدّم `1.40.0` (Pages منشورة بنجاح في 2026-09-30)؛ تُحدَّث إلى `1.41.1` بعد نجاح `Live verify` — والمعوّق حاليًا هو `/api/health` (أصل خلفي مفقود) لا الواجهة.
-- **Tests:** server 569/569 (173 مجموعة) · POS 1136/1136 (83 ملفًا) · method contract 75 فعلًا / 104 موقع استدعاء مغطّاة / 249 معالجًا · biome 0 errors · pg parity OK · بوابة وصولية بلا كود ميت (`POS/tests/deadCode.test.js` + `server/tests/deadCode.test.js`)
+- **Live:** النطاق وWorker على `1.44.6`، والتحقق الحي 6/6؛ API sync backend غير متاح حتى توفير أصل Express.
+- **Tests:** POS 2094 اختبارًا / 114 ملفًا · server 627 اختبارًا / 187 مجموعة · method contract 75 فعلًا / 104 موقع استدعاء / 249 معالجًا · Biome وPG parity ناجحان.
 
 ## Backend topology (why `/api` needs an origin)
 - Cloudflare Pages serves the frontend from `dypos-pos`; a separate `dypos-api` Worker owns

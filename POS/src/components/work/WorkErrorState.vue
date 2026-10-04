@@ -40,9 +40,9 @@
 
       <!-- Actions -->
       <div class="work-error-state__actions">
-        <DyButton
+        <ActionButton
           v-if="showRetry"
-          variant="primary"
+          variant="solid"
           :loading="retryLoading"
           :disabled="retryLoading"
           @click="handleRetry"
@@ -52,16 +52,16 @@
             <FeatherIcon name="refresh-cw" class="w-4 h-4" aria-hidden="true" />
           </template>
           {{ t('retry') }}
-        </DyButton>
+        </ActionButton>
 
-        <DyButton
+        <ActionButton
           v-if="showGoHome"
           variant="ghost"
           @click="handleGoHome"
           :aria-label="t('goHome')"
         >
           {{ t('goHome') }}
-        </DyButton>
+        </ActionButton>
 
         <slot name="actions" />
       </div>
@@ -73,7 +73,7 @@
 import { computed } from "vue"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
-import DyButton from "@/components/ui/DyButton.vue"
+import { ActionButton } from "dypos-ui"
 
 const props = defineProps({
 	/** Error title */

@@ -158,7 +158,10 @@ async function load() {
 		source.value = "unavailable"
 		rows.value = []
 		summary.value = null
-		errorState.value = String(error?.message || "تعذّر تحميل الأرصدة الافتتاحية")
+		errorState.value = String(
+			error?.message ||
+				"تعذّر تحميل الأرصدة الافتتاحية. تحقّق من الاتصال ثم اضغط إعادة المحاولة.",
+		)
 	} finally {
 		loading.value = false
 	}
@@ -224,8 +227,7 @@ async function save() {
 	editorError.value = ""
 	// نترك التحقق للسيرفر ليذكر رقم السطر والحقل بدل تكرار القواعد هنا.
 	if (!String(form.value.amount).trim()) {
-		editorError.value =
-			"المبلغ مطلوب — لا يمكن تركه فارغًا (صفر صريح إن كان الرصيد صفرًا فعلًا)"
+		editorError.value = "المبلغ مطلوب — اكتب صفرًا صراحةً إن كان الرصيد صفرًا فعلًا"
 		return
 	}
 	saving.value = true
@@ -246,7 +248,10 @@ async function save() {
 		showEditor.value = false
 		await load()
 	} catch (error) {
-		editorError.value = String(error?.message || "تعذّر الحفظ")
+		editorError.value = String(
+			error?.message ||
+				"تعذّر حفظ الرصيد. لم يُحفظ أي تعديل — راجع القيم ثم أعد المحاولة.",
+		)
 	} finally {
 		saving.value = false
 	}
@@ -258,7 +263,9 @@ async function removeRow(row) {
 		await methodCall(V.remove, { id: row.id })
 		await load()
 	} catch (error) {
-		errorState.value = String(error?.message || "تعذّر الحذف")
+		errorState.value = String(
+			error?.message || "تعذّر حذف الرصيد. الرصيد ما زال موجودًا — أعد المحاولة.",
+		)
 	}
 }
 
@@ -315,7 +322,13 @@ async function applyImport() {
 		importReport.value = {
 			invalid: 1,
 			errors: [
-				{ row: null, message: String(error?.message || "فشل الاستيراد") },
+				{
+					row: null,
+					message: String(
+						error?.message ||
+							"فشل الاستيراد. لم تُحفظ أي صفوف — صحّح الملف ثم أعد الاستيراد.",
+					),
+				},
 			],
 		}
 	} finally {
@@ -358,7 +371,9 @@ async function exportCsv() {
 			res?.message?.filename || "dypos-opening-balances.csv",
 		)
 	} catch (error) {
-		errorState.value = String(error?.message || "تعذّر التصدير")
+		errorState.value = String(
+			error?.message || "تعذّر التصدير. لم يُنشأ الملف — أعد المحاولة.",
+		)
 	}
 }
 
@@ -371,7 +386,10 @@ async function downloadTemplate() {
 			res?.message?.filename || "dypos-opening-balances-template.csv",
 		)
 	} catch (error) {
-		errorState.value = String(error?.message || "تعذّر تحميل القالب")
+		errorState.value = String(
+			error?.message ||
+				"تعذّر تحميل قالب الاستيراد. تحقّق من الاتصال ثم أعد المحاولة.",
+		)
 	}
 }
 

@@ -11,6 +11,7 @@ import { toMinor, toMajor, clampMinor, computeLineMinor } from '../lib/money.js'
 import { assertNonCashNotOverpaid } from '../lib/payment-invariants.js';
 import { dayRange } from '../lib/dates.js';
 import { assertTenantScope, resolveTenantFilter, assertRecordTenant } from '../lib/tenant.js';
+import { findCoupon } from '../lib/coupon-scope.js';
 import { assertCurrency, assertUom } from '../lib/fx.js';
 import { recordTrail } from '../lib/trail.js';
 import { ah, mapErrorStatus } from '../lib/async.js';
@@ -417,14 +418,10 @@ router.post('/', validate(invoiceSchema), (req, res) => {
 		let couponCode = null;
 		if (b.couponCode) {
 			couponCode = String(b.couponCode).trim().toUpperCase().slice(0, 64);
-			// Tenant-scoped coupon lookup (v23 promotes coupons to per-tenant data):
-			// the sale may use its own tenant's coupons or global (NULL-tenant) ones —
+			// Tenant-scoped coupon lookup (v23 promotes coupons to per-tenant data): the
+			// sale may use its own tenant's coupons or global (NULL-tenant) ones —
 			// never another tenant's. Fixes a cross-tenant discount vector.
-			const c = scope.tenantId
-				? db
-						.prepare('SELECT * FROM coupons WHERE code=? AND (tenant_id=? OR tenant_id IS NULL)')
-						.get(couponCode, scope.tenantId)
-				: db.prepare('SELECT * FROM coupons WHERE code=?').get(couponCode);
+			const c = findCoupon(db, couponCode, scope.tenantId);
 			if (!c) throw Object.assign(new Error('الكوبون غير موجود'), { statusCode: 404 });
 			const r = computeCouponDiscount(c, toMajor(grossMinor));
 			if (!r.ok) throw Object.assign(new Error(r.error), { statusCode: 400 });
@@ -646,7 +643,7 @@ router.get(
 		const terminalId = req.query.terminal ? String(req.query.terminal).slice(0, 32) : null;
 		// Sargable range (index-seek on idx_invoices_created, not a date() full scan).
 		const { from, to } = dayRange(raw);
-		let sql = `SELECT COUNT(*) as orders_count, COALESCE(SUM(total),0) as gross_sales, COALESCE(SUM(CASE WHEN status='RETURNED' THEN total ELSE 0 END),0) as refunds, COALESCE(SUM(discount_amount),0) as discounts, COALESCE(SUM(tax_amount),0) as tax_amount, COALESCE(SUM(paid_amount),0) as net_sales FROM invoices WHERE created_at>=? AND created_at<?`;
+		let sql = `SELECT COUNT(*) as orders_count, COALESCE(SUM(total),0) as gross_sales, COALESCE(SUM(CASE WHEN status='RETURNED' THEN total ELSE 0 END),0) as refunds, COALESCE(SUM(discount_amount),0) as discounts, COALESCE(SUM(tax_amount),0) as tax_amount, COALESCE(SUM(paid_amount),0) as net_sales FROM invoices WHERE created_at>=? AND created_at<? AND status NOT IN ('EXPIRED')`;
 		const params = [from, to];
 		if (terminalId) {
 			sql += ' AND terminal_id=?';
@@ -655,7 +652,7 @@ router.get(
 		const stats = db.prepare(sql).get(...params);
 		const payMethods = db
 			.prepare(
-				`SELECT p.method, COALESCE(SUM(p.amount),0) as total FROM payments p JOIN invoices i ON p.invoice_id=i.id WHERE i.created_at>=? AND i.created_at<? ${terminalId ? 'AND i.terminal_id=?' : ''} GROUP BY p.method`,
+				`SELECT p.method, COALESCE(SUM(p.amount),0) as total FROM payments p JOIN invoices i ON p.invoice_id=i.id WHERE i.created_at>=? AND i.created_at<? AND i.status NOT IN ('EXPIRED') ${terminalId ? 'AND i.terminal_id=?' : ''} GROUP BY p.method`,
 			)
 			.all(...(terminalId ? [from, to, terminalId] : [from, to]));
 		return res.json({

@@ -217,7 +217,19 @@
 
 	--dy-font-money: "Inter", "Cairo", "Segoe UI", Arial, sans-serif;
 
-	--dy-font-mono: "JetBrains Mono", "SFMono-Regular", "Consolas", "Courier New",
+	/*
+	 * JetBrains Mono was listed first here but was NEVER installed — not in
+	 * package.json, not in node_modules. Every `var(--dy-font-mono)` consumer
+	 * silently fell through to the platform stack, and the declaration read as a
+	 * deliberate choice rather than a missing dependency. A mono font the POS does
+	 * not ship is not a preference, it is a dead token: a barcode, an order code
+	 * and a hash all want stable advance widths, and the platform mono gives
+	 * them inconsistently across the Windows/Android/iOS mix a till actually runs
+	 * on. Installing a font to keep a token alive would be the wrong fix — the
+	 * repo already ships Inter and Cairo locally, so the honest resolution is a
+	 * declared local stack with no unresolvable name in it.
+	 */
+	--dy-font-mono: "SFMono-Regular", "Consolas", "Liberation Mono", "Courier New",
 		monospace;
 
 	/* =========================================================================

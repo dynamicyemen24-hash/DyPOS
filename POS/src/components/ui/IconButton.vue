@@ -1,6 +1,31 @@
 <script setup>
-import { FeatherIcon } from "dypos-ui"
+import { ActionButton } from "dypos-ui"
 
+/**
+ * IconButton — RETIRED shim. One icon-button implementation lives in the
+ * kit's `ActionButton` (icon-only mode).
+ *
+ * This file carried the fourth token vocabulary (nine variants, three sizes,
+ * its own spinner keyframes) for three call sites. The mapping below is the
+ * whole of it — no palette table, no click handling, no loading state live
+ * here, exactly like the retired `Button` shim (`tests/buttonUnification`
+ * pins that shape). prop-for-prop compatibility is kept so the call sites
+ * do not change:
+ *
+ *   gray/secondary → default outline (surface + border, as before)
+ *   soft           → brand subtle
+ *   ghost          → default ghost (transparent, secondary ink — as before)
+ *   primary/hero   → brand solid
+ *   success        → green solid · danger/red → red solid · warning → yellow
+ *
+ * Two honest notes:
+ * - `variant="red"` never existed here (no rule, no validator entry): the
+ *   empty-cart button rendered unstyled. It now paints red solid — that is a
+ *   fix, and `"red"` joins the validator for it.
+ * - `touch` is accepted and ignored: every kit button is touch-ready now
+ *   (`touch-manipulation`, no tap highlight, coarse-pointer floor), so there
+ *   is nothing left for the flag to switch on.
+ */
 const props = defineProps({
 	icon: { type: String, required: true },
 	variant: {
@@ -15,6 +40,7 @@ const props = defineProps({
 				"gray",
 				"success",
 				"danger",
+				"red",
 				"warning",
 				"hero",
 			].includes(v),
@@ -33,166 +59,52 @@ const props = defineProps({
 })
 
 const emit = defineEmits(["click"])
+
+/** Historical variant name → survivor theme. */
+const THEME = {
+	primary: "brand",
+	secondary: "default",
+	soft: "brand",
+	ghost: "default",
+	gray: "default",
+	success: "green",
+	danger: "red",
+	red: "red",
+	warning: "yellow",
+	hero: "brand",
+}
+
+/** Historical variant name → survivor variant. */
+const VARIANTS = {
+	primary: "solid",
+	secondary: "outline",
+	soft: "subtle",
+	ghost: "ghost",
+	gray: "outline",
+	success: "solid",
+	danger: "solid",
+	red: "solid",
+	warning: "solid",
+	hero: "solid",
+}
 </script>
 
 <template>
-	<button
+	<!--
+		No default-slot content: the survivor reads that (with no `label`) as
+		icon-only and keeps the square. `title` has no prop on the survivor, so
+		it rides `$attrs` onto the native button — the tooltip survives.
+	-->
+	<ActionButton
+		:icon="props.icon"
+		:theme="THEME[props.variant] || 'default'"
+		:variant="VARIANTS[props.variant] || 'subtle'"
+		:size="props.size"
 		:type="props.type"
-		:class="[
-			'dy-icon-btn',
-			'dy-icon-btn-' + variant,
-			'dy-icon-btn-' + size,
-			{ 'dy-touch dy-press': touch },
-		]"
-		:title="title || ariaLabel || undefined"
-		:aria-label="ariaLabel || title || undefined"
-		:aria-busy="loading"
-		:disabled="disabled || loading"
+		:loading="props.loading"
+		:disabled="props.disabled"
+		:aria-label="props.ariaLabel || props.title || undefined"
+		:title="props.title || props.ariaLabel || undefined"
 		@click="emit('click', $event)"
-	>
-		<span v-if="loading" class="dy-icon-btn-spinner" aria-hidden="true"></span>
-		<FeatherIcon v-else :name="icon" class="dy-icon-btn-icon" :stroke-width="2" />
-	</button>
+	/>
 </template>
-
-<style scoped>
-.dy-icon-btn-icon {
-	pointer-events: none;
-}
-
-.dy-icon-btn-spinner {
-	width: 1em;
-	height: 1em;
-	border: 2px solid currentColor;
-	border-inline-end-color: transparent;
-	border-radius: var(--dy-radius-full);
-	animation: dy-icon-btn-spin 0.8s linear infinite;
-	opacity: 0.85;
-}
-
-/* ——— Sizes ——— */
-
-.dy-icon-btn-sm {
-	width: 30px;
-	height: 30px;
-}
-
-.dy-icon-btn-sm .dy-icon-btn-icon {
-	width: 16px;
-	height: 16px;
-}
-
-.dy-icon-btn-md .dy-icon-btn-icon {
-	width: 18px;
-	height: 18px;
-}
-
-.dy-icon-btn-lg {
-	width: 48px;
-	height: 48px;
-}
-
-.dy-icon-btn-lg .dy-icon-btn-icon {
-	width: 22px;
-	height: 22px;
-}
-
-/* ——— Variants ——— */
-
-.dy-icon-btn-primary {
-	background: var(--dy-primary);
-	color: var(--dy-primary-contrast);
-	box-shadow: var(--dy-elevation-1);
-}
-
-.dy-icon-btn-primary:hover:not(:disabled) {
-	background: var(--dy-primary-hover);
-	box-shadow: var(--dy-elevation-2);
-}
-
-.dy-icon-btn-secondary {
-	background: var(--dy-surface);
-	color: var(--dy-text);
-	border-color: var(--dy-border);
-}
-
-.dy-icon-btn-secondary:hover:not(:disabled) {
-	background: var(--dy-surface-hover);
-	border-color: var(--dy-border-strong);
-}
-
-.dy-icon-btn-soft {
-	background: var(--dy-primary-soft);
-	color: var(--dy-primary);
-}
-
-.dy-icon-btn-soft:hover:not(:disabled) {
-	background: var(--dy-primary-softer);
-}
-
-.dy-icon-btn-ghost .dy-icon-btn-icon {
-	color: var(--dy-text-secondary);
-}
-
-.dy-icon-btn-gray {
-	background: var(--dy-surface, #ffffff);
-	color: var(--dy-text-secondary);
-	border-color: var(--dy-border, rgba(0, 0, 0, 0.08));
-}
-
-.dy-icon-btn-gray:hover:not(:disabled) {
-	background: var(--dy-surface-hover);
-	color: var(--dy-text-strong);
-	border-color: var(--dy-border-strong);
-}
-
-.dy-icon-btn-success {
-	background: var(--dy-success);
-	color: var(--dy-success-contrast);
-}
-
-.dy-icon-btn-success:hover:not(:disabled) {
-	background: var(--dy-success-hover);
-}
-
-.dy-icon-btn-danger {
-	background: var(--dy-danger);
-	color: var(--dy-danger-contrast);
-}
-
-.dy-icon-btn-danger:hover:not(:disabled) {
-	background: var(--dy-danger-hover);
-}
-
-.dy-icon-btn-warning {
-	background: var(--dy-warning);
-	color: var(--dy-warning-contrast);
-}
-
-.dy-icon-btn-warning:hover:not(:disabled) {
-	background: var(--dy-warning-hover);
-}
-
-.dy-icon-btn-hero {
-	background: linear-gradient(135deg, var(--dy-brand-600), var(--dy-brand-800));
-	color: var(--dy-brand-contrast, #ffffff);
-	box-shadow: var(--dy-glow-brand);
-}
-
-.dy-icon-btn-hero:hover:not(:disabled) {
-	background: linear-gradient(135deg, var(--dy-brand-500), var(--dy-brand-700));
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.dy-icon-btn-spinner {
-		transition: none !important;
-		animation: none !important;
-	}
-}
-
-@keyframes dy-icon-btn-spin {
-	to {
-		transform: rotate(360deg);
-	}
-}
-</style>

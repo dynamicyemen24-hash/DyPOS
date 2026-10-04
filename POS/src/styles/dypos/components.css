@@ -81,6 +81,15 @@
 	text-decoration: none;
 }
 
+/*
+ * كانت كل الحالات التفاعلية بلا حلقة تركيز مرئية: لوحة المفاتيح وحدها
+ * ترى الزر دون أن تعرف أين هي. SAP Fiori وWCAG 2.4.7 يجعلانها إلزامية.
+ */
+.dy-btn:focus-visible {
+	outline: 2px solid var(--dy-ring);
+	outline-offset: 2px;
+}
+
 .dy-btn:active:not(:disabled):not([aria-disabled="true"]) {
 	transform: scale(0.97) translateZ(0);
 }
@@ -106,6 +115,17 @@
 
 .dy-btn-icon[fill] {
 	fill: currentColor;
+}
+
+/*
+ * Directional glyphs (back/forward arrows, chevrons) point the wrong way
+ * when the locale flips unless someone mirrors them. Text and layout already
+ * follow logical properties — this is the same contract for the one thing
+ * that cannot: a drawn arrow. Opt in per glyph, never globally: mirroring
+ * every icon would flip clocks, carts and other non-directional marks.
+ */
+[dir="rtl"] .dy-flip-rtl {
+	transform: scaleX(-1);
 }
 
 /* ——— Loading ——— */
@@ -152,6 +172,12 @@
 	height: 56px;
 	padding-inline: var(--dy-space-6);
 	font-size: var(--dy-text-lg);
+}
+
+/* ——— Block: full-width action, the shape phone forms and dialogs need ——— */
+
+.dy-btn-block {
+	width: 100%;
 }
 
 /* ——— Primary ——— */

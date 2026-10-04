@@ -325,11 +325,11 @@ function saveActiveToStorage() {
 
 async function startStockTake() {
 	if (!newSession.value.warehouseId) {
-		showError("المستودع مطلوب")
+		showError("المستودع مطلوب. اختر المستودع من القائمة ثم أعد المحاولة.")
 		return
 	}
 	if (!newSession.value.name?.trim()) {
-		showError("الاسم مطلوب")
+		showError("الاسم مطلوب. اكتب اسم الجولة ثم أعد المحاولة.")
 		return
 	}
 
@@ -445,8 +445,11 @@ async function applyVariances() {
 	saveActiveToStorage()
 
 	if (failures.length) {
+		// A PARTIAL success. Saying only "فشل 3" leaves the operator with a
+		// number and nothing to do; naming the failing rows and saying what to
+		// do with them is the whole difference between a report and a dead end.
 		showError(
-			`تم تطبيق ${applied} وفشل ${failures.length}: ${failures.slice(0, 5).join(", ")}`,
+			`تم تطبيق ${applied} وفشل ${failures.length}: ${failures.slice(0, 5).join(", ")}. راجع الصفوف المذكورة في الجولة وأعد تطبيقها.`,
 		)
 	} else {
 		showSuccess(`تم تطبيق ${applied} فرق بنجاح`)

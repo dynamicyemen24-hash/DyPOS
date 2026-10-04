@@ -23,7 +23,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue"
 
 import { FeatherIcon } from "dypos-ui"
-import DyButton from "@/components/ui/DyButton.vue"
+import { ActionButton } from "dypos-ui"
 
 import { usePasswordReset } from "@/composables/usePasswordReset"
 import { normalizeArabic } from "@/utils/arabic"
@@ -356,7 +356,7 @@ onUnmounted(() => {
 					<!-- Submit -->
 
 					<div class="dy-forgot__submit">
-						<DyButton
+						<ActionButton
 							:loading="isSubmitting"
 							:disabled="!canSubmit"
 							variant="solid"
@@ -370,7 +370,7 @@ onUnmounted(() => {
 								aria-hidden="true"
 							/>
 							{{ isSubmitting ? "جاري الإرسال..." : "إرسال رابط الاستعادة" }}
-						</DyButton>
+						</ActionButton>
 					</div>
 				</form>
 

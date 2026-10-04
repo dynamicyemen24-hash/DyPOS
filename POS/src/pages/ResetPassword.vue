@@ -22,7 +22,7 @@
 import { computed, onMounted, onUnmounted, ref } from "vue"
 
 import { FeatherIcon } from "dypos-ui"
-import DyButton from "@/components/ui/DyButton.vue"
+import { ActionButton } from "dypos-ui"
 import PasswordStrengthBar from "@/components/reports/dashboards/core/PasswordStrengthBar.vue"
 
 import {
@@ -302,13 +302,13 @@ onUnmounted(() => {
 							class="dy-reset__token-invalid-icon"
 						/>
 						<span>{{ displayError }}</span>
-						<DyButton
+						<ActionButton
 							variant="solid"
 							class="dy-reset__token-invalid-btn"
 							@click="goToLoginNow"
 						>
 							العودة إلى تسجيل الدخول
-						</DyButton>
+						</ActionButton>
 					</div>
 				</Transition>
 
@@ -490,14 +490,14 @@ onUnmounted(() => {
 					<!-- Submit -->
 
 					<div class="dy-reset__submit">
-						<DyButton
+						<ActionButton
 							:loading="isSubmitting"
 							:disabled="!canSubmit"
 							variant="solid"
 							class="dy-reset__submit-btn"
 						>
 							{{ isSubmitting ? "جاري الحفظ..." : "تعيين كلمة المرور" }}
-						</DyButton>
+						</ActionButton>
 					</div>
 				</form>
 

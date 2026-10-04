@@ -343,6 +343,7 @@ import StockTransferDialog from "./StockTransferDialog.vue"
 import StockHistoryDialog from "./StockHistoryDialog.vue"
 import SummaryCard from "@/components/work/SummaryCard.vue"
 import SelectInput from "@/components/common/SelectInput.vue"
+import { useToast } from "@/composables/useToast"
 
 const props = defineProps({
 	warehouses: { type: Array, default: () => [] },

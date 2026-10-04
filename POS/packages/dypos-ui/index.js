@@ -49,6 +49,7 @@ export {
 	METHOD_PREFIX,
 	request,
 	resolveUrl,
+	setRuntimeApiBaseResolver,
 	unwrapEnvelope,
 } from "./src/utils/request.js"
 export { getConfig, setConfig } from "./src/utils/config.js"

@@ -11,7 +11,7 @@
  * check (no DOM, no bundler, no network) so it still runs when a runtime
  * dependency is gone, and it fails on exactly the three ways that contract
  * regresses:
- *
+ *npm
  *   1. an Arabic literal on the surface that no locale bundle translates;
  *   2. a literal string that bypasses `__()` (an unwrapped text node or an
  *      unbound attribute — the codemod's leftover class);
@@ -27,14 +27,31 @@ import { fileURLToPath } from "node:url"
 const POS = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const read = (...p) => readFileSync(join(POS, ...p), "utf8")
 
-/** Every file that renders or decides login-surface copy. */
+/**
+ * Every file that renders or decides login-surface copy.
+ *
+ * The extracted components are listed here, not just the page: this round moved
+ * the runtime-status table, the context chips and the lockout message OUT of
+ * `Login.vue` into `composables/`, and into `LoginContextChips.vue`. A surface
+ * list that names only the page stops checking those strings — and a gate that
+ * quietly stops covering half the screen is worse than no gate, because the
+ * remaining half still reports green.
+ */
 const SURFACE = [
 	"src/pages/Login.vue",
 	"src/components/common/LoginAppearanceBar.vue",
 	"src/components/common/LoginSessionTimeoutDialog.vue",
 	"src/components/common/LoginSessionLockDialog.vue",
+	"src/components/common/LoginContextChips.vue",
+	"src/components/common/LoginPinForm.vue",
+	"src/components/common/LoginSecurityPanel.vue",
+	"src/components/common/ShiftOpsPanel.vue",
+	"src/components/common/DeviceHealthPanel.vue",
+	"src/components/common/SystemAboutPanel.vue",
 	"src/composables/useLoginPreferences.js",
 	"src/composables/useLoginRuntime.js",
+	"src/composables/useLoginRuntimeStatus.js",
+	"src/composables/useRateLimitMessage.js",
 ]
 
 const LOCALES = ["en", "id", "pt-br"]
@@ -87,13 +104,31 @@ describe("login surface — every Arabic string has a translation", () => {
 			const keys = surfaceKeys(read(file))
 
 			if (file.endsWith("Login.vue")) {
-				// Coverage floor, so a broken extractor cannot make the whole
-				// block vacuously green: the page carried ~100 literals and
-				// the floor is comfortably under that.
+				/*
+				 * The floor moved from "the page alone" to "the whole surface".
+				 *
+				 * It used to be 60 keys on `Login.vue`, because that is where the
+				 * copy lived. Extraction legitimately moved those strings into
+				 * components — so a per-page floor started failing on a page that
+				 * lost work, which is the ratchet pushing the WRONG way.
+				 *
+				 * The guard still has to exist: a broken extractor makes every
+				 * assertion below vacuously true, and 60 on the page alone no
+				 * longer measures the screen a user actually reads.
+				 */
+				const surfaceKeysTotal = SURFACE.reduce(
+					(total, f) => total + surfaceKeys(read(f)).length,
+					0,
+				)
+
 				expect(
-					keys.length,
-					`${file}: extractor found almost nothing — the gate is blind`,
-				).toBeGreaterThanOrEqual(60)
+					surfaceKeysTotal,
+					[
+						`${file}: extractor found almost nothing across the surface — the gate is blind.`,
+						"Extraction moved the strings, so the floor has to follow them:",
+						"it is measured over every file in SURFACE, not over this page alone.",
+					].join(" "),
+				).toBeGreaterThanOrEqual(90)
 			}
 
 			for (const key of keys) {
@@ -128,7 +163,23 @@ describe("login surface — nothing escapes __()", () => {
 		const start = source.indexOf("<template>")
 		if (start === -1) return [] // script-only module: covered by the key test
 
-		const template = stripComments(source.slice(start))
+		/*
+		 * Stop at `</template>`, not at end-of-file.
+		 *
+		 * Slicing to EOF pulled the whole `<script>` block into the template scan,
+		 * so every string TABLE (`RUNTIME_STATUS_BY_STATE`, the six product
+		 * claims, the device-status labels) was reported as unwrapped copy. They
+		 * are not rendered raw: each is passed through `__()` at the render site,
+		 * which is exactly why they need dictionary entries — and the key test
+		 * above already proves they resolve.
+		 *
+		 * A gate that flags the fix it demands ("wrap these in `__()`") for
+		 * strings that are already wrapped is a gate people switch off.
+		 */
+		const end = source.indexOf("</template>", start)
+		const raw = end === -1 ? source.slice(start) : source.slice(start, end)
+
+		const template = stripComments(raw)
 			// Expressions are already wrapped — they are not literals.
 			.replace(/\{\{[\s\S]*?\}\}/g, " ")
 			.replace(/:[a-zA-Z-]+="[^"]*"/g, " ")
@@ -162,16 +213,30 @@ describe("login surface — the wiring the feature depends on", () => {
 	})
 
 	it("translates cached computed labels at render time when the locale changes", () => {
+		// `__(detail.label)` moved out of `Login.vue` with the security panel.
+		// The RULE is unchanged — a cached computed label must still go through
+		// `__()` at render time, or the screen keeps printing the previous
+		// locale's text — so the assertion follows the markup to its new home
+		// instead of being deleted.
 		for (const expression of [
 			"__(runtimeStatus.label)",
-			"__(detail.label)",
-			"__(detail.value)",
 			"__(submitLabel)",
 			"__(passwordStrength.label)",
 			"__(email ? PIN_DEVICE_HINT : PIN_EMAIL_REQUIRED)",
 		]) {
 			expect(page).toContain(expression)
 		}
+
+		const securityPanel = read(
+			"src",
+			"components",
+			"common",
+			"LoginSecurityPanel.vue",
+		)
+		for (const expression of ["__(detail.label)", "__(detail.value)"]) {
+			expect(securityPanel).toContain(expression)
+		}
+
 		expect(page).not.toContain("label: __(row.label)")
 	})
 

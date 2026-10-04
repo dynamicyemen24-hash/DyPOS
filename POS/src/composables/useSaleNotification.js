@@ -16,10 +16,15 @@
  * Usage:
  *   const { notification, showNotification, dispose } = createSaleNotification()
  *   showNotification("تم إتمام عملية البيع بنجاح", "success")
+ *
+ * Additional: the composable dispatches a global event
+ * `dypos:show-prof-notif` whenever `showNotification` is called, allowing
+ * other parts of the app (e.g. the professional notification bar) to react.
  */
 import { ref } from "vue"
 
 export const SALE_NOTIFICATION_TTL = 3500
+export const PROFESSIONAL_NOTIF_EVENT = "dypos:show-prof-notif"
 
 export function createSaleNotification(ttlMs = SALE_NOTIFICATION_TTL) {
 	const notification = ref(null)
@@ -37,6 +42,17 @@ export function createSaleNotification(ttlMs = SALE_NOTIFICATION_TTL) {
 		timeoutId = window.setTimeout(() => {
 			notification.value = null
 		}, ttlMs)
+
+		// Dispatch a global event so the professional notification bar can react
+		try {
+			window.dispatchEvent(
+				new CustomEvent(PROFESSIONAL_NOTIF_EVENT, {
+					detail: { message, type },
+				}),
+			)
+		} catch {
+			// window may not be available (e.g. SSR) — ignore
+		}
 	}
 
 	/** Drop the visible notification and cancel its pending dismiss. */

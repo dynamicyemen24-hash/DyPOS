@@ -185,8 +185,18 @@ describe("payload builders", () => {
 })
 
 describe("normalizePaymentErrorPure", () => {
+	/**
+	 * The verb that makes a message actionable rather than a dead end.
+	 *
+	 * Two shapes count: an IMPERATIVE ("راجع الإيصال") and a REASSURANCE that
+	 * states what will happen next ("ستُرسل تلقائيًا"). A cashier who is told
+	 * the sale is safe and will sync has an action too — "carry on serving" —
+	 * which is exactly what the offline branch needs to say.
+	 */
+	const ACTION = /(راجع|أعد|تأكد|توجّه|تواصل|افتح|اضغط|اختر|ستُرسل|سيتم|عند عودة)/
+
 	it("409/422/offline branches in order", () => {
-		expect(normalizePaymentErrorPure({ status: 409 }, true)).toContain("مسبقًا")
+		expect(normalizePaymentErrorPure({ status: 409 }, true)).toContain("عولجت")
 		expect(
 			normalizePaymentErrorPure({ response: { status: 422 } }, true),
 		).toContain("اعتماد")
@@ -194,7 +204,46 @@ describe("normalizePaymentErrorPure", () => {
 			"الاتصال",
 		)
 	})
+
+	/**
+	 * The contract that matters: every failure tells the cashier what to do.
+	 *
+	 * Asserted as a PROPERTY, not as exact copy, so rewording the Arabic does
+	 * not break the build while losing the action does.
+	 */
+	it("every failure names a next action", () => {
+		const cases = [
+			[{ status: 409 }, true],
+			[{ response: { status: 422 } }, true],
+			[new Error("network"), false],
+			[{}, true],
+		]
+		for (const [error, online] of cases) {
+			const message = normalizePaymentErrorPure(error, online)
+			expect(message.length).toBeGreaterThan(0)
+			expect(message, `no recovery action in: ${message}`).toMatch(ACTION)
+		}
+	})
+
+	/**
+	 * The offline sentence must NOT tell the cashier the sale was lost.
+	 *
+	 * AGENTS.md invariant 8: the sale is already in IndexedDB. Telling a
+	 * cashier "the operation was not applied" during a network blip is what
+	 * produces double-charged customers — they re-ring the sale.
+	 */
+	it("offline reassures that the sale is saved on the device", () => {
+		const message = normalizePaymentErrorPure(new Error("down"), false)
+		expect(message).toMatch(/حُفظت/)
+		expect(message).toMatch(/الجهاز/)
+		// And it must not claim the money was lost.
+		expect(message).not.toMatch(/لم يتم اعتماد/)
+		expect(message).not.toMatch(/لم يُسجّل/)
+	})
+
 	it("falls back server → error → generic", () => {
+		// A server message is still preferred verbatim — the branch order is
+		// unchanged, only the fallback copy gained a recovery line.
 		expect(
 			normalizePaymentErrorPure(
 				{ response: { data: { message: "srv" } } },
@@ -202,7 +251,7 @@ describe("normalizePaymentErrorPure", () => {
 			),
 		).toBe("srv")
 		expect(normalizePaymentErrorPure(new Error("boom"), true)).toBe("boom")
-		expect(normalizePaymentErrorPure({}, true)).toBe("تعذر إتمام عملية الدفع.")
+		expect(normalizePaymentErrorPure({}, true)).toMatch(ACTION)
 	})
 })
 

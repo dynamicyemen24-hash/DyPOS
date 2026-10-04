@@ -65,15 +65,16 @@
 					`aria-label` يسمّي الجهاز نفسه: صفّ فيه ثلاثة أجهزة
 					وثلاثة أزرار «إبطال» لا يُميَّز منها شيء.
 				-->
-				<DyButton
+				<ActionButton
 					v-if="!device.revoked"
-					variant="danger"
+					theme="red"
+					variant="solid"
 					size="sm"
 					:aria-label="`إبطال الدخول من ${device.label}`"
 					@click="askRevoke(device)"
 				>
 					إبطال
-				</DyButton>
+				</ActionButton>
 			</li>
 		</ul>
 
@@ -89,15 +90,16 @@
 			@update:model-value="cancelRevoke"
 		>
 			<template #actions="{ close }">
-				<DyButton variant="ghost" size="md" @click="close">تراجع</DyButton>
-				<DyButton
-					variant="danger"
+				<ActionButton variant="ghost" size="md" @click="close">تراجع</ActionButton>
+				<ActionButton
+					theme="red"
+					variant="solid"
 					size="md"
 					:loading="busy"
 					@click="confirmRevoke"
 				>
 					إبطال الجهاز
-				</DyButton>
+				</ActionButton>
 			</template>
 		</Dialog>
 	</section>
@@ -114,7 +116,7 @@ import { computed, onMounted, ref } from "vue"
 import { Alert, Dialog, FeatherIcon } from "dypos-ui"
 
 import DyBadge from "@/components/ui/DyBadge.vue"
-import DyButton from "@/components/ui/DyButton.vue"
+import { ActionButton } from "dypos-ui"
 import { usePasskeyDevices } from "@/composables/usePasskeyDevices"
 
 const { devices, summary, loading, busy, error, success, load, revoke, reset } =

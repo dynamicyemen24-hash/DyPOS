@@ -40,7 +40,7 @@
 
       <!-- Action -->
       <div v-if="actionLabel" class="work-empty-state__action">
-        <DyButton
+        <ActionButton
           :variant="actionVariant"
           :size="actionSize"
           :icon="actionIcon"
@@ -49,7 +49,7 @@
           :aria-label="actionAriaLabel || t(actionLabel)"
         >
           {{ t(actionLabel) }}
-        </DyButton>
+        </ActionButton>
       </div>
 
       <!-- Secondary content -->
@@ -62,7 +62,7 @@
 import { computed } from "vue"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
-import DyButton from "@/components/ui/DyButton.vue"
+import { ActionButton } from "dypos-ui"
 
 const props = defineProps({
 	/** Title */

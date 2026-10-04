@@ -1,4 +1,4 @@
-﻿<!--
+<!--
   =============================================================================
   DyPOS â€” Subscriber Registration Page
   Production Grade / End-to-End SaaS
@@ -21,7 +21,10 @@ import { ref, computed, onMounted, onUnmounted, watch } from "vue"
 import { FeatherIcon } from "dypos-ui"
 import { ActionButton } from "dypos-ui"
 
-import DyButton from "@/components/ui/DyButton.vue"
+// The retired four-family button import was left behind after the 1.44.5
+// unification, so this page failed to resolve — and nothing caught it:
+// `vite build` reports one missing module at a time, and no test mounted the
+// register screen until the mount-every-SFC block landed.
 import CompanyFooter from "@/components/common/CompanyFooter.vue"
 import PasswordStrengthBar from "@/components/reports/dashboards/core/PasswordStrengthBar.vue"
 
@@ -31,6 +34,11 @@ import { normalizeArabic } from "@/utils/arabic"
 import { logger } from "@/utils/logger"
 import { useReducedMotion } from "@/composables/useReducedMotion"
 import { useMediaQuery } from "@/composables/useMediaQuery"
+import {
+	confirmPasswordError as getConfirmPasswordError,
+	emailValidationError,
+	fullNameValidationError,
+} from "@/utils/registrationValidation"
 import { isLinkEnabled } from "@/services/link-consent"
 import { userRepository } from "@/repositories/userRepository"
 import {
@@ -106,27 +114,11 @@ const passwordError = computed(() => {
 	return validatePassword(password.value)[0] ?? ""
 })
 
-const emailError = computed(() => {
-	if (!email.value) return ""
-	const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-	if (!emailRegex.test(email.value))
-		return "Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ ØºÙŠØ± ØµØ§Ù„Ø­"
-	return ""
-})
-
-const confirmPasswordError = computed(() => {
-	if (!confirmPassword.value) return ""
-	if (confirmPassword.value !== password.value)
-		return "ÙƒÙ„Ù…Ø§Øª Ø§Ù„Ù…Ø±ÙˆØ± ØºÙŠØ± Ù…ØªØ·Ø§Ø¨Ù‚Ø©"
-	return ""
-})
-
-const fullNameError = computed(() => {
-	if (!fullName.value.trim()) return ""
-	if (fullName.value.trim().length < 2)
-		return "Ø§Ù„Ø§Ø³Ù… ÙŠØ¬Ø¨ Ø£Ù† ÙŠÙƒÙˆÙ† Ø­Ø±ÙÙŠÙ† Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„"
-	return ""
-})
+const emailError = computed(() => emailValidationError(email.value))
+const confirmPasswordError = computed(() =>
+	getConfirmPasswordError(password.value, confirmPassword.value),
+)
+const fullNameError = computed(() => fullNameValidationError(fullName.value))
 
 const hasErrors = computed(() => {
 	return (
@@ -386,7 +378,7 @@ onUnmounted(() => {
 			aria-live="polite"
 		>
 			<FeatherIcon name="wifi-off" :size="16" aria-hidden="true" />
-			<span>ÙˆØ¶Ø¹ Ø¹Ø¯Ù… Ø§Ù„Ø§ØªØµØ§Ù„ â€” Ø³ÙŠØªÙ… Ø­ÙØ¸ Ø§Ù„Ø­Ø³Ø§Ø¨ Ù…Ø­Ù„ÙŠÙ‹Ø§</span>
+			<span>وضع عدم الاتصال — Ø³ÙŠØªÙ… Ø­ÙØ¸ Ø§Ù„Ø­Ø³Ø§Ø¨ Ù…Ø­Ù„ÙŠÙ‹Ø§</span>
 		</div>
 
 		<!--
@@ -461,13 +453,13 @@ onUnmounted(() => {
 						Ù„Ø¨Ø¯Ø¡ Ø§Ø³ØªØ®Ø¯Ø§Ù… Ù†Ù‚Ø·Ø© Ø§Ù„Ø¨ÙŠØ¹.
 					</p>
 
-					<DyButton
-						variant="primary"
+					<ActionButton
+						variant="solid"
 						size="lg"
 						@click="goToLogin"
 					>
 						Ø§Ù„Ø§Ù†ØªÙ‚Ø§Ù„ Ø¥Ù„Ù‰ ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„
-					</DyButton>
+					</ActionButton>
 				</div>
 
 				<!-- Error -->
@@ -865,9 +857,9 @@ onUnmounted(() => {
 
 					<!-- Submit -->
 
-					<DyButton
+					<ActionButton
 						type="submit"
-						variant="primary"
+						variant="solid"
 						size="lg"
 						class="dy-register__submit"
 						:loading="isSubmitting"
@@ -889,7 +881,7 @@ onUnmounted(() => {
 						/>
 
 						{{ isSubmitting ? 'Ø¬Ø§Ø±ÙŠ Ø§Ù„ØªØ³Ø¬ÙŠÙ„...' : 'Ø¥Ù†Ø´Ø§Ø¡ Ø§Ù„Ø­Ø³Ø§Ø¨' }}
-					</DyButton>
+					</ActionButton>
 
 					<ActionButton
 						variant="subtle"

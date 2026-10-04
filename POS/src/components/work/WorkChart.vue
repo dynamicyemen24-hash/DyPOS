@@ -31,9 +31,9 @@
       <FeatherIcon :name="errorIcon" class="work-chart__error-icon" aria-hidden="true" />
       <p class="work-chart__error-text">{{ t('chartError') }}</p>
       <p class="work-chart__error-detail">{{ t(error) }}</p>
-      <DyButton variant="outline" size="sm" @click="$emit('retry')">
+      <ActionButton variant="outline" size="sm" @click="$emit('retry')">
         {{ t('retry') }}
-      </DyButton>
+      </ActionButton>
     </div>
 
     <!-- Empty -->
@@ -78,7 +78,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
-import DyButton from "@/components/ui/DyButton.vue"
+import { ActionButton } from "dypos-ui"
 
 const props = defineProps({
 	/** Chart type */

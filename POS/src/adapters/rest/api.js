@@ -2,7 +2,13 @@
  * DyPOS REST API Adapter — Implements IProductRepository, ICustomerRepository, etc.
  * Swappable with the method bridge. Just change VITE_DYPOS_BACKEND.
  */
-const API_BASE = import.meta.env.VITE_DYPOS_API || "/api"
+import {
+	getServiceEndpoint,
+	SERVICE_ENDPOINTS,
+	subscribeRuntimeEndpoints,
+} from "@/services/runtime-endpoints"
+
+const apiBase = () => getServiceEndpoint(SERVICE_ENDPOINTS.API)
 
 class ApiClient {
 	constructor() {
@@ -22,7 +28,7 @@ class ApiClient {
 			...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
 			...options.headers,
 		}
-		const res = await fetch(`${API_BASE}${path}`, { ...options, headers })
+		const res = await fetch(`${apiBase()}${path}`, { ...options, headers })
 		if (res.status === 401) {
 			this.clearToken()
 			if (typeof window !== "undefined") {
@@ -57,6 +63,9 @@ class ApiClient {
 }
 
 const api = new ApiClient()
+subscribeRuntimeEndpoints(({ service }) => {
+	if (service === SERVICE_ENDPOINTS.API) api.clearToken()
+})
 
 // ── Auth ──
 export async function login(username, password) {

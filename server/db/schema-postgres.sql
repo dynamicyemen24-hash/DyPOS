@@ -38,7 +38,16 @@ CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
 CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
 CREATE INDEX IF NOT EXISTS idx_products_active_cat ON products(is_active, category);
+-- Product code is unique PER TENANT (v36): the column-level UNIQUE in
+-- migrations-initial.js was global, so two shops could not both stock code
+-- "1001". Postgres needs no table rebuild here — the constraint is on the
+-- column, so the narrower index replaces it outright.
 CREATE INDEX IF NOT EXISTS idx_products_code ON products(code);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_products_tenant_code ON products(tenant_id, code);
+-- …and the unbound half. In Postgres a NULL in a unique index is also distinct,
+-- so legacy (tenant_id IS NULL) rows need their own partial unique index or
+-- duplicate codes sail through.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_products_null_tenant_code ON products(code) WHERE tenant_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_products_name_active ON products(is_active, name);
 
 CREATE TABLE IF NOT EXISTS customers (
@@ -120,7 +129,14 @@ CREATE TABLE IF NOT EXISTS invoices (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_number ON invoices(number);
+-- Invoice number is unique PER TENANT, not globally (v36). Tenancy added
+-- tenant_id after this index existed; a global unique made a second shop —
+-- which also numbers from 1 — fail with a constraint error.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_number ON invoices(tenant_id, number);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_null_tenant_number ON invoices(number) WHERE tenant_id IS NULL;
+-- Idempotency key likewise: a cross-tenant collision could return one tenant's
+-- invoice to another's retry.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_idem ON invoices(tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_idem ON invoices(tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
 CREATE INDEX IF NOT EXISTS idx_invoices_shift ON invoices(shift_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
@@ -190,6 +206,10 @@ CREATE TABLE IF NOT EXISTS coupons (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_coupons_code ON coupons(code);
+-- Coupon code is unique PER TENANT (v36) — a discount is money, and two shops
+-- running the same promotion code is the normal case, not a collision.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_coupons_tenant_code ON coupons(tenant_id, code);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_coupons_null_tenant_code ON coupons(code) WHERE tenant_id IS NULL;
 
 CREATE TABLE IF NOT EXISTS loyalty_transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -896,6 +916,25 @@ INSERT INTO schema_version (version, description) VALUES (25, 'opening balances 
 ALTER TABLE opening_balances ADD COLUMN IF NOT EXISTS product_id UUID REFERENCES products(id);
 CREATE INDEX IF NOT EXISTS idx_opening_product ON opening_balances(product_id);
 INSERT INTO schema_version (version, description) VALUES (26, 'opening balances item link (product_id)') ON CONFLICT DO NOTHING;
+
+-- v34: record protection — void status for expenses + opening balances.
+--
+-- No business record is ever physically deleted: invoices retire through
+-- `status`, products/customers/coupons/offers through `is_active`, and these
+-- two tables had neither. Same shape invoices carry: POSTED live, VOIDED
+-- retired, plus who/when/why. Lists read POSTED by default; supervisors keep
+-- the full register through the audit trail and explicit filters.
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'POSTED';
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS voided_at timestamptz;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS voided_by TEXT;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS void_reason TEXT;
+CREATE INDEX IF NOT EXISTS idx_expenses_status ON expenses(status, date DESC);
+ALTER TABLE opening_balances ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'POSTED';
+ALTER TABLE opening_balances ADD COLUMN IF NOT EXISTS voided_at timestamptz;
+ALTER TABLE opening_balances ADD COLUMN IF NOT EXISTS voided_by TEXT;
+ALTER TABLE opening_balances ADD COLUMN IF NOT EXISTS void_reason TEXT;
+CREATE INDEX IF NOT EXISTS idx_opening_status ON opening_balances(status, fiscal_year);
+INSERT INTO schema_version (version, description) VALUES (34, 'record protection: void status for expenses + opening balances') ON CONFLICT DO NOTHING;
 /*
 ===============================================================================
 DyPOS — GLOBAL PRODUCTION DATABASE ENGINE PACK
@@ -3951,7 +3990,7 @@ COMMIT;
 --    tables by tenant/date. Do this only after measuring actual workload and
 --    query plans.
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_idem ON invoices(tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_null_tenant_idem ON invoices(idempotency_key) WHERE tenant_id IS NULL AND idempotency_key IS NOT NULL AND idempotency_key <> '';
 
 -- ============================================================================
 -- v33 — QUEUE MANAGEMENT (نظام الطوابير)

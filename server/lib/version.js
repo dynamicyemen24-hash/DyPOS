@@ -1,5 +1,60 @@
 /**
- * DyPOS single source of truth for the server version (C3) v1.44.4
+ * DyPOS single source of truth for the server version (C3) v1.44.7
+ *
+ * 1.44.6 -- the round where a green suite stopped being evidence. Fourteen real
+ * defects, and the reason no gate saw them is the same every time: a gate that
+ * READS text cannot see a binding that is missing at RUN time. `vite build`
+ * accepted all fourteen; 2077 unit tests accepted all fourteen.
+ *
+ *   - `Login.vue` did not render at all. An unterminated block comment swallowed
+ *     the line declaring `runtimeStatus`, so the template read `.type` off
+ *     `undefined` -- `TypeError: Cannot read properties of undefined (reading
+ *     'type')`. Separately, `showPinSetup`/`pinModeActive` were passed INTO a
+ *     composable and destructured back OUT of the same `const` (a
+ *     temporal-dead-zone hit), and `handleKeyboardSubmit` / `enterPinMode` /
+ *     `exitPinMode` were bound in the template and declared nowhere.
+ *   - `TouchKeyboard.vue` called `defineProps(...)` without assigning it, then
+ *     read `props.isOpen` off the nonexistent binding.
+ *   - Five files called `__()` inside `<script setup>` without importing it --
+ *     it resolves through `globalProperties` in a TEMPLATE, never in a script.
+ *   - The self-checkout sale exported `backToCart`, `chooseMethod`,
+ *     `setTenderMinor` and `bumpTenderMinor` and defined NONE of them: a customer
+ *     at that till could not go back from payment, could not change payment
+ *     method, and could not type or add an amount. Its screen also never called
+ *     `startSession()`, so the session stayed `IDLE` and every item tap was
+ *     silently ignored -- the feature could not sell anything at all.
+ *   - The offline payment error told the cashier "the operation was not
+ *     applied" while the sale was already in IndexedDB (invariant 8). The
+ *     honest retry is to ring it again, and that is how a customer is charged
+ *     twice. It now says the sale is saved and will sync.
+ *   - `canConfirm` accepted an EMPTY cart, issuing a zero-value invoice.
+ *   - `setTenderMinor` clamped the tender to the total, so a customer paying
+ *     150 against 125 was shown "paid exactly" and left 25 short.
+ *   - `StockImportExportDialog` validated with `"product_code required"` and
+ *     `"invalid uom"` -- English, rendered verbatim in the preview table.
+ *
+ * The round's actual product is the three gates that would have caught them:
+ * every SFC is MOUNTED (`sfcCompiles.test.js`), a sale runs end to end
+ * (`selfCheckoutSale.test.js`), and every user-facing message is asserted to be
+ * Arabic and to name a recovery (`errorMessages.test.js`).
+ *
+ * 1.44.5 -- the round that finished what a green suite was hiding. Three
+ * defects, none of which any test could see, because each one lived in the
+ * gap between a gate and what it claimed to measure:
+ *   - the encoding gate exempted ITSELF. Its signatures were written as
+ *     literal characters, so the file matched its own detector and the only
+ *     way out was a KNOWN_UNREPAIRABLE entry naming the gate -- exactly the
+ *     one file whose corruption silently switches the check off. They are
+ *     escapes now, so the gate covers itself and the list is one file again.
+ *   - the operator menu arrived by RAISING the file-size cap (6239 -> 6259),
+ *     which is the one direction the ratchet forbids. Paid for by extraction
+ *     instead: the three print paths moved to `useSalePrint.js` (they shared
+ *     one spool -> direct -> browser fallback chain, copied three times in a
+ *     page no suite mounts) and the cap now moves DOWN, 6239 -> 6155.
+ *   - `create-local-user.mjs` carried the default password `DyPOS@2026` in
+ *     the repository with `must_change_password=0`. It now generates a
+ *     20-character password, forces the change on first login, and never
+ *     resets a live account's password.
  *
  * 1.44.3 -- the last deferred debt items closed. `formatter.enabled` is on
  * for the server and all five style rules it had been carrying as exemptions
@@ -65,5 +120,5 @@
  * Bumped with every change, as the deploy gate compares the live
  * /version.json against this number.
  */
-export const VERSION = '1.44.4';
+export const VERSION = '1.44.7';
 export default VERSION;

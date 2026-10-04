@@ -242,7 +242,15 @@ export function useLoginRuntime(options = {}) {
 
 				setRuntimeState("ready", "")
 			} catch (error) {
-				setRuntimeState("failed", "تعذر تجهيز البيئة الآمنة لتسجيل الدخول.")
+				// The first thing a user ever reads that says "failed". Naming the
+				// cause and the next step is the difference between a dead end and
+				// a person who reloads. Two most common causes are named, because
+				// "failed" alone sends the cashier looking for a network cable that
+				// is plugged in.
+				setRuntimeState(
+					"failed",
+					"تعذّر تجهيز بيئة تسجيل الدخول. إذا كان المتصفح في وضع التصفّح الخاص فاقبل ملفات الارتباط ثم أعد تحميل الصفحة، أو افتح التطبيق من اختصاره المعتاد.",
+				)
 				runtimeError.value = error
 				log.error("DyPOS runtime preparation failed", error)
 			}

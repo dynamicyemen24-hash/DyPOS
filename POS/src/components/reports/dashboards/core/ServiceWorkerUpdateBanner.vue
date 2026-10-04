@@ -9,7 +9,7 @@
 <script setup>
 import { useAppUpdate } from "@/composables/useAppUpdate"
 import { FeatherIcon } from "dypos-ui"
-import DyButton from "@/components/ui/DyButton.vue"
+import { ActionButton } from "dypos-ui"
 
 const {
 	updateAvailable,
@@ -79,13 +79,13 @@ const isCritical = () => String(release?.value?.severity || "") === "critical"
 				</div>
 
 				<div class="dy-sw-update-banner__actions">
-					<DyButton
-						variant="primary"
+					<ActionButton
+						variant="solid"
 						size="sm"
 						@click="applyUpdate"
 					>
 						تنزيل التحديث
-					</DyButton>
+					</ActionButton>
 
 					<button
 						v-if="!isCritical()"

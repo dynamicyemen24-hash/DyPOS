@@ -45,15 +45,17 @@
               </h2>
               <slot name="header" />
 
-              <button
+              <ActionButton
                 v-if="closable"
                 type="button"
-                class="work-drawer__close"
+                variant="ghost"
+                size="sm"
                 @click="handleClose"
                 :aria-label="t('close')"
-              >
-                <FeatherIcon :name="closeIcon" class="w-5 h-5" aria-hidden="true" />
-              </button>
+                class="work-drawer__close"
+			>
+				<FeatherIcon :name="closeIcon" class="w-5 h-5" aria-hidden="true" />
+			</ActionButton>
             </header>
 
             <!-- Body -->
@@ -68,15 +70,15 @@
             <footer v-if="$slots.footer || showDefaultFooter" class="work-drawer__footer">
               <slot name="footer">
                 <div class="work-drawer__footer-actions">
-                  <DyButton
+                  <ActionButton
                     v-if="cancelLabel"
                     variant="ghost"
                     @click="handleCancel"
                     :disabled="busy"
                   >
                     {{ t(cancelLabel) }}
-                  </DyButton>
-                  <DyButton
+                  </ActionButton>
+                  <ActionButton
                     v-if="confirmLabel"
                     :variant="confirmVariant"
                     :loading="busy"
@@ -84,7 +86,7 @@
                     :disabled="busy"
                   >
                     {{ t(confirmLabel) }}
-                  </DyButton>
+                  </ActionButton>
                 </div>
               </slot>
             </footer>
@@ -100,7 +102,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue"
 import { useLocale } from "@/composables/useLocale"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
-import DyButton from "@/components/ui/DyButton.vue"
+import { ActionButton } from "dypos-ui"
 
 const props = defineProps({
 	modelValue: { type: Boolean, required: true },

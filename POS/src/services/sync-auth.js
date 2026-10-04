@@ -5,6 +5,11 @@
 
 import db from "./db.js"
 import { SyncError, SyncErrorKind } from "./sync-error.js"
+import {
+	getServiceEndpoint,
+	SERVICE_ENDPOINTS,
+	subscribeRuntimeEndpoints,
+} from "./runtime-endpoints.js"
 
 const TOKEN_KEY = "DyPOS_access_token"
 const REFRESH_KEY = "DyPOS_refresh_token"
@@ -18,7 +23,8 @@ const EMPLOYEE_KEY = "DyPOS_employee_id"
  * same origin (same-site deployment).
  */
 export function getPlatformBaseUrl() {
-	return import.meta.env?.VITE_PLATFORM_URL || ""
+	const endpoint = getServiceEndpoint(SERVICE_ENDPOINTS.PLATFORM)
+	return endpoint === "/api" ? "" : endpoint
 }
 
 /**
@@ -172,6 +178,10 @@ export async function revokeAuth() {
 		/* IndexedDB unavailable */
 	}
 }
+
+subscribeRuntimeEndpoints(({ service }) => {
+	if (service === SERVICE_ENDPOINTS.PLATFORM) void revokeAuth()
+})
 
 /**
  * Refresh the access token using the stored refresh token.

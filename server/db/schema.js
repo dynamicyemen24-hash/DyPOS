@@ -16,57 +16,24 @@ import { DatabaseSync } from 'node:sqlite';
 import { migrateInitial } from './migrations-initial.js';
 import { initGrowthEngineTables } from '../lib/growthEngine.js';
 import { migrateTenancy } from './migrations-tenancy.js';
-import { migrateOpeningBalances } from './migrations-opening-balances.js';
-import { migrateInvoiceReturnTracking } from './migrations-invoice-returns.js';
-import { migratePromotionTenancy } from './migrations-promotion-tenancy.js';
-import { migrateOpeningBalanceItems } from './migrations-opening-balance-items.js';
-import { migrateInvoiceTenantIdempotency } from './migrations-invoice-tenant-idempotency.js';
-import { migrateShiftSettlementIntegrity } from './migrations-shift-settlement-integrity.js';
-import { migrateSyncLogBranchScope } from './migrations-sync-branch-scope.js';
-import { migrateCatalogParity } from './migrations-catalog-parity.js';
-import { migrateReorderPoint } from './migrations-reorder-point.js';
-import { migratePasskeys } from './migrations-passkeys.js';
-import { migrateQueueManagement } from './migrations-queue-management.js';
-
+import { LATE_MIGRATIONS } from './migration-ladder.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DYPOS_DB_PATH || join(__dirname, '..', 'data', 'dypos.db');
 
-const MIGRATION_VERSION = 33; // Increment when schema changes
-
 /**
- * Migrations that live in their own `db/migrations-*.js` file (v23+).
+ * The schema version is DERIVED, never hand-written.
  *
- * Data, not a fourth copy-pasted `if (currentVersion < N) { try { … } catch }`
- * block: a registration that differs from its neighbour's is how a version
- * silently stops running, and this file is capped by `tests/fileSize.test.js` —
- * every repeated wrapper is a line the cap cannot afford. Adding one is a single
- * entry here; the DDL and its rationale stay with the migration.
+ * This used to be `const MIGRATION_VERSION = 34; // Increment when schema
+ * changes`, and that comment is the whole bug: adding a migration to
+ * `migration-ladder.js` without remembering to edit a second, unrelated line
+ * left the new migration registered but NEVER RUN — and every green suite said
+ * so, because nothing checked the number against the ladder it claims to
+ * summarise. `tests/migration-ladder.test.js` now fails the build on that.
+ *
+ * Deriving it means the ladder is the single source (invariant 5) and a new row
+ * cannot be silently skipped.
  */
-const LATE_MIGRATIONS = Object.freeze([
-	{ version: 23, run: migratePromotionTenancy, note: 'offers + coupons tenant isolation' },
-	{ version: 24, run: migrateInvoiceReturnTracking, note: 'invoice return tracking fields' },
-	{ version: 25, run: (d) => migrateOpeningBalances(d), note: 'opening balances per fiscal year' },
-	{ version: 26, run: migrateOpeningBalanceItems, note: 'opening balances item link (product_id)' },
-	{
-		version: 27,
-		run: migrateInvoiceTenantIdempotency,
-		note: 'invoice idempotency scoped to tenant',
-	},
-	{
-		version: 28,
-		run: migrateShiftSettlementIntegrity,
-		note: 'shift settlement concurrency integrity',
-	},
-	{
-		version: 29,
-		run: migrateSyncLogBranchScope,
-		note: 'sync_log branch scope (multi-branch pull)',
-	},
-	{ version: 30, run: migrateCatalogParity, note: 'currency + UoM catalog parity (POS ⇄ SQLite)' },
-	{ version: 31, run: migrateReorderPoint, note: 'per-product reorder point' },
-	{ version: 32, run: migratePasskeys, note: 'webauthn passkey credentials' },
-	{ version: 33, run: migrateQueueManagement, note: 'queue management (tickets, counters, calls)' },
-]);
+const MIGRATION_VERSION = LATE_MIGRATIONS.reduce((highest, { version }) => Math.max(highest, version), 0);
 
 function columnExists(table, column) {
 	try {

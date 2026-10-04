@@ -1525,8 +1525,16 @@
 				</div>
 			</div>
 		</div>
-		<PrintMonitor ref="printMonitorRef" />
 	</Transition>
+
+	<!--
+		`PrintMonitor` was INSIDE the `<Transition>` above, which is why the
+		compiler rejected the whole file with «<Transition> expects exactly one
+		child element». The monitor is not part of the fade — it is a live
+		sibling that must keep reporting while the overlay is hidden — so it
+		lives beside the transition now, and the overlay fades alone.
+	-->
+	<PrintMonitor ref="printMonitorRef" />
 </template>
 
 <script setup>
@@ -1549,6 +1557,7 @@ import TranslatedHTML from "../common/TranslatedHTML.vue"
 import { useQzTray } from "@/composables/useQzTray"
 import { useAppTheme } from "@/composables/useAppTheme"
 import PrintMonitor from "@/components/printing/PrintMonitor.vue"
+import { __ } from "@/utils/translation"
 
 const log = logger.create("POSSettings")
 const {

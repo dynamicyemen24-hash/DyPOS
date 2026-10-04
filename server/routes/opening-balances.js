@@ -95,10 +95,17 @@ router.get('/', (req, res) => {
 		where.push('account_type=?');
 		args.push(String(req.query.accountType));
 	}
+	// Voided rows stay in the table but leave every default read surface;
+	// supervisors opt back in with ?includeVoided=1 (trail keeps the proof).
+	const includeVoided = ['1', 'true', 'yes'].includes(String(req.query.includeVoided || '').toLowerCase());
+	if (!includeVoided) {
+		where.push("status='POSTED'");
+	}
 	const rows = db
 		.prepare(
 			`SELECT id, tenant_id, fiscal_year, account_type, account_id, account_code,
-			        account_name, product_id, amount_minor, quantity, notes, created_by, created_at, updated_at
+			        account_name, product_id, amount_minor, quantity, notes, created_by, created_at, updated_at,
+			        status, voided_at, voided_by, void_reason
 			 FROM opening_balances WHERE ${where.join(' AND ')}
 			 ORDER BY fiscal_year DESC, account_type, account_name`,
 		)
@@ -342,6 +349,10 @@ router.put('/', (req, res) => {
 		  amount_minor=excluded.amount_minor,
 		  quantity=excluded.quantity,
 		  notes=excluded.notes,
+		  status='POSTED',
+		  voided_at=NULL,
+		  voided_by=NULL,
+		  void_reason=NULL,
 		  updated_at=datetime('now')
 	`).run(
 		id,
@@ -375,7 +386,15 @@ router.put('/', (req, res) => {
 	});
 });
 
-/** DELETE /api/opening-balances/:id — 404 for a foreign row, never 403. */
+/**
+ * DELETE /api/opening-balances/:id — VOID, never destroy. 404 for a foreign
+ * row, never 403.
+ *
+ * Retire, never destroy: an opening position is the baseline every later
+ * figure is measured against, so the row stays with status='VOIDED' + who /
+ * when / why. Lists read POSTED by default; supervisors keep the register
+ * through ?includeVoided=1 and the audit trail.
+ */
 router.delete('/:id', (req, res) => {
 	if (!canWrite(req)) return res.status(403).json({ error: 'صلاحية غير كافية' });
 	const tenantId = readTenant(req, res);
@@ -387,9 +406,15 @@ router.delete('/:id', (req, res) => {
 	if (row.tenant_id && tenantId && String(row.tenant_id) !== String(tenantId)) {
 		return res.status(404).json({ error: 'غير موجود' });
 	}
-	db.prepare('DELETE FROM opening_balances WHERE id=?').run(row.id);
+	if (row.status === 'VOIDED') return res.json({ deleted: true, id: row.id });
+	const reason = String(req.body?.reason || '')
+		.trim()
+		.slice(0, 500);
+	db.prepare(
+		"UPDATE opening_balances SET status='VOIDED',voided_at=datetime('now'),voided_by=?,void_reason=?,updated_at=datetime('now') WHERE id=?",
+	).run(String(req.user?.username || ''), reason, row.id);
 	req.audit?.('opening_balance.delete', { id: row.id, type: row.account_type });
-	recordTrail(req, { entity: 'OPENING_BALANCE', entityId: row.id, action: 'DELETE', before: row });
+	recordTrail(req, { entity: 'OPENING_BALANCE', entityId: row.id, action: 'VOID', before: row });
 	return res.json({ deleted: true, id: row.id });
 });
 

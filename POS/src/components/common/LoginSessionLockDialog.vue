@@ -16,7 +16,7 @@ import { ref } from "vue"
 
 import { FeatherIcon } from "dypos-ui"
 
-import DyButton from "@/components/ui/DyButton.vue"
+import { ActionButton } from "dypos-ui"
 import { useSessionLock } from "@/composables/useSessionLock"
 import { __ } from "@/utils/translation"
 import { logger } from "@/utils/logger"
@@ -142,16 +142,16 @@ async function submit() {
 					{{ error }}
 				</p>
 
-				<DyButton
+				<ActionButton
 					type="submit"
-					variant="primary"
+					variant="solid"
 					size="lg"
 					:loading="unlocking"
 					:disabled="unlocking"
 					class="dy-login__lock-submit"
 				>
 					{{ __("فتح الجلسة") }}
-				</DyButton>
+				</ActionButton>
 			</form>
 		</div>
 	</div>

@@ -48,23 +48,28 @@ import {
 } from "@/router"
 import { terminateSession } from "@/utils/auth"
 import { createSaleNotification } from "@/composables/useSaleNotification"
+import { createSalePrint } from "@/composables/useSalePrint"
+import { useSaleStatusLabel } from "@/composables/useSaleStatus"
 import {
 	createHeaderActions,
 	handleHeaderAction,
 	handleHeaderGroupAction,
 } from "@/composables/usePosHeaderActions"
 import { createKeyboardShortcuts } from "@/composables/useKeyboardShortcuts"
+import { useOperatorMenu } from "@/composables/useOperatorMenu"
 import { useConnectionWatch } from "@/composables/useConnectionWatch"
 import { gridNextIndex, readDirectionRTL } from "@/utils/gridNavigation"
 import POSHeader from "@/components/pos/POSHeader.vue"
+import OperatorMenu from "@/components/pos/OperatorMenu.vue"
 import PosKioskActions from "@/components/pos/PosKioskActions.vue"
 import PosHeaderActionGroup from "@/components/pos/PosHeaderActionGroup.vue"
+import PosStockActions from "@/components/pos/PosStockActions.vue"
+import PosToolsMenu from "@/components/pos/PosToolsMenu.vue"
 import SmartCashierDock from "@/components/pos/SmartCashierDock.vue"
 import SyncStatusIndicator from "@/components/pos/SyncStatusIndicator.vue"
 import SyncCenterDialog from "@/components/sale/SyncCenterDialog.vue"
 import AutocompleteSelect from "@/components/common/AutocompleteSelect.vue"
 import IconButton from "@/components/ui/IconButton.vue"
-import DyButton from "@/components/ui/DyButton.vue"
 
 import { useSmartCashier } from "@/composables/useSmartCashier"
 import { useDebouncedSearch } from "@/composables/useDebouncedSearch"
@@ -89,9 +94,12 @@ import {
 } from "@/utils/posSalePure"
 import { getCurrencySymbol } from "@/utils/currency"
 import { session } from "@/stores/session"
+import BarcodeScanner from "@/components/BarcodeScanner.vue"
+import { handleScan } from "@/utils/barcode-service.js"
 import { usePOSSettingsStore } from "@/stores/posSettings"
 import { logger } from "@/utils/logger"
 import { searchCachedCustomers } from "@/utils/offline/cache.js"
+import { __ } from "@/utils/translation"
 import {
 	buildProductIndex,
 	DEFAULT_FUZZY_SCAN_LIMIT,
@@ -192,6 +200,8 @@ const emit = defineEmits([
 
 const searchInput = ref(null)
 const productGrid = ref(null)
+const scanning = ref(false)
+const showScanner = ref(false)
 
 const searchQuery = ref("")
 const productView = ref("comfortable")
@@ -218,6 +228,7 @@ const cartError = ref("")
 const isOnline = ref(typeof navigator === "undefined" ? true : navigator.onLine)
 
 const syncState = ref("ready")
+const saleStatusLabel = useSaleStatusLabel(syncState)
 
 const activeProductIndex = ref(-1)
 
@@ -249,6 +260,13 @@ const showClearCartDialog = ref(false)
 /** Sync Center dialog (runtime destination picker). */
 const showSyncCenter = ref(false)
 
+/**
+ * Operator menu — the cashier chip in the header. The chip rendered with a
+ * chevron-down and a pointer cursor, then did nothing at all. State and action
+ * dispatch live in the composable; the page keeps only the ref and bindings.
+ */
+const { showOperatorMenu, closeOperatorMenu, onOperatorAction } =
+	useOperatorMenu()
 const showPaymentPanel = ref(false)
 
 const paymentAmount = ref("")
@@ -880,7 +898,10 @@ async function holdSale() {
 	} catch (error) {
 		logger?.error?.("DyPOS hold sale failed", error)
 
-		showNotification("تعذر تعليق عملية البيع", "error")
+		showNotification(
+			"تعذّر تعليق عملية البيع. لم تتأثر الفاتورة — أعد المحاولة.",
+			"error",
+		)
 	} finally {
 		busy.value = false
 	}
@@ -1200,126 +1221,19 @@ function captureCrashDraft() {
 }
 
 /* ============================================================================
- * Receipt
+ * Receipt & printing
+ *
+ * The three print paths (after-sale receipt, reprint-last, manual) moved to
+ * `composables/useSalePrint.js`: they share one fallback chain, and a chain
+ * copied three times in a 6k-line page is three places to fix and to forget.
  * ========================================================================== */
 
-function closeReceipt() {
-	receiptVisible.value = false
-}
-
-async function printReceipt() {
-	const sale = completedSale.value
-	const invoiceId = sale?.invoice_id || sale?.offline_id || sale?.name
-	if (!invoiceId) {
-		window.print()
-		return
-	}
-
-	try {
-		const settings = usePOSSettingsStore().settings
-
-		// Registered / offline invoice → route through the spool (SAP-style).
-		const { submitAndWait } = await import("@/print/index")
-		const job = await submitAndWait(
-			{
-				docType: "invoice",
-				docId: invoiceId,
-				title: `Invoice ${invoiceId}`,
-				payload: null,
-				formId: settings.value?.print_format || "",
-				requestedBy: null,
-				posProfile: settings.value?.pos_profile || null,
-			},
-			{ timeoutMs: 25000 },
-		)
-		if (job?.status === "COMPLETED") return
-		throw new Error(job?.lastError || "Receipt did not print")
-	} catch (error) {
-		// Spool unavailable or failed — never block the cashier; keep the
-		// historical browser-print behaviour as a safe fallback.
-		logger?.warn?.(
-			"Receipt spool print failed; browser fallback",
-			error?.message,
-		)
-		try {
-			const { printInvoiceByName } = await import("@/utils/printInvoice")
-			await printInvoiceByName(
-				invoiceId,
-				usePOSSettingsStore().settings.value?.print_format || null,
-			)
-		} catch {
-			window.print()
-		}
-	}
-}
-
-/* ============================================================================
- * Spool wiring — route manual/after-sale prints through the print queue.
- * ========================================================================== */
-
-/**
- * Handle a `print-invoice` / `printer-click` event: hydrate the invoice and
- * enqueue it on the print spool (never blocks the sale). Falls back to the
- * legacy direct print when the spool is unavailable.
- * @param {Object|string} invoice
- */
-async function handlePrintInvoice(invoice) {
-	const invoiceName =
-		typeof invoice === "string" ? invoice : invoice?.name || invoice?.offline_id
-	if (!invoiceName) return
-
-	try {
-		const { printInvoiceByName, isLocalOnlyInvoiceName } = await import(
-			"@/utils/printInvoice"
-		)
-		let invoiceData = null
-		if (isLocalOnlyInvoiceName(invoiceName)) {
-			const { hydrateLocalOnlyInvoice } = await import("@/utils/printInvoice")
-			invoiceData = await hydrateLocalOnlyInvoice({ name: invoiceName })
-		}
-
-		const { submitPrintJob } = await import("@/print/index")
-		const settings = usePOSSettingsStore().settings
-		const job = await submitPrintJob({
-			docType: "invoice",
-			docId: invoiceName,
-			title: invoiceName,
-			payload: invoiceData || null,
-			formId: settings.value?.print_format || "",
-			requestedBy: invoice?.requestedBy,
-			posProfile: settings.value?.pos_profile || null,
-		})
-		logger?.info?.("Invoice queued for print", { spoolNo: job?.spoolNo })
-	} catch (error) {
-		logger?.warn?.("Spool unavailable; direct print fallback", error?.message)
-		try {
-			const { printInvoiceByName } = await import("@/utils/printInvoice")
-			await printInvoiceByName(invoiceName)
-		} catch (printError) {
-			logger?.error?.("Direct print failed", printError?.message)
-		}
-	}
-}
-
-/** Reprint the last completed invoice (idempotent; spool dedupes rapid taps). */
-async function printLastInvoice() {
-	const invoiceId = lastSaleInvoiceId.value
-	if (!invoiceId) {
-		showNotification("لا توجد فاتورة سابقة للطباعة", "info")
-		return
-	}
-	await handlePrintInvoice(invoiceId)
-}
-
-/** Export current sale as JSON/CSV for reporting. */
-async function exportCurrentSale() {
-	const sale = completedSale.value
-	if (!sale) {
-		showNotification("لا توجد عملية بيع للتصدير", "info")
-		return
-	}
-	showNotification("بيانات البيع جاهزة للتصدير", "info")
-}
+const { printReceipt, handlePrintInvoice, printLastInvoice } = createSalePrint({
+	completedSale,
+	lastSaleInvoiceId,
+	getPrintSettings: () => usePOSSettingsStore().settings.value,
+	notify: showNotification,
+})
 
 /* ============================================================================
  * Returns
@@ -1358,6 +1272,8 @@ const headerActions = createHeaderActions({
 	showHeldSalesPanel,
 	openReturns,
 	showCustomerPanel,
+	showSyncCenter,
+	showOperatorMenu,
 })
 
 // طباعة آخر فاتورة تحتاج حالة الصفحة، فتبقى خارج خريطة الرأس.
@@ -1488,6 +1404,40 @@ watch(
 		customer.value = value || null
 	},
 )
+async function scanBarcode() {
+	if (scanning.value) return
+	scanning.value = true
+
+	// Trigger the BarcodeScanner component to start listening.
+	// The component will emit 'scan-result' with { code, format }.
+	this.$root.$emit("start-scan")
+}
+
+function onBarcodeScan(code) {
+	scanning.value = false
+	// Local cache first. `handleScan` never reaches the network on its own, so
+	// a miss is reported as a miss rather than becoming a silent request.
+	handleScan(code)
+		.then(({ found, product }) => {
+			if (found && product) {
+				addProduct(product)
+				showNotification(
+					__("تمت إضافة: {0}", { 0: product.item_name || product.name || "" }),
+					"success",
+				)
+				return
+			}
+			showNotification(
+				__("الباركود غير موجود في القائمة المحلية — تحقّق منه أو أضفه يدويًا"),
+				"warning",
+			)
+		})
+		.catch(() => {
+			// A thrown lookup is still not a network permission: say no more than
+			// the warning above rather than reporting a fault nobody can act on.
+			showNotification(__("تعذّر قراءة الباركود"), "warning")
+		})
+}
 </script>
 
 <template>
@@ -1529,6 +1479,9 @@ watch(
             @menu-clicked="
                 handleHeaderAction('menu', headerActions)
             "
+            @connection-clicked="handleHeaderAction('connection', headerActions)"
+            @cashier-clicked="handleHeaderAction('cashier', headerActions)"
+            @shift-clicked="handleHeaderAction('shift', headerActions)"
         >
             <!-- مؤشر حالة المزامنة الحي (معلّق/متصل/مزامنة أولية) -->
             <template #actions>
@@ -1540,26 +1493,8 @@ watch(
                     :allow-print-last-invoice="allowPrintLastInvoice"
                     @action="onHeaderGroupAction"
                 />
-                <ActionButton
-                    variant="subtle"
-                    size="sm"
-                    @click="goToStockManagement"
-                    :title="__('استيراد/تصدير')"
-                    :aria-label="__('استيراد/تصدير')"
-                >
-                    <FeatherIcon name="upload" class="h-[16px] w-[16px]" />
-<span>استيراد</span>
-                </ActionButton>
-                <ActionButton
-                    variant="subtle"
-                    size="sm"
-                    @click="goToStockManagement"
-                    :title="__('فحص المخزون')"
-                    :aria-label="__('فحص المخزون')"
-                >
-                    <FeatherIcon name="search" class="h-[14px] w-[14px]" />
-                    <span>مخزون</span>
-                </ActionButton>
+                <PosStockActions show-import @open="goToStockManagement" />
+                <PosToolsMenu @action="onHeaderGroupAction" />
             </template>
             </POSHeader>
 
@@ -1649,31 +1584,7 @@ watch(
                 aria-hidden="true"
             />
 
-            <span v-if="syncState === 'ready'">
-                جاهز للبيع
-            </span>
-
-            <span
-                v-else-if="
-                    syncState === 'syncing'
-                "
-            >
-                جاري مزامنة العملية...
-            </span>
-
-            <span
-                v-else-if="
-                    syncState === 'offline'
-                "
-            >
-                وضع العمل دون اتصال
-            </span>
-
-            <span
-                v-else
-            >
-                توجد مشكلة في الاتصال
-            </span>
+            <span>{{ saleStatusLabel }}</span>
 
             <span
                 v-if="cartItemCount"
@@ -1781,25 +1692,25 @@ watch(
                 <div
                     class="dy-pos-sale__crash-resume-actions"
                 >
-                    <DyButton
+                    <ActionButton
                         size="sm"
-                        variant="primary"
+                        variant="solid"
                         @click="
                             resumePendingSale
                         "
                     >
                         {{ crashResumeMessages.accept }}
-                    </DyButton>
+                    </ActionButton>
 
-                    <DyButton
+                    <ActionButton
                         size="sm"
-                        variant="secondary"
+                        variant="subtle"
                         @click="
                             dismissPendingSale
                         "
                     >
                         {{ crashResumeMessages.dismiss }}
-                    </DyButton>
+                    </ActionButton>
                 </div>
             </div>
         </Teleport>
@@ -1830,6 +1741,30 @@ watch(
                             :size="20"
                             class="dy-pos-sale__search-icon"
                             aria-hidden="true"
+                        />
+
+                        <!--
+							The scanner's stop control.
+							`:type` and `:size` were read as `type`/`size` — undefined
+							identifiers that made the SFC fail to compile, so the POS
+							build broke while every unit test stayed green (nothing mounts
+							this branch). The values are literal now, matching the other
+							controls in the search bar.
+						-->
+						<ActionButton
+							v-if="showScanner"
+							variant="subtle"
+							size="sm"
+							@click="showScanner = false"
+							:aria-label="__('إيقاف المسح')"
+						>
+							{{ __('إيقاف') }}
+						</ActionButton>
+
+                        <BarcodeScanner
+                            ref="barcodeScanner"
+                            @scan-result="onBarcodeScan"
+                            v-if="showScanner"
                         />
 
                         <input
@@ -1863,27 +1798,11 @@ watch(
                         <div
                             class="dy-pos-sale__quick-actions"
                         >
-                            <ActionButton
-                                variant="subtle"
-                                size="sm"
-                                :title="__('فحص المخزون')"
-                                :aria-label="__('فحص المخزون')"
-                                @click="goToStockManagement"
-                            >
-                                <FeatherIcon name="search" class="h-[14px] w-[14px]" />
-                                <span>مخزون</span>
-                            </ActionButton>
-
-                            <ActionButton
-                                variant="subtle"
-                                size="sm"
-                                :title="__('طباعة سريعة')"
-                                :aria-label="__('طباعة سريعة')"
-                                @click="printLastInvoice"
-                            >
-                                <FeatherIcon name="printer" class="h-[14px] w-[14px]" />
-                                <span>طباعة</span>
-                            </ActionButton>
+                            <PosStockActions
+                                show-print
+                                @open="goToStockManagement"
+                                @print="printLastInvoice"
+                            />
                         </div>
 
                         <button
@@ -2085,15 +2004,15 @@ watch(
                         {{ productsError }}
                     </span>
 
-                    <DyButton
+                    <ActionButton
                         size="sm"
-                        variant="secondary"
+                        variant="subtle"
                         @click="
                             productsError = ''
                         "
                     >
                         إعادة المحاولة
-                    </DyButton>
+                    </ActionButton>
                 </div>
 
                 <!-- Loading -->
@@ -2142,18 +2061,18 @@ watch(
                         جرّب البحث باسم المنتج أو الرمز.
                     </span>
 
-                    <DyButton
+                    <ActionButton
                         v-if="
                             searchQuery
                         "
                         size="sm"
-                        variant="secondary"
+                        variant="subtle"
                         @click="
                             searchQuery = ''
                         "
                     >
                         عرض كل المنتجات
-                    </DyButton>
+                    </ActionButton>
                 </div>
 
                 <!-- Products -->
@@ -2727,8 +2646,8 @@ watch(
                     <div
                         class="dy-pos-sale__primary-actions"
                     >
-                        <DyButton
-                            variant="primary"
+                        <ActionButton
+                            variant="solid"
                             size="xl"
                             class="dy-pos-sale__checkout"
                             data-testid="pos-proceed-to-payment"
@@ -2755,7 +2674,7 @@ watch(
                                     )
                                 }}
                             </strong>
-                        </DyButton>
+                        </ActionButton>
 
                         <ActionButton
                             variant="subtle"
@@ -2873,23 +2792,23 @@ watch(
                     <footer
                         class="dy-pos-sale__dialog-actions"
                     >
-                        <DyButton
-                            variant="secondary"
+                        <ActionButton
+                            variant="subtle"
                             @click="
                                 closeQuantityEditor
                             "
                         >
                             إلغاء
-                        </DyButton>
+                        </ActionButton>
 
-                        <DyButton
-                            variant="primary"
+                        <ActionButton
+                            variant="solid"
                             @click="
                                 commitQuantity
                             "
                         >
                             تأكيد
-                        </DyButton>
+                        </ActionButton>
                     </footer>
                 </div>
             </div>
@@ -2962,24 +2881,25 @@ watch(
                     <footer
                         class="dy-pos-sale__dialog-actions"
                     >
-                        <DyButton
-                            variant="secondary"
+                        <ActionButton
+                            variant="subtle"
                             @click="
                                 showClearCartDialog =
                                     false
                             "
                         >
                             إلغاء
-                        </DyButton>
+                        </ActionButton>
 
-                        <DyButton
-                            variant="danger"
+                        <ActionButton
+                            theme="red"
+                            variant="solid"
                             @click="
                                 clearCart
                             "
                         >
                             إفراغ السلة
-                        </DyButton>
+                        </ActionButton>
                     </footer>
                 </div>
             </div>
@@ -3291,8 +3211,8 @@ watch(
                     <footer
                         class="dy-pos-sale__dialog-actions dy-pos-sale__payment-actions"
                     >
-                        <DyButton
-                            variant="secondary"
+                        <ActionButton
+                            variant="subtle"
                             size="lg"
                             :disabled="
                                 paymentProcessing
@@ -3302,10 +3222,10 @@ watch(
                             "
                         >
                             إلغاء
-                        </DyButton>
+                        </ActionButton>
 
-                        <DyButton
-                            variant="primary"
+                        <ActionButton
+                            variant="solid"
                             size="lg"
                             data-testid="pos-complete-payment"
                             :loading="
@@ -3319,7 +3239,7 @@ watch(
                             "
                         >
                             تأكيد الدفع
-                        </DyButton>
+                        </ActionButton>
                     </footer>
                 </section>
             </div>
@@ -3387,8 +3307,8 @@ watch(
                     <div
                         class="dy-pos-sale__receipt-actions"
                     >
-                        <DyButton
-                            variant="secondary"
+                        <ActionButton
+                            variant="subtle"
                             size="lg"
                             @click="
                                 printReceipt
@@ -3400,10 +3320,10 @@ watch(
                             />
 
                             طباعة الإيصال
-                        </DyButton>
+                        </ActionButton>
 
-                        <DyButton
-                            variant="primary"
+                        <ActionButton
+                            variant="solid"
                             size="lg"
                             @click="
                                 startNewSale
@@ -3415,7 +3335,7 @@ watch(
                             />
 
                             بيع جديد
-                        </DyButton>
+                        </ActionButton>
                     </div>
                 </section>
             </div>
@@ -3679,6 +3599,12 @@ watch(
              =============================================================== -->
 
         <SyncCenterDialog v-model="showSyncCenter" />
+
+        <!-- =============================================================
+             Operator menu — opened by the cashier chip in the header
+             =============================================================== -->
+
+        <OperatorMenu :open="showOperatorMenu" @close="closeOperatorMenu" @action="onOperatorAction" />
     </div>
 </template>
 

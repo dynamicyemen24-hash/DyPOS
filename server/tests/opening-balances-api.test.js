@@ -319,6 +319,55 @@ describe('opening balances — tenant isolation', () => {
 		});
 		assert.strictEqual(r.status, 404);
 	});
+
+	it('void retires the row instead of destroying it (register + trail keep it)', async () => {
+		const saved = await req(
+			'PUT',
+			'/api/opening-balances',
+			{
+				fiscalYear: YEAR,
+				accountType: 'customer',
+				accountId: `void-${stamp}`,
+				accountName: 'عميل للإبطال',
+				amount: '10.00',
+			},
+			tokenA,
+			{ 'X-Tenant-Id': tenantA },
+		);
+		assert.strictEqual(saved.status, 201);
+		const id = saved.body.id;
+
+		const del = await req('DELETE', `/api/opening-balances/${id}`, { reason: 'رصيد مكرر' }, tokenA, {
+			'X-Tenant-Id': tenantA,
+		});
+		assert.strictEqual(del.status, 200);
+		assert.strictEqual(del.body.deleted, true);
+
+		// Default reads drop it — the position no longer counts it.
+		const list = await req('GET', `/api/opening-balances?fiscalYear=${YEAR}`, null, tokenA, {
+			'X-Tenant-Id': tenantA,
+		});
+		assert.ok(!list.body.rows.some((r) => r.id === id), 'voided row leaked into the default list');
+
+		// The supervisory register keeps it with its void metadata.
+		const register = await req('GET', `/api/opening-balances?fiscalYear=${YEAR}&includeVoided=1`, null, tokenA, {
+			'X-Tenant-Id': tenantA,
+		});
+		const kept = register.body.rows.find((r) => r.id === id);
+		assert.ok(kept, 'voided row retained in the register');
+		assert.strictEqual(kept.status, 'VOIDED');
+		assert.ok(kept.voided_at, 'void timestamp recorded');
+
+		// The durable trail proves who retired it.
+		const trail = await req('GET', '/api/admin/trail?entity=OPENING_BALANCE&action=VOID', null, tokenA, {
+			'X-Tenant-Id': tenantA,
+		});
+		assert.strictEqual(trail.status, 200);
+		assert.ok(
+			trail.body.trail.some((t) => t.entity_id === id),
+			'void recorded in the audit trail',
+		);
+	});
 });
 
 describe('opening balances — authorisation', () => {

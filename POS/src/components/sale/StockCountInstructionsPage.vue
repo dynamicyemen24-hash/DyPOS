@@ -220,7 +220,7 @@
 <script setup>
 import { ref, computed } from "vue"
 import { DEFAULT_CURRENCY } from "@/utils/currency"
-import { FeatherIcon } from "dypos-ui"
+import { Button, FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
 // StepCard/ShortcutKey are not globally registered — without these imports the
 // whole steps + shortcuts sections of this page rendered as unknown elements.

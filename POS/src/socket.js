@@ -1,6 +1,12 @@
 import { io } from "socket.io-client"
 
 import { logger } from "@/utils/logger"
+import {
+	getServiceEndpoint,
+	getServiceEndpointOverride,
+	SERVICE_ENDPOINTS,
+	subscribeRuntimeEndpoints,
+} from "@/services/runtime-endpoints"
 
 const log = logger.create("Socket")
 
@@ -170,7 +176,7 @@ function getConfiguredPort() {
  * The current page protocol is authoritative unless an explicit
  * socket protocol is supplied by configuration.
  */
-function resolveSocketUrl(siteNameOverride) {
+export function resolveSocketUrl(siteNameOverride) {
 	if (!isBrowser()) {
 		return null
 	}
@@ -186,9 +192,10 @@ function resolveSocketUrl(siteNameOverride) {
 	const boot = getRuntimeBoot()
 
 	const configuredUrl =
-		import.meta.env?.VITE_SOCKETIO_URL ||
+		getServiceEndpointOverride(SERVICE_ENDPOINTS.SOCKET) ||
 		boot?.socketio_url ||
-		boot?.socketio_url_prefix
+		boot?.socketio_url_prefix ||
+		getServiceEndpoint(SERVICE_ENDPOINTS.SOCKET)
 
 	if (configuredUrl) {
 		try {
@@ -217,11 +224,7 @@ function resolveSocketUrl(siteNameOverride) {
 	 */
 	const isSecurePage = location.protocol === "https:"
 
-	const isLikelyDevelopment =
-		isDevelopment() ||
-		location.hostname === "localhost" ||
-		location.hostname === "127.0.0.1" ||
-		location.hostname === "::1"
+	const isLikelyDevelopment = isDevelopment()
 
 	const protocol = isSecurePage ? "https:" : "http:"
 
@@ -542,6 +545,10 @@ export function disconnectSocket() {
 		log.debug?.("Socket disconnected and cleared")
 	}
 }
+
+subscribeRuntimeEndpoints(({ service }) => {
+	if (service === SERVICE_ENDPOINTS.SOCKET) disconnectSocket()
+})
 
 /* -------------------------------------------------------------------------- */
 /* Socket access                                                              */

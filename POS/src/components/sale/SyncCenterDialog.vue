@@ -76,8 +76,17 @@
 				</p>
 				<div class="flex flex-wrap items-center gap-2">
 					<Button
+						v-if="linkMode !== 'linked'"
+						variant="solid"
+						class="text-xs"
+						@click="grantLinkConsent"
+					>
+						{{ __("السماح بالاتصال عند الطلب") }}
+					</Button>
+					<Button
 						variant="secondary"
 						class="text-xs"
+						:disabled="linkMode !== 'linked'"
 						@click="toggleAutomationMaster"
 					>
 						{{
@@ -126,6 +135,55 @@
 						</span>
 					</label>
 				</div>
+			</div>
+
+			<div class="border rounded-lg p-3 sm:p-4 flex flex-col gap-3">
+				<div>
+					<h4 class="font-semibold text-gray-900 text-sm">
+						{{ __("اتصالات الخدمات") }}
+					</h4>
+					<p class="mt-1 text-xs text-gray-600">
+						{{ __("تُحفظ العناوين على هذا الجهاز فقط. الحفظ لا يختبر الاتصال ولا يرسل بيانات.") }}
+					</p>
+				</div>
+				<label
+					v-for="service in endpointRows"
+					:key="service.key"
+					class="flex flex-col gap-1 text-xs text-gray-700"
+				>
+					{{ service.label }}
+					<input
+						v-model="endpointDrafts[service.key]"
+						type="url"
+						inputmode="url"
+						autocomplete="url"
+						maxlength="256"
+						class="rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-900 ltr:text-left"
+						:placeholder="endpointPlaceholder(service.key)"
+					/>
+				</label>
+				<p class="text-[11px] text-gray-500">
+					{{ __("رابط API مثال: https://server.example/api. اترك الحقل فارغًا لاستخدام إعداد البناء.") }}
+				</p>
+				<div class="flex flex-wrap items-center gap-2">
+					<Button variant="subtle" class="text-sm" @click="saveEndpoints">
+						{{ __("حفظ العناوين") }}
+					</Button>
+					<Button
+						variant="secondary"
+						class="text-sm"
+						:loading="endpointTestBusy"
+						@click="testApiEndpoint"
+					>
+						{{ __("اختبار API الآن") }}
+					</Button>
+				</div>
+				<p v-if="endpointMessage" class="text-xs" :class="endpointMessageClass">
+					{{ endpointMessage }}
+				</p>
+				<p class="text-[11px] text-gray-500">
+					{{ __("تغيير عنوان خدمة يلغي ربطها المحفوظ ويطلب موافقة جديدة؛ اختبار API اتصال لمرة واحدة بطلبك.") }}
+				</p>
 			</div>
 
 				<!-- Destinations -->
@@ -328,7 +386,7 @@
 
 <script setup>
 import { Button, Dialog } from "dypos-ui"
-import { computed, onMounted, ref, watch } from "vue"
+import { computed, onMounted, onUnmounted, ref, watch } from "vue"
 
 import { usePOSSyncStore } from "@/stores/posSync"
 import { getOfflineInvoices } from "@/utils/offline/sync"
@@ -343,6 +401,7 @@ import {
 	setActiveDestinationId,
 } from "@/services/sync-destinations"
 import { loginDestination, pingDestination } from "@/services/sync-remote"
+import { __ } from "@/utils/translation"
 import {
 	AUTO_MODES,
 	AUTO_TRIGGERS,
@@ -355,6 +414,14 @@ import {
 	setPollIntervalSec,
 	setTriggerMode,
 } from "@/services/link-consent"
+import {
+	getServiceEndpoint,
+	getServiceEndpointOverride,
+	SERVICE_ENDPOINTS,
+	setServiceEndpoint,
+	subscribeRuntimeEndpoints,
+	validateServiceEndpoint,
+} from "@/services/runtime-endpoints"
 
 const props = defineProps({
 	modelValue: Boolean,
@@ -407,6 +474,19 @@ const autoMaster = ref(false)
 const autoModes = ref({})
 const pollSec = ref(0)
 const triggerRows = TRIGGER_ROWS
+const ENDPOINT_ROWS = [
+	{ key: SERVICE_ENDPOINTS.API, label: "عنوان API الأساسي (يشمل /api)" },
+	{ key: SERVICE_ENDPOINTS.PLATFORM, label: "منصة المصادقة (أصل الموقع)" },
+	{
+		key: SERVICE_ENDPOINTS.SOCKET,
+		label: "Socket.IO prefix (يضاف مسار الموقع)",
+	},
+]
+const endpointRows = ENDPOINT_ROWS
+const endpointDrafts = ref({})
+const endpointMessage = ref("")
+const endpointMessageClass = ref("text-gray-600")
+const endpointTestBusy = ref(false)
 
 function loadLinkage() {
 	linkMode.value = getLinkMode()
@@ -420,6 +500,89 @@ function loadLinkage() {
 		[AUTO_TRIGGERS.STREAM]: auto[AUTO_TRIGGERS.STREAM],
 	}
 	pollSec.value = auto.pollIntervalSec || 0
+}
+
+function loadEndpointDrafts() {
+	endpointDrafts.value = Object.fromEntries(
+		ENDPOINT_ROWS.map(({ key }) => [key, getServiceEndpointOverride(key)]),
+	)
+}
+
+function endpointPlaceholder(service) {
+	const effective = getServiceEndpoint(service)
+	if (effective) return effective
+	if (service === SERVICE_ENDPOINTS.PLATFORM) return "https://platform.example"
+	if (service === SERVICE_ENDPOINTS.SOCKET)
+		return "https://realtime.example/socket.io"
+	return "/api"
+}
+
+function grantLinkConsent() {
+	setLinkMode(LINK_MODES.LINKED, LINK_REASONS.EXPLICIT_CONNECT)
+	loadLinkage()
+}
+
+function saveEndpoints() {
+	for (const { key } of ENDPOINT_ROWS) {
+		const check = validateServiceEndpoint(key, endpointDrafts.value[key])
+		if (!check.ok) {
+			endpointMessageClass.value = "text-red-600"
+			endpointMessage.value = check.error
+			return
+		}
+	}
+	const changed = []
+	let persisted = true
+	for (const { key } of ENDPOINT_ROWS) {
+		const result = setServiceEndpoint(key, endpointDrafts.value[key])
+		if (!result.ok) {
+			endpointMessageClass.value = "text-red-600"
+			endpointMessage.value = result.error
+			return
+		}
+		if (result.changed) changed.push(key)
+		persisted = persisted && result.persisted
+	}
+	loadEndpointDrafts()
+	loadLinkage()
+	endpointMessageClass.value = !persisted
+		? "text-amber-700"
+		: changed.length
+			? "text-amber-700"
+			: "text-emerald-700"
+	endpointMessage.value = !persisted
+		? __("تعذر حفظ بعض العناوين بشكل دائم؛ ستنتهي عند إغلاق التطبيق.")
+		: changed.length
+			? __("حُفظت العناوين محليًا. وافق على الربط مجددًا قبل استخدام الخدمات.")
+			: __("العناوين دون تغيير؛ لم يُجرَ أي اتصال.")
+}
+
+async function testApiEndpoint() {
+	const endpoint = getServiceEndpoint(SERVICE_ENDPOINTS.API).replace(/\/+$/, "")
+	endpointTestBusy.value = true
+	endpointMessage.value = ""
+	const controller = new AbortController()
+	const timeout = setTimeout(() => controller.abort(), 8000)
+	try {
+		const response = await fetch(`${endpoint}/health`, {
+			method: "GET",
+			cache: "no-store",
+			credentials: "omit",
+			signal: controller.signal,
+		})
+		endpointMessageClass.value = response.ok
+			? "text-emerald-700"
+			: "text-red-600"
+		endpointMessage.value = response.ok
+			? __("استجاب خادم API برمز {0}", [response.status])
+			: __("استجاب خادم API برمز {0}", [response.status])
+	} catch (error) {
+		endpointMessageClass.value = "text-red-600"
+		endpointMessage.value = String(error?.message || error).slice(0, 180)
+	} finally {
+		clearTimeout(timeout)
+		endpointTestBusy.value = false
+	}
 }
 
 function toggleAutomationMaster() {
@@ -683,6 +846,14 @@ watch(show, async (visible) => {
 // A dialog mounted already-open (initial v-model true) never triggers the
 // watcher above — load explicitly so the screen is never an empty shell.
 onMounted(() => {
+	loadEndpointDrafts()
 	if (show.value) refresh()
 })
+
+const unsubscribeEndpoints = subscribeRuntimeEndpoints(({ externalChange }) => {
+	if (!externalChange) return
+	loadEndpointDrafts()
+	loadLinkage()
+})
+onUnmounted(unsubscribeEndpoints)
 </script>

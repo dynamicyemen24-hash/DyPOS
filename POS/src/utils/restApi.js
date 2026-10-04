@@ -1,4 +1,7 @@
-const API_BASE = import.meta.env.VITE_DYPOS_API || "/api"
+import {
+	getServiceEndpoint,
+	SERVICE_ENDPOINTS,
+} from "@/services/runtime-endpoints"
 
 function authHeaders(extra = {}) {
 	const headers = { Accept: "application/json", ...extra }
@@ -8,10 +11,13 @@ function authHeaders(extra = {}) {
 }
 
 async function request(path, options = {}) {
-	const res = await fetch(`${API_BASE}${path}`, {
-		...options,
-		headers: authHeaders(options.headers || {}),
-	})
+	const res = await fetch(
+		`${getServiceEndpoint(SERVICE_ENDPOINTS.API)}${path}`,
+		{
+			...options,
+			headers: authHeaders(options.headers || {}),
+		},
+	)
 	if (res.status === 401) {
 		throw new Error("غير مصرح — يرجى تسجيل الدخول")
 	}

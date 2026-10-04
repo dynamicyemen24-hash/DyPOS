@@ -1,6 +1,8 @@
 import { call } from "@/utils/apiWrapper"
 import { computed, ref } from "vue"
 import { logger } from "@/utils/logger"
+import { isLinkEnabled } from "@/services/link-consent"
+import { sessionRole } from "@/data/session"
 
 const log = logger.create("Permissions")
 /**
@@ -10,6 +12,25 @@ const log = logger.create("Permissions")
 
 // Cache permissions to avoid repeated API calls
 const permissionCache = ref({})
+
+function evaluateLocalPermission(doctype, permType) {
+	const role = String(sessionRole() || "").toUpperCase()
+	if (role === "ADMIN" || role === "MANAGER" || role === "SYSTEM MANAGER") {
+		return true
+	}
+	// Cashier / POS User permissions
+	if (
+		doctype === "Sales Invoice" ||
+		doctype === "Customer" ||
+		doctype === "POS Coupon"
+	) {
+		return true
+	}
+	if (doctype === "Promotional Scheme" && permType === "read") {
+		return true
+	}
+	return false
+}
 
 export function usePermissions() {
 	/**
@@ -27,6 +48,12 @@ export function usePermissions() {
 				return permissionCache.value[cacheKey]
 			}
 
+			if (!isLinkEnabled()) {
+				const allowed = evaluateLocalPermission(doctype, permType)
+				permissionCache.value[cacheKey] = allowed
+				return allowed
+			}
+
 			// Call backend to check permission
 			const result = await call("dypos.client.has_permission", {
 				doctype: doctype,
@@ -41,9 +68,14 @@ export function usePermissions() {
 			permissionCache.value[cacheKey] = hasPermission
 			return hasPermission
 		} catch (error) {
-			log.error(`Error checking permission for ${doctype}:${permType}`, error)
-			// Default to false on error (safer)
-			return false
+			log.debug(
+				`Remote permission check unavailable, using local role evaluation for ${doctype}:${permType}`,
+				error,
+			)
+			const cacheKey = `${doctype}:${permType}`
+			const allowed = evaluateLocalPermission(doctype, permType)
+			permissionCache.value[cacheKey] = allowed
+			return allowed
 		}
 	}
 

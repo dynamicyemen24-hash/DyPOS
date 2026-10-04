@@ -10,7 +10,7 @@
 			لا زرّ إطلاقًا حين لا يدعم الجهاز — لا زرّ معطّل بتخمين السبب.
 			كل رسالة هنا سببها معروف ومقصود.
 		-->
-		<DyButton
+		<ActionButton
 			v-if="mode === 'login' && available"
 			variant="outline"
 			size="lg"
@@ -21,9 +21,9 @@
 			@click="onLogin"
 		>
 			{{ __("دخول بالبصمة أو الوجه") }}
-		</DyButton>
+		</ActionButton>
 
-		<DyButton
+		<ActionButton
 			v-else-if="mode === 'register' && canRegister"
 			variant="outline"
 			size="lg"
@@ -34,7 +34,7 @@
 			@click="onRegister"
 		>
 			{{ __("تسجيل هذا الجهاز للدخول السريع") }}
-		</DyButton>
+		</ActionButton>
 
 		<!--
 			Fiori MessageStrip عبر `Alert` الموجود أصلًا. النتيجة ليست
@@ -62,7 +62,7 @@
 import { computed } from "vue"
 import { Alert } from "dypos-ui"
 
-import DyButton from "@/components/ui/DyButton.vue"
+import { ActionButton } from "dypos-ui"
 import { usePasskeyAuth } from "@/composables/usePasskeyAuth"
 import { __ } from "@/utils/translation"
 

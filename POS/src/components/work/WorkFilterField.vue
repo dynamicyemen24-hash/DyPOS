@@ -86,7 +86,7 @@
 
       <!-- Multi Select -->
       <div v-else-if="field.type === 'multiselect'" class="work-filter-field__multiselect">
-        <DyButton
+        <ActionButton
           type="button"
           variant="ghost"
           size="sm"
@@ -109,7 +109,7 @@
               aria-hidden="true"
             />
           </template>
-        </DyButton>
+        </ActionButton>
 
         <Transition name="work-filter-fade">
           <div
@@ -218,7 +218,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from "vue"
 import { t } from "@/utils/translation"
-import DyButton from "@/components/ui/DyButton.vue"
+import { ActionButton, FeatherIcon } from "dypos-ui"
 
 const props = defineProps({
 	modelValue: { type: [String, Number, Boolean, Array, Object], default: null },

@@ -1,0 +1,43 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dypos-api
+    ports:
+      - "3001:3001"
+    environment:
+      # Every name below is one the server actually READS. The first revision of
+      # this file carried PORT / DATABASE_URL / JWT_SECRET / CORS_ORIGIN — four
+      # names the runtime never looks at — so NODE_ENV=production plus the
+      # envGuard in middleware/envGuard.js refused to boot: no DYPOS_JWT_SECRET,
+      # no storage target, no CORS origin. A compose file is a build input like
+      # any other, and nothing gated it. `tests/deploy-env-contract.test.js` does
+      # now: every variable a compose file passes to this server must be one
+      # server/ actually reads.
+      - NODE_ENV=production
+      - DYPOS_PORT=3001
+      - DYPOS_HOST=0.0.0.0
+      # SQLite is the single writer; DYPOS_CLUSTER=1 is Tier-2/PostgreSQL only
+      # and this build refuses to boot with it (server.js C2 fail-fast).
+      - DYPOS_CLUSTER=0
+      - DYPOS_DB_PATH=/app/data/dypos.db
+      - DYPOS_CORS_ORIGIN=https://dypos.smartportssoft.com
+      # No fallback default: an unset secret must stop the deploy, not become a
+      # known-weak JWT key that only fails at the first login attempt.
+      - DYPOS_JWT_SECRET=${DYPOS_JWT_SECRET:?Set DYPOS_JWT_SECRET in .env (>= 32 chars)}
+      - DYPOS_JWT_EXPIRES=24h
+    volumes:
+      - dypos-data:/app/data
+      - dypos-uploads:/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "const http=require('http');const o={host:'localhost',port:3001,path:'/api/ready',timeout:3000};const r=http.get(o,x=>process.exit(x.statusCode===200?0:1));r.on('error',()=>process.exit(1));r.setTimeout(3000,()=>{r.destroy();process.exit(1)})"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  dypos-data:
+  dypos-uploads:

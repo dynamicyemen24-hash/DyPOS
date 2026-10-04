@@ -2,9 +2,9 @@
 	<div class="queue-page">
 		<header class="queue-page__header">
 			<h1 class="queue-page__title">نظام الطوابير</h1>
-			<DyButton variant="ghost" icon="refresh-cw" :disabled="busy" @click="refresh">
+			<ActionButton variant="ghost" iconLeft="refresh-cw" :disabled="busy" @click="refresh">
 				تحديث
-			</DyButton>
+			</ActionButton>
 		</header>
 
 		<p v-if="error" class="queue-page__error" role="alert">{{ error }}</p>
@@ -33,7 +33,7 @@
  */
 import { computed, onMounted, ref, watch } from "vue"
 
-import DyButton from "@/components/ui/DyButton.vue"
+import { ActionButton } from "dypos-ui"
 import { QueueDisplay, useCashierQueue } from "@/components/selfCheckout/queue"
 
 const props = defineProps({

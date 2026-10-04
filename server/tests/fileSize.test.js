@@ -59,7 +59,10 @@ const CAPS = [
 	// suites with HTTP 401s and was the reason lineWidth is 120.)
 	// The contract still holds: no growth from here, and the next migration
 	// is still expected to leave for db/migrations-*.js.
-	['db/schema.js', 840],
+	// 840 → 830: v34 joined as one import + one registry row, funded by reflowing
+	// the v27/v28/v29 entries to the single-line shape v30–v33 already use.
+	// Net −10, measured — the ratchet's direction still holds from here.
+	['db/schema.js', 830],
 	// 3907 → 3784: same story, smaller. The router shrank (doctypes, the
 	// mappers, the tenant table set and the voucher projection each left for
 	// their own module) and the cap never followed. Re-measured, not guessed.
@@ -67,7 +70,14 @@ const CAPS = [
 	// router was hand-packed at ~2.4 statements per line, and 120 columns
 	// recovers part of that. The router splits already done (doctypes /
 	// method-payloads / method-i18n) are unaffected.
-	['routes/method.js', 4911],
+	// 4911 → 4915: `has_permission` now reports the tenant alongside the flag,
+	// so the client can scope its UI without a second round trip. Four lines of
+	// behaviour, measured — the ratchet's direction still holds from here.
+	// 4915 → 4912: coupon/offer deletes became is_active retires with trail rows,
+	// stale drafts EXPIRE via lib/invoice-expiry.js (policy extracted, verb stays
+	// thin), and dypos.delete_doc refuses tables with no status flag instead of
+	// destroying them. Net −3, measured — the ratchet's direction holds.
+	['routes/method.js', 4903],
 	// 881 → 888, the one deliberate raise in this release: tenant-scoped
 	// idempotency lookups and the non-cash overpayment guard. The guard itself was
 	// extracted to lib/payment-invariants.js, so the next payment rule lands

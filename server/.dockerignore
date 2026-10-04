@@ -1,0 +1,50 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+build
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage
+.nyc_output
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+data/
+!data/.gitkeep
+
+# Backups
+backups/
+
+# Uploads
+uploads/
+
+# Temporary
+tmp/
+temp/
+*.tmp
+
+# Cache
+.cache

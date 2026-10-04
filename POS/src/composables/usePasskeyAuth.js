@@ -149,7 +149,8 @@ export function usePasskeyAuth(onAuthenticated) {
 				},
 			})
 			if (!credential) {
-				error.value = "لم يتم تسجيل أي بصمة."
+				error.value =
+					"لم يتم تسجيل أي بصمة. عد إلى الإعدادات وتأكد من دعم الجهاز للبصمة ثم أعد المحاولة."
 				return false
 			}
 			const assertion = credential.response

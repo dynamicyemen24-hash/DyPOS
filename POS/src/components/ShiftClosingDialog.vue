@@ -1059,6 +1059,7 @@ import { usePOSShiftStore } from "../stores/posShift"
 import { printEODReport } from "../utils/printEod"
 import TranslatedHTML from "./common/TranslatedHTML.vue"
 import { logger } from "@/utils/logger"
+import { __ } from "@/utils/translation"
 
 const log = logger.create("ShiftClosing")
 

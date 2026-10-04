@@ -56,13 +56,13 @@
 
           <!-- Action -->
           <div v-if="notification.action" class="work-notification__action">
-            <DyButton
+            <ActionButton
               :variant="notification.action.variant || 'ghost'"
               :size="'sm'"
               @click="executeAction(notification)"
             >
               {{ t(notification.action.label) }}
-            </DyButton>
+            </ActionButton>
           </div>
 
           <!-- Close -->
@@ -102,7 +102,7 @@ import { computed } from "vue"
 import { useLocale } from "@/composables/useLocale"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
-import DyButton from "@/components/ui/DyButton.vue"
+import { ActionButton } from "dypos-ui"
 import {
 	executeAction,
 	notifications,

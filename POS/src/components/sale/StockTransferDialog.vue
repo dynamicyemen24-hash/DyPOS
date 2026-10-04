@@ -218,13 +218,13 @@ async function submit() {
 
 	if (!form.fromWarehouseId) {
 		validationErrors.value.fromWarehouseId = "مستودع المصدر مطلوب"
-		showError("مستودع المصدر مطلوب")
+		showError("مستودع المصدر مطلوب. اختره من القائمة ثم أعد المحاولة.")
 		return
 	}
 
 	if (!form.toWarehouseId) {
 		validationErrors.value.toWarehouseId = "مستودع الوجهة مطلوب"
-		showError("مستودع الوجهة مطلوب")
+		showError("مستودع الوجهة مطلوب. اختره من القائمة ثم أعد المحاولة.")
 		return
 	}
 

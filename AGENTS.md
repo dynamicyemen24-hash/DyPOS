@@ -1,7 +1,7 @@
 # AGENTS.md — Repo conventions for AI coding agents
 
 > This repo is Arabic-first (UI, messages, commit bodies) with English code.
-> Production: https://dypos.smartportssoft.com/ · Version single source: `1.44.4`
+> Production: https://dypos.smartportssoft.com/ · Version single source: `1.44.7`
 > (root `package.json` + `POS/package.json` + `server/package.json` + `server/lib/version.js`
 > + `worker-api.js` `API_VERSION` — the edge's copy, asserted by both suites).
 
@@ -14,12 +14,12 @@
 ## Verify before you claim done (all must be green)
 
 ```powershell
-# server/ — 620 tests / 185 suites
+# server/ — 684 tests / 198 suites
 npm test                              # = node scripts/run-tests.mjs
 npx @biomejs/biome check .
 npm run parity
 npm run contract
-# POS/ — 1291 tests / 95 files
+# POS/ — 2133 tests / 120 files
 npm run test:run
 npx biome check src/<touched-file>
 # production, from the repo root (after a deploy)
@@ -27,7 +27,7 @@ npm run verify:live                   # = node scripts/verify-live.mjs
 ```
 
 Test counts are *measured* by the runners, never estimated: server
-`620 tests / 185 suites`, POS `1291 tests / 95 files`.
+`684 tests / 198 suites`, POS `2133 tests / 120 files`.
 
 `POS/node_modules` is disposable — if a command hangs on `npx … Ok to proceed?`,
 the install is missing: `npm ci` in `POS/` (and add the package to
@@ -153,6 +153,25 @@ manifest breaks both the build and any test that compiles CSS).
   on the identical code, is 620/185 green. CI runs them in separate jobs for this
   reason. A red suite beside a busy `vitest` is a measurement artefact, not a
   defect; confirm with a serial run before touching any code.
+- **`grid-area: <name>` is not checked by anything — and CSS does not complain.**
+  `login.css` declared the page grid under two names (`showcase`, then
+  `workspace`), so `.dy-login__workspace` was left pointing at an area no
+  `grid-template-areas` string declared. An unknown area name is NOT an error:
+  the element falls back to auto-placement, so the workspace column quietly
+  stopped being a column and the screen looked "assembled", not broken. The
+  second claimant of one named area behaves the same way (pushed into implicit
+  rows below). `designTokens.test.js` now cross-checks every `grid-area:` name
+  against every `grid-template-areas` string, and fails on orphans.
+- **A layout gate that pins `height: 100dvh` + `overflow: hidden` pins the
+  fold.** That lock is what made the register link and footer unreachable on a
+  short window or a landscape phone; the gate *required* it, which is why it
+  survived. The gate is now inverted: it fails if the lock ever returns.
+- **A CSS-only gate can be TRUE without looking at anything.** `loginIdentityCard`
+  asserted `order.indexOf("showcase") < order.indexOf("panel")` inside the
+  narrow breakpoint — a name that breakpoint never declared, so `indexOf`
+  returned `-1` and `-1 < 0` passed on every run. Whenever a gate compares
+  positions, it must FIRST prove both names were found. Same class as the
+  glob-that-runs-nothing and the encoding gate that exempted itself.
 - **`npm ci` in `server/` can leave you unable to run the suite.** `better-sqlite3@13.0.3`
   ships no prebuilt binary for Node 24 on Windows, so the install falls back to
   `node-gyp`, which needs Python; without it the install dies halfway and the

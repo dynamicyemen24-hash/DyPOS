@@ -130,6 +130,7 @@ import {
 	provide,
 } from "vue"
 import { t } from "@/utils/translation"
+import { FeatherIcon } from "dypos-ui"
 import WorkActions from "./WorkActions.vue"
 
 import WorkFormField from "./WorkFormField.vue"

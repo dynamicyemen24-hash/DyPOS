@@ -28,7 +28,6 @@ import { FeatherIcon } from "dypos-ui"
 
 import { endpoints } from "@/utils/apiEndpoints"
 import { COMPANY_WEBSITE, COMPANY_WEBSITE_LABEL } from "@/utils/brand"
-import { getPasswordStrength } from "@/utils/passwordPolicy"
 import { translationVersion } from "@/utils/translation"
 
 import DyPOSLogo from "@/assets/DyPOSLogo.png"
@@ -36,11 +35,18 @@ import DyPOSLogo from "@/assets/DyPOSLogo.png"
 import ShiftOpeningDialog from "@/components/ShiftOpeningDialog.vue"
 import CompanyFooter from "@/components/common/CompanyFooter.vue"
 import LoginPasskeyActions from "@/components/common/LoginPasskeyActions.vue"
-import SystemAboutPanel from "@/components/common/SystemAboutPanel.vue"
+import LoginWorkspacePanel from "@/components/common/LoginWorkspacePanel.vue"
 import LoginAppearanceBar from "@/components/common/LoginAppearanceBar.vue"
+import LoginContextChips from "@/components/common/LoginContextChips.vue"
+import LoginPinForm from "@/components/common/LoginPinForm.vue"
+import LoginSecurityPanel from "@/components/common/LoginSecurityPanel.vue"
+import DyPanel from "@/components/common/DyPanel.vue"
+import ShiftOpsPanel from "@/components/common/ShiftOpsPanel.vue"
 import LoginSessionLockDialog from "@/components/common/LoginSessionLockDialog.vue"
 import LoginSessionTimeoutDialog from "@/components/common/LoginSessionTimeoutDialog.vue"
-import DyButton from "@/components/ui/DyButton.vue"
+import TouchKeyboard from "@/components/common/TouchKeyboard.vue"
+import NotificationBar from "@/components/NotificationBar.vue"
+import { ActionButton } from "dypos-ui"
 import PasswordStrengthBar from "@/components/reports/dashboards/core/PasswordStrengthBar.vue"
 
 /*
@@ -56,6 +62,7 @@ import PasswordStrengthBar from "@/components/reports/dashboards/core/PasswordSt
 
 import { session } from "@/stores/session"
 import { goToForgotPassword, goToRegister } from "@/router"
+import { useBiometric } from "@/composables/useBiometric"
 import { useSessionLock } from "@/composables/useSessionLock"
 import { useSessionTimeout } from "@/composables/useSessionTimeout"
 import { useSecondsRemaining } from "@/composables/useSecondsRemaining"
@@ -65,6 +72,14 @@ import { useMediaQuery } from "@/composables/useMediaQuery"
 import { useAppTheme } from "@/composables/useAppTheme"
 import { useLoginPreferences } from "@/composables/useLoginPreferences"
 import { useCapsLock } from "@/composables/useCapsLock"
+import {
+	buildRuntimeDetails,
+	hasRuntimeStatus as hasRuntimeStatusSignals,
+	useRuntimeStatus,
+} from "@/composables/useLoginRuntimeStatus"
+import { rateLimitMessage } from "@/composables/useRateLimitMessage"
+import { LOGIN_EMITS, LOGIN_PROPS } from "@/composables/loginContract"
+import { useLoginContextItems } from "@/composables/useLoginContextItems"
 import { useLoginRequiredFields } from "@/composables/useLoginRequiredFields"
 import {
 	useLoginRuntime,
@@ -81,7 +96,12 @@ import {
 	sanitizePin,
 	validatePinPair,
 } from "@/composables/usePinAuthRules"
+import { useLoginSessionBootstrap } from "@/composables/useLoginSessionBootstrap"
+import { useLoginPinAuth } from "@/composables/useLoginPinAuth"
+import { useLoginForm } from "@/composables/useLoginForm"
+import { useLoginMethods } from "@/composables/useLoginMethods"
 
+import { methodGetList } from "@/utils/methodClient"
 import { cleanupUserSession, normalizeAuthError } from "@/utils/auth"
 import { __ } from "@/utils/translation"
 import {
@@ -101,57 +121,16 @@ import {
 /** مدة الجلسة قبل التحذير — نفس القيمة التي يمررها useSessionTimeout. */
 const SESSION_DURATION_MS = 30 * 60 * 1000
 
-/**
- * رسالة القفل بصيغة واحدة، ومكان واحد للعدّ التنازلي.
- *
- * `{0}` بدل `${…}`: النص المصدري العربي هو مفتاح القاموس، وحين تُترجَم
- * الرسالة ينتقل الرقم معها (`Waiting 30 seconds` لا `30 Waiting seconds`).
- */
-function rateLimitMessage(retryAfterMs) {
-	const seconds = String(Math.ceil(Number(retryAfterMs || 0) / 1000))
-
-	return __("محاولات كثيرة جدًا. انتظر {0} ثانية ثم حاول مرة أخرى.", {
-		0: seconds,
-	})
-}
-
 /* ============================================================================
  * Props / Emits
  * ========================================================================== */
 
-const props = defineProps({
-	tenantName: {
-		type: String,
-		default: "",
-	},
+/* Prop list and events live in `@/composables/loginContract` — the page is
+ * at its file-size cap, and a contract that lives inside a 1700-line SFC is
+ * a contract no test can read. */
+const props = defineProps(LOGIN_PROPS)
 
-	branchName: {
-		type: String,
-		default: "",
-	},
-
-	posName: {
-		type: String,
-		default: "",
-	},
-
-	showTenantContext: {
-		type: Boolean,
-		default: true,
-	},
-
-	showOfflineReadiness: {
-		type: Boolean,
-		default: true,
-	},
-
-	rememberEmail: {
-		type: Boolean,
-		default: true,
-	},
-})
-
-const emit = defineEmits(["authenticated", "ready", "error"])
+const emit = defineEmits(LOGIN_EMITS)
 
 /* ============================================================================
  * Session Lock
@@ -175,8 +154,31 @@ const showRuntimeDetails = ref(false)
 const isSubmitting = ref(false)
 const loginError = ref("")
 
+const selectedMethod = ref("email")
+
+const touchKeyboardRef = ref(null)
+
+const biometricResult = ref(
+	/** @type {{ success: boolean; error?: string } | null} */ (null),
+)
+
+const biometricAvailable = ref(false)
+
+const branches = ref([])
+const selectedBranchId = ref("")
+const subscriberCode = ref("")
+
 const emailInput = ref(null)
 const passwordInput = ref(null)
+/**
+ * Whether the on-screen PIN keyboard is up.
+ *
+ * Read by `selectMethod("keyboard")` and cleared on every method switch. It
+ * was removed once on the assumption that a dead-binding gate had found it —
+ * the gate was actually reporting a DIFFERENT pair of names — and the page
+ * then broke on the first tap of the PIN method. The variable is live.
+ */
+const showKeyboard = ref(false)
 
 const loginForm = ref(null)
 
@@ -212,6 +214,104 @@ const shiftDialogOpen = ref(false)
 const shiftOpening = ref(false)
 
 const authenticationCompleted = ref(false)
+
+/* ============================================================================
+ * Extracted Composables
+ * ========================================================================== */
+
+const {
+	bootstrapAuthenticatedSession,
+	resolveShiftState,
+	emitReady,
+	handleShiftConfirm,
+	handleShiftCancel,
+	cleanup,
+} = useLoginSessionBootstrap({
+	sessionReady,
+	isRuntimeReady,
+	emit,
+})
+
+const {
+	email,
+	rememberMe,
+	restore: restoreRememberedEmail,
+	persist: persistRememberedEmail,
+} = useRememberedEmail({
+	enabled: props.rememberEmail,
+	onError: (message, error) => log.debug(message, error),
+})
+
+const {
+	passwordStrength,
+	attemptBiometricLogin,
+	handleSubmitLogin,
+	initializeLoginData,
+	handleGlobalKeydown,
+	onMethodSelect,
+	selectBranch,
+} = useLoginForm({
+	email,
+	password,
+	showPassword,
+	isSubmitting,
+	loginError,
+	selectedMethod,
+	biometricResult,
+	biometricAvailable,
+	touchKeyboardRef,
+	showKeyboard,
+	branches,
+	selectedBranchId,
+	subscriberCode,
+	loginForm,
+})
+
+const {
+	selectMethod,
+	loadBranches,
+	checkBiometricAvailability,
+	onBranchChange,
+	loadSubscriberCode,
+	initializeLoginData: initializeMethodsData,
+} = useLoginMethods({
+	selectedMethod,
+	showKeyboard,
+	biometricResult,
+	biometricAvailable,
+	branches,
+	selectedBranchId,
+	subscriberCode,
+	touchKeyboardRef,
+})
+
+const {
+	pinCode,
+	pinConfirm,
+	pinLoginInProgress,
+	pinError,
+	pinSetupError,
+	pinAvailable,
+	pinModeActive,
+	pinSetupDisabled,
+	pinLoginDisabled,
+	pinDeviceHint,
+	PIN_EMAIL_TOO_SHORT,
+	PIN_EMAIL_REQUIRED,
+	showPinSetup,
+	sanitizePinInput,
+	onPinSetupInput,
+	clearPinSetup,
+	handlePinLogin,
+	handlePinSetup,
+	enterPinMode,
+	exitPinMode,
+	cancelPinSetup,
+	loadPinState,
+	wipePin,
+	attemptPinLogin,
+	storePin,
+} = useLoginPinAuth({ email })
 
 /* ============================================================================
  * Session Timeout
@@ -294,53 +394,20 @@ function stopSessionSecurityMonitor() {
  * ========================================================================== */
 
 /*
- * حالة بيئة التشغيل: جدول لا سلسلة `if`.
- *
- * كان كل حالة تُعيد كائنًا جديدًا من 39 سطرًا، وأربع تفاصيل اتصال في
- * القالب كانت أربع نسخ من نفس البنية. الحالتان الآن صفّان في جدول واحد،
- * والتسميات مفاتيح القاموس العربي: يتغيّر النص مع اللغة، ويبقى المنطق
- * كما هو، ولا يمكن لصفّ أن يخرج عن شكل البنية الذي يرسمه القالب.
+ * The status row for the whole page: one table lookup keyed by `runtimeState`,
+ * never an inline chain in the template.
  */
-const RUNTIME_STATUS_BY_STATE = {
-	failed: {
-		type: "error",
-		icon: "alert-circle",
-		label: "تعذر تجهيز بيئة التشغيل",
-	},
-	degraded: {
-		type: "warning",
-		icon: "wifi-off",
-		label: "سيتم المتابعة بوضع اتصال محدود",
-	},
-	ready: { type: "success", icon: "check-circle", label: "بيئة التشغيل جاهزة" },
-	preparing: { type: "info", icon: "loader", label: "جاري تجهيز بيئة التشغيل" },
-	unknown: { type: "neutral", icon: "shield", label: "بيئة التشغيل" },
-}
-
-const runtimeStatus = computed(() => {
-	const row =
-		RUNTIME_STATUS_BY_STATE[runtimeState.value] ??
-		RUNTIME_STATUS_BY_STATE.unknown
-
-	return row
-})
+const runtimeStatus = useRuntimeStatus(runtimeState)
 
 /** تفاصيل التشغيل: صفّ واحد لكل إشارة، والقالب يرسمها بـ`v-for`. */
-const runtimeDetails = computed(() => [
-	{ label: "الاتصال", value: isOnline.value ? "متصل" : "غير متصل" },
-	{
-		label: "الحماية",
-		value: csrfReady.value ? "جاهزة" : "قيد التجهيز",
-	},
-	{
-		label: "الجلسة",
-		value: sessionReady.value ? "جاهزة" : "غير مهيأة",
-	},
-	{
-		label: "التشغيل دون اتصال",
-		value: offlineReady.value ? "جاهز" : "غير جاهز",
-	},
-])
+const runtimeDetails = computed(() =>
+	buildRuntimeDetails({
+		isOnline: isOnline.value,
+		csrfReady: csrfReady.value,
+		sessionReady: sessionReady.value,
+		offlineReady: offlineReady.value,
+	}),
+)
 
 const submitLabel = computed(() => {
 	if (isSubmitting.value) {
@@ -354,44 +421,12 @@ const submitLabel = computed(() => {
 	return "تسجيل الدخول"
 })
 
-const contextTenantName = computed(
-	() => props.tenantName || session?.tenantName || "",
-)
-
-const contextBranchName = computed(
-	() => props.branchName || session?.branchName || "",
-)
-
-const contextPosName = computed(
-	() => props.posName || session?.posProfile || "",
-)
-
-const contextItems = computed(() => {
-	const items = []
-
-	if (contextTenantName.value) {
-		items.push({
-			icon: "briefcase",
-			label: contextTenantName.value,
-		})
-	}
-
-	if (contextBranchName.value) {
-		items.push({
-			icon: "map-pin",
-			label: contextBranchName.value,
-		})
-	}
-
-	if (contextPosName.value) {
-		items.push({
-			icon: "monitor",
-			label: contextPosName.value,
-		})
-	}
-
-	return items
-})
+/**
+ * The three runtime chips above the form. Extracted to
+ * `useLoginContextItems` so this page stays under its file-size cap — see
+ * that module for why a table beats three `if` blocks here.
+ */
+const contextItems = useLoginContextItems({ props, session })
 
 /* ============================================================================
  * Accessibility & Responsive
@@ -399,6 +434,27 @@ const contextItems = computed(() => {
 
 const reducedMotion = useReducedMotion()
 const isMobile = useMediaQuery("(max-width: 768px)")
+
+/**
+ * Add a thin status bar at the bottom of the login when runtime details are
+ * available (offline/online, csrf, session).
+ *
+ * The previous version read `useLoginRuntime.getState?.()[key]`, but
+ * `useLoginRuntime` is a destructured set of composables — there is no
+ * `getState` on it. The optional call was therefore always `undefined` and
+ * this computed was permanently `false`, so the status row could never
+ * render. The signals are already in scope here as plain refs, so
+ * `hasRuntimeStatus` now states the rule and is testable without mounting
+ * the page.
+ */
+const hasRuntimeStatus = computed(() =>
+	hasRuntimeStatusSignals({
+		isOfflineMode: isOfflineMode.value,
+		isOnline: isOnline.value,
+		csrfReady: csrfReady.value,
+		sessionReady: sessionReady.value,
+	}),
+)
 
 /*
  * السمة تتبع اختيار المستخدم، لا تفضيل نظام التشغيل وحده.
@@ -415,20 +471,6 @@ const { isDark } = useAppTheme()
  * بعد اكتمال تحميل الترجمة لأن `window.translatedMessages` غير تفاعلي.
  */
 const { locale: preferencesLocale, dir: preferencesDir } = useLoginPreferences()
-
-/* ============================================================================
- * Password Strength
- * ============================================================================ */
-
-/*
- * The strength meter is the POLICY's, not a private copy.
- *
- * This was a third implementation scoring from 6 characters while
- * `passwordPolicy` (MIN_LENGTH = 8) judges the same password on the
- * register and reset screens. A meter that says «قوي» for a value the
- * policy rejects teaches the user the wrong thing.
- */
-const passwordStrength = computed(() => getPasswordStrength(password.value))
 
 /* ============================================================================
  * Error
@@ -550,281 +592,35 @@ async function submitLogin() {
 	}
 }
 
-/* ============================================================================
- * Authenticated Session Bootstrap
- * ========================================================================== */
-
-async function bootstrapAuthenticatedSession() {
-	try {
-		/*
-		 * بعض implementations قد تكون sync بالفعل.
-		 * لذلك نتحقق قبل الاستدعاء.
-		 */
-		if (typeof session.bootstrap === "function") {
-			await session.bootstrap()
-		}
-
-		if (typeof session.refresh === "function") {
-			/*
-			 * لا نفرض refresh إذا كان session store يعتبر نفسه جاهزًا.
-			 */
-			if (!sessionReady.value) {
-				await session.refresh()
-			}
-		}
-
-		sessionReady.value = true
-
-		await nextTick()
-
-		/*
-		 * تحديد حالة الوردية:
-		 *
-		 * - إذا كان هناك shift مفتوح → متابعة
-		 * - إذا كان مطلوبًا فتح وردية → الحوار
-		 * - وإلا → ready
-		 */
-		const shiftState = resolveShiftState()
-
-		if (shiftState === "open") {
-			emitReady()
-			return
-		}
-
-		if (shiftState === "requires-opening") {
-			shiftDialogOpen.value = true
-			return
-		}
-
-		emitReady()
-	} catch (error) {
-		log.error("DyPOS session bootstrap failed", error)
-
-		loginError.value = __("تم تسجيل الدخول، لكن تعذر تجهيز جلسة نقطة البيع.")
-
-		emit("error", error)
-	}
-}
-
-function resolveShiftState() {
-	/*
-	 * نقرأ عدة احتمالات لتجنب ربط Login بعقد واحد جامد.
-	 */
-	const shift = session?.shift || session?.currentShift || session?.activeShift
-
-	if (
-		shift?.isOpen === true ||
-		shift?.status === "open" ||
-		shift?.status === "OPEN"
-	) {
-		return "open"
-	}
-
-	if (
-		shift?.requiresOpening === true ||
-		shift?.status === "closed" ||
-		shift?.status === "none"
-	) {
-		return "requires-opening"
-	}
-
-	/*
-	 * إذا لم تكن طبقة session توفر shift state:
-	 * لا نمنع الدخول.
-	 */
-	return "ready"
-}
-
-function emitReady() {
-	emit("ready", {
-		authenticated: true,
-		runtimeReady: isRuntimeReady.value,
-	})
-}
-
-/* ============================================================================
- * Shift
- * ========================================================================== */
-
-async function handleShiftConfirm(payload) {
-	if (shiftOpening.value) {
-		return
-	}
-
-	shiftOpening.value = true
-
-	try {
-		if (typeof session.openShift === "function") {
-			await session.openShift(payload)
-		}
-
-		shiftDialogOpen.value = false
-
-		emitReady()
-	} catch (error) {
-		log.error("DyPOS shift opening failed", error)
-
-		/*
-		 * ShiftOpeningDialog مسؤول عن عرض خطأ العملية
-		 * إذا كان ذلك مدعومًا من API الحالي.
-		 */
-		throw error
-	} finally {
-		shiftOpening.value = false
-	}
-}
-
-function handleShiftCancel() {
-	if (shiftOpening.value) {
-		return
-	}
-
-	shiftDialogOpen.value = false
-}
-
-async function cleanup() {
-	try {
-		await cleanupUserSession?.()
-	} catch (error) {
-		log.warn("DyPOS session cleanup failed", error)
-	}
-}
-
-/* ============================================================================
- * PIN Authentication
- * ============================================================================ */
-
-const showPinSetup = ref(false)
-const pinCode = ref("")
-const pinConfirm = ref("")
-const pinLoginInProgress = ref(false)
-const pinError = ref("")
-const pinSetupError = ref("")
-
-/** نصوص زر «إنشاء رمز دخول سريع» المعطّل: تلميح الفأرة قصير، والاسم الميسّر (aria-label) يشرح سبب التعطيل. */
-const PIN_DEVICE_HINT = "اضبط رمز دخول سريع لهذا الجهاز"
-const PIN_EMAIL_TOO_SHORT = "أدخل بريدك أولًا"
-const PIN_EMAIL_REQUIRED = "أدخل بريدك الإلكتروني أولًا لتمكين إنشاء رمز PIN"
-
-/** هل واجهة PIN معروضة بدل نموذج كلمة المرور؟ */
-const pinModeActive = ref(false)
-
-const {
-	isPinValid: pinAvailable,
-	pinLogin: attemptPinLogin,
-	savePin: storePin,
-	clearPin: wipePin,
-	loadPinState,
-} = usePinAuth()
-
-/** يقبل الحقل أرقامًا فقط — يمنع الحروف قبل أن تصل إلى PBKDF2. */
-function sanitizePinInput(event) {
-	pinCode.value = sanitizePin(event.target.value)
-	pinError.value = ""
+/**
+ * Confirm on the on-screen numeric keypad.
+ *
+ * The keypad's `✓` key emits `confirm` and the page bound it to a handler that
+ * did not exist, so the button rendered and did nothing — a dead contract in the
+ * exact shape AGENTS.md warns about: a control a cashier taps on the shop floor
+ * that silently does nothing. It routes through the SAME `submitLogin` the
+ * on-screen button uses, so there is still one login path, one rate-limit
+ * check, and one session bootstrap.
+ */
+async function handleKeyboardSubmit() {
+	await submitLogin()
 }
 
 /**
- * كاتب واحد لحقلي الإعداد.
- * الحقلان يفعلان الشيء نفسه بالضبط؛ تكرار التعبير في القالب يعني أن إصلاح
- * أحدهما لاحقًا يترك الآخر على السلوك القديم بلا تحذير.
+ * PIN sign-in and PIN setup both land here once `LoginPinForm` reports success.
+ *
+ * The form owns the fields and the messages; the page owns the session, so the
+ * two are joined at exactly one point — the same split as every other
+ * credential path on this screen.
+ *
+ * @param {"pin_login"|"pin_setup"} how
  */
-function onPinSetupInput(field, event) {
-	const digits = sanitizePin(event.target.value)
-
-	if (field === "code") pinCode.value = digits
-	else pinConfirm.value = digits
-
-	pinSetupError.value = ""
-}
-
-/** ينتقل من كلمة المرور إلى PIN فقط إن كان هناك PIN فعلي. */
-function enterPinMode() {
-	pinModeActive.value = true
-	loginError.value = ""
-	pinError.value = ""
-	nextTick(() => pinCodeInput.value?.focus?.())
-}
-
-/** العودة لنموذج كلمة المرور. */
-function exitPinMode() {
+async function onPinAuthenticated(how) {
 	pinModeActive.value = false
-	pinCode.value = ""
-	pinError.value = ""
-	nextTick(() => emailInput.value?.focus?.())
-}
-
-const pinCodeInput = ref(null)
-const pinConfirmInput = ref(null)
-
-async function handlePinLogin() {
-	if (!pinAvailable.value) {
-		pinError.value = __(
-			"لم يتم إعداد كود PIN بعد. يرجى تسجيل الدخول بكلمة المرور أولاً.",
-		)
-		return
-	}
-
-	pinLoginInProgress.value = true
-	pinError.value = ""
-
-	try {
-		// `pinLogin` يُرجع { success, error } ولا يرمي أبداً — فالاعتماد على
-		// catch كان يجعل أي PIN خاطئ يبدو "ناجحاً" ويمرّر المستخدم إلى ما
-		// بعده. العقد يُفحص هنا صراحةً.
-		const result = await attemptPinLogin(pinCode.value)
-		if (!result?.success) {
-			pinError.value = result?.error || __("كود PIN غير صحيح")
-			return
-		}
-
-		pinCode.value = ""
-		completeAuthentication("pin_login")
-		await bootstrapAuthenticatedSession()
-	} catch (error) {
-		authenticationCompleted.value = false
-		pinError.value = error?.message || __("كود PIN غير صحيح")
-		log.warn("DyPOS PIN authentication failed", error)
-		emit("error", error)
-	} finally {
-		pinLoginInProgress.value = false
-	}
-}
-
-/**
- * إعداد PIN جديد بعد أول تسجيل دخول أو عند الطلب.
- */
-async function handlePinSetup() {
-	// The length range, the digits-only rule and the confirmation match are one
-	// contract; `validatePinPair` is that contract, so the two setup fields
-	// cannot disagree about what a valid PIN is.
-	const invalid = validatePinPair(pinCode.value, pinConfirm.value)
-	if (invalid) {
-		pinSetupError.value = invalid
-		return
-	}
-
-	// savePin(pinCode, email, expiryMs) — الترتيب (email, pin) كان معكوساً،
-	// فكان يُخزَّن البريد في خانة الكود ويُشوَّش أي تحقق لاحق.
-	const saved = await storePin(pinCode.value, email.value.trim(), PIN_EXPIRY_MS)
-
-	if (!saved) {
-		pinSetupError.value = __("فشل إعداد كود PIN")
-		log.error("DyPOS PIN setup failed")
-		return
-	}
-
-	pinSetupError.value = ""
 	showPinSetup.value = false
-	pinCode.value = ""
-	pinConfirm.value = ""
-	log.info("DyPOS PIN setup completed")
-}
-
-function cancelPinSetup() {
-	showPinSetup.value = false
-	pinSetupError.value = ""
-	pinCode.value = ""
-	pinConfirm.value = ""
+	authenticationCompleted.value = true
+	log.info("DyPOS PIN authentication completed", how)
+	await bootstrapAuthenticatedSession()
 }
 
 /**
@@ -840,20 +636,6 @@ function handleClearPin() {
 	}
 }
 
-/* ============================================================================
- * Remembered Email
- * ========================================================================== */
-
-const {
-	email,
-	rememberMe,
-	restore: restoreRememberedEmail,
-	persist: persistRememberedEmail,
-} = useRememberedEmail({
-	enabled: props.rememberEmail,
-	onError: (message, error) => log.debug(message, error),
-})
-
 const {
 	emailMissing,
 	passwordMissing,
@@ -863,33 +645,6 @@ const {
 /* ============================================================================
  * Keyboard
  * ========================================================================== */
-
-function handleGlobalKeydown(event) {
-	// Enter submits from anywhere except multiline inputs (native form
-	// behavior already covers single-line inputs + the submit button).
-	// The form element is read from the template ref, not `document` — a
-	// querySelector here used to call a `handleLogin()` that never existed,
-	// so pressing Enter outside the fields threw a ReferenceError.
-	if (
-		event.key === "Enter" &&
-		!event.shiftKey &&
-		!event.ctrlKey &&
-		!event.metaKey &&
-		!(event.target instanceof HTMLTextAreaElement) &&
-		!isSubmitting.value
-	) {
-		const form = loginForm.value
-		if (form && !form.contains(event.target)) {
-			event.preventDefault()
-			void submitLogin()
-			return
-		}
-	}
-
-	if (event.key === "Escape") {
-		clearLoginError()
-	}
-}
 
 /* ============================================================================
  * Lifecycle
@@ -915,8 +670,11 @@ onMounted(async () => {
 
 	await nextTick()
 
+	/* Initialize login page data (branches, biometric, subscriber code) */
+	await initializeLoginData()
+
 	/*
-	 * لا نركز على password إذا كان البريد محفوظًا.
+	 * ?? ???? ??? password ??? ??? ?????? ???????.
 	 */
 	if (email.value) {
 		passwordInput.value?.focus?.()
@@ -969,6 +727,7 @@ watch(
 			'dy-login--mobile': isMobile,
 			'dy-login--reduced-motion': reducedMotion,
 			'dy-login--dark': isDark,
+			'dy-login--has-status': hasRuntimeStatus.value,
 		}"
 		:dir="preferencesDir"
 		:lang="preferencesLocale"
@@ -984,40 +743,58 @@ watch(
 			<FeatherIcon name="wifi-off" :size="16" aria-hidden="true" />
 			<span>{{ __('وضع عدم الاتصال — سيتم تسجيل الدخول محليًا') }}</span>
 		</div>
-        <!-- =================================================================
-             Brand / Context Panel
-             =============================================================== -->
+        <section class="dy-login__brand" :aria-label="__('هوية DyPOS')">
+            <a
+                class="dy-login__brand-logo"
+                :href="COMPANY_WEBSITE"
+                target="_blank"
+                rel="noopener noreferrer"
+                :aria-label="COMPANY_WEBSITE_LABEL"
+            >
+                <span class="dy-login__logo-shell">
+                    <img :src="DyPOSLogo" alt="DyPOS" class="dy-login__logo" width="48" height="48" decoding="async" />
+                </span>
+            </a>
+            <CompanyFooter class="dy-login__brand-company" />
+            <LoginAppearanceBar :compact="true" class="dy-login__preferences" />
+        </section>
 
-		<section class="dy-login__brand" :aria-label="__('هوية DyPOS')">
-			<div class="dy-login__brand-content">
-				<a
-					class="dy-login__brand-logo"
-					:href="COMPANY_WEBSITE"
-					target="_blank"
-					rel="noopener noreferrer"
-					:aria-label="COMPANY_WEBSITE_LABEL"
-				>
-					<span class="dy-login__logo-shell">
-						<img
-							:src="DyPOSLogo"
-							alt="DyPOS"
-							class="dy-login__logo"
-							width="112"
-							height="112"
-							decoding="async"
-						/>
-					</span>
-				</a>
+        <!-- Bottom status bar — shows runtime readiness information -->
+        <div
+            v-if="hasRuntimeStatus.value"
+            class="dy-login__status-bar"
+            role="status"
+            aria-live="polite"
+        >
+            <span class="dy-login__status-text">{{ runtimeStatus.label }}</span>
 
-				<CompanyFooter
-					class="dy-login__brand-company"
-				/>
-				<LoginAppearanceBar
-					compact
-					class="dy-login__preferences"
-				/>
-			</div>
-		</section>
+            <div class="dy-login__status-details">
+                <span
+                    v-if="isOfflineMode"
+                    class="dy-login__status-item"
+                >
+                    {{ __('وضع عدم الاتصال') }}
+                </span>
+                <span
+                    v-if="isOnline"
+                    class="dy-login__status-item"
+                >
+                    {{ __('متصل بالخادم') }}
+                </span>
+                <span
+                    v-if="csrfReady"
+                    class="dy-login__status-item"
+                >
+                    {{ __('حماية الطلبات') }}
+                </span>
+                <span
+                    v-if="sessionReady"
+                    class="dy-login__status-item"
+                >
+                    {{ __('جلسة مُهيأة') }}
+                </span>
+            </div>
+        </div>
 
         <!-- =================================================================
              Authentication Panel
@@ -1037,20 +814,12 @@ watch(
                     <span class="dy-login__progress-bar" />
                 </div>
 
-				<div
-					v-if="showTenantContext && contextItems.length"
-					class="dy-login__context"
-					:aria-label="__('سياق التشغيل')"
-				>
-					<div
-						v-for="item in contextItems"
-						:key="`${item.icon}-${item.label}`"
-						class="dy-login__context-item"
-					>
-						<FeatherIcon :name="item.icon" :size="15" aria-hidden="true" />
-						<span class="dy-login__context-label">{{ item.label }}</span>
-					</div>
-				</div>
+				<!-- Runtime chips: tenant / branch / POS profile. -->
+
+                <LoginContextChips
+                    :items="contextItems"
+                    :show="showTenantContext"
+                />
 
                 <!-- Header -->
 
@@ -1195,108 +964,6 @@ watch(
                      handlers were unreachable, and the whole path was dead
                      weight. The API is the intent; this is the missing UI.
                      ================================================================= -->
-
-                <form
-                    v-if="pinModeActive"
-                    class="dy-login__form"
-                    novalidate
-                    @submit.prevent="handlePinLogin"
-                >
-                    <div class="dy-login__field">
-                        <label
-                            for="dypos-pin-code"
-                            class="dy-login__label"
-                        >
-                            {{ pinAvailable ? __("كود الدخول السريع") : __("لا يوجد رمز محفوظ") }}
-                        </label>
-
-                        <div
-                            class="dy-login__input-wrap"
-                            :class="{
-                                'dy-login__input-wrap--error': pinError,
-                            }"
-                        >
-                            <FeatherIcon
-                                name="key"
-                                :size="18"
-                                class="dy-login__input-icon"
-                                aria-hidden="true"
-                            />
-
-                            <input
-                                id="dypos-pin-code"
-                                ref="pinCodeInput"
-                                :value="pinCode"
-                                class="dy-login__input dy-login__input--pin"
-                                type="password"
-                                inputmode="numeric"
-                                autocomplete="off"
-                                maxlength="8"
-                                dir="ltr"
-                                placeholder="••••"
-                                :disabled="pinLoginInProgress || !pinAvailable"
-                                :aria-invalid="!!pinError"
-                                aria-describedby="dypos-pin-error"
-                                @input="sanitizePinInput"
-                            />
-                        </div>
-
-                        <p
-                            v-if="pinError"
-                            id="dypos-pin-error"
-                            class="dy-login__field-error"
-                            role="alert"
-                            aria-live="assertive"
-                        >
-                            <FeatherIcon
-                                name="alert-circle"
-                                :size="14"
-                                aria-hidden="true"
-                            />
-                            {{ pinError }}
-                        </p>
-                        <p
-                            v-else
-                            class="dy-login__hint"
-                        >
-                            {{
-                                __("أدخل رمز الدخول السريع (من {0} إلى {1} خانات)", {
-                                    0: String(PIN_MIN_LENGTH),
-                                    1: String(PIN_MAX_LENGTH),
-                                })
-                            }}
-                        </p>
-                    </div>
-
-                    <DyButton
-                        type="submit"
-                        variant="primary"
-                        size="lg"
-                        class="dy-login__submit"
-                        :loading="pinLoginInProgress"
-                        :disabled="!pinAvailable || pinCode.length < PIN_MIN_LENGTH"
-                        :aria-busy="pinLoginInProgress"
-                    >
-                        <FeatherIcon
-                            v-if="!pinLoginInProgress"
-                            name="zap"
-                            :size="18"
-                            aria-hidden="true"
-                        />
-                        {{ __('دخول سريع') }}
-                    </DyButton>
-
-                    <button
-                        type="button"
-                        class="dy-login__link-button"
-                        @click="exitPinMode"
-                        :aria-label="__('العودة لتسجيل الدخول بكلمة المرور')"
-                    >
-                        {{ __('الدخول بكلمة المرور') }}
-                    </button>
-                </form>
-
-                <!-- Form -->
 
                 <form
                     v-else
@@ -1481,7 +1148,7 @@ watch(
                         </span>
                     </div>
 
-                    <!-- Form options -->
+<!-- Form options -->
 
                     <div class="dy-login__options">
                         <label
@@ -1502,7 +1169,7 @@ watch(
                             />
 
                             <span>
-                                {{ __('تذكر البريد الإلكتروني') }}
+                                {{ __('تذكرني') }}
                             </span>
                         </label>
 
@@ -1515,11 +1182,102 @@ watch(
                         </a>
                     </div>
 
+                    <details class="dy-login__alternatives">
+                        <summary class="dy-login__alternatives-summary">
+                            <FeatherIcon name="key" :size="16" aria-hidden="true" />
+                            <span>{{ __('طرق دخول أخرى') }}</span>
+                        </summary>
+                        <div class="dy-login__methods-buttons">
+                            <button
+                                v-if="biometricAvailable"
+                                type="button"
+                                class="dy-login__method-btn"
+                                :class="{ 'dy-login__method-btn--active': selectedMethod === 'biometric' }"
+                                @click="selectMethod('biometric')"
+                                :disabled="isSubmitting"
+                                :aria-pressed="selectedMethod === 'biometric'"
+                            >
+                                <FeatherIcon name="fingerprint" :size="18" aria-hidden="true" />
+                                <span>{{ __('البصمة') }}</span>
+                            </button>
+                            <button
+                                type="button"
+                                class="dy-login__method-btn"
+                                :class="{ 'dy-login__method-btn--active': selectedMethod === 'keyboard' }"
+                                @click="selectMethod('keyboard')"
+                                :disabled="isSubmitting"
+                                :aria-pressed="selectedMethod === 'keyboard'"
+                            >
+                                <FeatherIcon name="smartphone" :size="18" aria-hidden="true" />
+                                <span>{{ __('لوحة مفاتيح') }}</span>
+                            </button>
+                            <button
+                                type="button"
+                                class="dy-login__method-btn"
+                                :class="{ 'dy-login__method-btn--active': selectedMethod === 'passkey' }"
+                                @click="selectMethod('passkey')"
+                                :disabled="isSubmitting"
+                                :aria-pressed="selectedMethod === 'passkey'"
+                            >
+                                <FeatherIcon name="key" :size="18" aria-hidden="true" />
+                                <span>{{ __('مفتاح مرور') }}</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                class="dy-login__method-btn"
+                                :class="{ 'dy-login__method-btn--active': selectedMethod === 'pin' }"
+                                @click="enterPinMode"
+                                :disabled="isSubmitting"
+                                :aria-pressed="pinModeActive"
+                            >
+                                <FeatherIcon name="lock" :size="18" aria-hidden="true" />
+                                <span>{{ __('رمز PIN') }}</span>
+                            </button>
+                        </div>
+                        <LoginPasskeyActions
+                            mode="login"
+                            :email="email"
+                            @authenticated="onPasskeyAuthenticated"
+                        />
+                    </details>
+
+                    <!-- Branch Selector -->
+
+                    <div class="dy-login__branch-selector" v-if="branches.length > 1">
+                        <label for="dypos-login-branch" class="dy-login__label">
+                            {{ __('الفرع') }}
+                        </label>
+                        <div class="dy-login__select-wrap">
+                            <FeatherIcon name="map-pin" :size="18" class="dy-login__select-icon" aria-hidden="true" />
+                            <select
+                                id="dypos-login-branch"
+                                v-model="selectedBranchId"
+                                class="dy-login__select"
+                                :disabled="isSubmitting"
+                                @change="onBranchChange"
+                            >
+                                <option value="">{{ __('اختر الفرع') }}</option>
+                                <option v-for="branch in branches" :key="branch.id" :value="branch.id">
+                                    {{ branch.name }}
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Subscriber Code Display -->
+
+                    <div class="dy-login__subscriber-code" v-if="subscriberCode">
+                        <FeatherIcon name="barcode" :size="16" aria-hidden="true" />
+                        <span class="dy-login__subscriber-label">{{ __('رمز المشترك') }}</span>
+                        <span class="dy-login__subscriber-value">{{ subscriberCode }}</span>
+                    </div>
+
                     <!-- Submit -->
 
-                    <DyButton
+                    <ActionButton
                         type="submit"
-                        variant="primary"
+                        variant="solid"
                         size="lg"
                         class="dy-login__submit"
                         :loading="isSubmitting"
@@ -1546,16 +1304,8 @@ watch(
                         />
 
                         {{ __(submitLabel) }}
-                    </DyButton>
+                    </ActionButton>
                 </form>
-
-                <!-- الدخول/التسجيل بالبصمة. الزر يظهر فقط إن كان
-                     الجهاز يدعمه فعلًا — لا زرّ معطّل بتخمين السبب. -->
-                <LoginPasskeyActions
-                    mode="login"
-                    :email="email"
-                    @authenticated="onPasskeyAuthenticated"
-                />
 
                 <!-- =================================================================
                      Quick-access row: PIN entry + setup
@@ -1614,176 +1364,28 @@ watch(
                     </button>
                 </div>
 
-                <!-- PIN setup -->
+                <!-- PIN sign-in / setup — extracted to `LoginPinForm.vue` -->
 
-                <div
-                    v-if="showPinSetup"
-                    class="dy-login__pin-setup"
-                    role="dialog"
-                    aria-modal="true"
-                    aria-labelledby="dypos-pin-setup-title"
-                >
-                    <h2
-                        id="dypos-pin-setup-title"
-                        class="dy-login__pin-setup-title"
-                    >
-                        {{ __('إنشاء رمز دخول سريع') }}
-                    </h2>
-
-                    <p class="dy-login__hint">
-                        {{
-                            __("يُحفظ الرمز مشفّرًا على هذا الجهاز فقط، ويصالح {0} دقيقة. لا يمكن استعادته إن فُقد.", {
-                                0: String(PIN_EXPIRY_MS / 60000),
-                            })
-                        }}
-                    </p>
-
-                    <form
-                        class="dy-login__form"
-                        novalidate
-                        @submit.prevent="handlePinSetup"
-                    >
-                        <div class="dy-login__field">
-                            <label
-                                for="dypos-pin-new"
-                                class="dy-login__label"
-                            >
-                                {{ __('الرمز الجديد') }}
-                            </label>
-
-                            <input
-                                id="dypos-pin-new"
-                                :value="pinCode"
-                                class="dy-login__input"
-                                type="password"
-                                inputmode="numeric"
-                                autocomplete="off"
-                                maxlength="8"
-                                dir="ltr"
-                                :aria-invalid="!!pinSetupError"
-                                @input="onPinSetupInput('code', $event)"
-                            />
-                        </div>
-
-                        <div class="dy-login__field">
-                            <label
-                                for="dypos-pin-confirm"
-                                class="dy-login__label"
-                            >
-                                {{ __('تأكيد الرمز') }}
-                            </label>
-
-                            <input
-                                id="dypos-pin-confirm"
-                                ref="pinConfirmInput"
-                                :value="pinConfirm"
-                                class="dy-login__input"
-                                type="password"
-                                inputmode="numeric"
-                                autocomplete="off"
-                                maxlength="8"
-                                dir="ltr"
-                                :aria-invalid="!!pinSetupError"
-                                @input="onPinSetupInput('confirm', $event)"
-                            />
-                        </div>
-
-                        <p
-                            v-if="pinSetupError"
-                            class="dy-login__field-error"
-                            role="alert"
-                            aria-live="assertive"
-                        >
-                            <FeatherIcon
-                                name="alert-circle"
-                                :size="14"
-                                aria-hidden="true"
-                            />
-                            {{ pinSetupError }}
-                        </p>
-
-                        <div class="dy-login__quick-actions">
-                            <DyButton
-                                type="submit"
-                                variant="primary"
-                                size="sm"
-                                :disabled="pinCode.length < PIN_MIN_LENGTH"
-                            >
-                                {{ __('حفظ الرمز') }}
-                            </DyButton>
-
-                            <button
-                                type="button"
-                                class="dy-login__link-button"
-                                @click="cancelPinSetup"
-                        :aria-label="__('إلغاء إعداد رمز PIN')"
-                    >
-                                {{ __('إلغاء') }}
-                            </button>
-                        </div>
-                    </form>
-                </div>
+                <LoginPinForm
+                    v-if="pinModeActive || showPinSetup"
+                    :pin-login="attemptPinLogin"
+                    :save-pin="storePin"
+                    :email="email"
+                    :setup="showPinSetup"
+                    :no-pin-stored="!pinAvailable"
+                    @authenticated="onPinAuthenticated"
+                    @cancel-setup="cancelPinSetup"
+                    @exit="exitPinMode"
+                    @error="(e) => emit('error', e)"
+                />
 
                 <!-- Security / Runtime information -->
 
-                <aside
-                    class="dy-login__security"
-                    :aria-label="__('معلومات الأمان والتشغيل')"
-                >
-                    <div class="dy-login__security-main">
-                        <span class="dy-login__security-icon" aria-hidden="true">
-                            <FeatherIcon
-                                name="shield-check"
-                                :size="18"
-                            />
-                        </span>
-
-                        <div>
-                            <strong>
-                                {{ __('جلسة تشغيل آمنة') }}
-                            </strong>
-
-                            <span>
-                                {{ __('تتم حماية الاتصال وتهيئة الجلسة قبل بدء التشغيل.') }}
-                            </span>
-                        </div>
-                    </div>
-
-                    <button
-                        type="button"
-                        class="dy-login__details-toggle"
-                        :aria-expanded="
-                            showRuntimeDetails
-                        "
-                        @click="
-                            showRuntimeDetails =
-                                !showRuntimeDetails
-                        "
-                        :aria-label="
-                            showRuntimeDetails
-                                ? __('إخفاء تفاصيل الاتصال')
-                                : __('عرض تفاصيل الاتصال')
-                        "
-                    >
-                        {{ __('التفاصيل') }}
-                    </button>
-
-                    <div
-                        v-if="showRuntimeDetails"
-                        class="dy-login__details"
-                    >
-                        <div
-                            v-for="detail in runtimeDetails"
-                            :key="detail.label"
-                        >
-                            <span>{{ __(detail.label) }}</span>
-
-                            <strong>
-                                {{ __(detail.value) }}
-                            </strong>
-                        </div>
-                    </div>
-                </aside>
+                <LoginSecurityPanel
+                    :open="showRuntimeDetails"
+                    :details="runtimeDetails"
+                    @toggle="showRuntimeDetails = !showRuntimeDetails"
+                />
 
                 <!-- Session Timeout Warning -->
 
@@ -1808,18 +1410,33 @@ watch(
             </div>
         </section>
 
-        <!--
-        	قسم العرض على يسار/وسط شاشة الدخول. `dir` يُترك للصفحة
-        	(rtl): البطاقة داخله عربية، والشعار-circle محايد الاتجاه،
-        	التعليق **خارج** الوسم: تعليق داخل قائمة الخصائص ليس
-        	تعليقًا في HTML، فيقرأ نصه خاصيةً ويشكو تكرارًا.
-        -->
-        <section
-        	class="dy-login__showcase"
-        	:aria-label="__('شركة المنافذ الذكية للبرمجيات — Smart Ports Software')"
-        >
-        	<SystemAboutPanel class="dy-login__brand-card" />
-        </section>
+        <!-- =================================================================
+             Workspace column — the panels beside the form.
+
+             `ShiftOpsPanel` was imported here and rendered NOWHERE: the whole
+             opening-time surface (the shift announcements + the device check
+             a manager runs before opening the till) was complete, tested, and
+             unreachable. An import with no mount is the same defect class
+             AGENTS.md records for `WorkForm.vue` — code that looks finished and
+             never executes.
+
+             It rides the shared `DyPanel` grid rather than a new
+             `grid-template-areas` name: the panel system exists so adding a
+             block costs two attributes, not a stylesheet edit.
+             ================================================================= -->
+
+        <LoginWorkspacePanel>
+            <DyPanel
+                :title="__('لوحة التشغيل')"
+                :subtitle="__('تعليمات الوردية وحالة الأجهزة')"
+                aria-label=""
+                span="full"
+                :order="2"
+                class="dy-login__ops-panel"
+            >
+                <ShiftOpsPanel />
+            </DyPanel>
+        </LoginWorkspacePanel>
 
         <ShiftOpeningDialog
             v-if="shiftDialogOpen"
@@ -1836,6 +1453,17 @@ watch(
          =============================================================== -->
 
         <LoginSessionLockDialog />
+<TouchKeyboard
+            v-model:is-open="showKeyboard"
+            :model-value="password"
+            @update:model-value="password = $event"
+            @confirm="handleKeyboardSubmit"
+            :title="__('لوحة مفاتيح رقمية')"
+            :placeholder="__('أدخل رمز المرور')"
+            mask
+            :max-length="8"
+        />
+        <NotificationBar />
     </main>
 </template>
 

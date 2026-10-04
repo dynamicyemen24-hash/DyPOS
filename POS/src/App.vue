@@ -67,9 +67,16 @@
 			surviving a restart, power cut, or logout is offered back
 			on Login, POS, or any dashboard.
 		-->
-		<LiveCartRecoveryBanner />
+<LiveCartRecoveryBanner />
 
-		<!--
+	<!-- Global notification bar (professional strip) -->
+	<NotificationBar
+		v-if="showBar"
+		:message="msg"
+		:type="type"
+	/>
+
+<!--
 			Screen-reader live region reserved for global application
 			status announcements.
 		-->
@@ -89,6 +96,7 @@ import {
 	computed,
 	onBeforeUnmount,
 	onErrorCaptured,
+	onMounted,
 	ref,
 	useTemplateRef,
 } from "vue"
@@ -96,6 +104,8 @@ import {
 import Toast from "@/components/common/Toast.vue"
 import ServiceWorkerUpdateBanner from "@/components/reports/dashboards/core/ServiceWorkerUpdateBanner.vue"
 import LiveCartRecoveryBanner from "@/components/reports/dashboards/core/LiveCartRecoveryBanner.vue"
+import NotificationBar from "@/components/NotificationBar.vue"
+import { PROFESSIONAL_NOTIF_EVENT } from "@/composables/useSaleNotification"
 import { useAppTheme } from "@/composables/useAppTheme"
 import { useLocale } from "@/composables/useLocale"
 import { translationVersion, __ } from "@/utils/translation"
@@ -114,13 +124,46 @@ useAppTheme()
 
 /**
  * --------------------------------------------------------------------------
+ * Notification bar state
+ * --------------------------------------------------------------------------
+ *
+ * Reactive state for the global notification bar. The bar can be shown
+ * from any component by calling `showProfessionalNotification` from
+ * `useSaleNotification`.
+ */
+const showBar = ref(false)
+const msg = ref("")
+const type = ref("info")
+
+/**
+ * Global event listener for professional notifications dispatched by
+ * `useSaleNotification`. When a sale completes, the composable fires
+ * `dypos:show-prof-notif`; this listener updates the professional
+ * notification bar that lives at the top of the app shell.
+ */
+onMounted(() => {
+	window.addEventListener(PROFESSIONAL_NOTIF_EVENT, handleProfNotif)
+})
+onBeforeUnmount(() => {
+	window.removeEventListener(PROFESSIONAL_NOTIF_EVENT, handleProfNotif)
+})
+
+function handleProfNotif(e) {
+	showBar.value = true
+	msg.value = e.detail.message || ""
+	type.value = e.detail.type || "info"
+}
+
+/**
+ * --------------------------------------------------------------------------
  * Application readiness
  * --------------------------------------------------------------------------
  *
  * App.vue itself does not own bootstrap.
  *
- * main.js owns application initialization. We only expose a lightweight
- * readiness state here for the shell/accessibility contract.
+ * The professional notification bar is driven by the global event
+ * `dypos:show-prof-notif` emitted by `useSaleNotification.showNotification`.
+ * See `src/composables/useSaleNotification.js` for details.
  */
 const appReady = ref(true)
 

@@ -15,6 +15,9 @@ import { ref, computed, onMounted } from "vue"
 import { session } from "@/stores/session"
 import { logger } from "@/utils/logger"
 
+/** النسخة المسماة وحدها تحمل warn/info/error — انظر methodClient.js. */
+const log = logger.create("PinAuth")
+
 const PIN_STORAGE_KEY = "dypos_pin_v1"
 const PIN_DEFAULT_EXPIRY_MS = 60 * 60 * 1000
 
@@ -94,7 +97,7 @@ function clearPin() {
  */
 async function savePin(pinCode, email, expiryMs = PIN_DEFAULT_EXPIRY_MS) {
 	if (!pinCode || !email) {
-		logger.warn("[PinAuth] savePin requires both pinCode and email")
+		log.warn("[PinAuth] savePin requires both pinCode and email")
 		return false
 	}
 
@@ -133,10 +136,10 @@ async function savePin(pinCode, email, expiryMs = PIN_DEFAULT_EXPIRY_MS) {
 		storedPinExpiry.value = payload.expiry
 		pinUserEmail.value = email
 
-		logger.info(`[PinAuth] PIN saved for ${email}`)
+		log.info(`[PinAuth] PIN saved for ${email}`)
 		return true
 	} catch (err) {
-		logger.error("[PinAuth] Failed to save PIN:", err)
+		log.error("[PinAuth] Failed to save PIN:", err)
 		return false
 	}
 }
@@ -184,7 +187,7 @@ async function pinLogin(pinCode) {
 					"dypos_pin_lock",
 					JSON.stringify({ lockedAt: lockUntil.value }),
 				)
-				logger.warn(
+				log.warn(
 					`[PinAuth] Account locked after ${failedAttempts.value} failed attempts`,
 				)
 				return {
@@ -200,10 +203,10 @@ async function pinLogin(pinCode) {
 		lockUntil.value = null
 		localStorage.removeItem("dypos_pin_lock")
 
-		logger.info("[PinAuth] PIN accepted")
+		log.info("[PinAuth] PIN accepted")
 		return { success: true, email: pinUserEmail.value }
 	} catch (err) {
-		logger.error("[PinAuth] PIN verification error:", err)
+		log.error("[PinAuth] PIN verification error:", err)
 		return { success: false, error: "خطأ في التحقق" }
 	}
 }

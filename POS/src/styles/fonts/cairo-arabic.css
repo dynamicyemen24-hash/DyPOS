@@ -1,0 +1,80 @@
+/*
+ * Cairo faces with an explicit unicode-range.
+ *
+ * `@fontsource/cairo/arabic-400.css` ships an @font-face with NO
+ * `unicode-range` — verified by reading the file in node_modules. Without a
+ * range the browser treats Cairo as a candidate for EVERY character, so an
+ * English invoice line or a numeric SKU is measured against Cairo's Latin
+ * metrics (a fallback, not the design) before falling through to Inter. Two
+ * costs a POS pays on every till:
+ *
+ *   - Latin and numeric runs take Cairo's advance widths, so a right-aligned
+ *     column of prices stops lining up even though `tabular-nums` is set on it.
+ *   - Every weight stays resident for the whole session whether or not Arabic
+ *     appears on screen.
+ *
+ * The ranges are declared over `woff2` only. `vite.config.js` has a font
+ * stripping hook that rewrites `, url(…woff) format("woff")` and DELETES
+ * unreferenced variable-font assets, so the legacy `.woff` fallback is not
+ * declared here: the package CSS in `index.css` already provides it, and that
+ * hook exists precisely to strip it from the emitted bundle.
+ *
+ * This file only re-states the package's family, weight and src, and adds the
+ * descriptor that was missing — same files, no second copy of the payload.
+ *
+ * It is a separate module rather than a block inside `index.css` for one
+ * concrete reason: CSS requires every `@import` to precede every other at-rule,
+ * and `index.css` imports the design system below this declaration. A file that
+ * is nothing but faces has no ordering problem at all.
+ */
+
+@font-face {
+	font-family: "Cairo";
+	font-style: normal;
+	font-display: swap;
+	font-weight: 400;
+	src: url("@fontsource/cairo/files/cairo-arabic-400-normal.woff2")
+		format("woff2");
+	/* Arabic, Arabic Supplement, Arabic Extended-A/B, Presentation Forms-A/B. */
+	unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF;
+}
+
+@font-face {
+	font-family: "Cairo";
+	font-style: normal;
+	font-display: swap;
+	font-weight: 500;
+	src: url("@fontsource/cairo/files/cairo-arabic-500-normal.woff2")
+		format("woff2");
+	unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF;
+}
+
+@font-face {
+	font-family: "Cairo";
+	font-style: normal;
+	font-display: swap;
+	font-weight: 600;
+	src: url("@fontsource/cairo/files/cairo-arabic-600-normal.woff2")
+		format("woff2");
+	unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF;
+}
+
+@font-face {
+	font-family: "Cairo";
+	font-style: normal;
+	font-display: swap;
+	font-weight: 700;
+	src: url("@fontsource/cairo/files/cairo-arabic-700-normal.woff2")
+		format("woff2");
+	unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF;
+}
+
+@font-face {
+	font-family: "Cairo";
+	font-style: normal;
+	font-display: swap;
+	font-weight: 800;
+	src: url("@fontsource/cairo/files/cairo-arabic-800-normal.woff2")
+		format("woff2");
+	unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF;
+}

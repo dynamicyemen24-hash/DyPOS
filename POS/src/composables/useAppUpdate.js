@@ -3,9 +3,7 @@
  * Single brain for "there is an update → what is it → download it":
  * - Listens for the service-worker signal AND the version watchdog
  *   (both dispatch the `sw-update-available` window event).
- * - Fetches the release feed (what changed + merchant benefit) from
- *   `/api/updates/latest`, falling back to the static `release.json`
- *   shipped with the Cloudflare build (works even if the API is down).
+ * - Builds the update notice from the semantic version embedded in the PWA.
  * - `applyUpdate()` activates the waiting worker and reloads once.
  *
  * Never blocks POS rendering; never auto-reloads without the user.
@@ -15,11 +13,6 @@ import { logger } from "@/utils/logger"
 
 const log = logger.create("AppUpdate")
 
-const FEED_URLS = Object.freeze([
-	"/api/updates/latest",
-	"/assets/DyPOS/pos/release.json",
-])
-
 const updateAvailable = ref(false)
 const downloading = ref(false)
 const release = ref(null)
@@ -27,7 +20,7 @@ const currentVersion = ref(null)
 
 try {
 	currentVersion.value =
-		typeof __BUILD_VERSION__ !== "undefined" ? String(__BUILD_VERSION__) : null
+		typeof __APP_VERSION__ !== "undefined" ? String(__APP_VERSION__) : null
 } catch {
 	currentVersion.value = null
 }
@@ -35,28 +28,16 @@ try {
 let listenerInstalled = false
 let feedLoaded = false
 
-async function loadReleaseFeed() {
+async function loadReleaseFeed(version = currentVersion.value) {
 	if (feedLoaded) return release.value
-	for (const url of FEED_URLS) {
-		try {
-			const response = await fetch(url, {
-				method: "GET",
-				cache: "no-store",
-				credentials: "same-origin",
-			})
-			if (!response.ok) continue
-			const data = await response.json()
-			// API shape: { release: {...} } — static file shape: {...} directly.
-			const feed = data?.release || data
-			if (feed?.version) {
-				release.value = feed
-				feedLoaded = true
-				return feed
-			}
-		} catch (error) {
-			log.debug("Release feed fetch failed", { url, error: error?.message })
-		}
+	if (!version) return null
+	release.value = {
+		version: String(version),
+		title: "تحديث DyPOS متاح",
+		severity: "normal",
+		highlights: [],
 	}
+	feedLoaded = true
 	return release.value
 }
 

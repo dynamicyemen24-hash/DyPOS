@@ -50,6 +50,19 @@
 							inputmode="decimal"
 							required
 						/>
+						<!--
+							The scale fills the quantity box above. Every rule about
+							WHEN that happens lives in the HAL, not here: a second copy
+							of "only write a settled weight" in each page is how two
+							screens start disagreeing about what a weight means.
+						-->
+						<ScaleField
+							:target="quantityField"
+							:uom="uomField"
+							unit="كجم"
+							:settings="scaleSettings"
+							label="ميزان"
+						/>
 					</label>
 					<label>
 						<span>الوحدة</span>
@@ -144,9 +157,9 @@
 						{{ actionError }}
 					</p>
 					<div class="third-party-sales__actions">
-						<DyButton type="submit" size="lg" touch :loading="saving">
+						<ActionButton type="submit" size="lg" touch :loading="saving">
 							حفظ البيع محليًا
-						</DyButton>
+						</ActionButton>
 					</div>
 				</form>
 			</section>
@@ -190,7 +203,7 @@
 							<div><span>المكان</span><strong>{{ sale.location }}</strong></div>
 						</div>
 						<div class="third-party-sales__sale-actions">
-							<DyButton
+							<ActionButton
 								v-if="sale.ownerDueMinor > 0"
 								variant="outline"
 								size="md"
@@ -198,7 +211,7 @@
 								@click="openSettlement(sale)"
 							>
 								تسجيل تسوية للمالك
-							</DyButton>
+							</ActionButton>
 							<span>المزامنة: {{ sale.syncStatus === "pending" ? "بانتظار الربط المعتمد" : "تمت" }}</span>
 						</div>
 						<form
@@ -232,12 +245,13 @@
 								<input v-model="settlementDraft.reference" maxlength="100" />
 							</label>
 							<div class="third-party-sales__actions">
-								<DyButton type="submit" variant="success" :loading="saving">
+								<ActionButton type="submit" theme="green"
+	variant="solid" :loading="saving">
 									اعتماد التسوية
-								</DyButton>
-								<DyButton variant="ghost" @click="settlementTarget = null">
+								</ActionButton>
+								<ActionButton variant="ghost" @click="settlementTarget = null">
 									إلغاء
-								</DyButton>
+								</ActionButton>
 							</div>
 						</form>
 					</article>
@@ -250,11 +264,13 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue"
 import { getActivePinia } from "pinia"
-import DyButton from "@/components/ui/DyButton.vue"
+import { ActionButton } from "dypos-ui"
+import ScaleField from "@/components/sale/ScaleField.vue"
 import WorkShell from "@/components/work/WorkShell.vue"
 import { sessionUser } from "@/data/session"
 import { flatWorkNav } from "@/components/work/workNav"
 import { useIndustryProfileStore } from "@/stores/industryProfile"
+import { usePOSSettingsStore } from "@/stores/posSettings"
 import { toMajor } from "@/utils/money"
 import { generateUUID } from "@/utils/offline/uuid"
 import {
@@ -268,6 +284,21 @@ import "@/styles/pages/third-party-sales.css"
 
 const sellerName = sessionUser() || "المستخدم الحالي"
 const industry = getActivePinia() ? useIndustryProfileStore() : null
+
+/**
+ * Scale settings come from the POS settings store so one configuration
+ * serves every screen. The store is read defensively: this page mounts in
+ * tests and in the standalone shell where Pinia may not be active yet, and a
+ * missing scale config must degrade to "no scale", never to a crash on open.
+ */
+const scaleSettings = computed(() => {
+	if (!getActivePinia()) return {}
+	try {
+		return usePOSSettingsStore().settings?.value?.scale ?? {}
+	} catch {
+		return {}
+	}
+})
 const navItems = computed(() =>
 	flatWorkNav().filter(
 		(item) =>
@@ -295,6 +326,28 @@ const draft = reactive({
 	buyerPaymentReference: "",
 	notes: "",
 })
+/**
+ * Writable views of the two fields the scale drives.
+ *
+ * `draft` is a reactive object, and a component prop typed as a Ref would
+ * receive a plain value — the scale would then write into a copy and the
+ * field would appear to ignore it. computed(get/set) is the seam that keeps
+ * v-model and the scale writing to the SAME state.
+ */
+const quantityField = computed({
+	get: () => draft.quantity,
+	set: (value) => {
+		draft.quantity = value
+	},
+})
+
+const uomField = computed({
+	get: () => draft.uom,
+	set: (value) => {
+		draft.uom = value
+	},
+})
+
 const sales = ref([])
 const loading = ref(false)
 const saving = ref(false)

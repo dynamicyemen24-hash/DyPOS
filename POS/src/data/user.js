@@ -2,6 +2,7 @@ import router from "@/router"
 import { computed, reactive } from "vue"
 
 const getCookie = (key) => {
+	if (typeof document === "undefined") return null
 	const cookies = new Map(
 		document.cookie
 			.split("; ")
@@ -47,18 +48,6 @@ export const userData = reactive({
 
 // Initial refresh
 userData.refresh()
-
-// Watch for cookie changes (e.g., after login) and auto-refresh
-// This uses MutationObserver to detect document.cookie changes
-if (typeof window !== "undefined") {
-	let lastCookie = document.cookie
-	setInterval(() => {
-		if (document.cookie !== lastCookie) {
-			lastCookie = document.cookie
-			userData.refresh()
-		}
-	}, 500) // Check every 500ms for cookie changes
-}
 
 export const useUserData = () => ({
 	userName: computed(() => userData.getDisplayName()),

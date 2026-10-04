@@ -899,9 +899,27 @@
 	text-wrap: pretty;
 }
 
+/*
+ * Long Arabic names.
+ *
+ * This utility used `overflow-wrap: anywhere` + `word-break: break-word`,
+ * which is the Tailwind default and is wrong for this product twice over:
+ *
+ *   - `anywhere` also breaks INSIDE short words, so a normal Arabic word in a
+ *     normal column can split mid-word between two letters. Arabic is read as
+ *     connected letterforms; a break there is not a line break, it is a typo.
+ *   - `break-word` is a legacy alias with the same over-eager behaviour.
+ *
+ * The intent of the utility is only "a run with no break opportunity must not
+ * overflow" — a pasted SKU, a URL in a note. `overflow-wrap: break-word` is
+ * exactly that: it breaks a run ONLY when it cannot fit on a line by itself,
+ * and leaves ordinary Arabic text untouched. Combined with the root
+ * `word-break: normal` + `line-break: strict` rules, an Arabic name wraps at
+ * spaces and never mid-word.
+ */
 .dy-break-words {
-	overflow-wrap: anywhere;
-	word-break: break-word;
+	overflow-wrap: break-word;
+	word-break: normal;
 }
 
 .dy-whitespace-nowrap {

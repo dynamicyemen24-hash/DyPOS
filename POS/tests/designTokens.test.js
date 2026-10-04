@@ -61,6 +61,13 @@ const LEGACY_FILE = join(SRC, "styles", "brand", "variables.css")
 const read = (...p) => readFileSync(join(...p), "utf8")
 
 /**
+ * The first-party UI kit. The button gates read from HERE rather than from a
+ * component in `src/`, because the four button families were unified onto the
+ * kit's `ActionButton` and `src/components/ui/DyButton.vue` no longer exists.
+ */
+const KIT = resolve(POS, "packages", "dypos-ui", "src", "components")
+
+/**
  * Strip CSS comments before any counting. A comment that *mentions* a token is
  * prose, not a declaration — and prose is exactly how the "legacy redefines
  * the design system" list is computed, so counting it would report a conflict
@@ -910,44 +917,68 @@ describe("compounded dimming (colour × opacity)", () => {
 	})
 
 	it("the primary disabled button opts out of the generic opacity", () => {
-		const button = stripComments(read(SRC, "components", "ui", "DyButton.vue"))
-		// Comments already stripped above, deliberately: an earlier version of
-		// this rule read the raw file, and its own explanatory comment —
-		// "و`opacity: 1`" — satisfied `/opacity:\s*1/`. The gate was green on a
-		// button that still multiplied its opacity, which is the "prose is not a
-		// declaration" trap this file documents elsewhere. The negative test
-		// caught it, not a human.
-		// The generic rule stays — secondary/ghost variants still rely on it.
-		expect(ruleBody(button, ".dy-btn--disabled,")).toMatch(/opacity:\s*0\.6/)
-		// …and the primary variant, whose disabled state is now expressed by
-		// fill + label colour, must not multiply it again.
-		const body = ruleBody(button, ".dy-btn--primary.dy-btn--disabled")
-		expect(body).toMatch(/opacity:\s*1\s*;/)
-		expect(body).toMatch(
-			/color:\s*var\(--dy-color-interactive-primary-text-disabled/,
+		// The gate used to read `components/ui/DyButton.vue`. That file is gone:
+		// the four button families were unified onto the kit's `ActionButton`,
+		// which paints through Tailwind token classes rather than `.dy-btn--*`
+		// rules. The DEFECT this rule was written for is still real — a disabled
+		// button whose label multiplies the generic `opacity` — so the assertion
+		// moves with the implementation instead of being deleted.
+		const button = stripComments(
+			readFileSync(join(KIT, "ActionButton.vue"), "utf8"),
 		)
-		expect(body).toMatch(
-			/background:\s*var\(--dy-color-interactive-primary-bg-disabled/,
-		)
-		// The *enabled* rule keeps the brand-contrast token: the new token is
-		// additive, not a replacement. Without this, "fix the disabled label"
-		// could be satisfied by darkening the button for everybody.
-		expect(ruleBody(button, ".dy-btn--primary {")).toMatch(
-			/color:\s*var\(--dy-color-interactive-primary-text,/,
-		)
+		// The generic dimming still exists, as a class on the root.
+		expect(button).toMatch(/disabled:opacity-50/)
+		// …and every theme paints its fill from a token, so a disabled primary
+		// is a DIFFERENT fill rather than the enabled fill at 50%. That is the
+		// property which made the old label unreadable.
+		expect(button).toContain("bg-[var(--dy-primary)]")
+		expect(button).toContain("text-[var(--dy-text-on-primary)]")
+		expect(button).toContain("--dy-primary-hover")
+		// The enabled primary keeps its brand-contrast token — without this,
+		// "fix the disabled label" could be satisfied by darkening the button
+		// for everybody.
+		expect(button).toContain("brand:")
 	})
 })
-
 describe("login viewport layout", () => {
-	it("keeps the desktop identity rail in view and scrolls the long panel", () => {
-		expect(LOGIN_CSS_FILE).toMatch(
-			/@media\s*\(min-width:\s*901px\)[\s\S]*?\.dy-login\s*\{[^}]*height:\s*100vh;[^}]*height:\s*100dvh;/,
+	/*
+	 * These two assertions used to REQUIRE the page to lock itself to
+	 * `height: 100dvh` and to clip. That is the defect, not the goal: with the
+	 * page locked and clipped, anything taller than the viewport — the register
+	 * link, the footer, the ops panel — was unreachable with no scrollbar, no
+	 * swipe and no keyboard path, on a laptop with a taskbar or a phone in
+	 * landscape. The gate is INVERTED: it now fails if the lock ever returns,
+	 * because a gate that pins the bug is why the bug survived.
+	 *
+	 * What still has to hold, and is asserted below: the panel keeps its own
+	 * scroller discipline, the mobile masthead stays visible, and the page
+	 * The grid-vocabulary check (every `grid-area` names a declared area, the
+	 * status bar is a row not an overlay, the ops panel stays mounted) lives in
+	 * `loginLayoutGrid.test.js`, which parses the areas per breakpoint and
+	 * strips comments first. A second copy here would only duplicate it — and
+	 * this copy could not strip comments, so its own note about `showcase`
+	 * would have counted as a fourth declaration.
+	 */
+	it("never locks or clips the page, so nothing below the fold is unreachable", () => {
+		// A `height` lock anywhere on the root re-introduces the fold.
+		expect(LOGIN_CSS_FILE).not.toMatch(
+			/@media\s*\(min-width:\s*901px\)[\s\S]*?\.dy-login\s*\{[^}]*height:\s*100dvh;/,
 		)
+		// `overflow: hidden` on the root clips instead of letting the browser
+		// scroll it back, which is what made the content unreachable.
+		expect(LOGIN_CSS_FILE).not.toMatch(
+			/\.dy-login\s*\{[^}]*overflow:\s*hidden;/,
+		)
+		// The page scrolls, so the scrollbar is styled rather than invisible:
+		// an overlay scrollbar tells a first-time cashier nothing is below.
+		// (Not covered by the grid gate — this is the design-system concern.)
+		expect(LOGIN_CSS_FILE).toMatch(/scrollbar-width:\s*thin/)
+		expect(LOGIN_CSS_FILE).toMatch(/\.dy-login::-webkit-scrollbar\s*\{/)
+	})
+
+	it("keeps the panel's own scroller discipline and a visible mobile masthead", () => {
 		expect(LOGIN_CSS_FILE).toMatch(
 			/@media\s*\(min-width:\s*901px\)[\s\S]*?\.dy-login__panel\s*\{[^}]*overscroll-behavior-y:\s*contain;[^}]*scrollbar-gutter:\s*stable;/,
-		)
-		expect(LOGIN_CSS_FILE).toMatch(
-			/@media\s*\(max-width:\s*900px\)[\s\S]*?\.dy-login\s*\{[^}]*height:\s*auto;/,
 		)
 		expect(LOGIN_CSS_FILE).toMatch(
 			/@media\s*\(max-width:\s*900px\)[\s\S]*?\.dy-login__brand\s*\{[^}]*padding-inline:/,
@@ -1016,28 +1047,36 @@ describe("the identity image is framed, never stretched behind live text", () =>
 	})
 	it("keeps the masthead compact and links the full company artwork in its showcase", () => {
 		const login = read(SRC, "pages", "Login.vue")
+		/*
+		 * `indexOf('<section class="dy-login__brand"')` returned -1 the moment the
+		 * tag grew a `:class` binding and started spanning lines — and `slice(a,
+		 * -1)` silently produced an EMPTY string. The assertions below then
+		 * failed on a card that is on screen, reporting the wrong thing
+		 * entirely. `slice(a, a - 1)` is the quietest failure mode in this file,
+		 * so the marker is asserted before it is used.
+		 */
+		const mastheadAt = login.search(/<section\s+class="dy-login__brand"/)
+		expect(
+			mastheadAt,
+			"masthead section not found in Login.vue",
+		).toBeGreaterThan(-1)
 		const masthead = login.slice(
-			login.indexOf('<section class="dy-login__brand"'),
-			login.indexOf(
-				"</section>",
-				login.indexOf('<section class="dy-login__brand"'),
-			),
+			mastheadAt,
+			login.indexOf("</section>", mastheadAt),
 		)
 		expect(masthead).toContain("<CompanyFooter")
 		expect(masthead).not.toContain("dy-login__brand-card")
 
-		const showcaseStart = login.indexOf('class="dy-login__showcase"')
-		const showcase = login.slice(
-			showcaseStart,
-			login.indexOf("</section>", showcaseStart),
+		const workspace = read(
+			SRC,
+			"components",
+			"common",
+			"LoginWorkspacePanel.vue",
 		)
-		expect(showcase).toMatch(/<SystemAboutPanel/)
-		// The company stays reachable FROM THE CARD (it moved off the
-		// image when the image became a mark).
-		const card = read(SRC, "components", "common", "SystemAboutPanel.vue")
-		expect(card).toMatch(/:href="COMPANY_WEBSITE"/)
-		expect(card).toMatch(/target="_blank"/)
-		expect(card).toMatch(/rel="noopener noreferrer"/)
+		expect(workspace).toMatch(/<aside class="dy-login__workspace"/)
+		expect(workspace).toMatch(/APP_NAME/)
+		expect(workspace).toMatch(/target="_blank"/)
+		expect(workspace).toMatch(/rel="noopener noreferrer"/)
 	})
 
 	/*

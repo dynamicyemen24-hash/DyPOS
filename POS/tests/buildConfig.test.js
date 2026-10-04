@@ -29,6 +29,7 @@ const read = (...p) => readFileSync(join(POS, ...p), "utf8")
 const pkg = JSON.parse(read("package.json"))
 const viteConfig = read("vite.config.js")
 const tailwindConfig = read("tailwind.config.js")
+const headersConfig = read("public/_headers")
 
 /** Quoted path-ish literals that look like a repo-relative glob or folder. */
 const configPaths = (source) => {
@@ -118,5 +119,23 @@ describe("build config integrity", () => {
 
 	it("production preview does not proxy built assets to the dev server", () => {
 		expect(viteConfig).toMatch(/preview:\s*\{\s*proxy:\s*\{\s*\}/)
+	})
+
+	it("service worker is revalidated instead of inheriting immutable JavaScript caching", () => {
+		const swRule =
+			headersConfig.match(/\/sw\.js\s+([\s\S]*?)(?=\n\S|$)/)?.[1] || ""
+		expect(swRule).toContain(
+			"Cache-Control: no-cache, max-age=0, must-revalidate",
+		)
+	})
+
+	it("service-worker update notices do not call retired remote release feeds", () => {
+		const updater = readFileSync(
+			join(POS, "src/composables/useAppUpdate.js"),
+			"utf8",
+		)
+		expect(updater).not.toContain("/api/updates/latest")
+		expect(updater).not.toContain("/assets/DyPOS/pos/release.json")
+		expect(updater).toContain("currentVersion.value")
 	})
 })

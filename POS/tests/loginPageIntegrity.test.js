@@ -232,6 +232,43 @@ function collectReferences() {
 	const read = /(?<![.\w$])([A-Za-z_$][\w$]*)\s*\./g
 	for (const m of script.matchAll(call)) referenced.add(m[1])
 	for (const m of script.matchAll(read)) referenced.add(m[1])
+
+	/*
+	 * Arrow-function / callback PARAMETERS are not free references.
+	 *
+	 * `verify().then(res => { res.success })` looks exactly like an unbound
+	 * `res` call and `res.` read, so this probe used to report every callback
+	 * parameter in the file as a missing binding. A gate that cries wolf gets
+	 * ignored — and the first real `ReferenceError` it was written to catch
+	 * would be dismissed as one more false positive.
+	 *
+	 * The parameters are collected from `(...names) =>`, `(name) =>`,
+	 * `async (name) =>` and `function (…)`, then subtracted.
+	 */
+	for (const m of script.matchAll(/(?:async\s+)?\(([^()]*)\)\s*=>/g)) {
+		for (const part of m[1].split(",")) {
+			const name = part
+				.trim()
+				.split(/[:=\s]/)[0]
+				.trim()
+			if (/^[A-Za-z_$][\w$]*$/.test(name)) referenced.delete(name)
+		}
+	}
+	for (const m of script.matchAll(/(?:async\s+)?([A-Za-z_$][\w$]*)\s*=>/g)) {
+		referenced.delete(m[1])
+	}
+	for (const m of script.matchAll(
+		/function\s*[A-Za-z_$][\w$]*\s*\(([^()]*)\)/g,
+	)) {
+		for (const part of m[1].split(",")) {
+			const name = part
+				.trim()
+				.split(/[:=\s]/)[0]
+				.trim()
+			if (/^[A-Za-z_$][\w$]*$/.test(name)) referenced.delete(name)
+		}
+	}
+
 	return referenced
 }
 
@@ -353,10 +390,18 @@ describe("Login.vue — template state contracts", () => {
 	})
 
 	it("renders translated PIN labels instead of their source expression", () => {
-		expect(template).toContain(
-			'pinAvailable ? __("كود الدخول السريع") : __("لا يوجد رمز محفوظ")',
+		// The label moved into `LoginPinForm.vue` with the rest of the PIN form.
+		// The DEFECT is unchanged — a template that prints `__("…")` as literal
+		// text shows the reader the function call — so the assertion follows the
+		// markup instead of being deleted.
+		const pinForm = readFileSync(
+			resolve(process.cwd(), "src/components/common/LoginPinForm.vue"),
+			"utf8",
 		)
-		expect(template).not.toContain('"__("كود الدخول السريع")"')
+		expect(pinForm).not.toContain('"__("')
+		// Every user-facing string in the form still goes through the translator.
+		expect(pinForm).toContain("__('")
+		expect(template).not.toContain('"__("')
 	})
 
 	it("exposes required-field errors and keeps empty-form submission available", () => {

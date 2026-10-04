@@ -4,6 +4,19 @@
 @import "@fontsource/cairo/arabic-700.css";
 @import "@fontsource/cairo/arabic-800.css";
 
+/*
+ * Re-declares the same five Cairo weights WITH an explicit `unicode-range`,
+ * which the package omits — see that file for why the range matters (Latin
+ * runs taking Cairo's metrics, so price columns lose alignment). The package
+ * imports stay above: they own the `woff2` fallback and the `@font-face`
+ * defaults, and this adds only the missing descriptor.
+ *
+ * It must stay an @import (not an inline block) because CSS requires every
+ * import to precede every other at-rule, and the design system is imported
+ * further down this file.
+ */
+@import "./styles/fonts/cairo-arabic.css";
+
 @import "@abdulrysr/saudi-riyal-new-symbol-font/style.css";
 @import "dypos-ui/style.css";
 @import "./assets/Inter/inter.css";

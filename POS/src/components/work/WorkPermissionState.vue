@@ -31,9 +31,9 @@
 
       <!-- Actions -->
       <div class="work-permission-state__actions">
-        <DyButton
+        <ActionButton
           v-if="showGoHome"
-          variant="primary"
+          variant="solid"
           @click="handleGoHome"
           :aria-label="t('goHome')"
         >
@@ -41,16 +41,16 @@
             <FeatherIcon name="home" class="w-4 h-4" aria-hidden="true" />
           </template>
           {{ t('goHome') }}
-        </DyButton>
+        </ActionButton>
 
-        <DyButton
+        <ActionButton
           v-if="showLogin"
-          variant="secondary"
+          variant="subtle"
           @click="handleLogin"
           :aria-label="t('login')"
         >
           {{ t('login') }}
-        </DyButton>
+        </ActionButton>
 
         <slot name="actions" />
       </div>
@@ -62,7 +62,7 @@
 import { computed } from "vue"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
-import DyButton from "@/components/ui/DyButton.vue"
+import { ActionButton } from "dypos-ui"
 
 const props = defineProps({
 	title: { type: String, default: "permissionDenied" },

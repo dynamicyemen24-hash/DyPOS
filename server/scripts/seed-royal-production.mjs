@@ -1,12 +1,12 @@
 /**
- * Royal Global — Production Seed (Subscriber #1)
+ * Royal Global — Sample Fixture Seed (non-production only)
  * ============================================================
- * رويال العالمية لتجارة أدوات التجميل والعطور — المشترك رقم واحد
+ * Fixture profile only — not subscriber #1's verified business data.
  *
- * Seeds REAL, production-grade master data:
+ * Creates SAMPLE fixture data for isolated development databases only:
  * - Tenant RGT (enterprise) + organization + 3 branches + warehouses
- * - 6 users with REAL bcrypt hashes (cost 12, repo standard)
- * - a subscriber sync key for /api/sync (hash stored, secret printed once)
+ * - 6 sample users with bcrypt hashes (cost 12, repo standard)
+ * - a development sync key for /api/sync (hash stored, secret printed once)
  * - 64-SKU Arabic-first cosmetics & perfumes catalog
  * - Opening stock per warehouse, customers, fiscal year, sequences, ZATCA
  *
@@ -29,12 +29,19 @@ import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
+import { assertSafeRoyalDemoSeed } from './seed-safety.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // Same resolution as db/schema.js, so a rehearsal can target a scratch DB
 // (DYPOS_DB_PATH=… ) instead of the live one.
 const DB_PATH = process.env.DYPOS_DB_PATH || join(HERE, '..', 'data', 'dypos.db');
 const db = new DatabaseSync(DB_PATH);
+try {
+	assertSafeRoyalDemoSeed(db);
+} catch (error) {
+	db.close();
+	throw error;
+}
 const uuid = () => randomUUID();
 
 /**
@@ -56,7 +63,7 @@ function upsert(table, key, row) {
 const now = () => new Date().toISOString();
 const issued = []; // [[username, password, fullName, role], ...]
 
-// ── Fixed IDs (subscriber #1: reproducible + idempotent) ──
+// ── Fixed IDs (sample fixture: reproducible + idempotent) ──
 const TENANT_ID = '00000000-0000-0000-0000-000000000001';
 const ORG_ID = '11111111-1111-1111-1111-111111111111';
 const BRANCH_SANAA = '44444444-4444-4444-4444-444444444444'; // HQ
@@ -187,7 +194,7 @@ function stockTier(price) {
 	return [14, 9, 7];
 }
 
-console.log('🌱 Royal Global production seed (subscriber #1)...');
+console.log('Royal Global sample fixture seed (non-production database)...');
 
 db.exec('BEGIN');
 try {
@@ -256,7 +263,7 @@ try {
 		});
 	}
 
-	// 4. Users (REAL bcrypt hashes, cost 12 = repo standard)
+	// 4. Sample users (bcrypt hashes, cost 12 = repo standard)
 	// An EXISTING account keeps its password hash. The seed advertises itself as
 	// idempotent, and re-hashing on every run would silently rotate a credential
 	// the operator has already distributed — so a re-run updates the profile only.
@@ -276,7 +283,7 @@ try {
 		).run(uuid(), username, bcrypt.hashSync(password, 12), fullName, role, TENANT_ID, mustChange, now());
 	}
 
-	// 4c. Subscriber sync key — the terminals authenticate to /api/sync with it.
+	// 4c. Development sync key — never distribute it to a subscriber.
 	//   Only the SHA-256 hash is stored (middleware/auth.js look up by hash), the
 	//   raw secret is printed once. Exists = preserved, so re-running never
 	//   invalidates a key already installed in the field.
@@ -304,12 +311,14 @@ try {
 		);
 	}
 
-	// 4b. Purge dead demo accounts (dummy hashes from the legacy seed —
-	// they can never authenticate; transactional tables are empty).
-	console.log('  → Purging dead demo accounts...');
+	// 4b. Retire dead demo accounts (dummy hashes from the legacy seed —
+	// they can never authenticate). No physical deletes: the row stays with
+	// is_active=0, so login (which requires is_active=1) keeps refusing while
+	// the account's existence remains auditable.
+	console.log('  → Retiring dead demo accounts...');
 	const dead = db.prepare("SELECT username FROM users WHERE password_hash='$2a$10$dummyhashplaceholder'").all();
-	for (const u of dead) db.prepare('DELETE FROM users WHERE username=?').run(u.username);
-	console.log(`    purged ${dead.length} dead account(s)`);
+	for (const u of dead) db.prepare('UPDATE users SET is_active=0 WHERE username=?').run(u.username);
+	console.log(`    retired ${dead.length} dead account(s)`);
 
 	// 5. Currencies + UOMs
 	console.log('  → Currencies + UOMs...');
@@ -469,23 +478,33 @@ try {
 		productIds.push({ id, price });
 	});
 
-	// 7b. Purge legacy demo SKUs superseded by the real catalog.
-	// (Only codes outside CATALOG, and only when no invoice references them.)
-	console.log('  → Purging legacy demo SKUs...');
+	// 7b. Retire legacy demo SKUs superseded by this fixture catalog.
+	// (Only codes outside CATALOG, and only when nothing references them.)
+	// No physical deletes: the row stays with is_active=0, so the catalogue
+	// (which reads is_active=1 by default) stops offering it while history
+	// stays intact.
+	console.log('  → Retiring legacy demo SKUs...');
 	const catalogCodes = new Set(CATALOG.map(([code]) => code));
 	const legacy = db
 		.prepare('SELECT id, code FROM products')
 		.all()
 		.filter((p) => !catalogCodes.has(p.code));
-	let purged = 0;
+	let retired = 0;
+	let kept = 0;
 	for (const p of legacy) {
 		const refs = db.prepare('SELECT COUNT(*) c FROM invoice_items WHERE product_id=?').get(p.id).c;
-		if (refs > 0) continue; // sold history — never delete
-		db.prepare('DELETE FROM stock_levels WHERE product_id=?').run(p.id);
-		db.prepare('DELETE FROM products WHERE id=?').run(p.id);
-		purged += 1;
+		if (refs > 0) continue; // sold history — never touch
+		// Opening balances reference products too (FK NO ACTION): a product
+		// carrying an opening balance is accounting history, not a demo SKU.
+		const ob = db.prepare('SELECT COUNT(*) c FROM opening_balances WHERE product_id=?').get(p.id).c;
+		if (ob > 0) {
+			kept += 1;
+			continue;
+		}
+		db.prepare('UPDATE products SET is_active=0 WHERE id=?').run(p.id);
+		retired += 1;
 	}
-	console.log(`    purged ${purged} legacy demo SKU(s)`);
+	console.log(`    retired ${retired} legacy demo SKU(s), kept ${kept} with opening balances`);
 
 	// 8. Opening stock
 	console.log('  → Opening stock...');
@@ -536,7 +555,7 @@ try {
 	});
 
 	db.exec('COMMIT');
-	console.log('✅ Royal Global production data seeded (atomic)!');
+	console.log('Sample fixture data seeded (atomic). Do not use as subscriber data.');
 
 	console.log('\n📊 Verification:');
 	for (const t of [
@@ -564,7 +583,7 @@ try {
 	for (const [u, p, name, role] of issued) console.log(`  ${role.padEnd(7)} ${u.padEnd(15)} ${p}  (${name})`);
 
 	if (rawSyncKey) {
-		console.log('\n🔑 Subscriber sync key (shown once — the POS needs it for sync):');
+		console.log('\nDevelopment sync key (shown once — never use for a subscriber):');
 		console.log(`  ${rawSyncKey}`);
 		console.log('  POS → Sync → cloud destination → paste as the credential.');
 		console.log('  It authenticates as `Authorization: Bearer <key>`.');

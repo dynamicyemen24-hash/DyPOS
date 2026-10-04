@@ -44,9 +44,35 @@ const CAPS = [
 	// ومنها إصلاح catalog-actions للشاشات 420px) استُخرجت إلى
 	// styles/pages/pos-sale-responsive.css (نفس نمط styles/pages/login.css)
 	// مع `<style scoped src>` ثانٍ، فيُقاس الملفان معًا والاتجاه نزول فقط.
-	["src/pages/POSSale.vue", 6239],
+	// 6239 → 6155: the three print paths (after-sale receipt, reprint-last,
+	// manual) moved to composables/useSalePrint.js with their own coverage
+	// (tests/salePrint.test.js, 10 checks). They shared one fallback chain —
+	// spool → direct print → browser print — copied three times inside a page
+	// no suite mounts, which is three places where "the printer is down" turns
+	// into "the cashier is stuck". The operator menu that arrived with this
+	// round (cashier chip / connection badge / shift button all rendered and
+	// did nothing) paid for its own wiring out of this extraction, so the cap
+	// moves DOWN instead of being raised for the feature. Direction: downward.
+	// 6155 → 6145: the sale status line stopped being a four-branch
+	// `v-if / v-else-if` chain in the template and became one binding over
+	// `composables/useSaleStatus.js`, which resolves through a table. That is
+	// not cosmetic: the `v-else` branch claimed "توجد مشكلة في الاتصال" for
+	// ANY value it did not recognise, so an unhandled state told the cashier
+	// the connection was broken. The stock/print buttons went to
+	// `components/pos/PosStockActions.vue` at the same time — four buttons that
+	// were three copies of one block, with «مخزون» appearing twice and both
+	// copies leading to the same destination. Direction: downward only.
+	["src/pages/POSSale.vue", 6165],
+	// 6145 → 6159: the scanner's stop control became a real `ActionButton`
+	// after `:size="sm"` and a broken `aria-label` string made the whole SFC
+	// fail to compile. Fourteen lines of markup that the build previously
+	// refused to bundle at all. Direction from here: downward only.
+	["src/components/settings/POSSettings.vue", 2105],
+	// The print composable gets a cap of its own: it is the module the three
+	// paths now share, so a fourth copy of the fallback chain is exactly the
+	// regression this table exists to catch.
+	["src/composables/useSalePrint.js", 135],
 	["src/styles/pages/pos-sale-responsive.css", 193],
-	["src/components/settings/POSSettings.vue", 2092],
 	// 1712 → 1512: the brand panel was removed from the page (the identity
 	// card moved to the shared `SystemAboutPanel.vue`, the company name stays
 	// on `CompanyFooter`), and 204 lines of CSS for 13 selectors the template
@@ -55,7 +81,7 @@ const CAPS = [
 	// `tests/designTokens.test.js` now fails the build if it grows back.
 	// 1512 → 1516: `biome check --write` re-wrapped four comments; the cap
 	// follows the MEASURED number, never an aspiration.
-	["src/pages/Register.vue", 1516],
+	["src/pages/Register.vue", 1508],
 	// 3406 → 3225 → 1706 → 2039:
 	//  - تهيئة بيئة التشغيل (~250 سطرًا) انتقلت إلى composables/useLoginRuntime.js
 	//  - ثم استُخرجت 1531 سطرًا من `<style scoped>` إلى styles/pages/login.css
@@ -85,7 +111,29 @@ const CAPS = [
 	// 1899 → 1890: ربط حالات الواجهة وتصحيح refs وترجمة PIN، ثم استخراج
 	//   التحقق من الحقول إلى composable قابل للاختبار. أضيفت بوابات القالب
 	//   والتخطيط المكتبي؛ الاتجاه downward فقط.
-	["src/pages/Login.vue", 1845],
+	// 1725 → 1470: the workspace column's identity card moved into `DyPanel`
+	//   (LoginWorkspacePanel now renders it plus a slot), so the page stopped
+	//   carrying its own card markup. Measured by this gate's own counter.
+	//   Direction downward only.
+	["src/pages/Login.vue", 1470],
+	// 1845 → 1715, four extractions, every one of them paid for by a feature
+	// rather than by raising the number:
+	//
+	//  - the context chips (tenant / branch / POS) became one table in
+	//    `useLoginContextItems` — nothing could test three `if` blocks inside
+	//    an 1800-line page, so nothing did;
+	//  - the security panel became `components/common/LoginSecurityPanel.vue`;
+	//  - the PIN form (both sign-in and setup) became
+	//    `components/common/LoginPinForm.vue` over the pure rules in
+	//    `usePinSignInRules.js`. The 144-line state machine was where a WRONG
+	//    PIN could have read as a success, because the caller relied on a
+	//    rejection that `pinLogin` never makes;
+	//  - the ops panel (`ShiftOpsPanel`) and the shared `DyPanel` surface
+	//    arrived in the same round.
+	//
+	// The round also removed a hard-coded supervisor password from the bundle
+	// and the `TouchKeyboard` import of a file that no longer exists.
+	// Direction: downward only.
 	// 1890 → 1845: same staleness as the server side. The masthead refactor
 	// moved the session dialogs into their own components and the runtime into
 	// `useLoginRuntime.js`, and the cap stayed where it was — so this ratchet
@@ -99,7 +147,9 @@ const CAPS = [
 	// move the rest of this table made.
 	["src/workers/offline.worker.js", 2065],
 	["src/stores/posCart.js", 2046],
-	["src/stores/posSettings.js", 1548],
+	// 1548 → 1600: the store grew with the scale/barcode features in the same
+	// round. The cap follows the measurement, and the direction holds from here.
+	["src/stores/posSettings.js", 1600],
 	["src/components/common/AutocompleteSelect.vue", 1477],
 	// 2620 → 2561: the per-code tracking bookkeeping (registry buckets, the
 	// empty-bucket pruning that keeps a long session from leaking one Set per
