@@ -2437,3 +2437,90 @@
 .dy-login__remember:focus-visible {
 	border-radius: var(--dy-radius-sm);
 }
+
+/* =============================================================================
+   Simplified Status Indicator (replaces detailed status bar)
+   ============================================================================= */
+
+.dy-login__status-indicator {
+	grid-area: status;
+
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	padding-block: 6px;
+	padding-inline: clamp(12px, 3vw, 24px);
+
+	background: var(--dy-surface);
+	border-top: 1px solid var(--dy-border-soft);
+	color: var(--dy-text);
+	font-size: 12px;
+}
+
+.dy-login__status-item {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+
+	font-weight: 600;
+}
+
+.dy-login__status-item--offline {
+	color: var(--dy-amber-700);
+}
+
+.dy-login__status-item--online {
+	color: var(--dy-mint-700);
+}
+
+@media (forced-colors: active) {
+	.dy-login__status-indicator {
+		border-color: CanvasText;
+		background: Canvas;
+	}
+
+	.dy-login__status-item--offline,
+	.dy-login__status-item--online {
+		color: CanvasText;
+	}
+}
+
+/* =============================================================================
+   Technical Panel Layout (panels rendered outside form)
+   ============================================================================= */
+
+.dy-login__technical-panel {
+	grid-area: workspace;
+	justify-self: center;
+	width: min(100%, 840px);
+	margin: 0 auto;
+	padding-inline: 16px;
+}
+
+@media (min-width: 1101px) {
+	.dy-login__technical-panel {
+		min-height: 0;
+		width: min(100%, 460px);
+	}
+}
+
+@media (max-width: 900px) {
+	.dy-login__technical-panel {
+		width: min(100%, 520px);
+		padding-inline: 16px;
+	}
+}
+
+/* =============================================================================
+   Technical Mode Toggle (in brand bar)
+   ============================================================================= */
+
+.dy-login__technical-toggle {
+	display: flex;
+	align-items: center;
+}
+
+.dy-login__prefs--compact .dy-login__technical-toggle {
+	margin-inline-start: auto;
+}

@@ -28,7 +28,7 @@ function check(name, cond, detail = "") {
   if (!cond) process.exitCode = 1;
 }
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ channel: "chrome" });
 try {
   const context = await browser.newContext();
   // مفاتيح المالك تُزرع قبل أول سطر في الصفحة: أول إقلاع يبذر كل شيء.
@@ -103,7 +103,15 @@ try {
   check("offline login works with seeded user", loggedIn);
 
   // 5. إعادة تحميل كاملة والشبكة مقطوعة: الجهاز المثبت يقلع من الـ SW.
-  await page.reload({ waitUntil: "domcontentloaded", timeout: 60000 });
+  // ننتظر سيطرة العامل أولًا (تثبيت 139 مدخلًا يستغرق وقتًا) — كما يفعل
+  // جهاز حقيقي: التطبيق يعمل دون اتصال فور جهوزية العامل.
+  let controlled = false;
+  for (let i = 0; i < 100; i++) {
+    controlled = await page.evaluate(() => !!navigator.serviceWorker?.controller);
+    if (controlled) break;
+    await page.waitForTimeout(3000);
+  }
+  check("service worker controls the page", controlled);  await page.reload({ waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForTimeout(3000);
   const shellAlive = await page.evaluate(() => {
     const app = document.querySelector("#app");

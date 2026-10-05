@@ -35,11 +35,9 @@ import DyPOSLogo from "@/assets/DyPOSLogo.png"
 import ShiftOpeningDialog from "@/components/ShiftOpeningDialog.vue"
 import CompanyFooter from "@/components/common/CompanyFooter.vue"
 import LoginPasskeyActions from "@/components/common/LoginPasskeyActions.vue"
-import LoginWorkspacePanel from "@/components/common/LoginWorkspacePanel.vue"
 import LoginAppearanceBar from "@/components/common/LoginAppearanceBar.vue"
 import LoginContextChips from "@/components/common/LoginContextChips.vue"
 import LoginPinForm from "@/components/common/LoginPinForm.vue"
-import LoginSecurityPanel from "@/components/common/LoginSecurityPanel.vue"
 import InstallCredentialsCard from "@/components/common/InstallCredentialsCard.vue"
 import DyPanel from "@/components/common/DyPanel.vue"
 import ShiftOpsPanel from "@/components/common/ShiftOpsPanel.vue"
@@ -51,6 +49,11 @@ import { ActionButton } from "dypos-ui"
 import LoginBackendUnavailableBanner from "@/components/common/LoginBackendUnavailableBanner.vue"
 import LoginRateLimitWarning from "@/components/common/LoginRateLimitWarning.vue"
 import PasswordStrengthBar from "@/components/reports/dashboards/core/PasswordStrengthBar.vue"
+import TechnicalModeToggle from "@/components/common/TechnicalModeToggle.vue"
+import HardwareDiagnosticsPanel from "@/components/common/HardwareDiagnosticsPanel.vue"
+import NetworkDiagnosticsPanel from "@/components/common/NetworkDiagnosticsPanel.vue"
+import VersionInfo from "@/components/common/VersionInfo.vue"
+import LoginWorkspacePanel from "@/components/common/LoginWorkspacePanel.vue"
 
 /*
  * تنسيقات شاشة الدخول في ملف مستقل: `styles/pages/login.css`.
@@ -76,7 +79,6 @@ import { useAppTheme } from "@/composables/useAppTheme"
 import { useLoginPreferences } from "@/composables/useLoginPreferences"
 import { useCapsLock } from "@/composables/useCapsLock"
 import {
-	buildRuntimeDetails,
 	hasRuntimeStatus as hasRuntimeStatusSignals,
 	useRuntimeStatus,
 } from "@/composables/useLoginRuntimeStatus"
@@ -105,6 +107,9 @@ import { useLoginPinAuth } from "@/composables/useLoginPinAuth"
 import { useLoginBackendUnavailable } from "@/composables/useLoginBackendUnavailable"
 import { useLoginForm } from "@/composables/useLoginForm"
 import { useLoginMethods } from "@/composables/useLoginMethods"
+import { useTechnicalMode } from "@/composables/useTechnicalMode"
+import { useHardwareDiagnostics } from "@/composables/useHardwareDiagnostics"
+import { useNetworkDiagnostics } from "@/composables/useNetworkDiagnostics"
 
 import { methodGetList } from "@/utils/methodClient"
 import { cleanupUserSession, normalizeAuthError } from "@/utils/auth"
@@ -151,7 +156,6 @@ const { isLocked: sessionLocked } = useSessionLock()
 
 const password = ref("")
 const showPassword = ref(false)
-const showRuntimeDetails = ref(false)
 
 const isSubmitting = ref(false)
 const loginError = ref("")
@@ -369,16 +373,6 @@ const stopSessionSecurityMonitor = securityMonitor.stop
  */
 const runtimeStatus = useRuntimeStatus(runtimeState)
 
-/** تفاصيل التشغيل: صفّ واحد لكل إشارة، والقالب يرسمها بـ`v-for`. */
-const runtimeDetails = computed(() =>
-	buildRuntimeDetails({
-		isOnline: isOnline.value,
-		csrfReady: csrfReady.value,
-		sessionReady: sessionReady.value,
-		offlineReady: offlineReady.value,
-	}),
-)
-
 const submitLabel = computed(() => {
 	if (isSubmitting.value) {
 		return "جاري تسجيل الدخول..."
@@ -441,6 +435,9 @@ const { isDark } = useAppTheme()
  * بعد اكتمال تحميل الترجمة لأن `window.translatedMessages` غير تفاعلي.
  */
 const { locale: preferencesLocale, dir: preferencesDir } = useLoginPreferences()
+
+/* Technical Mode — Odoo-like debug mode toggle */
+const { technicalModeEnabled } = useTechnicalMode()
 
 /* ============================================================================
  * Error
@@ -702,7 +699,6 @@ watch(
 			'dy-login--mobile': isMobile,
 			'dy-login--reduced-motion': reducedMotion,
 			'dy-login--dark': isDark,
-			'dy-login--has-status': hasRuntimeStatus.value,
 		}"
 		:dir="preferencesDir"
 		:lang="preferencesLocale"
@@ -732,43 +728,30 @@ watch(
             </a>
             <CompanyFooter class="dy-login__brand-company" />
             <LoginAppearanceBar :compact="true" class="dy-login__preferences" />
+            <TechnicalModeToggle class="dy-login__technical-toggle" />
         </section>
 
-        <!-- Bottom status bar — shows runtime readiness information -->
+        <!-- Simplified status indicator — only shows offline/online -->
         <div
-            v-if="hasRuntimeStatus.value"
-            class="dy-login__status-bar"
+            v-if="isOfflineMode || isOnline"
+            class="dy-login__status-indicator"
             role="status"
             aria-live="polite"
         >
-            <span class="dy-login__status-text">{{ runtimeStatus.label }}</span>
-
-            <div class="dy-login__status-details">
-                <span
-                    v-if="isOfflineMode"
-                    class="dy-login__status-item"
-                >
-                    {{ __('وضع عدم الاتصال') }}
-                </span>
-                <span
-                    v-if="isOnline"
-                    class="dy-login__status-item"
-                >
-                    {{ __('متصل بالخادم') }}
-                </span>
-                <span
-                    v-if="csrfReady"
-                    class="dy-login__status-item"
-                >
-                    {{ __('حماية الطلبات') }}
-                </span>
-                <span
-                    v-if="sessionReady"
-                    class="dy-login__status-item"
-                >
-                    {{ __('جلسة مُهيأة') }}
-                </span>
-            </div>
+            <span
+                v-if="isOfflineMode"
+                class="dy-login__status-item dy-login__status-item--offline"
+            >
+                <FeatherIcon name="wifi-off" :size="14" aria-hidden="true" />
+                {{ __('غير متصل') }}
+            </span>
+            <span
+                v-else
+                class="dy-login__status-item dy-login__status-item--online"
+            >
+                <FeatherIcon name="wifi" :size="14" aria-hidden="true" />
+                {{ __('متصل') }}
+            </span>
         </div>
 
         <!-- =================================================================
@@ -1337,15 +1320,7 @@ watch(
                     @error="(e) => emit('error', e)"
                 />
 
-                <!-- Security / Runtime information -->
-
-                <LoginSecurityPanel
-                    :open="showRuntimeDetails"
-                    :details="runtimeDetails"
-                    @toggle="showRuntimeDetails = !showRuntimeDetails"
-                />
-
-                <!-- Session Timeout Warning -->
+<!-- Session Timeout Warning -->
 
                 <LoginSessionTimeoutDialog
                     :show="showSessionWarning"
@@ -1355,9 +1330,14 @@ watch(
                     @dismiss="dismissWarning"
                 />
 
-                <!-- Register — كان ابنًا مباشرًا للشبكة بلا تنسيق، فيقع في
-                     الصف الثاني تحت لوحة الهوية الداكنة. -->
+                <!-- Technical Mode Panels (Odoo-like debug/tools) -->
+                <HardwareDiagnosticsPanel v-if="technicalModeEnabled" />
+                <NetworkDiagnosticsPanel v-if="technicalModeEnabled" />
 
+                <!-- Version Info -->
+                <VersionInfo />
+
+                <!-- Register -->
                 <p class="dy-login__register">
                     {{ __('ليس لديك حساب؟') }}
                     <a href="/account/register" @click.prevent="goToRegister">
@@ -1368,33 +1348,13 @@ watch(
             </div>
         </section>
 
-        <!-- =================================================================
-             Workspace column — the panels beside the form.
+        <!-- Workspace panel (desktop ≥1101px) — company identity + link.
+             Hidden when technical mode is enabled (technical panels take the workspace area). -->
+        <LoginWorkspacePanel v-if="!technicalModeEnabled" />
 
-             `ShiftOpsPanel` was imported here and rendered NOWHERE: the whole
-             opening-time surface (the shift announcements + the device check
-             a manager runs before opening the till) was complete, tested, and
-             unreachable. An import with no mount is the same defect class
-             AGENTS.md records for `WorkForm.vue` — code that looks finished and
-             never executes.
-
-             It rides the shared `DyPanel` grid rather than a new
-             `grid-template-areas` name: the panel system exists so adding a
-             block costs two attributes, not a stylesheet edit.
-             ================================================================= -->
-
-        <LoginWorkspacePanel>
-            <DyPanel
-                :title="__('لوحة التشغيل')"
-                :subtitle="__('تعليمات الوردية وحالة الأجهزة')"
-                aria-label=""
-                span="full"
-                :order="2"
-                class="dy-login__ops-panel"
-            >
-                <ShiftOpsPanel />
-            </DyPanel>
-        </LoginWorkspacePanel>
+        <!-- Technical mode panels rendered outside the form for full width -->
+        <HardwareDiagnosticsPanel v-if="technicalModeEnabled" class="dy-login__technical-panel" />
+        <NetworkDiagnosticsPanel v-if="technicalModeEnabled" class="dy-login__technical-panel" />
 
         <ShiftOpeningDialog
             v-if="shiftDialogOpen"

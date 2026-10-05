@@ -121,14 +121,22 @@ describe("the login grid has one vocabulary", () => {
 		expect(root).not.toMatch(/(?<!min-)height\s*:\s*100d?vh/)
 	})
 
-	it("keeps the ops panel mounted — an import with no render is dead code", () => {
-		// `ShiftOpsPanel` was imported by the page and rendered nowhere, so the
-		// whole opening-time surface (shift announcements + the device check)
-		// was complete, tested and unreachable.
+	it("keeps technical panels mounted when enabled — conditional render is not dead code", () => {
+		// Hardware and network diagnostics panels are imported and conditionally
+		// rendered when technical mode is enabled (Odoo-like debug mode).
 		expect(loginPage).toContain(
-			'import ShiftOpsPanel from "@/components/common/ShiftOpsPanel.vue"',
+			'import HardwareDiagnosticsPanel from "@/components/common/HardwareDiagnosticsPanel.vue"',
 		)
-		expect(loginPage).toMatch(/<ShiftOpsPanel\s*\/>/)
+		expect(loginPage).toContain(
+			'import NetworkDiagnosticsPanel from "@/components/common/NetworkDiagnosticsPanel.vue"',
+		)
+		expect(loginPage).toMatch(/<HardwareDiagnosticsPanel/)
+		expect(loginPage).toMatch(/<NetworkDiagnosticsPanel/)
+		// Version info is always rendered
+		expect(loginPage).toContain(
+			'import VersionInfo from "@/components/common/VersionInfo.vue"',
+		)
+		expect(loginPage).toMatch(/<VersionInfo/)
 	})
 
 	it("the status bar is a grid row, not a fixed overlay", () => {

@@ -44,7 +44,6 @@ const SURFACE = [
 	"src/components/common/LoginSessionLockDialog.vue",
 	"src/components/common/LoginContextChips.vue",
 	"src/components/common/LoginPinForm.vue",
-	"src/components/common/LoginSecurityPanel.vue",
 	"src/components/common/ShiftOpsPanel.vue",
 	"src/components/common/DeviceHealthPanel.vue",
 	"src/components/common/SystemAboutPanel.vue",
@@ -225,16 +224,6 @@ describe("login surface — the wiring the feature depends on", () => {
 			"__(email ? PIN_DEVICE_HINT : PIN_EMAIL_REQUIRED)",
 		]) {
 			expect(page).toContain(expression)
-		}
-
-		const securityPanel = read(
-			"src",
-			"components",
-			"common",
-			"LoginSecurityPanel.vue",
-		)
-		for (const expression of ["__(detail.label)", "__(detail.value)"]) {
-			expect(securityPanel).toContain(expression)
 		}
 
 		expect(page).not.toContain("label: __(row.label)")

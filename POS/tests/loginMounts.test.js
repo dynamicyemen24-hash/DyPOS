@@ -73,7 +73,7 @@ describe("the login screen mounts", () => {
 			wrapper.find(".dy-login__alternatives").attributes("open"),
 		).toBeUndefined()
 		expect(wrapper.text()).toContain("تسجيل الدخول")
-		expect(wrapper.text()).toContain("معلومات مساحة العمل")
+		expect(wrapper.text()).toContain("أدوات تقنية")
 		expect(
 			wrapper
 				.findAll("button")
@@ -98,14 +98,21 @@ describe("the login screen mounts", () => {
 
 		// The control rendered all along; `enterPinMode` was undefined, so the
 		// tap silently did nothing. This asserts the EFFECT, not the binding.
+		// Find the PIN button specifically (has aria-pressed bound to pinModeActive)
 		const pinButton = wrapper
 			.findAll("button")
-			.find((b) => b.attributes("aria-pressed") !== undefined)
+			.find((b) => b.text().includes("رمز PIN"))
 		expect(pinButton, "the PIN method button must exist").toBeTruthy()
+
+		// Check initial state - PIN form should not be visible
+		expect(wrapper.text()).not.toContain("رمز الدخول السريع")
 
 		await pinButton.trigger("click")
 		await wrapper.vm.$nextTick()
-		expect(wrapper.find('input[type="password"]').exists()).toBe(false)
+		await new Promise((resolve) => setTimeout(resolve, 50))
+		// PIN form should appear (check for PIN-specific content)
+		expect(wrapper.text()).toContain("رمز الدخول السريع")
+		expect(wrapper.find('input[id="dypos-pin"]').exists()).toBe(true)
 
 		wrapper.unmount()
 	})

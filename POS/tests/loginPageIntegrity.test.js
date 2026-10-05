@@ -380,9 +380,8 @@ describe("Login.vue — the four defects this gate was written for", () => {
 describe("Login.vue — template state contracts", () => {
 	const template = source.slice(source.indexOf("<template>"))
 
-	it("binds the password visibility and runtime-detail controls", () => {
+	it("binds the password visibility control", () => {
 		expect(bound.has("showPassword")).toBe(true)
-		expect(bound.has("showRuntimeDetails")).toBe(true)
 	})
 
 	it("uses Vue-unwrapped refs in the template", () => {

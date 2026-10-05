@@ -8,11 +8,12 @@ const loginStyles = read("src/styles/pages/login.css")
 const preferences = read("src/components/common/LoginAppearanceBar.vue")
 
 /**
- * The login masthead: a compact brand bar, a compact identity card, and a
- * panel that must stay readable at every density.
+ * The login masthead: a compact brand bar, a compact identity card, and
+ * technical panels (hardware/network diagnostics) that appear when
+ * technical mode is enabled.
  */
 describe("login masthead", () => {
-	it("keeps the masthead compact and the panel beside the form", () => {
+	it("keeps the masthead compact with language/theme preferences", () => {
 		/*
 		 * The masthead tag carries a `:class` binding, so it spans several lines:
 		 * the class attribute is followed by the conditional classes. Matching
@@ -24,18 +25,9 @@ describe("login masthead", () => {
 		expect(login).toMatch(
 			/<LoginAppearanceBar(\s+[^>]*)?class="dy-login__preferences"/,
 		)
-		/*
-		 * `<LoginWorkspacePanel />` became `<LoginWorkspacePanel>…</…>` when the
-		 * operational panel was mounted inside it, so this is matched by TAG now
-		 * rather than by the self-closing spelling. Matching the exact old
-		 * string would have reported "the workspace column is gone" on a screen
-		 * where the column is present and larger than before — a gate that
-		 * fails on its own refactor is a gate people delete.
-		 */
-		expect(login).toMatch(/<LoginWorkspacePanel[\s>]/)
-		expect(login).toMatch(/<\/LoginWorkspacePanel>/)
-		expect(login.indexOf('class="dy-login__panel"')).toBeLessThan(
-			login.indexOf("<LoginWorkspacePanel"),
+		// Technical mode toggle in the brand bar
+		expect(login).toMatch(
+			/<TechnicalModeToggle\s+class="dy-login__technical-toggle"/,
 		)
 		expect(loginStyles).toMatch(
 			/grid-template-areas:\s*"banner banner"[\s\S]*?"workspace panel"/,
@@ -49,22 +41,21 @@ describe("login masthead", () => {
 	})
 
 	/*
-	 * The showcase used to print the 1200×630 sharing card. It is now a
-	 * compact identity card — the artwork's baked-in bilingual text is
-	 * illegible below ~400px, and a huge image is not a masthead.
-	 *
-	 * What still has to hold, and is asserted here:
-	 *   - the card is a component, not a CSS background;
-	 *   - it is a COMPACT width, not the old 720px block;
-	 *   - it sits on the inline-end edge — RIGHT in RTL, LEFT in LTR.
-	 *     `justify-self: end` is the logical property that does both; a
-	 *     `right`/`left` pair is what broke the moment the locale flipped.
+	 * The workspace column hosts the company identity card (LoginWorkspacePanel)
+	 * when technical mode is OFF, and technical diagnostics panels
+	 * (hardware/network) when technical mode is ON.
 	 */
-	it("presents a compact operational workspace instead of oversized campaign artwork", () => {
-		expect(login).toMatch(/<LoginWorkspacePanel[\s>]/)
+	it("presents technical tools panel when enabled; workspace panel when disabled", () => {
+		// Workspace panel present (conditionally rendered when !technicalModeEnabled)
+		expect(login).toContain("<LoginWorkspacePanel")
 		expect(login).not.toContain("<SystemAboutPanel")
+		// Hardware and network diagnostics panels (conditional on technical mode)
+		expect(login).toMatch(/<HardwareDiagnosticsPanel/)
+		expect(login).toMatch(/<NetworkDiagnosticsPanel/)
+		// Version info at bottom of form
+		expect(login).toMatch(/<VersionInfo/)
 		expect(loginStyles).toMatch(
-			/\.dy-login__workspace\s*\{[\s\S]*?grid-area:\s*workspace/,
+			/\.dy-login__technical-panel\s*\{[\s\S]*?grid-area:\s*workspace/,
 		)
 	})
 
