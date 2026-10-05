@@ -125,13 +125,18 @@ function lockRemainingSecs(entry) {
 }
 
 // POST /api/auth/login (async bcrypt — never block the event loop)
+// Canonical: { username, password }; { email } is an alias (POS types email).
 router.post(
 	'/login',
 	loginIpLimiter,
 	validate(loginSchema),
 	ah(async (req, res) => {
-		const { username, password } = req.body;
-		const clean = String(username).trim();
+		const rawName = req.body.username || req.body.email;
+		const { password } = req.body;
+		const clean = String(rawName || '').trim();
+		if (!clean || !password) {
+			return res.status(400).json({ error: 'اسم المستخدم وكلمة المرور مطلوبان' });
+		}
 		if (await isLocked(clean)) {
 			try {
 				authAttempts.labels('locked').inc();
@@ -215,8 +220,11 @@ router.post(
 	'/register',
 	validate(registerSchema),
 	ah(async (req, res) => {
-		const { username, password, fullName, role = 'CASHIER', tenantId } = req.body;
-		const cleanUsername = String(username).trim();
+		const { password, fullName, role = 'CASHIER', tenantId } = req.body;
+		const cleanUsername = String(req.body.username || req.body.email || '').trim();
+		if (!cleanUsername || cleanUsername.length < 3) {
+			return res.status(400).json({ error: 'اسم المستخدم غير صالح' });
+		}
 		const cleanFull = String(fullName).trim();
 		const cleanTenant =
 			String(tenantId || '')
@@ -350,9 +358,9 @@ router.delete('/sessions/:id', authMiddleware, (req, res) => {
 // out-of-band delivery by IT (email/SMS gateway plugs in here).
 router.post(
 	'/forgot',
-	validate(loginSchema.pick({ username: true })),
+	validate(loginSchema.pick({ username: true, email: true })),
 	ah(async (req, res) => {
-		const clean = String(req.body.username).trim();
+		const clean = String(req.body.username || req.body.email || '').trim();
 		try {
 			const user = db.prepare('SELECT id, is_active FROM users WHERE username=?').get(clean);
 			if (user && Number(user.is_active) === 1) {

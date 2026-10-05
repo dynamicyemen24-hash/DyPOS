@@ -52,6 +52,16 @@ function validationKeyFor(entityType) {
 	return ENTITY_VALIDATION_KEYS[entityType] || entityType
 }
 
+/**
+ * Exponential backoff for queue retries: 5s × 2^(n-1), capped at 5min.
+ * Keeps a dead backend from becoming a retry storm while preserving order.
+ * @param {number} attemptCount 1-based
+ */
+export function backoffMs(attemptCount) {
+	const n = Math.max(1, Number(attemptCount) || 1)
+	return Math.min(5000 * 2 ** (n - 1), 5 * 60 * 1000)
+}
+
 export class OfflineStore {
 	constructor(source = db) {
 		this.db = source
@@ -160,6 +170,19 @@ export class OfflineStore {
 	}
 
 	/**
+	 * Queue lifecycle: pending → syncing → synced | failed | conflict(audit).
+	 * `syncing` is set per-attempt so the UI never shows a stuck "pending"
+	 * as in-flight, and a crash recovery resets it to pending on next push.
+	 * @param {number} id - syncQueue row id.
+	 */
+	async markSyncing(id) {
+		return this.db.syncQueue.update(id, {
+			status: "syncing",
+			lastAttempt: new Date(),
+		})
+	}
+
+	/**
 	 * @param {number} id - syncQueue row id.
 	 * @param {string|null} [remoteRef] - Server-side reference on success.
 	 */
@@ -172,6 +195,9 @@ export class OfflineStore {
 	}
 
 	/**
+	 * Permanent failure → dead-letter (failed). Validation rejections and
+	 * exhausted retries land here; manual retry resets via pushLocalChange.
+	 * Kept backward-compatible: markFailed(id, message) always fails.
 	 * @param {number} id
 	 * @param {string} message
 	 */
@@ -181,8 +207,53 @@ export class OfflineStore {
 			status: "failed",
 			lastError: message,
 			lastAttempt: new Date(),
+			nextRetryAt: null,
 			attemptCount: (row?.attemptCount || 0) + 1,
 		})
+	}
+
+	/**
+	 * Transport/server failure → back to pending with exponential backoff.
+	 * After 10 attempts the row dead-letters to failed (error recovery via
+	 * manual retry). Sync failures never block the till.
+	 * @param {number} id
+	 * @param {string} message
+	 */
+	async markRetry(id, message) {
+		const row = await this.db.syncQueue.get(id)
+		const attemptCount = (row?.attemptCount || 0) + 1
+		if (attemptCount >= 10) {
+			return this.db.syncQueue.update(id, {
+				status: "failed",
+				dead: true,
+				lastError: message,
+				lastAttempt: new Date(),
+				nextRetryAt: null,
+				attemptCount,
+			})
+		}
+		return this.db.syncQueue.update(id, {
+			status: "pending",
+			lastError: message,
+			lastAttempt: new Date(),
+			nextRetryAt: new Date(Date.now() + backoffMs(attemptCount)),
+			attemptCount,
+		})
+	}
+
+	/**
+	 * Crash recovery: rows stuck in syncing return to pending (retryable).
+	 */
+	async resetStuckSyncing() {
+		try {
+			const stuck = await this.db.syncQueue.where("status").equals("syncing").toArray()
+			for (const row of stuck) {
+				await this.db.syncQueue.update(row.id, { status: "pending" })
+			}
+			return stuck.length
+		} catch {
+			return 0
+		}
 	}
 
 	// --------------------------------------------------------------------

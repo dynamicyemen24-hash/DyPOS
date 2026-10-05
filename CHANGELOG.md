@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.47.6] - 2026-10-05 — Production-Auth Hardening + Release Gate
+
+### Root Cause (measured, not guessed)
+- `/api/*` → `503 UPSTREAM_MISCONFIGURED`: `BACKEND_URL` secret missing and
+  default `https://dypos-api.smartportssoft.com` is NXDOMAIN + listed in
+  `DYPOS_EDGE_HOSTS` (fail-closed correct). No Express origin exists.
+- Even with upstream: `GET /api/csrf_token` 404 (no REST route, only method),
+  `POST /api/auth/login {email}` 400 (regex rejected `@`, schema had no alias).
+
+### Fixed
+- Canonical CSRF: `GET /api/csrf_token` (REST) shares `lib/csrf.js` with
+  legacy method verb (S3, one generator/cookie/header).
+- Login alias: `username ||= email` on REST (`validate.js` + `auth.js`) and
+  method (`login`, `DyPOS.api.auth.login`, register). Regex allows `@`.
+- Offline session: 8h expiry enforced at read + tenant binding (no bypass).
+- Queue: `syncing` state + `markRetry` backoff (5s×2^n ≤5min) + dead-letter
+  after 10 attempts; `correlation_id` on push; crash recovery resets stuck syncing.
+- PG TLS explicit: postgres URL without `sslmode=require` refused with SSL message.
+- `verify-live` Release Gate: explicit `OFFLINE_ONLY`/`ONLINE_REQUIRED`
+  contract; CSRF/auth/session/tenant/logout/sync probes (BLOCKER when online).
+
+### ✅ Measured
+- Server **688/198** · POS **2268/134** · `contract` · `parity` · `upstream` ·
+  bundle 744KB ≤900KB · `routes/method.js` cap **4903→4901** (CSRF extraction).
 ## [1.47.5] - 2026-10-05 — تطهير عامل الحافة المسمم من النشر نفسه
 
 ### 🛠️ Fixed — نسخة /sw.js قديمة بعمر 7 أيام على الحافة

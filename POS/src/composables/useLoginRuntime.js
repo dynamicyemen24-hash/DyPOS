@@ -113,6 +113,7 @@ export async function detectOfflineMode() {
 
 /**
  * تسجيل دخول محلي عبر مستودع المستخدمين (Dexie) — بلا شبكة إطلاقًا.
+ * الجلسة المحلية تنتهي بعد 8 ساعات (نفس عقد data/session) ومربوطة بالجهاز.
  * @returns {Promise<{success: boolean, user?: object, error?: string}>}
  */
 export async function attemptLocalLogin(email, password) {
@@ -123,6 +124,7 @@ export async function attemptLocalLogin(email, password) {
 	session.user = user.email
 
 	try {
+		const now = Date.now()
 		localStorage.setItem(
 			"dypos_user_session",
 			JSON.stringify({
@@ -130,7 +132,9 @@ export async function attemptLocalLogin(email, password) {
 				full_name: user.full_name,
 				user_id: user.id,
 				role: user.role,
-				loginTime: Date.now(),
+				tenantId: user.tenantId || user.tenant_id || null,
+				loginTime: now,
+				expiresAt: now + 8 * 60 * 60 * 1000,
 			}),
 		)
 	} catch (error) {

@@ -22,23 +22,19 @@ export function validate(schema, source = 'body') {
 }
 
 // ── Common schemas ──
+// Canonical login is { username, password }. `email` is an accepted alias
+// for the POS (Login.vue types an email): declared optional so
+// loginSchema.pick() keeps working (ZodObject, no refine/transform) and the
+// route normalizes username ||= email. Regex allows @ . _ - (email + legacy).
 export const loginSchema = z.object({
-	username: z
-		.string()
-		.trim()
-		.min(3)
-		.max(64)
-		.regex(/^[a-zA-Z0-9._-]+$/, 'اسم المستخدم يحتوي محارف غير مسموحة'),
+	username: z.string().trim().min(3).max(128).regex(/^[a-zA-Z0-9._@-]+$/, 'اسم المستخدم يحتوي محارف غير مسموحة').optional(),
+	email: z.string().trim().min(3).max(128).optional(),
 	password: z.string().min(6).max(128),
 });
 
 export const registerSchema = z.object({
-	username: z
-		.string()
-		.trim()
-		.min(3)
-		.max(64)
-		.regex(/^[a-zA-Z0-9._-]+$/),
+	username: z.string().trim().min(3).max(128).regex(/^[a-zA-Z0-9._@-]+$/).optional(),
+	email: z.string().trim().min(3).max(128).optional(),
 	password: z
 		.string()
 		.min(8)

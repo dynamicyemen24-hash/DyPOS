@@ -249,12 +249,13 @@ async function submitRegistration() {
 				company: companyValue,
 			})
 		} else {
-			// Online mode - use local API endpoint for registration
+			// Online mode - canonical method path (legacy compat accepts email alias).
 			try {
 				const response = await fetch("/api/method/DyPOS.api.auth.register", {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
+						username: emailValue,
 						full_name: name,
 						email: emailValue,
 						password: password.value,
@@ -1501,7 +1502,6 @@ onUnmounted(() => {
 	outline: 2px solid var(--dy-accent);
 	outline-offset: 2px;
 }
-
 .dy-register__checkbox-label:focus-visible {
 	border-radius: var(--dy-radius-sm);
 }

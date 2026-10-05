@@ -86,6 +86,28 @@ describe('live verification probe (scripts/verify-live.mjs)', () => {
 		assert.match(live, /\/api\/ready/);
 		assert.match(live, /ready\.database_bound === true/);
 	});
+
+	it('is a real Release Gate: CSRF, auth, session, tenant, logout, sync + offline durability under an explicit contract', () => {
+		const live = readFileSync(join(REPO, 'scripts', 'verify-live.mjs'), 'utf8');
+		for (const needle of [
+			'RELEASE_CONTRACT',
+			'OFFLINE_ONLY',
+			'ONLINE_REQUIRED',
+			'UPSTREAM_MISCONFIGURED',
+			'/api/csrf_token',
+			'/api/auth/login',
+			'/api/auth/me',
+			'/api/tenants',
+			'/api/auth/logout',
+			'offline durability',
+			'contractProbe',
+		]) {
+			assert.ok(live.includes(needle), `verify-live must cover ${needle}`);
+		}
+		// A required Auth/Sync dependency that is unready must fail the gate —
+		// never a 7/7 pass with a warning standing in for a blocker.
+		assert.match(live, /BLOCKER/);
+	});
 });
 
 /**

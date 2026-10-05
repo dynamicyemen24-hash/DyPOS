@@ -2,6 +2,12 @@ import { logger } from "@/utils/logger"
 
 const log = logger.create("CSRF")
 
+// Canonical CSRF: GET /api/csrf_token (Express lib/publicEndpoints.js ← lib/csrf.js).
+// Legacy compat: /api/method/DyPOS.api.utilities.get_csrf_token (same generator,
+// { message: { csrf_token } } envelope). Probed sequentially, canonical first,
+// bounded to one pass with coalesced concurrent callers — never a retry storm:
+// a 503/404 on both is returned as `false`, never retried here. Single-retry
+// after a CSRF error lives in createCSRFAwareRequest only.
 const CSRF_COOKIE = "csrf_token"
 const CSRF_PLACEHOLDER = "{{ csrf_token }}"
 const CSRF_TOKEN_ENDPOINT = "/api/csrf_token"

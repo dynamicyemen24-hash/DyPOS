@@ -163,6 +163,13 @@
  * by 7+ days, so fresh devices installed a worker whose precache was gone.
  * The deploy now purges /sw.js + shell after every release, and verify-live
  * fails unless the live worker precaches the live shell bundle.
+ *
+ * 1.47.6 -- production-auth hardening: canonical CSRF (GET /api/csrf_token
+ * shares lib/csrf.js with the legacy method verb, S3), email-as-username
+ * login alias on REST + method (no more 400 on a live till), offline session
+ * expiry (8h) + tenant binding, queue syncing/backoff/dead-letter states,
+ * explicit PG TLS refusal, and verify-live as a real Release Gate
+ * (OFFLINE_ONLY default, ONLINE_REQUIRED makes 503 a BLOCKER).
  */
-export const VERSION = '1.47.5';
+export const VERSION = '1.47.6';
 export default VERSION;

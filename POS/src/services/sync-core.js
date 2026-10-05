@@ -141,6 +141,12 @@ export async function pullChanges(protocol, store, checkpoint, opts = {}) {
  * @returns {Promise<{pushed: number, conflicts: number}>}
  */
 export async function pushPendingChanges(protocol, store, opts = {}) {
+	// Crash recovery first: rows stuck in syncing return to pending.
+	try {
+		await store.resetStuckSyncing?.()
+	} catch {
+		/* best-effort — a mock store may not implement it */
+	}
 	const pending = await store.pendingOperations(opts.entityType || null)
 
 	// ترتيب الأولوية: الفواتير أولًا ثم الدفعات ... ثم الإعدادات —
@@ -154,9 +160,18 @@ export async function pushPendingChanges(protocol, store, opts = {}) {
 
 	let pushed = 0
 	let conflicts = 0
+	let skippedBackoff = 0
 
 	for (const op of pending) {
 		const payload = op.payload || {}
+
+		// Backoff gate: a row that failed recently waits its turn instead of
+		// hammering a dead backend. Dead-lettered rows (failed) never arrive
+		// here — pendingOperations only returns pending.
+		if (op.nextRetryAt && Date.now() < new Date(op.nextRetryAt).getTime()) {
+			skippedBackoff += 1
+			continue
+		}
 
 		try {
 			validateBeforeSync(op.entityType, payload)
@@ -180,6 +195,12 @@ export async function pushPendingChanges(protocol, store, opts = {}) {
 		}
 
 		try {
+			// Explicit syncing state per attempt (UI + crash recovery).
+			try {
+				await store.markSyncing?.(op.id)
+			} catch {
+				/* mock stores may not implement it */
+			}
 			const result = await protocol.post("/api/sync/push", {
 				system_id: authState.tenantId || "DYPOS",
 				entity_type: op.entityType,
@@ -190,6 +211,8 @@ export async function pushPendingChanges(protocol, store, opts = {}) {
 				// مفتاح عدم التكرار ثابت لكل مستند (entityType/entityId/operation):
 				// صفّان محليّان مكرّران لنفس الفاتورة (double-tap/retry) يحملان
 				// نفس المفتاح فيُدمج الثاني دمجًا آمنًا بدل فاتورة مكرّرة.
+				// correlation: entityId doubles as the end-to-end trace key.
+				correlation_id: `${op.entityType}:${op.entityId}:${op.operation}`,
 				idempotency_key:
 					op.idempotencyKey ||
 					`op:${op.entityType}:${op.entityId}:${op.operation}`,
@@ -216,13 +239,26 @@ export async function pushPendingChanges(protocol, store, opts = {}) {
 				continue
 			}
 
-			// Local validation is handled above; everything else here is a
-			// transport / server issue → abort the push, retry later.
+			// Transport / server issue → backoff (never blocks the till).
+			// Non-retryable auth states still back off here; the manager stops
+			// the loop until re-login. The row stays pending, never lost.
+			// markRetry preferred (backoff + dead-letter); mock stores without
+			// it fall back to markFailed for backward compatibility.
+			try {
+				if (typeof store.markRetry === "function") {
+					await store.markRetry(op.id, error?.message || String(error))
+				} else {
+					await store.markFailed?.(op.id, error?.message || String(error))
+				}
+			} catch {
+				/* best-effort */
+			}
+			// Abort the push, retry later (allSettled at cycle level keeps pull alive).
 			throw error
 		}
 	}
 
-	return { pushed, conflicts }
+	return { pushed, conflicts, skippedBackoff }
 }
 
 /**

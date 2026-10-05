@@ -10,28 +10,55 @@ const log = logger.create("LocalSession")
 const SESSION_STORAGE_KEY = "dypos_user_session"
 
 /**
+ * Absolute offline-session lifetime: 8h. The local session is an
+ * operational feature (till keeps selling without network), not a bypass:
+ * it expires, it is device-bound (localStorage + IndexedDB on this terminal
+ * only), and permissions come from the stored role. Server sessions (JWT)
+ * remain the authority whenever linkage is granted.
+ */
+export const LOCAL_SESSION_TTL_MS = 8 * 60 * 60 * 1000
+
+function readStoredSession() {
+	try {
+		const raw = localStorage.getItem(SESSION_STORAGE_KEY)
+		if (!raw) return null
+		const parsed = JSON.parse(raw)
+		if (!parsed?.email) return null
+		// Expiry is enforced at read time: an expired session never authenticates.
+		if (parsed.expiresAt && Date.now() > Number(parsed.expiresAt)) {
+			try {
+				localStorage.removeItem(SESSION_STORAGE_KEY)
+			} catch {
+				/* storage unavailable */
+			}
+			return null
+		}
+		return parsed
+	} catch {
+		return null
+	}
+}
+
+/**
  * Local session management — completely offline, no runtime framework needed.
  *
  * Contract (same surface the app already uses):
- * - `sessionUser()` → user id/email or null
+ * - `sessionUser()` → user id/email or null (expired sessions read as null)
  * - `sessionRole()` → persisted role (or "POS User" when unknown)
  * - `session.login.submit({ email, password })` → local-first login
  * - `session.logout.submit()` → local teardown, never throws
  * - `session.user`, `session.isLoggedIn`
  *
- * Login order: online API attempt (fail-soft) → local Dexie users table
- * (SHA-256, same scheme as Register). Offline or dead backend never blocks.
+ * Canonical online payload is { username, password } (server loginSchema);
+ * `email` is sent alongside as an alias so older backends keep working.
+ * Login order: online API attempt (fail-soft on network/5xx only) → local
+ * Dexie users table (PBKDF2, same scheme as Register). An explicit server
+ * rejection (401/403/429) is surfaced, never masked by a local fallback —
+ * converting an upstream failure into a fake success is forbidden.
  */
 export function sessionUser() {
-	try {
-		const raw = localStorage.getItem(SESSION_STORAGE_KEY)
-		if (raw) {
-			const parsed = JSON.parse(raw)
-			if (parsed?.email) return parsed.email
-		}
-	} catch {
-		/* corrupted session payload — fall through to cookies */
-	}
+	const stored = readStoredSession()
+	if (stored?.email) return stored.email
 	try {
 		const cookies = new URLSearchParams(document.cookie.split("; ").join("&"))
 		const user = cookies.get("user_id")
@@ -49,20 +76,18 @@ export function sessionUser() {
  * read a role from, so this is the single source of truth for the POS.
  */
 export function sessionRole() {
-	try {
-		const raw = localStorage.getItem(SESSION_STORAGE_KEY)
-		if (raw) {
-			const parsed = JSON.parse(raw)
-			if (parsed?.role) return parsed.role
-		}
-	} catch {
-		/* corrupted session payload — fall through to the default role */
-	}
+	const stored = readStoredSession()
+	if (stored?.role) return stored.role
 	return "POS User"
+}
+
+export function sessionTenantId() {
+	return readStoredSession()?.tenantId || null
 }
 
 function persistSession(user) {
 	session.user = user.email
+	const now = Date.now()
 	try {
 		localStorage.setItem(
 			SESSION_STORAGE_KEY,
@@ -71,7 +96,9 @@ function persistSession(user) {
 				full_name: user.full_name,
 				user_id: user.id,
 				role: user.role,
-				loginTime: Date.now(),
+				tenantId: user.tenantId || user.tenant_id || null,
+				loginTime: now,
+				expiresAt: now + LOCAL_SESSION_TTL_MS,
 			}),
 		)
 	} catch (error) {
@@ -89,12 +116,22 @@ async function tryOnlineLogin(email, password) {
 			credentials: "same-origin",
 			cache: "no-store",
 			signal: controller.signal,
-			body: JSON.stringify({ email, password }),
+			// Canonical: { username }. `email` stays as an alias for older backends.
+			body: JSON.stringify({ username: email, email, password }),
 		})
+		if (response.status === 401 || response.status === 403 || response.status === 429) {
+			// Explicit server verdict — surface it, never mask it with a local fallback.
+			const data = await response.json().catch(() => null)
+			const error = new Error(data?.error || "فشل تسجيل الدخول")
+			error.status = response.status
+			throw error
+		}
 		if (!response.ok) return null
 		const data = await response.json().catch(() => null)
 		return data?.user || null
-	} catch {
+	} catch (error) {
+		// Explicit rejections propagate; network/abort/5xx fall through to local.
+		if (error?.status === 401 || error?.status === 403 || error?.status === 429) throw error
 		return null
 	} finally {
 		clearTimeout(timeoutId)

@@ -61,6 +61,7 @@ import { expireStaleDrafts } from '../lib/invoice-expiry.js';
 import { authAttempts } from '../middleware/metrics.js';
 import { logger } from '../lib/logger.js';
 import { VERSION } from '../lib/version.js';
+import { sendCsrfToken } from '../lib/csrf.js';
 import { registerOpeningBalanceVerbs } from './opening-balance-methods.js';
 import { registerSubscriptionVerbs } from './subscription-methods.js';
 import {
@@ -385,13 +386,8 @@ def('DyPOS.api.ping', (_p, _r, res) => res.json(pingPayload()));
 def('DyPOS.api.utilities.ping', (_p, _r, res) => res.json(pingPayload()));
 def('DyPOS.api.health', (_p, _r, res) => res.json({ message: { status: 'ok' } }));
 
-// ── CSRF ─────────────────────────────────────────────────────────────────
-def('DyPOS.api.utilities.get_csrf_token', (_p, req, res) => {
-	const token = randomBytes(24).toString('hex');
-	const secure = isProduction ? '; Secure' : '';
-	res.append('Set-Cookie', `csrf_token=${token}; Path=/; Max-Age=86400; SameSite=Lax${secure}`);
-	return res.json({ message: { csrf_token: token, session_id: req.user?.jti || 'anonymous' } });
-});
+// ── CSRF (legacy compat; canonical is GET /api/csrf_token → lib/csrf.js) ──
+def('DyPOS.api.utilities.get_csrf_token', (_p, req, res) => sendCsrfToken(req, res, { envelope: true }));
 
 // ── Rate limit check (server-side advisory) ─────────────────────────────
 def('DyPOS.api.rate_limit.check', (params, _req, res) => {
@@ -481,14 +477,15 @@ async function doLogin(req, res, username, password) {
 }
 
 def('login', async (params, req, res) => {
-	const username = params.usr || params.username || params.user;
+	// Canonical alias: POS posts { email } (Login.vue), legacy posts usr/user.
+	const username = params.usr || params.username || params.user || params.email;
 	const password = params.pwd || params.password;
 	return doLogin(req, res, username, password);
 });
 
 // Adapter path: dypos-ui call() unwraps { message } for non-/login URLs.
 async function doLoginMessage(params, req, res) {
-	const username = params.usr || params.username || params.user;
+	const username = params.usr || params.username || params.user || params.email;
 	const password = params.pwd || params.password;
 	if (!username || !password) {
 		return methodError(res, 400, 'ValidationError', 'اسم المستخدم وكلمة المرور مطلوبان');
@@ -562,7 +559,8 @@ def('dypos.auth.get_logged_user', (_p, req, res) => {
 //   - `dypos.auth.register` — the pre-existing lowercase name; kept so no
 //     deployed client loses a verb.
 const doRegister = async (params, req, res) => {
-	const username = String(params.username || params.usr || '').trim();
+	// Canonical alias: POS Register posts { email }, legacy posts username/usr.
+	const username = String(params.username || params.usr || params.email || '').trim();
 	const password = String(params.password || params.pwd || '');
 	const fullName = String(params.full_name || params.fullName || username).trim();
 	const role = String(params.role || 'CASHIER').toUpperCase();

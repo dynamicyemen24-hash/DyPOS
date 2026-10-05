@@ -77,7 +77,9 @@ const CAPS = [
 	// stale drafts EXPIRE via lib/invoice-expiry.js (policy extracted, verb stays
 	// thin), and dypos.delete_doc refuses tables with no status flag instead of
 	// destroying them. Net −3, measured — the ratchet's direction holds.
-	['routes/method.js', 4903],
+	// 4912 → 4901: CSRF generator left for lib/csrf.js (one implementation for
+	// REST + method, S3) — Net −11, measured.
+	['routes/method.js', 4901],
 	// 881 → 888, the one deliberate raise in this release: tenant-scoped
 	// idempotency lookups and the non-cash overpayment guard. The guard itself was
 	// extracted to lib/payment-invariants.js, so the next payment rule lands
