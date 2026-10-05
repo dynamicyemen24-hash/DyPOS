@@ -27,13 +27,25 @@ export function validate(schema, source = 'body') {
 // loginSchema.pick() keeps working (ZodObject, no refine/transform) and the
 // route normalizes username ||= email. Regex allows @ . _ - (email + legacy).
 export const loginSchema = z.object({
-	username: z.string().trim().min(3).max(128).regex(/^[a-zA-Z0-9._@-]+$/, 'اسم المستخدم يحتوي محارف غير مسموحة').optional(),
+	username: z
+		.string()
+		.trim()
+		.min(3)
+		.max(128)
+		.regex(/^[a-zA-Z0-9._@-]+$/, 'اسم المستخدم يحتوي محارف غير مسموحة')
+		.optional(),
 	email: z.string().trim().min(3).max(128).optional(),
 	password: z.string().min(6).max(128),
 });
 
 export const registerSchema = z.object({
-	username: z.string().trim().min(3).max(128).regex(/^[a-zA-Z0-9._@-]+$/).optional(),
+	username: z
+		.string()
+		.trim()
+		.min(3)
+		.max(128)
+		.regex(/^[a-zA-Z0-9._@-]+$/)
+		.optional(),
 	email: z.string().trim().min(3).max(128).optional(),
 	password: z
 		.string()
