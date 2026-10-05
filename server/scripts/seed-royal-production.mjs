@@ -47,16 +47,20 @@ const uuid = () => randomUUID();
 /**
  * FK-safe upsert: INSERT, or UPDATE non-key columns on conflict.
  * Never deletes → never trips ON DELETE RESTRICT from stock/invoices.
+ * `key` may be an array for tenant-scoped uniqueness (products live under
+ * UNIQUE(tenant_id, code): ON CONFLICT(code) alone is rejected by SQLite
+ * because it matches no constraint exactly).
  */
 function upsert(table, key, row) {
+	const keys = Array.isArray(key) ? key : [key];
 	const cols = Object.keys(row);
 	const placeholders = cols.map(() => '?').join(',');
 	const updates = cols
-		.filter((c) => c !== key)
+		.filter((c) => !keys.includes(c))
 		.map((c) => `${c}=excluded.${c}`)
 		.join(',');
 	db.prepare(
-		`INSERT INTO ${table} (${cols.join(',')}) VALUES (${placeholders}) ON CONFLICT(${key}) DO UPDATE SET ${updates}`,
+		`INSERT INTO ${table} (${cols.join(',')}) VALUES (${placeholders}) ON CONFLICT(${keys.join(',')}) DO UPDATE SET ${updates}`,
 	).run(...cols.map((c) => row[c]));
 }
 
@@ -462,7 +466,7 @@ try {
 		const existing = db.prepare('SELECT id FROM products WHERE code=?').get(code);
 		const id = existing?.id || uuid();
 		const cost = Math.round(price * 0.6 * 100) / 100;
-		upsert('products', 'code', {
+		upsert('products', ['tenant_id', 'code'], {
 			id,
 			tenant_id: TENANT_ID,
 			code,

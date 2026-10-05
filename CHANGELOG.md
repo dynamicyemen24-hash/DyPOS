@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.47.4] - 2026-10-05 — حملة تسديد الديون: إصدار إنتاجي نهائي
+
+### 🧹 Fixed — ديون مسددة بلا ديون جديدة
+- **حارس البذرة كان يرفض كل قاعدة بعد الترحيل** (الترحيلات تبذر baselines
+  بالتصميم): يرفض الآن جداول المشترك فقط، والتدفق الموثق يعمل ومُبرهن
+  على قاعدة خدش (7 مستخدمين · 64 صنفًا · 192 رصيدًا).
+- **upsert الأصناف على UNIQUE(tenant_id, code)** بدل `code` وحده الذي يرفضه
+  SQLite — مع عزل المستأجر في الكتابة نفسها.
+- **عزل المشترك الثاني مثبت ببوابة**: بلا اشتراك صريح لا شركة ولا مستخدمون
+  ولا مساس بمفاتيح الغير.
+
+### ✅ Measured — الحملة كاملة
+- الخادم **687/687** (198) · الواجهة **2255/2255** (134) · `parity` ·
+  `contract` · `biome` · الحزمة ≤ 900KB · `e2e:yaqoub` **17/17** ·
+  برهان إنتاجي حي + إقلاع دون اتصال.
 ## [1.47.3] - 2026-10-05 — إقلاع دون اتصال يعمل على الأجهزة المثبتة
 
 ### 🛠️ Fixed — قاعدة `_headers` كانت تسمم الـ Service Worker

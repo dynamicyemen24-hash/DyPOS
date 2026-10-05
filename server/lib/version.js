@@ -1,5 +1,5 @@
 /**
- * DyPOS single source of truth for the server version (C3) v1.47.3
+ * DyPOS single source of truth for the server version (C3) v1.47.4
  *
  * 1.44.6 -- the round where a green suite stopped being evidence. Fourteen real
  * defects, and the reason no gate saw them is the same every time: a gate that
@@ -152,6 +152,12 @@
  * rule also matched `/sw.js`, so devices kept a worker whose precache URLs
  * no longer existed (importScripts 404 → empty caches → dead offline boot).
  * Immutable caching is now scoped to hashed paths only; `/sw.js` revalidates.
+ *
+ * 1.47.4 -- debt-paydown campaign (no new debt): the royal seed guard refused
+ * every post-migration database because migrations seed baselines by design —
+ * it now refuses only subscriber tables; products upsert on the composite
+ * UNIQUE(tenant_id, code); second-subscriber isolation is gate-pinned
+ * (Royal data never appears without the explicit opt-in).
  */
-export const VERSION = '1.47.3';
+export const VERSION = '1.47.4';
 export default VERSION;

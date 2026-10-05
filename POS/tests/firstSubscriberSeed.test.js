@@ -20,6 +20,7 @@ async function clearSeedState() {
 	localStorage.removeItem(FIRST_SUBSCRIBER_KEY)
 	localStorage.removeItem(FIRST_SUBSCRIBER_USERS_KEY)
 	localStorage.removeItem(FIRST_SUBSCRIBER_STOCK_KEY)
+	window.history.replaceState(null, "", "/")
 	await offlineDb.settings.delete(FIRST_SUBSCRIBER_FLAG).catch(() => {})
 	for (const key of Object.keys(ROYAL_SUBSCRIBER)) {
 		await offlineDb.settings.delete(`subscriber.${key}`).catch(() => {})
@@ -145,6 +146,36 @@ describe("firstSubscriberSeed", () => {
 		const result = await ensureFirstSubscriber()
 		expect(result.applied).toBe(true)
 		expect(window.location.href).not.toContain("subscriber")
+		window.history.replaceState(null, "", "/")
+	})
+
+	it("مشترك ثانٍ لا يرى بيانات رويال إطلاقًا (عزل المستأجر)", async () => {
+		localStorage.setItem(FIRST_SUBSCRIBER_KEY, "other-shop")
+		localStorage.setItem(
+			FIRST_SUBSCRIBER_USERS_KEY,
+			JSON.stringify([
+				{
+					email: TEST_EMAIL,
+					fullName: "مدير رويال",
+					password: "Royal-2026-Strong",
+					role: "ADMIN",
+				},
+			]),
+		)
+		const result = await ensureFirstSubscriber()
+		expect(result).toMatchObject({ applied: false, reason: "not-opted-in" })
+		// لا شركة، لا مستخدم، ومفتاح المستخدم لم يُمس (ليس لنا).
+		expect(await getSetting("subscriber.company_name", null)).toBeNull()
+		expect(await findByEmail(TEST_EMAIL).catch(() => null)).toBeNull()
+		expect(localStorage.getItem(FIRST_SUBSCRIBER_USERS_KEY)).not.toBeNull()
+	})
+
+	it("رابط مشترك آخر لا يثبت شيئًا ولا يمس الرابط", async () => {
+		window.history.replaceState(null, "", "/?subscriber=other-shop")
+		const result = await ensureFirstSubscriber()
+		expect(result).toMatchObject({ applied: false, reason: "not-opted-in" })
+		expect(window.location.search).toContain("subscriber=other-shop")
+		expect(await getSetting("subscriber.company_name", null)).toBeNull()
 		window.history.replaceState(null, "", "/")
 	})
 })
