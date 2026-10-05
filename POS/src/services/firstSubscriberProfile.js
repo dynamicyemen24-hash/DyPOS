@@ -34,3 +34,59 @@ export const ROYAL_SUBSCRIBER = Object.freeze({
 })
 
 export default ROYAL_SUBSCRIBER
+
+/**
+ * اشتراك برابط واحد: `?subscriber=royal-marib` (ولا أسرار في الرابط أبدًا).
+ * يثبت المفتاح في localStorage وينظف الرابط — بما فيه نسخة حارس التوجيه
+ * داخل `redirect` — فلا لصق ولا أثر في السجل.
+ */
+export function claimUrlOptIn() {
+	try {
+		// بلا مضيف احتياطي (`standaloneBoot` ترفض الاسم الحرفي) — وغياب
+		// `location` يعني لا متصفح أصلًا فيُرفض بهدوء.
+		const url = new URL(globalThis.location?.href || "")
+		const scrub = (u) => {
+			if (u.searchParams.get("subscriber") !== FIRST_SUBSCRIBER_VALUE)
+				return false
+			u.searchParams.delete("subscriber")
+			return true
+		}
+		let claimed = scrub(url)
+		try {
+			const nested = url.searchParams.get("redirect") || ""
+			if (nested.includes("subscriber=")) {
+				const inner = new URL(nested, url.origin)
+				if (scrub(inner)) {
+					url.searchParams.set(
+						"redirect",
+						inner.pathname + inner.search + inner.hash,
+					)
+					claimed = true
+				}
+			}
+		} catch {
+			// redirect تالف — يُتجاهل، الاشتراك المباشر يكفي.
+		}
+		if (claimed) {
+			globalThis.localStorage?.setItem(
+				FIRST_SUBSCRIBER_KEY,
+				FIRST_SUBSCRIBER_VALUE,
+			)
+			try {
+				globalThis.history?.replaceState?.(
+					null,
+					"",
+					url.pathname + url.search + url.hash,
+				)
+			} catch {
+				// التنظيف تجميلي — الاشتراك نفسه تم.
+			}
+		}
+		return (
+			globalThis.localStorage?.getItem(FIRST_SUBSCRIBER_KEY) ===
+			FIRST_SUBSCRIBER_VALUE
+		)
+	} catch {
+		return false
+	}
+}

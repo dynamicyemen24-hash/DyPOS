@@ -41,6 +41,7 @@ import {
 	FIRST_SUBSCRIBER_USERS_KEY,
 	FIRST_SUBSCRIBER_VALUE,
 	ROYAL_SUBSCRIBER,
+	claimUrlOptIn,
 } from "./firstSubscriberProfile"
 
 export {
@@ -262,6 +263,7 @@ async function seedOpeningStock() {
  * @returns {Promise<Object>} ملخص ما طُبق (للتشخيص لا للعرض).
  */
 export async function ensureFirstSubscriber() {
+	claimUrlOptIn()
 	if (!isFirstSubscriberOptedIn()) {
 		return { applied: false, reason: "not-opted-in" }
 	}

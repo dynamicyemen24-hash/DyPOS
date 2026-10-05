@@ -190,8 +190,12 @@ const CAPS = [
 	// بذر المشترك الأول (رويال، مأرب): يعمل باشتراك صريح فقط، والوحدة تحمل
 	// سقفها الخاص حتى لا تنمو داخلها بيانات متجر آخر. الاتجاه نزول فقط.
 	// الهوية في `firstSubscriberProfile.js` بسقفها الخاص.
-	["src/services/firstSubscriberSeed.js", 294],
-	["src/services/firstSubscriberProfile.js", 60],
+	// 294 → 296: استدعاء `claimUrlOptIn` (اشتراك برابط واحد بدل اللصق).
+	["src/services/firstSubscriberSeed.js", 296],
+	// 60 → 75: `claimUrlOptIn` هنا لا في البذر حتى لا ينكسر سقفها.
+	// 75 → 90: تنظيف النسخة المتداخلة داخل `redirect` حارس الدخول.
+	// 90 → 92: إسقاط المضيف الاحتياطي الذي رفضته بوابة الإقلاع المستقل.
+	["src/services/firstSubscriberProfile.js", 92],
 	// 1188 → 1150 → 1145: column layout and cell formatting moved to focused modules as
 	// the frozen-grid contract grew; the narrow-screen contract (scrollable
 	// table + pinned key column, WCAG 2.5.8) then moved to

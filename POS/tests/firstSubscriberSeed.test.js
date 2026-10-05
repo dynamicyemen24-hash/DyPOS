@@ -124,4 +124,27 @@ describe("firstSubscriberSeed", () => {
 		expect(result.users.note).toBe("users-key-invalid")
 		expect(result.stock.note).toBe("stock-key-invalid")
 	})
+
+	it("رابط الاشتراك يثبت المفتاح وينظف نفسه", async () => {
+		window.history.replaceState(null, "", "/?subscriber=royal-marib")
+		const result = await ensureFirstSubscriber()
+		expect(result.applied).toBe(true)
+		expect(localStorage.getItem(FIRST_SUBSCRIBER_KEY)).toBe(
+			FIRST_SUBSCRIBER_VALUE,
+		)
+		expect(window.location.search).not.toContain("subscriber")
+		window.history.replaceState(null, "", "/")
+	})
+
+	it("ينظف النسخة المتداخلة داخل redirect حارس الدخول", async () => {
+		window.history.replaceState(
+			null,
+			"",
+			"/account/login?redirect=/?subscriber=royal-marib",
+		)
+		const result = await ensureFirstSubscriber()
+		expect(result.applied).toBe(true)
+		expect(window.location.href).not.toContain("subscriber")
+		window.history.replaceState(null, "", "/")
+	})
 })

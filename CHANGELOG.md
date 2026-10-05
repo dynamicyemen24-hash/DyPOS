@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.47.2] - 2026-10-05 — اشتراك برابط واحد وتنظيف نسخة التوجيه
+
+### 🔗 Fixed — تفعيل الجهاز دون لصق
+- `?subscriber=royal-marib` يثبت الاشتراك وينظف نفسه، بما فيه النسخة
+  المتداخلة داخل `redirect` حارس الدخول (كانت تبقى بعد التوجيه).
+- الأسقف المقاسة تتبع: البذرة 296 والهوية 90، والاختبار يغطي المسارين.
+
+### ✅ Measured
+- برهان إنتاجي حي بمتصفح جديد: الشركة والمستودع والرصيد في IndexedDB،
+  ودخول دون اتصال — 5/5.
 ## [1.47.1] - 2026-10-05 — حساب المدير يعقوب في البذرة، والتشغيل النهائي محليًا
 
 ### 👤 Fixed — الدخول بصلاحيات يعقوب

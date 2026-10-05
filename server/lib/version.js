@@ -1,5 +1,5 @@
 /**
- * DyPOS single source of truth for the server version (C3) v1.47.1
+ * DyPOS single source of truth for the server version (C3) v1.47.2
  *
  * 1.44.6 -- the round where a green suite stopped being evidence. Fourteen real
  * defects, and the reason no gate saw them is the same every time: a gate that
@@ -143,6 +143,10 @@
  * joins the Royal fixture users — `npm run e2e:yaqoub` authenticates as him,
  * and the seed no longer tells the operator to run itself first for an
  * account it never created.
+ *
+ * 1.47.2 -- one-link subscriber opt-in: `?subscriber=royal-marib` claims and
+ * scrubs itself (including the login guard's nested `redirect` copy), so the
+ * owner's device provisions without pasting keys.
  */
-export const VERSION = '1.47.1';
+export const VERSION = '1.47.2';
 export default VERSION;
