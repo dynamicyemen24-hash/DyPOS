@@ -203,6 +203,26 @@ jobs:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ZONE: ${{ secrets.CF_ZONE_ID }}
 
+      # ── Targeted poison purge: /sw.js must never be stale.
+      # A year-long immutable rule once cached a worker whose precache URLs the
+      # next deploy deleted; the edge kept serving it (cf-cache HIT, age in
+      # days) while version.json and the shell were fresh, so install failed
+      # and offline boot died with every gate green. The zone id is resolved
+      # by name (no new secret); a token without cache-purge scope only warns.
+      - name: Purge service worker + shell from edge cache
+        if: steps.cf.outputs.available == 'true'
+        continue-on-error: true
+        run: |
+          set -e
+          ZONE_ID=$(curl -sS "https://api.cloudflare.com/client/v4/zones?name=smartportssoft.com" -H "Authorization: Bearer $CF_TOKEN" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const j=JSON.parse(s);console.log((j.result&&j.result[0]&&j.result[0].id)||'')}catch{}})")
+          if [ -z "$ZONE_ID" ]; then echo "::warning::Zone lookup failed — edge may still serve a stale /sw.js; purge it by hand (Caching → Purge Cache → Custom Purge: /sw.js)."; exit 0; fi
+          curl -sf -X POST "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/purge_cache" \
+            -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
+            --data '{"files":["https://dypos.smartportssoft.com/sw.js","https://dypos.smartportssoft.com/","https://dypos.smartportssoft.com/index.html","https://dypos.smartportssoft.com/version.json","https://dypos.smartportssoft.com/manifest.webmanifest"]}' | head -c 300
+          echo "poison purge requested for /sw.js + shell"
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
       # ── Live verification: customers must see the NEW build. One implementation
       # (`scripts/verify-live.mjs`) — the exact script the uptime heartbeat and a
       # human release check run, so the three can never disagree about what

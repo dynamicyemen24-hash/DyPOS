@@ -91,6 +91,7 @@ async function homepageAndBundle() {
 	assert(bundle, "the shell references no /assets/index-*.js bundle")
 	const asset = await httpGet(`${SITE}${bundle}`)
 	assert(asset.status === 200, `shell references ${bundle} but it returns HTTP ${asset.status}`)
+	liveBundleName = bundle.split("/").pop()
 	return `shell 200 · ${bundle} 200 (${asset.body.length} bytes)`
 }
 
@@ -98,6 +99,32 @@ async function assetServed(pathname) {
 	const { status } = await httpGet(`${SITE}${pathname}`)
 	assert(status === 200, `HTTP ${status}`)
 	return "HTTP 200"
+}
+
+/**
+ * The service worker must precache the bundle the shell actually references.
+ *
+ * Outage this probe exists for: a poisoned edge copy of /sw.js (immutable,
+ * year-long) precached bundles a newer deploy had deleted, so install failed
+ * with importScripts 404s, caches stayed empty, and offline boot died on every
+ * installed device — while every other probe stayed green. A bare 200 on
+ * /sw.js cannot see that; matching its precache list against the live shell
+ * can.
+ */
+let liveBundleName = null
+
+async function workerPrecachesLiveShell() {
+	const { status, body } = await httpGet(`${SITE}/sw.js`)
+	assert(status === 200, `HTTP ${status}`)
+	assert(
+		!body.trimStart().startsWith("<") && body.includes("precacheAndRoute"),
+		"sw.js came back as HTML — the edge is serving a fallback, not the worker",
+	)
+	assert(
+		liveBundleName && body.includes(liveBundleName),
+		`live sw.js does not precache the live shell bundle (${liveBundleName ?? "unknown"}) — edge is serving a stale worker`,
+	)
+	return `precaches ${liveBundleName}`
 }
 
 async function spaFallback() {
@@ -162,6 +189,7 @@ async function optionalSyncBackend() {
 
 await probe("release stamp /version.json", versionStamp)
 await probe("homepage + hashed bundle", homepageAndBundle)
+await probe("service worker precaches live shell", workerPrecachesLiveShell)
 await probe("service worker /sw.js", () => assetServed("/sw.js"))
 await probe("manifest /manifest.webmanifest", () => assetServed("/manifest.webmanifest"))
 await probe("SPA deep link /pos/deep-link-probe", spaFallback)

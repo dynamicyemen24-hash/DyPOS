@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.47.5] - 2026-10-05 — تطهير عامل الحافة المسمم من النشر نفسه
+
+### 🛠️ Fixed — نسخة /sw.js قديمة بعمر 7 أيام على الحافة
+- التطهير بعد كل نشر (`sw.js` + القشرة) عبر Zone API بلا أسرار جديدة.
+- `verify-live` يفشل الآن ما لم يخبئ العامل الحي الحزمة الحية — البوابة
+  أثبتت عضتها على الإنتاج قبل الإصلاح (1/7 أحمر يسمي العامل القديم).
+
+### ✅ Measured
+- `verify:live` + برهان المتصفح الجديد + إقلاع دون اتصال بعد التطهير.
 ## [1.47.4] - 2026-10-05 — حملة تسديد الديون: إصدار إنتاجي نهائي
 
 ### 🧹 Fixed — ديون مسددة بلا ديون جديدة
