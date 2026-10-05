@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.47.3] - 2026-10-05 — إقلاع دون اتصال يعمل على الأجهزة المثبتة
+
+### 🛠️ Fixed — قاعدة `_headers` كانت تسمم الـ Service Worker
+- قاعدة `/*.js` الثابتة كانت تطابق `/sw.js` أيضًا عند الحافة، فبقيت الأجهزة
+  على عامل بقائمة precache ميتة (روابط مهشمة محذوفة): التثبيت يفشل بصمت،
+  والكاش فارغ، وإعادة التحميل دون اتصال ميتة — وكل البوابات خضراء.
+- التخزين الثابت الآن للمسارات المهشمة فقط (`/assets/*` ·
+  `/workbox-*.js`)، و`/sw.js` يعيد التحقق دائمًا.
+- بوابة جديدة `tests/headers.test.js` تمنع عودة أي شامل ثابت فوق `/sw.js`.
+
+### ✅ Measured
+- برهان إنتاجي بمتصفح جديد يشمل إعادة التحميل دون اتصال.
 ## [1.47.2] - 2026-10-05 — اشتراك برابط واحد وتنظيف نسخة التوجيه
 
 ### 🔗 Fixed — تفعيل الجهاز دون لصق

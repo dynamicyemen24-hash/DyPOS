@@ -102,6 +102,17 @@ try {
   const loggedIn = await page.evaluate(() => !!localStorage.getItem("dypos_user_session"));
   check("offline login works with seeded user", loggedIn);
 
+  // 5. إعادة تحميل كاملة والشبكة مقطوعة: الجهاز المثبت يقلع من الـ SW.
+  await page.reload({ waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.waitForTimeout(3000);
+  const shellAlive = await page.evaluate(() => {
+    const app = document.querySelector("#app");
+    return !!app && app.textContent.trim().length > 50;
+  });
+  check("offline reload boots app shell (installed device)", shellAlive);
+  const stillLoggedIn = await page.evaluate(() => !!localStorage.getItem("dypos_user_session"));
+  check("session survives offline reload", stillLoggedIn);
+
   const failed = results.filter((r) => !r.pass);
   console.log(failed.length ? `\n❌ ${failed.length} FAILED` : "\n✅ PROOF COMPLETE — production PWA runs on full offline IndexedDB");
 } finally {
