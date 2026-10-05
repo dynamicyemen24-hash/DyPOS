@@ -342,10 +342,19 @@ await contractProbe("authentication readiness /api/auth/login", authReadiness)
 await contractProbe("session lifecycle /api/auth/me", sessionLifecycle)
 await contractProbe("tenant isolation /api/tenants", tenantIsolation)
 await contractProbe("logout readiness /api/auth/logout", logoutReadiness)
-const syncBackendStatus = await optionalSyncBackend()
+await contractProbe("sync readiness /api/health", async () => {
+	const status = await optionalSyncBackend()
+	if (status.startsWith("⚠️")) {
+		const clean = status
+			.replace(/^⚠️\s*/, "")
+			.replace(/;\s*offline POS release is unaffected$/, "")
+		throw new Error(clean)
+	}
+	return status.replace(/^✅\s*/, "")
+})
 
 const failed = results.filter((r) => !r.ok)
-const lines = [...results.map((r) => `${r.ok ? "✅" : "❌"} ${r.label} — ${r.detail}`), ...advisories.map((a) => `${a}`), syncBackendStatus]
+const lines = [...results.map((r) => `${r.ok ? "✅" : "❌"} ${r.label} — ${r.detail}`), ...advisories.map((a) => `${a}`)]
 const report = [
 	"",
 	`DyPOS live verification — ${SITE}`,

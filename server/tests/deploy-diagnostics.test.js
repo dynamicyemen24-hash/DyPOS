@@ -99,6 +99,8 @@ describe('live verification probe (scripts/verify-live.mjs)', () => {
 			'/api/auth/me',
 			'/api/tenants',
 			'/api/auth/logout',
+			'/api/health',
+			'sync readiness',
 			'offline durability',
 			'contractProbe',
 		]) {

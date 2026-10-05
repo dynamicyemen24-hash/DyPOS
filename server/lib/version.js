@@ -170,6 +170,10 @@
  * expiry (8h) + tenant binding, queue syncing/backoff/dead-letter states,
  * explicit PG TLS refusal, and verify-live as a real Release Gate
  * (OFFLINE_ONLY default, ONLINE_REQUIRED makes 503 a BLOCKER).
+ *
+ * 1.47.7 -- release-gate fix: sync readiness goes through the same
+ * contractProbe as CSRF/auth/session/tenant/logout (clean BLOCKER report
+ * instead of an uncaught throw under --contract=online).
  */
-export const VERSION = '1.47.6';
+export const VERSION = '1.47.7';
 export default VERSION;
