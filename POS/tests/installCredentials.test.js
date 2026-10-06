@@ -98,6 +98,32 @@ describe("install credentials card", () => {
 		wrapper.unmount()
 	})
 
+	it("clicking 'fill and login' dispatches dypos:fill-credentials event with credentials", async () => {
+		let dispatched = null
+		const handler = (e) => {
+			dispatched = e.detail
+		}
+		globalThis.addEventListener("dypos:fill-credentials", handler)
+
+		const wrapper = mount(Card, {
+			global: { mocks: { __: (message) => message } },
+			attachTo: document.body,
+		})
+		globalThis.dispatchEvent(
+			new CustomEvent(EVENT, { detail: { email: EMAIL, password: PASSWORD } }),
+		)
+		await nextTick()
+
+		await wrapper.get('[data-testid="install-fill"]').trigger("click")
+		await nextTick()
+
+		expect(dispatched).toEqual({ email: EMAIL, password: PASSWORD })
+		expect(wrapper.find('[data-testid="install-credentials"]').exists()).toBe(false)
+
+		globalThis.removeEventListener("dypos:fill-credentials", handler)
+		wrapper.unmount()
+	})
+
 	it("the login page actually mounts it — a card nobody renders is a dead contract", async () => {
 		const { readFileSync } = await import("node:fs")
 		const { resolve } = await import("node:path")

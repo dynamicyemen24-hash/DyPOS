@@ -133,13 +133,8 @@ const CAPS = [
 	// 1899 → 1890: ربط حالات الواجهة وتصحيح refs وترجمة PIN، ثم استخراج
 	//   التحقق من الحقول إلى composable قابل للاختبار. أضيفت بوابات القالب
 	//   والتخطيط المكتبي؛ الاتجاه downward فقط.
-	// 1725 → 1470 → 1439 → 1430: the workspace column's identity card moved
-	//   into `DyPanel` (LoginWorkspacePanel now renders it plus a slot), then
-	//   the session security monitor pair moved to
-	//   `composables/useLoginSecurityMonitor.js`, then the shift-dialog wiring
-	//   (open/close transitions) moved to `composables/useLoginShiftDialog.js`.
-	//   Measured by this gate's own counter. Direction downward only.
-	["src/pages/Login.vue", 1427],
+	// 1725 → 1470 → 1439 → 1430 → 1406: error banner extraction to LoginErrorBanner.vue + fill-credentials event.
+	["src/pages/Login.vue", 1406],
 	["src/composables/useLoginShiftDialog.js", 60],
 	// The monitor this page used to own: interval + listener + stop in one
 	// closure, with `loginSecurityMonitor.test.js` freezing the contract.

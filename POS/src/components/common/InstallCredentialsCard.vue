@@ -42,6 +42,9 @@
 		</dl>
 
 		<p v-if="!revealed" class="dy-install-card__actions">
+			<button type="button" class="dy-install-card__fill" data-testid="install-fill" @click="fillAndLogin">
+				{{ __("تعبئة والدخول الآن") }}
+			</button>
 			<button type="button" data-testid="install-dismiss" @click="dismiss">
 				{{ __("أحفظتها — إخفاء") }}
 			</button>
@@ -78,6 +81,22 @@ function onCredentials(event) {
 		email: event?.detail?.email || "",
 		password: event?.detail?.password || "",
 	}
+}
+
+/**
+ * Auto-fill into the login form and trigger login immediately.
+ */
+function fillAndLogin() {
+	if (!credentials.value) return
+	globalThis.dispatchEvent?.(
+		new CustomEvent("dypos:fill-credentials", {
+			detail: {
+				email: credentials.value.email,
+				password: credentials.value.password,
+			},
+		}),
+	)
+	dismiss()
 }
 
 /**
@@ -155,6 +174,12 @@ onBeforeUnmount(() => {
 	letter-spacing: 0.02em;
 }
 
+.dy-install-card__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
 .dy-install-card__actions button {
 	font: inherit;
 	padding: 6px 12px;
@@ -162,5 +187,12 @@ onBeforeUnmount(() => {
 	border: 1px solid var(--dy-border);
 	background: transparent;
 	cursor: pointer;
+}
+
+.dy-install-card__fill {
+	background: var(--dy-brand, #2563eb) !important;
+	color: #ffffff !important;
+	border-color: var(--dy-brand, #2563eb) !important;
+	font-weight: 600 !important;
 }
 </style>

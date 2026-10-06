@@ -48,6 +48,7 @@ import LoginSessionTimeoutDialog from "@/components/common/LoginSessionTimeoutDi
 import TouchKeyboard from "@/components/common/TouchKeyboard.vue"
 import NotificationBar from "@/components/NotificationBar.vue"
 import LoginBackendUnavailableBanner from "@/components/common/LoginBackendUnavailableBanner.vue"
+import LoginErrorBanner from "@/components/common/LoginErrorBanner.vue"
 import LoginRateLimitWarning from "@/components/common/LoginRateLimitWarning.vue"
 import PasswordStrengthBar from "@/components/reports/dashboards/core/PasswordStrengthBar.vue"
 import TechnicalModeToggle from "@/components/common/TechnicalModeToggle.vue"
@@ -640,6 +641,13 @@ const {
  * Lifecycle
  * ========================================================================== */
 
+async function handleFillCredentials(event) {
+	if (event?.detail?.email) email.value = event.detail.email
+	if (event?.detail?.password) password.value = event.detail.password
+	await nextTick()
+	await submitLogin()
+}
+
 onMounted(async () => {
 	restoreRememberedEmail()
 
@@ -648,6 +656,8 @@ onMounted(async () => {
 	window.addEventListener("offline", handleOffline)
 
 	window.addEventListener("keydown", handleGlobalKeydown)
+
+	window.addEventListener("dypos:fill-credentials", handleFillCredentials)
 
 	/*
 	 * قراءة حالة PIN المحفوظة قبل رسم النموذج.
@@ -664,7 +674,7 @@ onMounted(async () => {
 	await initializeLoginData()
 
 	/*
-	 * ?? ???? ??? password ??? ??? ?????? ???????.
+	 * تركيز حقل كلمة المرور إذا كان البريد موجوداً مسبقاً.
 	 */
 	if (email.value) {
 		passwordInput.value?.focus?.()
@@ -684,6 +694,8 @@ onBeforeUnmount(async () => {
 	window.removeEventListener("offline", handleOffline)
 
 	window.removeEventListener("keydown", handleGlobalKeydown)
+
+	window.removeEventListener("dypos:fill-credentials", handleFillCredentials)
 
 	stopSessionSecurityMonitor()
 
@@ -900,46 +912,14 @@ watch(
                     :retry-after-ms="rateLimitState.retryAfterMs"
                 />
 
-                <!-- Error -->
-
-                <div
+                <!-- Error with contextual recovery actions -->
+                <LoginErrorBanner
                     v-if="loginError"
-                    id="dypos-login-error"
-                    class="dy-login__error"
-                    role="alert"
-                    aria-live="assertive"
-                >
-                    <span class="dy-login__error-icon" aria-hidden="true">
-                        <FeatherIcon
-                            name="alert-circle"
-                            :size="18"
-                        />
-                    </span>
-
-                    <div class="dy-login__error-content">
-                        <strong>
-                            {{ __('تعذر تسجيل الدخول') }}
-                        </strong>
-
-                        <span>
-                            {{ loginError }}
-                        </span>
-                    </div>
-
-                    <ActionButton
-                        type="button"
-                        variant="ghost"
-                        size="xs"
-                        class="dy-login__error-close"
-                        :aria-label="__('إغلاق رسالة الخطأ')"
-                        @click="clearLoginError"
-                    >
-                        <FeatherIcon
-                            name="x"
-                            :size="16"
-                        />
-                    </ActionButton>
-                </div>
+                    :error="loginError"
+                    @clear="clearLoginError"
+                    @register="goToRegister"
+                    @forgot-password="goToForgotPassword"
+                />
 
                 <!-- =================================================================
                      PIN Quick Login
