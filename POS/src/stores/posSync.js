@@ -34,11 +34,12 @@ import { computed, ref } from "vue"
 const log = logger.create("POSSync")
 
 /**
- * @deprecated Legacy sync store — zero live importers (barrel re-export only).
- *   Live sync runs in `services/sync-manager` (reads via `SyncStatusIndicator`,
- *   writes via `session.submitSale → pushLocalChange → syncQueue`). The write
- *   actions below (`saveInvoiceOffline`, `syncAllPending`) target the retired
- *   `invoice_queue` path. Kept frozen; do not add callers.
+ * Legacy destination-sync store — LIVE via SyncCenterDialog ("Sync Now" →
+ * `syncPendingTo`, pending list, linkage state). It drains ONLY the legacy
+ * `invoice_queue` (branch/cloud destinations). Canonical POS sales live in
+ * `syncQueue` and are drained by `services/sync-manager.runSyncCycle`
+ * (platform path); the Sync Center lists both queues side by side so neither
+ * is invisible. Do not add new writers to the legacy queue.
  */
 export const usePOSSyncStore = defineStore("posSync", () => {
 	// =========================================================================
@@ -141,15 +142,6 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 	}
 
 	/**
-	 * Delete a pending invoice by ID
-	 * @param {string} id - Invoice ID to delete
-	 */
-	async function deletePending(id) {
-		await offlineWorker.deleteOfflineInvoice(id)
-		await updatePendingCount()
-	}
-
-	/**
 	 * Cache items and customers for offline use
 	 * @param {Array} items - Items to cache
 	 * @param {Array} customers - Customers to cache
@@ -198,22 +190,6 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 		} catch (error) {
 			log.error("Failed to load pending invoices", error)
 			pendingInvoicesList.value = []
-		}
-	}
-
-	/**
-	 * Delete an offline invoice by ID with user feedback
-	 * @param {string} invoiceId - Invoice ID to delete
-	 */
-	async function deleteOfflineInvoice(invoiceId) {
-		try {
-			await deletePending(invoiceId)
-			await loadPendingInvoices()
-			showSuccess(__("Offline invoice deleted successfully"))
-		} catch (error) {
-			log.error("Failed to delete offline invoice", error)
-			showError(error.message || __("Failed to delete offline invoice"))
-			throw error
 		}
 	}
 
@@ -475,7 +451,6 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 		saveInvoiceOffline,
 		loadPendingInvoices,
 		updatePendingCount,
-		deleteOfflineInvoice,
 		syncAllPending,
 		syncPendingTo,
 		preloadDataForOffline,

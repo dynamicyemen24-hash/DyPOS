@@ -1,6 +1,9 @@
 <template>
-	<div class="bg-white rounded-lg shadow-sm overflow-hidden">
-		<div class="overflow-x-auto">
+	<div class="bg-[var(--dy-surface)] rounded-lg shadow-sm overflow-hidden">
+		<div v-if="loading" class="animate-pulse">
+			<TableSkeleton :column-count="columns.length" :row-count="5" />
+		</div>
+		<div v-else class="overflow-x-auto">
 			<table class="min-w-full">
 				<thead>
 					<tr class="bg-gray-50">
@@ -58,12 +61,14 @@ import {
 	formatNumber,
 	formatPercent,
 } from "../../core/formatters/reportFormatters"
+import TableSkeleton from "./TableSkeleton.vue"
 
 const props = defineProps({
 	/** [{ key, label, format: "text"|"number"|"currency"|"percent"|"date", sortable?, compute? }] */
 	columns: { type: Array, required: true },
 	rows: { type: Array, default: () => [] },
 	rowClickable: { type: Boolean, default: false },
+	loading: { type: Boolean, default: false },
 })
 
 defineEmits(["row-click"])

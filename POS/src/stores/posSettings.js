@@ -162,8 +162,8 @@ export const SETTINGS_FIELDS = {
 	rtl_support: CHECKBOX("rtlSupport"),
 	currency_symbol_position: SELECT("currencySymbolPosition", ["left", "right"]),
 
-	// Offline & Sync
-	allow_delete_offline_invoice: CHECKBOX("allowDeleteOfflineInvoice"),
+	// Offline & Sync (queued records are never deletable by the end user —
+	// mistakes are superseded/voided with audit, so no delete toggle exists)
 	offline_sync_interval: NUMBER("offlineSyncInterval", { min: 5, step: 5 }),
 	offline_cache_expiry_days: NUMBER("offlineCacheExpiryDays", {
 		min: 1,
@@ -412,11 +412,7 @@ export const SETTINGS_MODULES = [
 		label: "Offline & Sync",
 		labelKey: "offline",
 		icon: "cloud-off",
-		fields: [
-			"allow_delete_offline_invoice",
-			"offline_sync_interval",
-			"offline_cache_expiry_days",
-		],
+		fields: ["offline_sync_interval", "offline_cache_expiry_days"],
 	},
 	{
 		key: "search",
@@ -639,7 +635,6 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 			currency_symbol_position: "left",
 
 			// ---- Module: Offline & Sync ----
-			allow_delete_offline_invoice: 0,
 			offline_sync_interval: 30, // seconds
 			offline_cache_expiry_days: 30,
 
@@ -967,9 +962,6 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 	// ================================================================
 	// Computed — Offline & Sync
 	// ================================================================
-	const allowDeleteOfflineInvoice = computed(() =>
-		Boolean(settings.value.allow_delete_offline_invoice),
-	)
 	const offlineSyncInterval = computed(
 		() => Number.parseInt(settings.value.offline_sync_interval) || 30,
 	)
@@ -1440,7 +1432,6 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		shouldWarnOnShortStock,
 
 		// Computed — Offline & Sync
-		allowDeleteOfflineInvoice,
 		offlineSyncInterval,
 		offlineCacheExpiryDays,
 

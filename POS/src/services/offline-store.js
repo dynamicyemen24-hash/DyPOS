@@ -11,6 +11,7 @@
 
 import db from "./db.js"
 import { validateBeforeSync, validateRemoteResponse } from "./sync-validator.js"
+import { RESERVATION_STATUS } from "./stock-reservations.js"
 import { logger } from "@/utils/logger"
 
 const log = logger.create("OfflineStore")
@@ -50,6 +51,61 @@ function tableFor(entityType) {
 
 function validationKeyFor(entityType) {
 	return ENTITY_VALIDATION_KEYS[entityType] || entityType
+}
+
+/**
+ * منع التكرار من المصدر: نفس المستند المعلق (entityType/entityId/operation
+ * وحالته pending) يُحدَّث بدل تكرار الصف — الضغطة المزدوجة أو إعادة
+ * المحاولة بعد نجاح الحفظ المحلي لا تُنشئ فاتورة ثانية أبدًا.
+ *
+ * التنفيذ الوحيد لهذه القاعدة (S3): يستخدمه `pushLocalChange` في
+ * sync-manager.js و`enqueueInvoiceSale` أدناه. يعمل داخل معاملة Dexie
+ * (يُستدعى من داخل tx) وخارجها على حد سواء.
+ *
+ * @param {Object} dbLike - Dexie instance (or compatible store).
+ * @param {Object} op - { entityType, entityId, operation, payload }.
+ * @returns {Promise<{id: number, updated: boolean}>}
+ */
+export async function upsertQueueRow(
+	dbLike,
+	{ entityType, entityId, operation, payload },
+) {
+	const freshPayload = {
+		...payload,
+		_localRev: Date.now().toString(),
+		_localUpdatedAt: new Date().toISOString(),
+	}
+	const existing = await dbLike.syncQueue
+		.where("entityId")
+		.equals(String(entityId))
+		.toArray()
+	const dup = (existing || []).find(
+		(row) =>
+			row &&
+			row.status === "pending" &&
+			String(row.entityType) === String(entityType) &&
+			String(row.operation) === String(operation),
+	)
+	if (dup?.id != null) {
+		await dbLike.syncQueue.update(dup.id, {
+			payload: freshPayload,
+			attemptCount: 0,
+			nextRetryAt: null,
+			lastError: null,
+			status: "pending",
+		})
+		return { id: dup.id, updated: true }
+	}
+	const id = await dbLike.syncQueue.add({
+		entityType,
+		entityId: String(entityId),
+		operation,
+		payload: freshPayload,
+		createdAt: new Date(),
+		attemptCount: 0,
+		status: "pending",
+	})
+	return { id, updated: false }
 }
 
 /**
@@ -146,6 +202,215 @@ export class OfflineStore {
 	}
 
 	/**
+	 * كتابة البيع الذرية — قلب "يعمل دون شبكة" (durable local write).
+	 *
+	 * معاملة Dexie واحدة فوق [invoices, payments, syncQueue, reservations,
+	 * stock] تكتب: سجل الفاتورة + سطور الدفع + صف الطابور (بمنع التكرار)
+	 * + تثبيت حجوزات الأصناف المعلومة + خصم مخزونها. انقطاع الكهرباء في
+	 * أي لحظة يترك إما البيعَ كاملًا أو لا شيء — لا فاتورة بلا طابور
+	 * (ضياع صامت عند المزامنة) ولا طابور بلا فاتورة (بيع شبح).
+	 *
+	 * الإعادة بنفس رقم الفاتورة (double-tap) تُعيد السجل الأصلي بدل
+	 * التكرار: الفاتورة "الفوز الأول"، وصف الطابور يُحدَّث بأحدث حمولة.
+	 *
+	 * المخزون: تُثبَّت حجوزات الأصناف ذات المخزون المعلوم فقط ويُخصم
+	 * مخزونها؛ الأصناف بلا صفوف مخزون (غير محدودة) تبقى حجوزاتها ACTIVE
+	 * حتى انتهاء الصلاحية — الحارس الوحيد المتاح لها.
+	 *
+	 * @param {Object} doc
+	 * @param {string} doc.entityType - نوع كيان الطابور ("invoice" | ...).
+	 * @param {string} doc.entityId - رقم الفاتورة المحلي (مفتاح عدم التكرار).
+	 * @param {string} [doc.operation="create"]
+	 * @param {Object} doc.queuePayload - حمولة صف الطابور (تُرسل للمنصة).
+	 * @param {Object} doc.invoice - سجل الدفتر المحلي { invoiceNo,
+	 *   customerId, items:[{productId,code,name,qty,rate,discount,taxRate}],
+	 *   total, paid, balance, date, terminalId, shiftId }.
+	 * @param {Array} [doc.payments] - [{ method, amount, reference, date }].
+	 * @param {Array} [doc.commitItems] - [{ itemId, qty }] أصناف معلومة
+	 *   المخزون: تُثبَّت حجوزاتها ويُخصم مخزونها.
+	 * @returns {Promise<{invoiceId: number, invoiceNo: string, queuedId: number, replayed: boolean}>}
+	 */
+	async enqueueInvoiceSale({
+		entityType,
+		entityId,
+		operation = "create",
+		queuePayload,
+		invoice,
+		payments = [],
+		commitItems = [],
+	}) {
+		const invoiceNo = String(invoice?.invoiceNo || entityId || "").trim()
+		if (!invoiceNo) throw new Error("رقم الفاتورة مطلوب للحفظ المحلي")
+		const lines = Array.isArray(invoice?.items) ? invoice.items : []
+		if (lines.length === 0) throw new Error("لا يمكن حفظ بيع بلا أصناف")
+		const total = Number(invoice?.total)
+		if (!Number.isFinite(total) || total < 0) {
+			throw new Error("إجمالي الفاتورة غير صالح")
+		}
+
+		const database = this.db
+		const runAtomic =
+			typeof database.transaction === "function"
+				? (fn) =>
+						database.transaction(
+							"rw",
+							database.invoices,
+							database.payments,
+							database.syncQueue,
+							database.reservations,
+							database.stock,
+							fn,
+						)
+				: // Test fakes without transactions (see repositories/base.js):
+					// direct invocation, documented — never silent partial writes
+					// in production, where Dexie always transacts.
+					(fn) => fn()
+		return runAtomic(async () => {
+			// الفوز الأول: فاتورة بهذا الرقم تعني إعادة تشغيل مكررة.
+			const existing = await database.invoices
+				.where("invoiceNo")
+				.equals(invoiceNo)
+				.first()
+			if (existing) {
+				const queued = await upsertQueueRow(database, {
+					entityType,
+					entityId: invoiceNo,
+					operation,
+					payload: queuePayload,
+				})
+				return {
+					invoiceId: existing.id,
+					invoiceNo,
+					queuedId: queued.id,
+					replayed: true,
+				}
+			}
+
+			const now = new Date()
+			const nowIso = now.toISOString()
+			const paid = Number(invoice.paid ?? 0)
+			const balance = Number(invoice.balance ?? Math.max(0, total - paid))
+			const invoiceId = await database.invoices.add({
+				invoiceNo,
+				customerId: invoice.customerId ?? null,
+				status: balance <= 0 ? "COMPLETED" : "OPEN",
+				items: lines.map((line) => ({
+					productId: line.productId ?? line.item ?? line.id ?? null,
+					code: line.code ?? null,
+					name: line.name ?? "",
+					qty: Number(line.qty ?? line.quantity ?? 0),
+					rate: Number(line.rate ?? line.unitPrice ?? line.price ?? 0),
+					discount: Number(line.discount ?? 0),
+					taxRate: Number(line.taxRate ?? line.tax_rate ?? 0),
+				})),
+				total,
+				paid,
+				balance: Math.max(0, balance),
+				date: invoice.date || nowIso,
+				dueDate: invoice.dueDate || null,
+				terminalId: invoice.terminalId || null,
+				shiftId: invoice.shiftId || null,
+				updatedAt: nowIso,
+				syncedAt: null,
+				syncStatus: "pending",
+			})
+
+			for (const [index, payment] of (payments || []).entries()) {
+				const amount = Number(payment?.amount)
+				if (!Number.isFinite(amount) || amount <= 0) continue
+				const reference = String(
+					payment?.reference ||
+						`local:${invoiceNo}:${payment?.method || "cash"}:${index}`,
+				).slice(0, 128)
+				const prior = await database.payments
+					.where("[invoiceId+reference]")
+					.equals([invoiceId, reference])
+					.first()
+				if (prior) continue
+				await database.payments.add({
+					invoiceId,
+					method: String(payment?.method || "cash").slice(0, 20),
+					amount,
+					date: payment?.date || nowIso,
+					reference,
+					updatedAt: nowIso,
+					syncedAt: null,
+					syncStatus: "pending",
+				})
+			}
+
+			const queued = await upsertQueueRow(database, {
+				entityType,
+				entityId: invoiceNo,
+				operation,
+				payload: queuePayload,
+			})
+
+			// تثبيت الحجوزات + خصم المخزون للأصناف المعلومة فقط.
+			const wanted = new Map()
+			for (const item of commitItems || []) {
+				const id = String(item?.itemId ?? "")
+				const qty = Number(item?.qty ?? 0)
+				if (id && qty > 0) wanted.set(id, (wanted.get(id) || 0) + qty)
+			}
+			for (const [itemId, qty] of wanted) {
+				const held = await database.reservations
+					.where("[invoiceId+status]")
+					.equals([invoiceNo, RESERVATION_STATUS.ACTIVE])
+					.toArray()
+				const mine = held.filter((row) => String(row.itemId) === itemId)
+				if (mine.length > 0) {
+					await database.reservations.bulkPut(
+						mine.map((row) => ({
+							...row,
+							status: RESERVATION_STATUS.COMMITTED,
+							committedAt: nowIso,
+						})),
+					)
+				}
+				let remaining = qty
+				const batches = await database.stock
+					.where("itemId")
+					.equals(itemId)
+					.toArray()
+				batches.sort((a, b) => {
+					const ea = a.expiryDate
+						? new Date(a.expiryDate).getTime()
+						: Number.POSITIVE_INFINITY
+					const eb = b.expiryDate
+						? new Date(b.expiryDate).getTime()
+						: Number.POSITIVE_INFINITY
+					if (ea !== eb) return ea - eb
+					const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0
+					const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0
+					return ca - cb
+				})
+				const touched = []
+				for (const batch of batches) {
+					if (remaining <= 0) break
+					const have = Number(batch.qty || 0)
+					if (have <= 0) continue
+					const take = Math.min(have, remaining)
+					remaining -= take
+					touched.push({ ...batch, qty: have - take })
+				}
+				if (touched.length > 0) {
+					await database.stock.bulkPut(touched)
+				}
+				if (remaining > 0) {
+					log.warn("Stock shortfall on local commit (race bounded)", {
+						itemId,
+						shortBy: remaining,
+						invoiceNo,
+					})
+				}
+			}
+
+			return { invoiceId, invoiceNo, queuedId: queued.id, replayed: false }
+		})
+	}
+
+	/**
 	 * @param {string|null} [entityType] - Filter by entity type when provided.
 	 * @returns {Promise<Array<Object>>} Pending operations, insertion order.
 	 */
@@ -167,6 +432,23 @@ export class OfflineStore {
 	async getQueueCount(entityType = null) {
 		const rows = await this.pendingOperations(entityType)
 		return rows.length
+	}
+
+	/**
+	 * كل الصفوف المفتوحة (pending/syncing/failed) — للعرض الصادق في
+	 * مركز المزامنة: صف ميت (dead-letter) لا يظهر في pending لكنه لم
+	 * يُزامَن بعد ويحتاج تدخلًا يدويًا، فإخفاؤه فقدانٌ صامت.
+	 * @returns {Promise<Array<Object>>} مرتبة زمنيًا (FIFO).
+	 */
+	async openOperations() {
+		const rows = await this.db.syncQueue
+			.where("status")
+			.anyOf(["pending", "syncing", "failed"])
+			.toArray()
+		return rows.sort(
+			(a, b) =>
+				new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+		)
 	}
 
 	/**
@@ -214,8 +496,10 @@ export class OfflineStore {
 
 	/**
 	 * Transport/server failure → back to pending with exponential backoff.
-	 * After 10 attempts the row dead-letters to failed (error recovery via
-	 * manual retry). Sync failures never block the till.
+	 * After 10 attempts the row dead-letters to failed AND writes an audit
+	 * entry (a dead row must be visible in oversight, not just a status).
+	 * Error recovery is manual via retryFailed(); sync failures never block
+	 * the till.
 	 * @param {number} id
 	 * @param {string} message
 	 */
@@ -223,7 +507,7 @@ export class OfflineStore {
 		const row = await this.db.syncQueue.get(id)
 		const attemptCount = (row?.attemptCount || 0) + 1
 		if (attemptCount >= 10) {
-			return this.db.syncQueue.update(id, {
+			await this.db.syncQueue.update(id, {
 				status: "failed",
 				dead: true,
 				lastError: message,
@@ -231,6 +515,17 @@ export class OfflineStore {
 				nextRetryAt: null,
 				attemptCount,
 			})
+			await this.db.syncAudit.add({
+				entityType: row?.entityType || "unknown",
+				entityId: row?.entityId ?? null,
+				localRev: row?.payload?._localRev ?? null,
+				remoteRev: null,
+				conflictType: "transport",
+				resolution: "dead-letter",
+				details: { message, attemptCount },
+				createdDate: new Date(),
+			})
+			return
 		}
 		return this.db.syncQueue.update(id, {
 			status: "pending",
@@ -242,18 +537,44 @@ export class OfflineStore {
 	}
 
 	/**
+	 * Manual error recovery for a dead-lettered row: back to pending with a
+	 * clean slate (attempts reset). The row's history stays in syncAudit.
+	 * Non-destructive — any signed-in role may retry its own terminal queue.
+	 * @param {number} id - syncQueue row id.
+	 * @returns {Promise<boolean>} True when a failed row was reopened.
+	 */
+	async retryFailed(id) {
+		const row = await this.db.syncQueue.get(id)
+		if (!row || row.status !== "failed") return false
+		await this.db.syncQueue.update(id, {
+			status: "pending",
+			dead: null,
+			attemptCount: 0,
+			nextRetryAt: null,
+			lastError: null,
+		})
+		return true
+	}
+
+	/**
 	 * Crash recovery: rows stuck in syncing return to pending (retryable).
+	 *
+	 * @returns {Promise<number>} how many rows were returned to `pending`.
+	 * @throws if the queue cannot be read. A swallowed read error used to
+	 *   answer `0` — indistinguishable from "nothing was stuck", so boot
+	 *   recovery could report a clean queue over an unreadable one. Every
+	 *   caller already runs this best-effort inside a try/catch
+	 *   (`main.js`, `sync-core.js`), so the failure is reported, not hidden.
 	 */
 	async resetStuckSyncing() {
-		try {
-			const stuck = await this.db.syncQueue.where("status").equals("syncing").toArray()
-			for (const row of stuck) {
-				await this.db.syncQueue.update(row.id, { status: "pending" })
-			}
-			return stuck.length
-		} catch {
-			return 0
+		const stuck = await this.db.syncQueue
+			.where("status")
+			.equals("syncing")
+			.toArray()
+		for (const row of stuck) {
+			await this.db.syncQueue.update(row.id, { status: "pending" })
 		}
+		return stuck.length
 	}
 
 	// --------------------------------------------------------------------

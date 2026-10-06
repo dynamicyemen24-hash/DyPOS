@@ -2,7 +2,6 @@
    DyPOS — Enterprise SaaS Login Surface
    RTL-first / Arabic-first / Production Grade
    ============================================================================= */
-
 .dy-login {
 	position: relative;
 	display: grid;
@@ -663,7 +662,6 @@
 
 /* أثناء الإرسال: الروابط الثانوية لا تقبل الضغط، وتقول ذلك بلونها لا بتعتيتها
    (بوابة `compounded dimming`: اللون وحده، ٤٫٧:١ على الأقل). */
-.dy-login--busy .dy-login__link-button,
 .dy-login--busy .dy-login__register a {
 	pointer-events: none;
 
@@ -1991,32 +1989,49 @@
 }
 
 /* =============================================================================
+   Shortcuts Trigger Button
+   ============================================================================= */
+
+.dy-login__shortcuts-trigger {
+	flex-shrink: 0;
+	margin-inline-start: auto;
+}
+
+.dy-login__shortcuts-hint {
+	display: none;
+}
+
+@media (min-width: 769px) {
+	.dy-login__shortcuts-hint {
+		display: inline;
+	}
+}
+
+@media (max-width: 768px) {
+	.dy-login__shortcuts-trigger {
+		margin-inline-start: 0;
+		width: 100%;
+		justify-content: center;
+	}
+}
+
+/* =============================================================================
    Focus Visible Enhancement
    ============================================================================= */
-/* -----------------------------------------------------------------------------
- * THE BUG THIS BLOCK USED TO BE.
- *
- * The rule that opened it read:
- *
- *     .dy-login__input:focus-visible,
- *     .dy-login__password-toggle:focus-visible,
- *     (a section comment wedged between the selectors, here)
- *
- *         .dy-login__quick-actions { display: flex; ... }
- *
- * A comment inside a selector list is legal CSS, so nothing warned: three
- * selectors collapsed into ONE rule, and the block's layout - display:flex,
- * a 16px margin-top, a 16px padding-top and a border-top - was applied to the
- * focused <input> itself. Every time a cashier focused the email or password
- * field, that field jumped ~28px down and grew a divider line. Every suite
- * stayed green, because no test read this file.
- *
- * The two state selectors were redundant anyway: the field's ring comes from
- * `.dy-login__input-wrap:focus-within`, and the toggle already has its own
- * focus rule further up. So the list is gone rather than repaired - a comment
- * wedged into a selector list is not a formatting nit, it is a silent cascade
- * change.
- * -------------------------------------------------------------------------- */
+
+.dy-login__input:focus-visible,
+.dy-login__password-toggle:focus-visible,
+.dy-login__forgot:focus-visible,
+.dy-login__remember input:focus-visible + .dy-login__checkbox,
+.dy-login__register a:focus-visible,
+.dy-login__select:focus,
+.dy-login__method-btn:focus-visible,
+.dy-login__shortcuts-trigger:focus-visible {
+	outline: var(--dy-focus-width) solid var(--dy-focus-color);
+	outline-offset: var(--dy-focus-offset);
+}
+
+/* Fix: removed the comment-wedged rule that broke focus styles */
 
 /* =============================================================================
    Authentication Methods
@@ -2277,80 +2292,6 @@
    are its styles — same vocabulary as the rest of the page (no raw hex, no
    magic z-index), so the new surface cannot look like a second design language.
    ========================================================================== */
-
-.dy-login__quick-actions {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: var(--dy-space-4);
-
-	margin-top: var(--dy-space-4);
-	padding-top: var(--dy-space-4);
-
-	border-top: 1px solid var(--dy-border-soft);
-}
-
-/*
- * A link that behaves like a link.
- *
- * `min-height: var(--dy-touch-min)` is not decoration: WCAG 2.2 AA §2.5.8
- * requires a 24px minimum target and the design system's own floor is 44px.
- * A 0.72rem text button is nowhere near that on a touch terminal.
- */
-.dy-login__link-button {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	gap: var(--dy-space-2);
-
-	min-height: var(--dy-touch-min);
-
-	padding-inline: var(--dy-space-2);
-
-	border: 0;
-	border-radius: var(--dy-radius-sm);
-
-	background: transparent;
-	color: var(--dy-primary);
-	font: inherit;
-	font-size: 0.82rem;
-	font-weight: 700;
-
-	cursor: pointer;
-
-	transition: background-color var(--dy-dur-fast) var(--dy-ease-standard), color
-		var(--dy-dur-fast) var(--dy-ease-standard);
-}
-
-.dy-login__link-button:hover:not(:disabled) {
-	background: var(--dy-surface-hover);
-}
-
-/* `--dy-focus-width/--dy-focus-color/--dy-focus-offset` are the system's own
-   names. The ring-* aliases resolve only through the legacy brand layer, and
-   a page style that depends on the layer the repo is trying to retire is one
-   refactor away from losing its focus indicator silently. */
-.dy-login__link-button:focus-visible {
-	outline: var(--dy-focus-width) solid var(--dy-focus-color);
-	outline-offset: var(--dy-focus-offset);
-}
-
-.dy-login__link-button:disabled {
-	color: var(--dy-text-muted);
-	cursor: not-allowed;
-	/*
-	 * لا `opacity: var(--dy-disabled-opacity)` هنا.
-	 *
-	 * اللون وحده (#64748b على سطح أبيض = 4.76:1) يكفي للإشارة إلى «معطّل»،
-	 * وإضافة 0.55 فوقه تُركّب التعتيم مرتين: القياس في المتصفح لـ«إنشاء رمز
-	 * دخول سريع» كان 2.13:1 — أي زر يبدو فارغًا لا زرًا معطّلًا.
-	 */
-}
-
-.dy-login__link-button--quiet {
-	color: var(--dy-text-muted);
-	font-weight: 600;
-}
 
 .dy-login__input--pin {
 	font-family: var(--dy-font-mono);

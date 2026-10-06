@@ -12,6 +12,8 @@
  * - void keeps the row (audit) — never deletes
  */
 import { createRepository, getDb, runTransaction } from "./base.js"
+import { upsertQueueRow } from "@/services/offline-store"
+import { sessionRole, sessionUser } from "@/data/session"
 
 const invoices = createRepository("invoices")
 const payments = createRepository("payments")
@@ -138,19 +140,78 @@ export async function addPayment(invoiceId, payment = {}) {
 }
 
 /**
- * Void a sale (keeps the row + reason for audit). Voided sales reject payments.
+ * Void a sale — status transition only, never a delete. The row, its
+ * payments and its reason stay for audit, and an `update` op is queued so
+ * the server learns the void (a local-only void would resurrect the sale
+ * on the next pull).
+ *
+ * Permission control (enforced here, not in Vue):
+ * - reason is required (empty reason = rejected);
+ * - a signed-in user is required (actor recorded);
+ * - CASHIER may void only OPEN (unpaid) sales on this device;
+ * - voiding a COMPLETED (money-moved) sale requires MANAGER or ADMIN;
+ * - AUDITOR is read-only and can void nothing (default-deny).
+ *
+ * The server re-checks `pos.void_invoice` on its own side when the void
+ * op syncs; this gate is the offline twin, driven by the local session
+ * role so it works with no network.
  */
 export async function voidSale(invoiceId, reason = "") {
-	const invoice = await invoices.get(invoiceId)
-	if (!invoice) throw new Error("الفاتورة غير موجودة")
-	if (invoice.status === SALE_STATUS.VOIDED) return invoice
-	await invoices.update(invoiceId, {
-		status: SALE_STATUS.VOIDED,
-		voidReason: String(reason || ""),
-		updatedAt: new Date().toISOString(),
-		syncStatus: "pending",
-	})
-	return invoices.get(invoiceId)
+	const cleanReason = String(reason || "").trim()
+	if (!cleanReason) throw new Error("سبب الإلغاء مطلوب")
+	const actor = sessionUser()
+	if (!actor) throw new Error("تسجيل الدخول مطلوب للإلغاء")
+	const role = String(sessionRole() || "POS User").toUpperCase()
+	const privileged = role === "ADMIN" || role === "MANAGER"
+
+	return runTransaction(
+		["invoices", "payments", "syncQueue", "syncAudit"],
+		async () => {
+			const database = getDb()
+			const invoice = await database.invoices.get(invoiceId)
+			if (!invoice) throw new Error("الفاتورة غير موجودة")
+			if (invoice.status === SALE_STATUS.VOIDED) return invoice
+			const completed = invoice.status === SALE_STATUS.COMPLETED
+			if (completed && !privileged) {
+				throw new Error("إلغاء فاتورة مدفوعة يتطلب مشرفًا (مدير/مسؤول)")
+			}
+
+			const now = new Date().toISOString()
+			await database.invoices.update(invoiceId, {
+				status: SALE_STATUS.VOIDED,
+				voidReason: cleanReason,
+				voidedBy: actor,
+				voidedAt: now,
+				updatedAt: now,
+				syncStatus: "pending",
+			})
+			await database.syncAudit.add({
+				entityType: "invoice",
+				entityId: invoice.invoiceNo || String(invoiceId),
+				localRev: invoice.updatedAt || null,
+				remoteRev: null,
+				conflictType: "status",
+				resolution: "voided",
+				details: { reason: cleanReason, actor, role },
+				createdDate: new Date(),
+			})
+			await upsertQueueRow(database, {
+				entityType: "invoice",
+				entityId: invoice.invoiceNo || String(invoiceId),
+				operation: "update",
+				payload: {
+					invoiceNo: invoice.invoiceNo,
+					voided: true,
+					voidReason: cleanReason,
+					voidedBy: actor,
+					customerId: invoice.customerId ?? null,
+					items: invoice.items || [],
+					total: invoice.total ?? 0,
+				},
+			})
+			return database.invoices.get(invoiceId)
+		},
+	)
 }
 
 export function listPayments(invoiceId) {

@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.48.0] - 2026-10-06 — بيع ذرّي دائم + شاشة أعمال التدقيق + إقلاع أسرع
+
+### ✨ Added
+- **بيع ذرّي دائم**: `session.submitSale` يكتب الفاتورة + الدفعات + صفّ
+  الطابور + خصم المخزون في معاملة Dexie واحدة — آمن ضد انقطاع الكهرباء:
+  البيع يقع كاملًا أو لا يقع أبدًا، ولا صفّ طابور بلا فاتورة أبدًا.
+  قاعدة منع التكرار الوحيدة `upsertQueueRow` (S3) مشتركة بين
+  `pushLocalChange` والكاتب الذرّي؛ `maybeImmediatePush` مستخرجة للدفع
+  الفوري بوضع `auto` فقط.
+- **شاشة أعمال التدقيق** (`WorkScreens.vue` + `data/workScreens.js`،
+  `doctype: "Audit Trail"`) مع `auditReport.test.js`.
+- **إقلاع أسرع**: هياكل عظمية للتحميل (`SkeletonLoader` + منتجات/رسوم/
+  مؤشرات/جداول) واقتراحات بريد واختصارات PIN في شاشة الدخول.
+
+### 🛠️ Fixed
+- **ترميز `login.css`**: ملف CP1252 مشوّه أُصلح إلى UTF-8 سليم (بوابة
+  `encoding-integrity`).
+- **بيانات اعتماد مكتوبة في الكود** أُزيلت من `load-stress.k6.js` و
+  `e2e/support/api.js` و `localUserSeed.js`.
+- **توثيق مسار المزامنة القديم**: `invoice_queue` لا يقبل كتابات بيع جديدة؛
+  تصريفه (`syncOfflineInvoices` عبر مركز المزامنة) حي للفروع/السحابة فقط.
+
+### ✅ Measured
+- الخادم **688/198** · الواجهة **2315/136** · `contract` · `parity` ·
+  `upstream` · الحزمة ≤ 900KB · `versionDrift` 8/8 على 1.48.0.
 ## [1.47.7] - 2026-10-05 — Release-Gate fix (sync readiness BLOCKER report)
 
 ### Fixed

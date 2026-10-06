@@ -307,21 +307,13 @@ export const addOneTimeRedemptions = async (customer, rules = []) => {
 }
 
 /**
- * Clear all cached data (items, customers, stock, etc.)
- * Preserves critical data like invoices, drafts, and settings
- * @param {Object} options - Options for clearing
- * @param {boolean} options.preserveInvoices - Keep invoice queue (default: true)
- * @param {boolean} options.preserveDrafts - Keep drafts (default: true)
- * @param {boolean} options.preserveSettings - Keep settings (default: true)
+ * Clear catalog caches (items, customers, stock, prices, methods, staff).
+ * Queues (invoice/payment), drafts and settings are ALWAYS preserved:
+ * no caller may wipe unsynced business records — there is no option to
+ * do so anymore.
  * @returns {Promise<Object>} - Status of cleared tables
  */
-export const clearCachedData = async (options = {}) => {
-	const {
-		preserveInvoices = true,
-		preserveDrafts = true,
-		preserveSettings = true,
-	} = options
-
+export const clearCachedData = async () => {
 	const results = {
 		items: 0,
 		customers: 0,
@@ -329,14 +321,9 @@ export const clearCachedData = async (options = {}) => {
 		item_prices: 0,
 		payment_methods: 0,
 		sales_persons: 0,
-		invoices: 0,
-		payments: 0,
-		drafts: 0,
-		settings: 0,
 	}
 
 	try {
-		// Always clear these cache tables
 		results.items = await db.items.clear()
 		results.customers = await db.customers.clear()
 		results.stock = await db.stock.clear()
@@ -344,23 +331,10 @@ export const clearCachedData = async (options = {}) => {
 		results.payment_methods = await db.payment_methods.clear()
 		results.sales_persons = await db.sales_persons.clear()
 
-		// Conditionally clear invoice and payment queues
-		if (!preserveInvoices) {
-			results.invoices = await db.invoice_queue.clear()
-			results.payments = await db.payment_queue.clear()
-		}
-
-		// Conditionally clear drafts
-		if (!preserveDrafts) {
-			results.drafts = await db.drafts.clear()
-		}
-
-		// Conditionally clear settings
-		if (!preserveSettings) {
-			results.settings = await db.settings.clear()
-		}
-
-		log.info("Cached data cleared:", results)
+		log.info(
+			"Catalog caches cleared (queues/drafts/settings preserved):",
+			results,
+		)
 		return { success: true, cleared: results }
 	} catch (error) {
 		log.error("Error clearing cached data:", error)
@@ -369,36 +343,12 @@ export const clearCachedData = async (options = {}) => {
 }
 
 /**
- * NUCLEAR OPTION: Delete entire database and recreate
- * Use with caution - clears EVERYTHING including invoices and drafts
- * @returns {Promise<boolean>} - Success status
+ * Queued business records are never deletable by the end user (no physical
+ * delete anywhere in the product — mistakes are superseded/voided with
+ * audit). The former `nukeDatabase` whole-DB wipe was removed for this
+ * reason; retention pruning of aged SYNCED rows lives only in
+ * `cleanupSyncedInvoices` (utils/offline/sync.js).
  */
-export const nukeDatabase = async () => {
-	try {
-		log.warn("NUKING DATABASE - All data will be lost!")
-
-		// Close database connection
-		if (db.isOpen()) {
-			db.close()
-		}
-
-		// Delete entire database
-		await Dexie.delete("DyPOS_offline")
-
-		// Clear localStorage schema tracking
-		localStorage.removeItem("DyPOS_schema_hash")
-		localStorage.removeItem("DyPOS_schema_version")
-
-		// Recreate database
-		await db.open()
-
-		log.success("Database nuked and recreated successfully")
-		return true
-	} catch (error) {
-		log.error("Error nuking database:", error)
-		return false
-	}
-}
 
 /**
  * Clear browser cache and localStorage (POS-specific data only)

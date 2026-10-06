@@ -25,6 +25,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 
 import { FeatherIcon } from "dypos-ui"
+import { ActionButton } from "dypos-ui"
+import SkeletonLoader from "@/components/ui/SkeletonLoader.vue"
 
 import { endpoints } from "@/utils/apiEndpoints"
 import { COMPANY_WEBSITE, COMPANY_WEBSITE_LABEL } from "@/utils/brand"
@@ -45,7 +47,6 @@ import LoginSessionLockDialog from "@/components/common/LoginSessionLockDialog.v
 import LoginSessionTimeoutDialog from "@/components/common/LoginSessionTimeoutDialog.vue"
 import TouchKeyboard from "@/components/common/TouchKeyboard.vue"
 import NotificationBar from "@/components/NotificationBar.vue"
-import { ActionButton } from "dypos-ui"
 import LoginBackendUnavailableBanner from "@/components/common/LoginBackendUnavailableBanner.vue"
 import LoginRateLimitWarning from "@/components/common/LoginRateLimitWarning.vue"
 import PasswordStrengthBar from "@/components/reports/dashboards/core/PasswordStrengthBar.vue"
@@ -54,6 +55,9 @@ import HardwareDiagnosticsPanel from "@/components/common/HardwareDiagnosticsPan
 import NetworkDiagnosticsPanel from "@/components/common/NetworkDiagnosticsPanel.vue"
 import VersionInfo from "@/components/common/VersionInfo.vue"
 import LoginWorkspacePanel from "@/components/common/LoginWorkspacePanel.vue"
+import LoginShortcutsDialog from "@/components/common/LoginShortcutsDialog.vue"
+import LoginEmailSuggestions from "@/components/common/LoginEmailSuggestions.vue"
+import LoginPinQuickActions from "@/components/common/LoginPinQuickActions.vue"
 
 /*
  * تنسيقات شاشة الدخول في ملف مستقل: `styles/pages/login.css`.
@@ -187,6 +191,20 @@ const passwordInput = ref(null)
 const showKeyboard = ref(false)
 
 const loginForm = ref(null)
+
+/** Loading state for skeleton screens during initial load */
+const isInitialLoading = ref(true)
+
+/** Keyboard shortcuts help dialog — the table lives in the component. */
+const showShortcutsHelp = ref(false)
+
+const showEmailSuggestions = ref(false)
+
+function completeEmail(domain) {
+	email.value = `${email.value}@${domain}`
+	showEmailSuggestions.value = false
+	emailInput.value?.focus()
+}
 
 /** تلميح Caps Lock: يُحدَّث من الحدث نفسه، لا بمراقب دائم للمستند. */
 const { capsLockOn, trackCapsLock } = useCapsLock()
@@ -655,6 +673,9 @@ onMounted(async () => {
 	}
 
 	await prepareRuntime()
+
+	// Mark initial loading complete for skeleton screens
+	isInitialLoading.value = false
 })
 
 onBeforeUnmount(async () => {
@@ -754,11 +775,21 @@ watch(
             </span>
         </div>
 
+        <!-- Initial Loading Skeleton -->
+        <section v-if="isInitialLoading" class="dy-login__panel" aria-busy="true" :aria-label="__('جاري التحميل')">
+            <div class="dy-login__panel-inner">
+                <SkeletonLoader :count="3" variant="card" />
+                <SkeletonLoader :count="2" variant="text" :lines="3" />
+                <SkeletonLoader :count="2" variant="input" />
+                <SkeletonLoader variant="button" size="lg" />
+            </div>
+        </section>
+
         <!-- =================================================================
              Authentication Panel
              =============================================================== -->
 
-        <section class="dy-login__panel">
+        <section v-else class="dy-login__panel">
             <div
                 class="dy-login__panel-inner"
                 :aria-busy="isSubmitting"
@@ -797,6 +828,16 @@ watch(
                             {{ __('سجّل الدخول للمتابعة إلى نقطة البيع.') }}
                         </p>
                     </div>
+                    <ActionButton
+                        variant="ghost"
+                        size="sm"
+                        class="dy-login__shortcuts-trigger"
+                        @click="showShortcutsHelp = true"
+                        :aria-label="__('عرض اختصارات لوحة المفاتيح')"
+                    >
+                        <FeatherIcon name="help-circle" :size="18" aria-hidden="true" />
+                        <span class="dy-login__shortcuts-hint">{{ __('اختصارات') }}</span>
+                    </ActionButton>
                 </header>
 
                 <!-- Runtime readiness -->
@@ -831,18 +872,20 @@ watch(
                         </span>
                     </div>
 
-                    <button
+                    <ActionButton
                         v-if="
                             runtimeState === 'failed' ||
                             runtimeState === 'degraded'
                         "
                         type="button"
-                        class="dy-login__runtime-action"
+                        variant="ghost"
+                        theme="brand"
+                        size="sm"
                         @click="prepareRuntime"
                         :aria-label="__('إعادة محاولة الاتصال بالخادم')"
                     >
                         {{ __('إعادة المحاولة') }}
-                    </button>
+                    </ActionButton>
                 </section>
 
                 <!-- Backend Unavailable Banner (503) — Offline mode still works -->
@@ -883,18 +926,19 @@ watch(
                         </span>
                     </div>
 
-                    <button
+                    <ActionButton
                         type="button"
+                        variant="ghost"
+                        size="xs"
                         class="dy-login__error-close"
                         :aria-label="__('إغلاق رسالة الخطأ')"
-                        :title="__('إغلاق')"
                         @click="clearLoginError"
                     >
                         <FeatherIcon
                             name="x"
                             :size="16"
                         />
-                    </button>
+                    </ActionButton>
                 </div>
 
                 <!-- =================================================================
@@ -942,7 +986,7 @@ watch(
                                 type="email"
                                 inputmode="email"
                                 name="username"
-                                autocomplete="username"
+                                autocomplete="email"
                                 dir="ltr"
                                 placeholder="name@company.com"
                                 :disabled="isSubmitting"
@@ -953,6 +997,14 @@ watch(
                                 :aria-invalid="emailMissing"
                                 :aria-describedby="emailMissing ? 'dypos-login-email-error' : undefined"
                                 @input="clearLoginError"
+                                @focus="showEmailSuggestions = true"
+                                @blur="setTimeout(() => showEmailSuggestions = false, 200)"
+                            />
+                            <!-- Email Domain Suggestions -->
+                            <LoginEmailSuggestions
+                                :visible="showEmailSuggestions && !email.includes('@') && !isSubmitting"
+                                :email="email"
+                                @select="completeEmail"
                             />
                         </div>
 
@@ -1129,9 +1181,12 @@ watch(
                             <span>{{ __('طرق دخول أخرى') }}</span>
                         </summary>
                         <div class="dy-login__methods-buttons">
-                            <button
+                            <ActionButton
                                 v-if="biometricAvailable"
                                 type="button"
+                                variant="ghost"
+                                theme="brand"
+                                size="sm"
                                 class="dy-login__method-btn"
                                 :class="{ 'dy-login__method-btn--active': selectedMethod === 'biometric' }"
                                 @click="selectMethod('biometric')"
@@ -1140,9 +1195,12 @@ watch(
                             >
                                 <FeatherIcon name="fingerprint" :size="18" aria-hidden="true" />
                                 <span>{{ __('البصمة') }}</span>
-                            </button>
-                            <button
+                            </ActionButton>
+                            <ActionButton
                                 type="button"
+                                variant="ghost"
+                                theme="brand"
+                                size="sm"
                                 class="dy-login__method-btn"
                                 :class="{ 'dy-login__method-btn--active': selectedMethod === 'keyboard' }"
                                 @click="selectMethod('keyboard')"
@@ -1151,9 +1209,12 @@ watch(
                             >
                                 <FeatherIcon name="smartphone" :size="18" aria-hidden="true" />
                                 <span>{{ __('لوحة مفاتيح') }}</span>
-                            </button>
-                            <button
+                            </ActionButton>
+                            <ActionButton
                                 type="button"
+                                variant="ghost"
+                                theme="brand"
+                                size="sm"
                                 class="dy-login__method-btn"
                                 :class="{ 'dy-login__method-btn--active': selectedMethod === 'passkey' }"
                                 @click="selectMethod('passkey')"
@@ -1162,19 +1223,22 @@ watch(
                             >
                                 <FeatherIcon name="key" :size="18" aria-hidden="true" />
                                 <span>{{ __('مفتاح مرور') }}</span>
-                            </button>
+                            </ActionButton>
 
-                            <button
+                            <ActionButton
                                 type="button"
+                                variant="ghost"
+                                theme="brand"
+                                size="sm"
                                 class="dy-login__method-btn"
-                                :class="{ 'dy-login__method-btn--active': selectedMethod === 'pin' }"
+                                :class="{ 'dy-login__method-btn--active': pinModeActive }"
                                 @click="enterPinMode"
                                 :disabled="isSubmitting"
                                 :aria-pressed="pinModeActive"
                             >
                                 <FeatherIcon name="lock" :size="18" aria-hidden="true" />
                                 <span>{{ __('رمز PIN') }}</span>
-                            </button>
+                            </ActionButton>
                         </div>
                         <LoginPasskeyActions
                             mode="login"
@@ -1258,52 +1322,18 @@ watch(
                      button that does nothing.
                      ================================================================= -->
 
-                <div
-                    v-if="!pinModeActive"
-                    class="dy-login__quick-actions"
-                >
-                    <button
-                        v-if="pinAvailable"
-                        type="button"
-                        class="dy-login__link-button"
-                        @click="enterPinMode"
-                        :aria-label="__('التبديل لتسجيل الدخول السريع برمز PIN')"
-                    >
-                        <FeatherIcon
-                            name="zap"
-                            :size="15"
-                            aria-hidden="true"
-                        />
-                        {{ __('دخول سريع برمز PIN') }}
-                    </button>
-
-                    <button
-                        v-else
-                        type="button"
-                        class="dy-login__link-button"
-                        :disabled="!email"
-                        :title="__(email ? PIN_DEVICE_HINT : PIN_EMAIL_TOO_SHORT)"
-                        :aria-label="__(email ? PIN_DEVICE_HINT : PIN_EMAIL_REQUIRED)"
-                        @click="showPinSetup = true"
-                    >
-                        <FeatherIcon
-                            name="key"
-                            :size="15"
-                            aria-hidden="true"
-                        />
-                        {{ __('إنشاء رمز دخول سريع') }}
-                    </button>
-
-                    <button
-                        v-if="pinAvailable"
-                        type="button"
-                        class="dy-login__link-button dy-login__link-button--quiet"
-                        @click="handleClearPin"
-                        :aria-label="__('إلغاء رمز الدخول السريع المحفوظ')"
-                    >
-                        {{ __('إلغاء الرمز') }}
-                    </button>
-                </div>
+                <LoginPinQuickActions
+                    :pin-available="pinAvailable"
+                    :pin-mode-active="pinModeActive"
+                    :email="email"
+                    :busy="isSubmitting"
+                    :device-hint="pinDeviceHint"
+                    :email-too-short="PIN_EMAIL_TOO_SHORT"
+                    :email-required="PIN_EMAIL_REQUIRED"
+                    @enter-pin="enterPinMode"
+                    @setup-pin="showPinSetup = true"
+                    @clear-pin="handleClearPin"
+                />
 
                 <!-- PIN sign-in / setup — extracted to `LoginPinForm.vue` -->
 
@@ -1318,6 +1348,12 @@ watch(
                     @cancel-setup="cancelPinSetup"
                     @exit="exitPinMode"
                     @error="(e) => emit('error', e)"
+                />
+
+                <!-- Keyboard Shortcuts Help Dialog -->
+                <LoginShortcutsDialog
+                    :show="showShortcutsHelp"
+                    @close="showShortcutsHelp = false"
                 />
 
 <!-- Session Timeout Warning -->

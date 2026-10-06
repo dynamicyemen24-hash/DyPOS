@@ -66,6 +66,8 @@ const mocks = vi.hoisted(() => {
 		reservations: createTable(),
 		items: createTable(),
 		customers: createTable(),
+		syncAudit: createTable(),
+		syncQueue: createTable(),
 	}
 
 	const fakeDb = {
@@ -115,6 +117,12 @@ function clearTables() {
 	for (const table of Object.values(mocks.tables)) {
 		table.rows.clear()
 	}
+	// The repositories read the caller's identity from the persisted session,
+	// so leaving it behind would make this file order-dependent: a test that
+	// expects an anonymous write to be refused would pass or fail depending on
+	// whether it ran before or after the signed-in void case. `voidSale` is
+	// actor-gated, so that leak was not hypothetical.
+	localStorage.removeItem("dypos_user_session")
 }
 
 describe("userRepository", () => {
@@ -353,16 +361,31 @@ describe("saleRepository", () => {
 	})
 
 	it("void keeps the row and blocks further payments", async () => {
+		// `voidSale` is actor-gated (fail-closed: an anonymous void would leave
+		// an unaudited status change), so this row-level contract signs in as a
+		// CASHIER — the sale here is OPEN (unpaid), which a cashier may void.
+		// The full permission matrix is pinned in `durableSale.test.js`.
+		localStorage.setItem(
+			"dypos_user_session",
+			JSON.stringify({
+				email: "cashier@shop.test",
+				role: "CASHIER",
+				loginTime: Date.now(),
+			}),
+		)
 		const sale = await createSale({ invoiceNo: "INV-3", items: [line] })
 		const voided = await voidSale(sale.id, "خطأ إدخال")
 		expect(voided.status).toBe(SALE_STATUS.VOIDED)
 		expect(voided.voidReason).toBe("خطأ إدخال")
+		expect(voided.voidedBy).toBe("cashier@shop.test")
 		// Still stored (audit) — never deleted.
 		expect(await saleRepository.getSale(sale.id)).not.toBeNull()
 		expect(await saleRepository.listOpenSales()).toHaveLength(0)
 		await expect(addPayment(sale.id, { amount: 10 })).rejects.toThrow("ملغاة")
-		// Second void is idempotent.
-		expect((await voidSale(sale.id)).status).toBe(SALE_STATUS.VOIDED)
+		// Second void is idempotent (still actor-gated, still needs a reason).
+		expect((await voidSale(sale.id, "خطأ إدخال")).status).toBe(
+			SALE_STATUS.VOIDED,
+		)
 	})
 })
 

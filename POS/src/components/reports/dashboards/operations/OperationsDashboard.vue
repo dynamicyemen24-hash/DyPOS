@@ -21,6 +21,7 @@
 			class="mb-6"
 			:kpis="models.kpis"
 			:currency-ids="CURRENCY_IDS"
+			:loading="loading"
 		/>
 
 		<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">

@@ -292,15 +292,16 @@ onUnmounted(() => {
 							<strong>تعذر إرسال الرابط</strong>
 							<span>{{ displayError }}</span>
 						</div>
-						<button
-							type="button"
-							class="dy-forgot__error-close"
-							aria-label="إغلاق رسالة الخطأ"
-							title="إغلاق"
-							@click="clearError"
-						>
-							<FeatherIcon name="x" size="16" />
-						</button>
+<ActionButton
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        class="dy-forgot__error-close"
+                        :aria-label="__('إغلاق رسالة الخطأ')"
+                        @click="clearError"
+                    >
+                        <FeatherIcon name="x" size="16" />
+                    </ActionButton>
 					</div>
 				</Transition>
 

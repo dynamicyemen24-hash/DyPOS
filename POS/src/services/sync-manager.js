@@ -8,6 +8,7 @@ import {
 	runInitialSync,
 	getLastSyncCheckpoint,
 } from "./sync-core.js"
+import { upsertQueueRow } from "./offline-store.js"
 import { getEffectiveToken } from "./sync-auth.js"
 import db from "./db.js"
 import {
@@ -203,8 +204,9 @@ export async function runSyncCycleSilently() {
  * CANONICAL WRITE PATH (v1.28+): every local mutation on the sale path
  * (`session.submitSale`, delivery orders, drivers) funnels through here into
  * `syncQueue` (Dexie "DyPOS-Offline-v1"). The legacy `invoice_queue`
- * (`utils/offline/*`) is read/cache-only plus retired writers — see their
- * `@deprecated` notes. Do not introduce a third queue.
+ * (`utils/offline/*`) takes no new sale writes; its drain
+ * (`syncOfflineInvoices`, via the Sync Center destinations flow) stays live
+ * for branch/cloud pushes. Do not introduce a third queue.
  */
 export async function pushLocalChange(
 	entityType,
@@ -212,48 +214,33 @@ export async function pushLocalChange(
 	operation,
 	payload,
 ) {
-	// منع التكرار من المصدر: نفس المستند المعلق (entityType/entityId/operation)
-	// يُحدَّث بدل تكرار الصف — الضغطة المزدوجة أو إعادة المحاولة بعد نجاح
-	// الحفظ المحلي لا تُنشئ فاتورة ثانية أبدًا.
-	const existing = await db.syncQueue
-		.where("entityId")
-		.equals(String(entityId))
-		.toArray()
-	const dup = (existing || []).find(
-		(row) =>
-			row &&
-			row.status === "pending" &&
-			String(row.entityType) === String(entityType) &&
-			String(row.operation) === String(operation),
-	)
-	const freshPayload = {
-		...payload,
-		_localRev: Date.now().toString(),
-		_localUpdatedAt: new Date().toISOString(),
-	}
-	if (dup?.id != null) {
-		await db.syncQueue.update(dup.id, {
-			payload: freshPayload,
-			attemptCount: 0,
-			status: "pending",
-		})
-	} else {
-		// إضافة للـ queue
-		await db.syncQueue.add({
-			entityType,
-			entityId,
-			operation,
-			payload: freshPayload,
-			createdAt: new Date(),
-			attemptCount: 0,
-			status: "pending",
-		})
+	// منع التكرار من المصدر عبر القاعدة الوحيدة في offline-store.js:
+	// الضغطة المزدوجة أو إعادة المحاولة بعد نجاح الحفظ المحلي تُحدِّث
+	// الصف المعلق بدل إنشاء فاتورة ثانية.
+	const { id, updated } = await upsertQueueRow(db, {
+		entityType,
+		entityId: String(entityId),
+		operation,
+		payload,
+	})
+	if (!updated) {
 		// زيادة عد التغييرات منذ الأخير
 		syncState.sinceLastOnlineChanges++
 	}
 
-	// الدفع الفوري اتصال شبكي: فقط بوضع `auto` من المستخدم (مع الربط).
-	// بدونه تبقى العملية في الطابور المحلي حتى «مزامنة الآن».
+	maybeImmediatePush()
+
+	return { ok: true, queued: true }
+}
+
+/**
+ * الدفع الفوري عند الطلب الضمني (بيع مكتمل للتو): يعمل فقط بوضع `auto`
+ * من المستخدم (مع الربط) — وإلا تبقى العملية في الطابور المحلي حتى
+ * «مزامنة الآن». مستخرج كدالة لأن الكتابة الذرية للبيع
+ * (OfflineStore.enqueueInvoiceSale) تكتب صف الطابور بنفسها عبر
+ * القاعدة المشتركة بدل المرور عبر pushLocalChange.
+ */
+export function maybeImmediatePush() {
 	if (
 		isAutoAllowed(AUTO_TRIGGERS.PUSH_IMMEDIATE) &&
 		syncState.isOnline &&
@@ -261,8 +248,6 @@ export async function pushLocalChange(
 	) {
 		runSyncCycleSilently().catch(() => {})
 	}
-
-	return { ok: true, queued: true }
 }
 
 /**
@@ -300,6 +285,7 @@ export default {
 	runSyncCycleSilently,
 	ensureInitialSync,
 	pushLocalChange,
+	maybeImmediatePush,
 	getSyncStatus,
 	resetPendingChangesCount,
 }

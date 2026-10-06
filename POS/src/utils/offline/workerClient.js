@@ -533,10 +533,6 @@ class OfflineWorkerClient {
 		return this.sendMessage("GET_CACHE_STATS")
 	}
 
-	async deleteOfflineInvoice(id) {
-		return this.sendMessage("DELETE_INVOICE", { id })
-	}
-
 	async markOfflineInvoicePrinted(offlineId) {
 		return this.sendMessage("MARK_INVOICE_PRINTED", { offline_id: offlineId })
 	}

@@ -1074,6 +1074,33 @@ async function initializeOfflineSystems() {
 			log.warn("Offline DB open failed", error)
 		})
 
+		// Crash/power-cut recovery — BEFORE anything reads queue state, so a
+		// restart never presents a lie: rows stuck in `syncing` (killed
+		// mid-push) return to `pending`, and reservations whose TTL died
+		// with the process are released. Best-effort, never blocks boot.
+		//
+		// Both sweeps REPORT a failure instead of answering it with a count:
+		// `resetStuckSyncing` used to swallow a read error and return 0, which
+		// renders as "nothing was stuck" — a boot-time lie about the queue.
+		try {
+			const OfflineStore = await import("./services/offline-store").then(
+				(m) => m.default,
+			)
+			const recovered = await OfflineStore.resetStuckSyncing()
+			if (recovered > 0) log.info("Recovered stuck sync rows", { recovered })
+		} catch (error) {
+			log.warn("Sync recovery skipped", error)
+		}
+		try {
+			const { releaseExpiredReservations } = await import(
+				"./services/stock-reservations"
+			)
+			const released = await releaseExpiredReservations()
+			if (released > 0) log.info("Released expired reservations", { released })
+		} catch (error) {
+			log.warn("Reservation expiry sweep skipped", error)
+		}
+
 		// Seed the local install account — BEFORE the router guard can ask
 		// for a login, otherwise first run presents a form whose
 		// credentials cannot exist yet. Local-only, one-shot, and it uses

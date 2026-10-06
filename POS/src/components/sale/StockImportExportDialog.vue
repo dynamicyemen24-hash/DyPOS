@@ -16,18 +16,18 @@
         @change="handleFileSelect"
       />
       <div class="fixed inset-0 flex items-center justify-center p-4">
-        <div class="w-full max-w-4xl h-[90vh] max-h-[90vh] bg-white shadow-xl rounded-xl overflow-hidden flex flex-col">
+        <div class="w-full max-w-4xl h-[90vh] max-h-[90vh] bg-[var(--dy-surface)] shadow-xl rounded-xl overflow-hidden flex flex-col">
           <!-- Header -->
-          <div class="flex items-center justify-between border-b px-4 py-3 bg-gray-50">
+          <div class="flex items-center justify-between border-b px-4 py-3 bg-[var(--dy-surface-soft)]">
             <div class="flex items-center gap-2">
-              <FeatherIcon name="clipboard-list" class="w-5 h-5 text-indigo-600" />
-              <h2 class="text-lg font-semibold text-gray-900">{{ __("الجرد الفعلي للمخزون") }}</h2>
+              <FeatherIcon name="clipboard-list" class="w-5 h-5 text-[var(--dy-primary)]" />
+              <h2 class="text-lg font-semibold text-[var(--dy-text)]">{{ __("الجرد الفعلي للمخزون") }}</h2>
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-sm text-gray-500">
+              <span class="text-sm text-[var(--dy-text-muted)]">
                 {{ __("العملة") }}: {{ selectedCurrency }}
               </span>
-              <span class="text-sm text-gray-500">
+              <span class="text-sm text-[var(--dy-text-muted)]">
                 {{ __("وحدة القياس") }}: {{ selectedUom }}
               </span>
               <Button variant="ghost" size="sm" @click="handleClose" icon="x" />
@@ -37,15 +37,18 @@
           <!-- Two-page Navigation -->
           <div class="border-b px-4">
             <nav class="flex gap-1" role="tablist" aria-label="صفحات الجرد">
-              <button
+              <ActionButton
                 v-for="page in pages"
                 :key="page.value"
                 @click="activePage = page.value"
+                variant="ghost"
+                theme="default"
+                size="sm"
                 :class="[
                   'flex-1 py-3 px-4 text-sm font-medium rounded-t-lg transition-colors border-b-2',
                   activePage === page.value
-                    ? 'border-indigo-600 text-indigo-600 bg-indigo-50'
-                    : 'text-gray-500 hover:text-gray-700 border-transparent hover:border-gray-300'
+                    ? 'border-[var(--dy-primary)] text-[var(--dy-primary)] bg-[var(--dy-primary-soft)]'
+                    : 'text-[var(--dy-text-muted)] hover:text-[var(--dy-text)] border-transparent hover:border-[var(--dy-border)]'
                 ]"
                 role="tab"
                 :aria-selected="activePage === page.value"
@@ -54,7 +57,7 @@
               >
                 <FeatherIcon :name="page.icon" class="w-4 h-4 inline-block ml-1" />
                 {{ page.label }}
-              </button>
+              </ActionButton>
             </nav>
           </div>
 
@@ -101,99 +104,99 @@
               </div>
             </Transition>
 
-            <!-- Import preview: handleFileSelect fills previewData, but
+<!-- Import preview: handleFileSelect fills previewData, but
                  nothing rendered it before — the import button had no UI. -->
-            <div
-              v-if="previewData"
-              class="absolute inset-x-0 bottom-0 max-h-[60%] flex flex-col border-t-2 border-indigo-500 bg-white shadow-2xl"
-              data-testid="stock-import-preview"
-            >
-              <div
-                class="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2 bg-indigo-50"
-              >
-                <div class="flex items-center gap-2 text-sm">
-                  <FeatherIcon name="file-text" class="w-4 h-4 text-indigo-600" />
-                  <span class="font-medium text-gray-900">
-                    {{ selectedFile ? selectedFile.name : __("معاينة الاستيراد") }}
-                  </span>
-                  <Badge theme="green">{{ validCount }} {{ __("صالح") }}</Badge>
-                  <Badge v-if="invalidCount" theme="red"
-                  >{{ invalidCount }} {{ __("خطأ") }}</Badge>
-                </div>
-                <div class="flex items-center gap-2">
-                  <Button variant="ghost" size="sm" @click="clearPreview">
-                    {{ __("إلغاء") }}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    :loading="importing"
-                    :disabled="!validCount"
-                    @click="dryRunImport"
-                  >
-                    {{ __("معاينة") }}
-                  </Button>
-                  <Button
-                    variant="solid"
-                    size="sm"
-                    :loading="importing"
-                    :disabled="!validCount"
-                    @click="executeImport"
-                  >
-                    {{ __("تنفيذ الاستيراد") }}
-                  </Button>
-                </div>
-              </div>
+             <div
+               v-if="previewData"
+               class="absolute inset-x-0 bottom-0 max-h-[60%] flex flex-col border-t-2 border-[var(--dy-primary)] bg-[var(--dy-surface)] shadow-2xl"
+               data-testid="stock-import-preview"
+             >
+               <div
+                 class="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2 bg-[var(--dy-primary-soft)]"
+               >
+                 <div class="flex items-center gap-2 text-sm">
+                   <FeatherIcon name="file-text" class="w-4 h-4 text-[var(--dy-primary)]" />
+                   <span class="font-medium text-[var(--dy-text)]">
+                     {{ selectedFile ? selectedFile.name : __("معاينة الاستيراد") }}
+                   </span>
+                   <Badge theme="green">{{ validCount }} {{ __("صالح") }}</Badge>
+                   <Badge v-if="invalidCount" theme="red"
+                   >{{ invalidCount }} {{ __("خطأ") }}</Badge>
+                 </div>
+                 <div class="flex items-center gap-2">
+                   <Button variant="ghost" size="sm" @click="clearPreview">
+                     {{ __("إلغاء") }}
+                   </Button>
+                   <Button
+                     variant="outline"
+                     size="sm"
+                     :loading="importing"
+                     :disabled="!validCount"
+                     @click="dryRunImport"
+                   >
+                     {{ __("معاينة") }}
+                   </Button>
+                   <Button
+                     variant="solid"
+                     size="sm"
+                     :loading="importing"
+                     :disabled="!validCount"
+                     @click="executeImport"
+                   >
+                     {{ __("تنفيذ الاستيراد") }}
+                   </Button>
+                 </div>
+               </div>
 
-              <div class="flex-1 overflow-auto">
-                <table class="w-full text-xs">
-                  <thead
-                    class="sticky top-0 bg-gray-50 text-right text-gray-500"
-                  >
-                    <tr>
-                      <th class="px-3 py-2 font-medium">#</th>
-                      <th class="px-3 py-2 font-medium">{{ __("الصنف") }}</th>
-                      <th class="px-3 py-2 font-medium">{{ __("المستودع") }}</th>
-                      <th class="px-3 py-2 font-medium">{{ __("الكمية") }}</th>
-                      <th class="px-3 py-2 font-medium">{{ __("الوحدة") }}</th>
-                      <th class="px-3 py-2 font-medium">{{ __("التكلفة") }}</th>
-                      <th class="px-3 py-2 font-medium">{{ __("الحالة") }}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr
-                      v-for="row in previewData"
-                      :key="row.index"
-                      class="border-t"
-                      :class="row.valid ? '' : 'bg-red-50'"
-                    >
-                      <td class="px-3 py-1.5 text-gray-400">{{ row.index + 1 }}</td>
-                      <td class="px-3 py-1.5 font-mono">{{ row.product_code }}</td>
-                      <td class="px-3 py-1.5 font-mono">{{ row.warehouse_id }}</td>
-                      <td class="px-3 py-1.5">{{ qtyText(row.qty, row.uom) }}</td>
-                      <td class="px-3 py-1.5">{{ row.uom }}</td>
-                      <td class="px-3 py-1.5">
-                        {{ moneyText(row.unit_cost, row.currency) }}
-                      </td>
-                      <td class="px-3 py-1.5">
-                        <Badge v-if="row.valid" theme="green">{{ __("صالح") }}</Badge>
-                        <span v-else class="text-red-600">{{ row.error }}</span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </Transition>
+               <div class="flex-1 overflow-auto">
+                 <table class="w-full text-xs">
+                   <thead
+                     class="sticky top-0 bg-[var(--dy-surface-soft)] text-end text-[var(--dy-text-muted)]"
+                   >
+                     <tr>
+                       <th class="px-3 py-2 font-medium">#</th>
+                       <th class="px-3 py-2 font-medium">{{ __("الصنف") }}</th>
+                       <th class="px-3 py-2 font-medium">{{ __("المستودع") }}</th>
+                       <th class="px-3 py-2 font-medium">{{ __("الكمية") }}</th>
+                       <th class="px-3 py-2 font-medium">{{ __("الوحدة") }}</th>
+                       <th class="px-3 py-2 font-medium">{{ __("التكلفة") }}</th>
+                       <th class="px-3 py-2 font-medium">{{ __("الحالة") }}</th>
+                     </tr>
+                   </thead>
+                   <tbody>
+                     <tr
+                       v-for="row in previewData"
+                       :key="row.index"
+                       class="border-t"
+                       :class="row.valid ? '' : 'bg-[var(--dy-danger-soft)]'"
+                     >
+                       <td class="px-3 py-1.5 text-[var(--dy-text-muted)]">{{ row.index + 1 }}</td>
+                       <td class="px-3 py-1.5 font-mono">{{ row.product_code }}</td>
+                       <td class="px-3 py-1.5 font-mono">{{ row.warehouse_id }}</td>
+                       <td class="px-3 py-1.5">{{ qtyText(row.qty, row.uom) }}</td>
+                       <td class="px-3 py-1.5">{{ row.uom }}</td>
+                       <td class="px-3 py-1.5">
+                         {{ moneyText(row.unit_cost, row.currency) }}
+                       </td>
+                       <td class="px-3 py-1.5">
+                         <Badge v-if="row.valid" theme="green">{{ __("صالح") }}</Badge>
+                         <span v-else class="text-[var(--dy-danger)]">{{ row.error }}</span>
+                       </td>
+                     </tr>
+                   </tbody>
+                 </table>
+               </div>
+             </div>
+           </div>
+         </div>
+       </div>
+     </div>
+   </Transition>
 </template>
 
 <script setup>
 import { ref, computed } from "vue"
-import { Badge, Button, FeatherIcon } from "dypos-ui"
+import { ActionButton, Badge, Button, FeatherIcon } from "dypos-ui"
 import { useToast } from "@/composables/useToast"
 import { apiPost, apiPostRaw, apiDownload } from "@/utils/restApi"
 import { logger } from "@/utils/logger"

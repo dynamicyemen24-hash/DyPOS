@@ -1,14 +1,15 @@
 <template>
-	<div class="grid gap-4" :class="gridClass" role="group" aria-label="Key Performance Indicators">
+	<KPISkeleton v-if="loading" :kpiCount="kpis.length" :columns="columns" />
+	<div v-else class="grid gap-4" :class="gridClass" role="group" aria-label="Key Performance Indicators">
 		<div
 			v-for="kpi in kpis"
 			:key="kpi.id"
-			class="bg-white rounded-lg shadow-sm p-4 border-l-4 hover:shadow-md transition-shadow"
+			class="bg-[var(--dy-surface)] rounded-lg shadow-sm p-4 border-l-4 hover:shadow-md transition-shadow"
 			:class="borderClass(kpi.status)"
 		>
 			<div class="flex items-start justify-between">
 				<div class="min-w-0">
-					<p class="text-xs text-gray-500 truncate">{{ __(kpi.label) }}</p>
+					<p class="text-xs text-[var(--dy-text-muted)] truncate">{{ __(kpi.label) }}</p>
 					<p class="text-xl font-bold mt-1" :class="valueClass(kpi.status)" aria-live="polite" aria-atomic="true">
 						{{ formatValue(kpi) }}
 					</p>
@@ -19,7 +20,7 @@
 				</div>
 				<FeatherIcon :name="iconFor(kpi.id)" class="w-5 h-5 flex-shrink-0" :class="iconClass(kpi.status)" />
 			</div>
-			<p v-if="kpi.target != null" class="text-[10px] text-gray-400 mt-2">
+			<p v-if="kpi.target != null" class="text-[10px] text-[var(--dy-text-muted)] mt-2">
 				{{ __("Target") }}: {{ formatTarget(kpi) }}
 			</p>
 		</div>
@@ -34,12 +35,14 @@ import {
 	formatNumber,
 	formatPercent,
 } from "../../core/formatters/reportFormatters"
+import KPISkeleton from "./KPISkeleton.vue"
 
 const props = defineProps({
 	kpis: { type: Array, default: () => [] },
 	columns: { type: Number, default: 4 },
 	currencyIds: { type: Set, default: () => new Set() },
 	percentIds: { type: Set, default: () => new Set() },
+	loading: { type: Boolean, default: false },
 })
 
 const gridClass = computed(() => {

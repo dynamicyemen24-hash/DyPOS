@@ -65,7 +65,10 @@ export const options = {
 // Seeded once per k6 run (setup), shared read-only across all VUs.
 const seeded = new SharedArray('dypos-load-seed', () => {
 	const username = `load_${randomString(8)}`;
-	const password = 'Load1234';
+	// No repository constant: a literal password here would be a committed
+	// credential for an ADMIN bootstrap account. The account is minted fresh on
+	// every run and never reused, so the secret only has to outlive one run.
+	const password = `Ld-${randomString(12)}-9a`;
 
 	const reg = http.post(
 		`${BASE}/auth/register`,

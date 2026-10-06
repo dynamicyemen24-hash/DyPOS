@@ -1458,17 +1458,9 @@ async function getCacheStats() {
 	}
 }
 
-// Delete offline invoice
-async function deleteOfflineInvoice(id) {
-	try {
-		const db = await initDB()
-		await db.table("invoice_queue").delete(id)
-		return { success: true }
-	} catch (error) {
-		log.error("Error deleting offline invoice", error)
-		throw error
-	}
-}
+// Queued invoices are never physically deleted by the user: a mistaken
+// invoice is superseded (row kept for audit) or voided through the sale
+// lifecycle. The former DELETE_INVOICE path was removed for this reason.
 
 // Mark an invoice row as superseded by an edit. The row stays in the queue
 // for audit but is excluded from sync and from the pending count.
@@ -1930,10 +1922,6 @@ self.onmessage = async (event) => {
 
 			case "GET_CACHE_STATS":
 				result = await getCacheStats()
-				break
-
-			case "DELETE_INVOICE":
-				result = await deleteOfflineInvoice(payload.id)
 				break
 
 			case "MARK_INVOICE_PRINTED":

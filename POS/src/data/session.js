@@ -119,7 +119,11 @@ async function tryOnlineLogin(email, password) {
 			// Canonical: { username }. `email` stays as an alias for older backends.
 			body: JSON.stringify({ username: email, email, password }),
 		})
-		if (response.status === 401 || response.status === 403 || response.status === 429) {
+		if (
+			response.status === 401 ||
+			response.status === 403 ||
+			response.status === 429
+		) {
 			// Explicit server verdict — surface it, never mask it with a local fallback.
 			const data = await response.json().catch(() => null)
 			const error = new Error(data?.error || "فشل تسجيل الدخول")
@@ -131,7 +135,8 @@ async function tryOnlineLogin(email, password) {
 		return data?.user || null
 	} catch (error) {
 		// Explicit rejections propagate; network/abort/5xx fall through to local.
-		if (error?.status === 401 || error?.status === 403 || error?.status === 429) throw error
+		if (error?.status === 401 || error?.status === 403 || error?.status === 429)
+			throw error
 		return null
 	} finally {
 		clearTimeout(timeoutId)

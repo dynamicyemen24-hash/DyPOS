@@ -74,6 +74,7 @@ import SyncCenterDialog from "@/components/sale/SyncCenterDialog.vue"
 import HeldSalesDialog from "@/components/sale/HeldSalesDialog.vue"
 import AutocompleteSelect from "@/components/common/AutocompleteSelect.vue"
 import IconButton from "@/components/ui/IconButton.vue"
+import ProductGridSkeleton from "@/components/pos/ProductGridSkeleton.vue"
 
 import { useSmartCashier } from "@/composables/useSmartCashier"
 import { useCrashResume } from "@/composables/useCrashResume"
@@ -1987,23 +1988,14 @@ function onBarcodeScan(code) {
                 <!-- Loading -->
 
                 <div
-                    v-else-if="
-                        loadingProducts
-                    "
+                    <ProductGridSkeleton
+                    v-if="loadingProducts"
+                    :item-count="12"
+                    :columns="4"
                     class="dy-pos-sale__product-grid"
                     aria-busy="true"
                     aria-label="جاري تحميل المنتجات"
-                >
-                    <div
-                        v-for="index in 12"
-                        :key="index"
-                        class="dy-pos-sale__product-skeleton"
-                    >
-                        <span />
-                        <span />
-                        <span />
-                    </div>
-                </div>
+                />
 
                 <!-- Empty -->
 

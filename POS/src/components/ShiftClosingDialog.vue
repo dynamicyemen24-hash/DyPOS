@@ -208,44 +208,39 @@
 						v-if="shouldShowSummary && invoiceCount > 0"
 						class="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm"
 					>
-						<button
-							@click="showInvoiceDetails = !showInvoiceDetails"
-							:aria-label="`${
-								showInvoiceDetails ? 'Hide' : 'Show'
-							} invoice details for ${invoiceCount} transactions`"
-							:aria-expanded="showInvoiceDetails"
-							class="w-full px-3 py-3 md:px-6 md:py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
-						>
-							<div class="text-start">
-								<h3 class="text-sm md:text-lg font-medium text-gray-900">
-									{{ __("Invoice Details") }}
-								</h3>
-								<p class="text-xs md:text-sm text-gray-500">
-									{{
-										__("{0} transactions • {1}", [
-											invoiceCount,
-											formatCurrency(closingData.grand_total),
-										])
-									}}
-								</p>
-							</div>
-							<svg
-								:class="[
-									'h-4 w-4 md:h-5 md:w-5 text-gray-400 transition-transform',
-									showInvoiceDetails ? 'transform rotate-180' : '',
-								]"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M19 9l-7 7-7-7"
-								/>
-							</svg>
-						</button>
+<ActionButton
+                            @click="showInvoiceDetails = !showInvoiceDetails"
+                            :aria-label="showInvoiceDetails
+                                ? __('إخفاء تفاصيل الفواتير ({0} معاملة)', [invoiceCount])
+                                : __('إظهار تفاصيل الفواتير ({0} معاملة)', [invoiceCount])"
+                            :aria-expanded="showInvoiceDetails"
+                            variant="ghost"
+                            theme="default"
+                            block
+                            class="w-full px-3 py-3 md:px-6 md:py-4 flex items-center justify-between hover:bg-gray-50 transition-colors text-start"
+                        >
+                            <div class="text-start">
+                                <h3 class="text-sm md:text-lg font-medium text-gray-900">
+                                    {{ __("Invoice Details") }}
+                                </h3>
+                                <p class="text-xs md:text-sm text-gray-500">
+                                    {{
+                                        __("{0} transactions • {1}", [
+                                            invoiceCount,
+                                            formatCurrency(closingData.grand_total),
+                                        ])
+                                    }}
+                                </p>
+                            </div>
+                            <FeatherIcon
+                                name="chevron-down"
+                                :class="[
+                                    'w-4 h-4 md:w-5 md:h-5 text-gray-400 transition-transform',
+                                    showInvoiceDetails ? 'transform rotate-180' : '',
+                                ]"
+                                aria-hidden="true"
+                            />
+                        </ActionButton>
 
 						<div v-show="showInvoiceDetails" class="border-t border-gray-200">
 							<!-- Mobile Card View -->
@@ -938,13 +933,15 @@
 								<p class="text-xs md:text-sm text-red-700 mt-1">
 									{{ errorMessage || submitResource.error }}
 								</p>
-								<button
-									v-if="errorMessage"
-									@click="errorMessage = ''"
-									class="mt-2 text-xs text-red-600 hover:text-red-800 underline"
-								>
-									{{ __("Dismiss") }}
-								</button>
+<ActionButton
+                                v-if="errorMessage"
+                                @click="errorMessage = ''"
+                                variant="tertiary"
+                                theme="red"
+                                size="xs"
+                            >
+                                {{ __("Dismiss") }}
+                            </ActionButton>
 							</div>
 						</div>
 					</div>
@@ -1048,7 +1045,7 @@
 </template>
 
 <script setup>
-import { Button, Dialog, FeatherIcon, Input } from "dypos-ui"
+import { ActionButton, Button, Dialog, FeatherIcon, Input } from "dypos-ui"
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue"
 import { storeToRefs } from "pinia"
 import { useShift, shiftState } from "../composables/useShift"

@@ -42,9 +42,10 @@ import {
 import {
 	initSyncManager,
 	stopSyncManager,
-	pushLocalChange,
+	maybeImmediatePush,
 	syncState,
 } from "@/services/sync-manager"
+import OfflineStore from "@/services/offline-store"
 import {
 	reserveStock,
 	releaseReservation,
@@ -339,12 +340,13 @@ export const useSessionStore = defineStore("session", () => {
 	// --------------------------------------------------------------------
 
 	/**
-	 * Centralized sale submission (offline-first):
+	 * Centralized sale submission (offline-first, durable):
 	 *  - generates a structured offline invoice number when needed
 	 *    (POS-{branch}-{terminal}-{date}-{seq}),
 	 *  - reserves stock locally to prevent overselling across terminals,
-	 *  - normalizes the checkout payload to the sync schema,
-	 *  - enqueues it to the offline sync queue (durable),
+	 *  - writes invoice + payments + sync-queue row + reservation commits +
+	 *    stock decrements in ONE Dexie transaction (power-cut safe: the sale
+	 *    lands whole or not at all — never a queue row without an invoice),
 	 *  - triggers an immediate push when online + authenticated,
 	 *  - never blocks the cashier on the network.
 	 * @param {Object} payload
@@ -375,6 +377,11 @@ export const useSessionStore = defineStore("session", () => {
 
 		// حجز المخزون محليًا (يمنع البيع الزائد بين الطرفيات).
 		// لا نوقف البيع عند فشل الحجز — نسجّل ونكمل (سياسة لا تحجب الكاشير).
+		// يبقى الحجز خارج المعاملة الذرية أدناه عمدًا: فشل الحجز هنا لا
+		// يُبطل البيع، وانقطاع الكهرباء قبله يترك حجزًا ACTIVE تنتهي
+		// صلاحيته تلقائيًا — لا فاتورة ولا طابور، أي لا شيء يُفقَد.
+		let physicalStock = {}
+		let reservedItems = []
 		try {
 			const items = (normalized.items || [])
 				.map((item) => ({
@@ -384,7 +391,7 @@ export const useSessionStore = defineStore("session", () => {
 				.filter((item) => item.itemId != null && item.qty > 0)
 
 			if (items.length > 0) {
-				const physicalStock = await getPhysicalStockMap(
+				physicalStock = await getPhysicalStockMap(
 					undefined,
 					items.map((item) => item.itemId),
 				)
@@ -393,18 +400,77 @@ export const useSessionStore = defineStore("session", () => {
 					items,
 					physicalStock,
 				})
+				reservedItems = items
 			}
 		} catch (error) {
 			log.warn("Stock reservation skipped/failed", error)
 		}
 
+		// الدفعة: كتلة واحدة {method, received, change} أو مصفوفة دفعات.
+		const paymentRows = []
+		if (Array.isArray(normalized.payments)) {
+			for (const payment of normalized.payments) {
+				const amount = Number(payment?.amount)
+				if (Number.isFinite(amount) && amount > 0) {
+					paymentRows.push({
+						method: payment.method || "cash",
+						amount,
+						reference: payment.reference || null,
+						date: payment.date || null,
+					})
+				}
+			}
+		} else if (normalized.payment) {
+			const received = Number(normalized.payment.received ?? 0)
+			const change = Number(normalized.payment.change ?? 0)
+			const amount = received - change
+			if (Number.isFinite(amount) && amount > 0) {
+				paymentRows.push({
+					method: normalized.payment.method || "cash",
+					amount,
+					reference: null,
+					date: null,
+				})
+			}
+		}
+		const paid = paymentRows.reduce((sum, row) => sum + row.amount, 0)
+		const total = Number(normalized.total ?? 0)
+
+		// التثبيت والخصم للأصناف معلومة المخزون فقط؛ مجهولة المخزون
+		// (غير محدودة) تبقى حجوزاتها ACTIVE كحارس حتى انتهاء الصلاحية.
+		const commitItems = reservedItems.filter((item) =>
+			Number.isFinite(Number(physicalStock[String(item.itemId)])),
+		)
+
 		try {
-			await pushLocalChange("invoice", String(invoiceId), "create", normalized)
+			await OfflineStore.enqueueInvoiceSale({
+				entityType: "invoice",
+				entityId: String(invoiceId),
+				operation: "create",
+				queuePayload: normalized,
+				invoice: {
+					invoiceNo: String(invoiceId),
+					customerId: normalized.customerId ?? null,
+					items: normalized.items || [],
+					total,
+					paid,
+					balance: Math.max(0, total - paid),
+					date: normalized.createdAt || new Date().toISOString(),
+					terminalId: posContext.terminalId || null,
+					shiftId: currentShift.value?.id ?? currentShift.value?.name ?? null,
+				},
+				payments: paymentRows,
+				commitItems,
+			})
+			// دفع فوري فقط بوضع auto مع الربط — وإلا يبقى في الطابور
+			// حتى «مزامنة الآن» (لا شبكة بلا طلب).
+			maybeImmediatePush()
 		} catch (error) {
 			log.error("Sale enqueue failed", error)
 			syncState.error = error.message || String(error)
 			syncState.errorKind = error.kind || null
-			// حرّر الحجز إذا فشل إدراج العملية في قائمة المزامنة
+			// حرّر الحجز إذا فشل الحفظ الذري (الفاتورة والطابور معًا
+			// تراجعا، فلا شيء يُبقي الحجز محجوزًا)
 			releaseReservation(invoiceId).catch(() => {})
 			// لا تعلن نجاح البيع إذا فشل حفظه محلياً في قائمة المزامنة
 			throw new Error(

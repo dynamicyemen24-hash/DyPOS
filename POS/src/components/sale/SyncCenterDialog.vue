@@ -44,6 +44,15 @@
 				>
 					{{ __("مزامنة الآن") }}
 				</Button>
+				<Button
+					v-if="!isOffline && failedRows.length > 0"
+					:loading="syncing"
+					variant="secondary"
+					class="flex-shrink-0 whitespace-nowrap w-full sm:w-auto text-sm"
+					@click="retryFailedRows"
+				>
+					{{ __("إعادة محاولة الفاشلة ({0})", [failedRows.length]) }}
+				</Button>
 			</div>
 
 			<!-- Linkage & automation — المتغيرات العامة التي يحددها المستخدم.
@@ -343,10 +352,16 @@
 						class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"
 					/>
 				</div>
-				<div v-else-if="pending.length === 0" class="text-center py-8">
+				<div v-else-if="pending.length === 0 && !pendingError" class="text-center py-8">
 					<p class="text-gray-500 text-sm">
 						{{ __("لا فواتير معلقة لهذه الوجهة") }}
 					</p>
+				</div>
+				<div v-else-if="pendingError" class="text-center py-8">
+					<p class="text-sm text-red-600">
+						{{ __("تعذّر قراءة الفواتير المعلقة — لم يتم تأكيد أن الطابور فارغ") }}
+					</p>
+					<p class="text-xs text-gray-500 mt-1">{{ pendingError }}</p>
 				</div>
 				<div v-else class="flex flex-col gap-2 max-h-72 overflow-y-auto">
 					<div
@@ -357,6 +372,18 @@
 						<div class="flex flex-wrap items-center gap-2">
 							<span class="font-semibold text-gray-900 text-sm truncate">
 								{{ invoice.data?.customer || __("Walk-in Customer") }}
+							</span>
+							<span
+								v-if="invoice.source === 'canonical'"
+								class="text-[10px] px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full"
+							>
+								{{
+									invoice.queueStatus === "failed"
+										? __("تحتاج مراجعة")
+										: invoice.queueStatus === "syncing"
+											? __("تُزامَن")
+											: __("معلقة")
+								}}
 							</span>
 							<span
 								v-if="invoice.retry_count > 0"
@@ -372,13 +399,14 @@
 								{{ badge }}
 							</span>
 							<span class="ms-auto text-xs text-gray-500">
-								{{ formatDate(invoice.timestamp) }}
+								{{ invoice.data?.invoiceNo || formatDate(invoice.timestamp) }}
 							</span>
 						</div>
 					</div>
 				</div>
 
 				<p v-if="syncError" class="text-xs text-red-600">{{ syncError }}</p>
+				<p v-if="syncNote" class="text-xs text-emerald-700">{{ syncNote }}</p>
 			</div>
 		</template>
 	</Dialog>
@@ -390,6 +418,9 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue"
 
 import { usePOSSyncStore } from "@/stores/posSync"
 import { getOfflineInvoices } from "@/utils/offline/sync"
+import OfflineStore from "@/services/offline-store"
+import { runSyncCycleSilently, getSyncStatus } from "@/services/sync-manager"
+import { getEffectiveToken } from "@/services/sync-auth"
 import {
 	LOCAL_DESTINATION_ID,
 	deleteDestination,
@@ -409,6 +440,7 @@ import {
 	LINK_REASONS,
 	getAutomation,
 	getLinkMode,
+	isLinkEnabled,
 	setAutomationMaster,
 	setLinkMode,
 	setPollIntervalSec,
@@ -442,6 +474,8 @@ const pending = ref([])
 const loading = ref(false)
 const syncing = ref(false)
 const syncError = ref("")
+const pendingError = ref("")
+const syncNote = ref("")
 const formVisible = ref(false)
 const editingId = ref(null)
 const testing = ref(false)
@@ -456,6 +490,42 @@ const form = ref({
 })
 
 const isOffline = computed(() => posSync.isOffline)
+
+/** Dead-lettered canonical rows visible in the list (need manual retry). */
+const failedRows = computed(() =>
+	pending.value.filter(
+		(row) => row.source === "canonical" && row.queueStatus === "failed",
+	),
+)
+
+async function retryFailedRows() {
+	if (posSync.isOffline || syncing.value || failedRows.value.length === 0)
+		return
+	syncing.value = true
+	syncError.value = ""
+	try {
+		let reopened = 0
+		for (const row of failedRows.value) {
+			const id = Number(String(row.id).replace("sync-", ""))
+			if (Number.isFinite(id)) {
+				try {
+					if (await OfflineStore.retryFailed(id)) reopened += 1
+				} catch {
+					/* one bad row never blocks the rest */
+				}
+			}
+		}
+		await loadPending()
+		syncNote.value =
+			reopened > 0
+				? __("أُعيد فتح {0} عملية للمحاولة", [reopened])
+				: __("تعذّرت إعادة الفتح — راجع السجل")
+	} catch (error) {
+		syncError.value = String(error?.message || error).slice(0, 200)
+	} finally {
+		syncing.value = false
+	}
+}
 
 const activeDest = computed(
 	() => destinations.value.find((d) => d.id === activeId.value) || null,
@@ -680,13 +750,52 @@ async function refresh() {
 async function loadPending() {
 	loading.value = true
 	syncError.value = ""
+	pendingError.value = ""
 	try {
-		pending.value = await getOfflineInvoices(
-			activeId.value === LOCAL_ID ? null : activeId.value,
+		// طابوران حيان: القديم (invoice_queue — وجهات الفروع) والأساسي
+		// (syncQueue — مبيعات نقطة البيع عبر session.submitSale). عرض
+		// أحدهما وحده كان يُظهر "لا فواتير معلقة" وطابور الآخر مليء.
+		//
+		// الفشل يُبلَّغ ولا يُحوَّل إلى قائمة فارغة: قراءة طابور فاشلة ليست
+		// "لا فواتير معلقة"، فمن لا يقرأ الطابور يرى رسالة الخطأ لا صفرًا واثقًا.
+		const [legacy, canonical] = await Promise.all([
+			getOfflineInvoices(activeId.value === LOCAL_ID ? null : activeId.value),
+			OfflineStore.openOperations(),
+		])
+		const mapped = (canonical || [])
+			.filter((row) => row && row.status !== "synced")
+			.map((row) => {
+				const payload = row.payload || {}
+				const customer =
+					payload.customer?.name ||
+					payload.customerName ||
+					(typeof payload.customer === "string" ? payload.customer : null) ||
+					__("Walk-in Customer")
+				return {
+					id: `sync-${row.id}`,
+					timestamp: row.createdAt
+						? new Date(row.createdAt).getTime()
+						: Date.now(),
+					data: {
+						customer,
+						total: payload.total ?? null,
+						invoiceNo: row.entityId,
+					},
+					retry_count: row.attemptCount || 0,
+					source: "canonical",
+					queueStatus: row.status,
+					entityType: row.entityType,
+				}
+			})
+		pending.value = [...(legacy || []), ...mapped].sort(
+			(a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0),
 		)
 	} catch (error) {
 		pending.value = []
-		syncError.value = String(error?.message || error).slice(0, 200)
+		// حالة القراءة تُعرض كخطأ، ولا تُعرض كـ"لا فواتير معلقة": الطابور غير
+		// المقروء ليس طابورًا فارغًا.
+		pendingError.value = String(error?.message || error).slice(0, 200)
+		syncError.value = pendingError.value
 	} finally {
 		loading.value = false
 	}
@@ -814,7 +923,23 @@ async function syncNow() {
 	if (posSync.isOffline || syncing.value) return
 	syncing.value = true
 	syncError.value = ""
+	syncNote.value = ""
 	try {
+		// 1) الطابور الأساسي (مبيعات نقطة البيع): دورة المنصة — فقط
+		// بربط ممنوح ورمز صالح. بدونهما تبقى الصفوف محفوظة محليًا
+		// ويُقال ذلك صراحة بدل نجاحٍ وهمي.
+		let canonicalPushed = 0
+		let canonicalAttempted = false
+		if (isLinkEnabled() && getEffectiveToken()) {
+			canonicalAttempted = true
+			try {
+				const cycle = await runSyncCycleSilently()
+				canonicalPushed = Number(cycle?.pushed ?? 0)
+			} catch (error) {
+				syncError.value = String(error?.message || error).slice(0, 200)
+			}
+		}
+		// 2) طابور الوجهات (الفروع/السحابة عبر REST) — كالسابق.
 		const dest =
 			activeId.value === LOCAL_ID
 				? null
@@ -831,7 +956,18 @@ async function syncNow() {
 				syncError.value = `${syncError.value} — ${__("سجّل الدخول من الأعلى")}`
 			}
 		}
+		if (canonicalAttempted && canonicalPushed > 0 && !syncError.value) {
+			syncNote.value = __("دُفعت {0} عملية معلقة للمنصة", [canonicalPushed])
+		}
 		await loadPending()
+		// صدق الختام: مبيعات محلية باقية دون ربط تُذكر، لا تُخفى.
+		const remaining = pending.value.filter((row) => row.source === "canonical")
+		if (remaining.length > 0 && !isLinkEnabled()) {
+			syncNote.value = __(
+				"المبيعات محفوظة على الجهاز ({0}) — تُدفع عند الربط بالمنصة",
+				[remaining.length],
+			)
+		}
 	} catch (error) {
 		syncError.value = String(error?.message || error).slice(0, 200)
 	} finally {

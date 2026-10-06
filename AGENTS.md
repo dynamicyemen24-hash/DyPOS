@@ -1,7 +1,7 @@
 # AGENTS.md — Repo conventions for AI coding agents
 
 > This repo is Arabic-first (UI, messages, commit bodies) with English code.
-> Production: https://dypos.smartportssoft.com/ · Version single source: `1.45.1`
+> Production: https://dypos.smartportssoft.com/ · Version single source: `1.48.0`
 > (root `package.json` + `POS/package.json` + `server/package.json` + `server/lib/version.js`
 > + `worker-api.js` `API_VERSION` — the edge's copy, asserted by both suites).
 
@@ -14,12 +14,12 @@
 ## Verify before you claim done (all must be green)
 
 ```powershell
-# server/ — 684 tests / 198 suites
+# server/ — 688 tests / 198 suites
 npm test                              # = node scripts/run-tests.mjs
 npx @biomejs/biome check .
 npm run parity
 npm run contract
-# POS/ — 2152 tests / 125 files
+# POS/ — 2315 tests / 136 files
 npm run test:run
 npx biome check src/<touched-file>
 # production, from the repo root (after a deploy)
@@ -27,7 +27,7 @@ npm run verify:live                   # = node scripts/verify-live.mjs
 ```
 
 Test counts are *measured* by the runners, never estimated: server
-`685 tests / 198 suites`, POS `2210 tests / 129 files`.
+`688 tests / 198 suites`, POS `2315 tests / 136 files`.
 
 `POS/node_modules` is disposable — if a command hangs on `npx … Ok to proceed?`,
 the install is missing: `npm ci` in `POS/` (and add the package to
@@ -134,8 +134,8 @@ same commit. A backlog item nobody measures is a wish.
 
 | Metric | Where it is measured | Now | Direction |
 |---|---|---|---|
-| Server tests / suites | `server` `npm test` | **685 / 198** | up or flat |
-| POS tests / files | `POS` `npm run test:run` | **2210 / 129** | up or flat |
+| Server tests / suites | `server` `npm test` | **688 / 198** | up or flat |
+| POS tests / files | `POS` `npm run test:run` | **2315 / 136** | up or flat |
 | Truthfulness gates | `truthfulness.test.js` | **12** | up or flat |
 | Runtime gates (server+P0) | `run-tests.mjs`, `vitest` | **320+** | up or flat |
 | Bundle budget (gzip JS+CSS) | `POS` `npm run size` | **≤ 900 KB** | down or flat |

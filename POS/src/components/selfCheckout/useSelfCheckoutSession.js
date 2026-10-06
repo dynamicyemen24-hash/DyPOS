@@ -5,9 +5,11 @@
  *
  * invariants (AGENTS.md):
  *  - **بلا شبكة إطلاقًا**: لا `fetch` ولا `methodCall` في هذا الملف ولا في
- *    الشاشة. الكتابة محليًا في Dexie ثم `pushLocalChange` تضعها في طابور
- *    المزامنة، والدفع الفوري منها لا يُنفَّذ إلا بموافقة مستخدم صريحة من
- *    `link-consent`. شاشة الكاشير الذاتي تعمل على جهاز لا شبكة له إطلاقًا.
+ *    الشاشة. الكتابة الذرية محليًا في Dexie عبر
+ *    `OfflineStore.enqueueInvoiceSale` (فاتورة + دفعة + صف طابور في
+ *    معاملة واحدة)، والدفع الفوري منها لا يُنفَّذ إلا بموافقة مستخدم
+ *    صريحة من `link-consent`. شاشة الكاشير الذاتي تعمل على جهاز لا
+ *    شبكة له إطلاقًا.
  *  - **البيانات المجهولة ليست فراغًا**: الكتالوج يُقرأ عبر
  *    `methodGetListWithSource` بمنهج `server | local | unavailable`،
  *    و`unavailable` يظهر كتنبيه «تعذّر تحميل الأصناف» لا كشبكة صفر أصناف.
@@ -21,7 +23,7 @@ import { toMajor } from "@/utils/money"
 import { DATA_SOURCE, methodGetListWithSource } from "@/utils/methodClient"
 import { normalizeProduct } from "@/utils/posSalePure"
 import { nextOfflineInvoiceNumber } from "@/services/offline-numbering"
-import { pushLocalChange } from "@/services/sync-manager"
+import OfflineStore from "@/services/offline-store"
 
 import {
 	PAYMENT_LABELS,
@@ -341,7 +343,36 @@ export function useSelfCheckoutSession(options = {}) {
 				changeMinor: tender.value.changeMinor,
 				cashier: sessionUser(),
 			})
-			await pushLocalChange(SELF_CHECKOUT_ENTITY, invoiceNo, "create", sale)
+			// كتابة ذرية واحدة: سجل الفاتورة + الدفعة + صف الطابور في
+			// معاملة Dexie واحدة (انقطاع الكهرباء يترك الكل أو لا شيء).
+			const paidAmount =
+				Number(sale.payment?.received ?? 0) - Number(sale.payment?.change ?? 0)
+			await OfflineStore.enqueueInvoiceSale({
+				entityType: SELF_CHECKOUT_ENTITY,
+				entityId: invoiceNo,
+				operation: "create",
+				queuePayload: sale,
+				invoice: {
+					invoiceNo,
+					customerId: null,
+					items: sale.items || [],
+					total: Number(sale.pricing?.total ?? 0),
+					paid: paidAmount,
+					balance: Math.max(0, Number(sale.pricing?.total ?? 0) - paidAmount),
+					date: sale.createdAt,
+					terminalId: options.terminal || null,
+					shiftId: null,
+				},
+				payments: [
+					{
+						method: sale.payment?.method || "cash",
+						amount: paidAmount,
+						reference: null,
+						date: sale.createdAt,
+					},
+				],
+				commitItems: [],
+			})
 			receipt.value = {
 				invoiceNo,
 				methodLabel: PAYMENT_LABELS[method.value] ?? method.value,

@@ -139,7 +139,7 @@ const CAPS = [
 	//   `composables/useLoginSecurityMonitor.js`, then the shift-dialog wiring
 	//   (open/close transitions) moved to `composables/useLoginShiftDialog.js`.
 	//   Measured by this gate's own counter. Direction downward only.
-	["src/pages/Login.vue", 1430],
+	["src/pages/Login.vue", 1427],
 	["src/composables/useLoginShiftDialog.js", 60],
 	// The monitor this page used to own: interval + listener + stop in one
 	// closure, with `loginSecurityMonitor.test.js` freezing the contract.

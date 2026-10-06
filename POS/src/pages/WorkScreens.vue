@@ -99,13 +99,37 @@ const screen = computed(() => workScreenById(screenId.value))
  * renders `item.icon` per entry.
  */
 const industry = getActivePinia() ? useIndustryProfileStore() : null
+
+/**
+ * Role → UI permission map (default deny).
+ *
+ * The kit's `usePermissions` denies anything absent from the map, so an unknown
+ * role sees no work screen at all. Cashiers get read-only; everything else
+ * full — except the audit ledger, which cashiers neither see nor load (the
+ * loader in data/workScreens.js refuses them too, so a deep link cannot
+ * bypass the tab). The server remains the authority (fail-closed) — this
+ * only shapes UI.
+ */
+const isCashier = String(sessionRole() ?? "").toLowerCase() === "cashier"
+const readonly = isCashier
+providePermissions(
+	Object.fromEntries(
+		WORK_SCREENS.map((entry) => [
+			entry.permission,
+			entry.id === "audit" && isCashier ? false : readonly ? "readonly" : true,
+		]),
+	),
+)
+
 const navItems = computed(() =>
 	flatWorkNav().filter(
 		(item) =>
 			!item.capability || !industry || industry.hasCapability(item.capability),
 	),
 )
-const tabs = WORK_SCREENS.map((entry) => ({
+const tabs = WORK_SCREENS.filter(
+	(entry) => entry.id !== "audit" || !isCashier,
+).map((entry) => ({
 	id: entry.id,
 	label: entry.label,
 	icon: entry.icon,
@@ -122,23 +146,6 @@ const rowKey = computed(() => {
 	if (screen.value.id === "stock") return "item_code"
 	return "name"
 })
-
-/**
- * Role → UI permission map (default deny).
- *
- * The kit's `usePermissions` denies anything absent from the map, so an unknown
- * role sees no work screen at all. Cashiers get read-only; everything else
- * full. The server remains the authority (fail-closed) — this only shapes UI.
- */
-const readonly = String(sessionRole() ?? "").toLowerCase() === "cashier"
-providePermissions(
-	Object.fromEntries(
-		WORK_SCREENS.map((entry) => [
-			entry.permission,
-			readonly ? "readonly" : true,
-		]),
-	),
-)
 
 /** Non-empty only when the screen is actually hidden from this user. */
 const deniedReason = computed(() =>

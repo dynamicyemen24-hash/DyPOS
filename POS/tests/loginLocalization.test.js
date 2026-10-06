@@ -44,6 +44,13 @@ const SURFACE = [
 	"src/components/common/LoginSessionLockDialog.vue",
 	"src/components/common/LoginContextChips.vue",
 	"src/components/common/LoginPinForm.vue",
+	// Extracted out of `Login.vue` with their styles. A surface member that is
+	// NOT in this list is a hole in the gate, not an exemption: the extractor
+	// below walks this array, so a new component that renders Arabic copy and
+	// is absent here is checked by nothing at all.
+	"src/components/common/LoginShortcutsDialog.vue",
+	"src/components/common/LoginEmailSuggestions.vue",
+	"src/components/common/LoginPinQuickActions.vue",
 	"src/components/common/ShiftOpsPanel.vue",
 	"src/components/common/DeviceHealthPanel.vue",
 	"src/components/common/SystemAboutPanel.vue",
@@ -200,6 +207,12 @@ describe("login surface — nothing escapes __()", () => {
 
 describe("login surface — the wiring the feature depends on", () => {
 	const page = read("src", "pages", "Login.vue")
+	const pinActions = read(
+		"src",
+		"components",
+		"common",
+		"LoginPinQuickActions.vue",
+	)
 
 	it("binds direction and language instead of pinning RTL", () => {
 		// A hard-coded `dir="rtl"` freezes the page in Arabic layout even when
@@ -213,18 +226,27 @@ describe("login surface — the wiring the feature depends on", () => {
 
 	it("translates cached computed labels at render time when the locale changes", () => {
 		// `__(detail.label)` moved out of `Login.vue` with the security panel.
-		// The RULE is unchanged — a cached computed label must still go through
+		// The RULE is unchanged - a cached computed label must still go through
 		// `__()` at render time, or the screen keeps printing the previous
-		// locale's text — so the assertion follows the markup to its new home
+		// locale's text - so the assertion follows the markup to its new home
 		// instead of being deleted.
 		for (const expression of [
 			"__(runtimeStatus.label)",
 			"__(submitLabel)",
 			"__(passwordStrength.label)",
-			"__(email ? PIN_DEVICE_HINT : PIN_EMAIL_REQUIRED)",
 		]) {
 			expect(page).toContain(expression)
 		}
+
+		// The PIN hint moved into `LoginPinQuickActions.vue` — and with it a bug.
+		// The page read `PIN_DEVICE_HINT`, a constant the composable never
+		// exported, so the button's title and aria-label resolved to `undefined`
+		// and the tooltip printed the word "undefined". The row now receives the
+		// strings as props, so the ternary is evaluated in the component and the
+		// translation still happens at render time. Asserting the OLD spelling
+		// here would pin the undefined variable back into the source.
+		expect(pinActions).toContain("__(email ? deviceHint : emailRequired)")
+		expect(pinActions).toContain("__(email ? deviceHint : emailTooShort)")
 
 		expect(page).not.toContain("label: __(row.label)")
 	})

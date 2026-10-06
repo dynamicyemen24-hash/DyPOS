@@ -12,7 +12,10 @@ const { request } = require("playwright/test")
 async function seedApi(baseURL) {
 	const ctx = await request.newContext({ baseURL })
 	const username = `e2e_${Date.now()}`
-	const password = "E2ePass1234"
+	// No repository constant: this seeds a throwaway ADMIN on the target and
+	// the caller logs in with the RETURNED value. A committed literal would be
+	// a standing credential for every checkout that ever ran this file.
+	const password = `E2e-${Date.now().toString(36)}-A1`
 
 	const reg = await ctx.post("/api/auth/register", {
 		data: { username, password, fullName: "E2E Admin", role: "ADMIN" },

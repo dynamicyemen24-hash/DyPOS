@@ -183,19 +183,11 @@ export const getOfflineInvoiceCount = async () => {
 }
 
 /**
- * Delete an offline invoice by ID
- * @param {number} id - Invoice queue ID
- * @returns {Promise<boolean>}
+ * Queued invoices are never physically deleted by the end user — a mistaken
+ * invoice is superseded (row kept for audit) or voided through the sale
+ * lifecycle. The former `deleteOfflineInvoice` path was removed; retention
+ * pruning of aged SYNCED rows happens only in `cleanupSyncedInvoices`.
  */
-export const deleteOfflineInvoice = async (id) => {
-	try {
-		await db.invoice_queue.delete(id)
-		return true
-	} catch (error) {
-		log.error("Failed to delete offline invoice", { id, error })
-		return false
-	}
-}
 
 // ============================================================================
 // DEDUPLICATION CHECK
@@ -479,9 +471,12 @@ const syncInvoiceToServer = async (invoice, opts = {}) => {
  * Uses a mutex to ensure only one sync operation runs at a time.
  * Concurrent callers will wait for the ongoing sync and receive its result.
  *
+ * LIVE path (not retired): drains the legacy `invoice_queue`
+ * (branch/cloud destinations) via `posSync.syncPendingTo`, which the Sync
+ * Center "Sync Now" button calls. Canonical POS sales live in `syncQueue`
+ * (Dexie "DyPOS-Offline-v1") and are drained by
+ * `services/sync-core.runSyncCycle` — this function never touches them.
  * @returns {Promise<{success: number, failed: number, skipped: number, errors: Array}>}
- * @deprecated Dead write path — zero live importers. Live sync runs in
- *   `services/sync-core.runSyncCycle` over `syncQueue`. Do not add new callers.
  */
 export const syncOfflineInvoices = async (opts = {}) => {
 	const destination = opts.destination || null

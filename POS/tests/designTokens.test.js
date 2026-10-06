@@ -875,6 +875,12 @@ describe("useSecondsRemaining", () => {
 
 const LOGIN_CSS_FILE = read(SRC, "styles", "pages", "login.css")
 const COMPANY_FOOTER = read(SRC, "components", "common", "CompanyFooter.vue")
+const LOGIN_PIN_ACTIONS = read(
+	SRC,
+	"components",
+	"common",
+	"LoginPinQuickActions.vue",
+)
 
 /** The body of a rule, insensitive to the exact whitespace before `{`. */
 const ruleBody = (css, selector) => {
@@ -898,8 +904,17 @@ describe("compounded dimming (colour × opacity)", () => {
 	it("a disabled login link states its colour and sets no opacity", () => {
 		// `color: var(--dy-text-muted)` plus `opacity: 0.55` measured 2.13:1 for
 		// "إنشاء رمز دخول سريع" — the button read as empty, not as disabled.
+		//
+		// The row was extracted into `LoginPinQuickActions.vue` WITH its styles,
+		// because a page stylesheet scoped to `Login.vue` cannot reach markup
+		// that lives in a child component. So the search is not "the page file
+		// OR the component": it is BOTH, and the assertion still bites — delete
+		// the rule from the component and this fails exactly as it did before,
+		// rather than silently resolving to `""` and reporting "no opacity here,
+		// which is what the rule always said".
 		const body = stripComments(
-			ruleBody(LOGIN_CSS_FILE, ".dy-login__link-button:disabled"),
+			ruleBody(LOGIN_CSS_FILE, ".dy-login__link-button:disabled") ||
+				ruleBody(LOGIN_PIN_ACTIONS, ".dy-login__link-button:disabled"),
 		)
 		expect(body, "the rule still exists").not.toBe("")
 		expect(body).not.toMatch(/opacity\s*:/)

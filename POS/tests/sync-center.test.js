@@ -51,10 +51,6 @@ vi.mock("@/utils/offline/sync", () => ({
 	getOfflineInvoices: vi.fn(async () => []),
 }))
 
-vi.mock("@/utils/offline/sync", () => ({
-	getOfflineInvoices: vi.fn(async () => []),
-}))
-
 import SyncCenterDialog from "@/components/sale/SyncCenterDialog.vue"
 import { getOfflineInvoices } from "@/utils/offline/sync"
 import {
@@ -92,6 +88,25 @@ function openDialog(props = {}) {
 	})
 }
 
+/**
+ * Wait for the dialog's asynchronous load to actually settle.
+ *
+ * These tests used to sleep a fixed 30-50ms and then assert. That is a race,
+ * not a synchronisation: the pending panel renders a spinner while `loading`,
+ * so under CPU contention — which is exactly what a full-suite run is — the
+ * sleep expired first and the assertion read the spinner as "no pending
+ * invoices". The failure was order-dependent (green alone, red in the suite),
+ * which is the signature AGENTS.md calls a measurement artefact until proven
+ * otherwise. Here it was proven, so the wait is on the OBSERVABLE condition:
+ * the one and only `.animate-spin` in the component is the pending list's
+ * loading state, so its absence is exactly "the load finished".
+ */
+async function settled(wrapper) {
+	await vi.waitFor(() => {
+		expect(wrapper.find(".animate-spin").exists()).toBe(false)
+	})
+}
+
 beforeEach(() => {
 	localStorage.clear()
 	syncPendingTo.mockClear()
@@ -107,9 +122,29 @@ describe("SyncCenterDialog", () => {
 	it("lists the built-in local destination and empty pending", async () => {
 		const wrapper = openDialog()
 		await wrapper.vm.$nextTick()
-		await new Promise((r) => setTimeout(r, 50))
+		await settled(wrapper)
 		expect(wrapper.text()).toContain("الخادم الحالي")
 		expect(wrapper.text()).toContain("لا فواتير معلقة لهذه الوجهة")
+	})
+
+	it("never renders an unreadable queue as an empty one", async () => {
+		// S1 in the smallest possible space. `openOperations().catch(() => [])`
+		// used to sit in this dialog's load path, so a failed read and a genuinely
+		// empty queue were the same rendering: a confident "0 فواتير معلقة" and
+		// "لا فواتير معلقة لهذه الوجهة". A cashier would conclude there is no work
+		// waiting and skip the sync — the one message a sync screen must never
+		// invent. The failed read has to say it could not confirm the queue.
+		vi.mocked(getOfflineInvoices).mockRejectedValue(
+			new Error("IndexedDB unavailable"),
+		)
+
+		const wrapper = openDialog()
+		await wrapper.vm.$nextTick()
+		await settled(wrapper)
+
+		expect(wrapper.text()).toContain("لم يتم تأكيد أن الطابور فارغ")
+		expect(wrapper.text()).toContain("IndexedDB unavailable")
+		expect(wrapper.text()).not.toContain("لا فواتير معلقة لهذه الوجهة")
 	})
 
 	it("saves a branch, selects it, and syncs to it with its token", async () => {
@@ -124,7 +159,7 @@ describe("SyncCenterDialog", () => {
 
 		const wrapper = openDialog()
 		await wrapper.vm.$nextTick()
-		await new Promise((r) => setTimeout(r, 30))
+		await settled(wrapper)
 		expect(wrapper.text()).toContain("فرع العليا")
 
 		// Inject one pending invoice for the branch BEFORE selecting it,
@@ -145,17 +180,16 @@ describe("SyncCenterDialog", () => {
 		expect(cards.length).toBeGreaterThan(0)
 		await cards[0].trigger("click")
 		await wrapper.vm.$nextTick()
-		await new Promise((r) => setTimeout(r, 30))
+		await settled(wrapper)
 
 		const syncBtns = wrapper
 			.findAll("button")
 			.filter((b) => b.text().includes("مزامنة الآن"))
 		expect(syncBtns.length).toBeGreaterThan(0)
 		await syncBtns[0].trigger("click")
-		await wrapper.vm.$nextTick()
-		await new Promise((r) => setTimeout(r, 50))
-
-		expect(syncPendingTo).toHaveBeenCalledTimes(1)
+		await vi.waitFor(() => {
+			expect(syncPendingTo).toHaveBeenCalledTimes(1)
+		})
 		const [dest, token] = syncPendingTo.mock.calls[0]
 		expect(dest.baseUrl).toBe("http://10.0.0.5:3001")
 		expect(token).toBe("tok")
@@ -165,7 +199,7 @@ describe("SyncCenterDialog", () => {
 		it("shows standalone posture with zero automation by default", async () => {
 			const wrapper = openDialog()
 			await wrapper.vm.$nextTick()
-			await new Promise((r) => setTimeout(r, 30))
+			await settled(wrapper)
 			expect(wrapper.text()).toContain("وضع الربط والأتمتة")
 			expect(wrapper.text()).toContain("مستقل — صفر اتصال")
 			expect(getLinkMode()).toBe(LINK_MODES.STANDALONE)
@@ -220,7 +254,7 @@ describe("SyncCenterDialog", () => {
 			setLinkMode(LINK_MODES.LINKED, LINK_REASONS.SERVER_LOGIN)
 			const wrapper = openDialog()
 			await wrapper.vm.$nextTick()
-			await new Promise((r) => setTimeout(r, 30))
+			await settled(wrapper)
 			expect(wrapper.text()).toContain("مرتبط")
 			const unlink = wrapper
 				.findAll("button")

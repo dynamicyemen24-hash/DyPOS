@@ -58,39 +58,42 @@ const { toastNotification, showToast, hideToast, pauseToast, resumeToast } =
 	useToast()
 const { isRTL } = useLocale()
 
-// Toast type to style mapping
+// Toast type to style mapping — uses DyPOS design tokens for consistent theming
 const TOAST_TYPE_STYLES = {
 	success: {
-		container: "bg-green-50 border-s-4 border-green-500",
+		container:
+			"bg-[var(--dy-success-soft)] border-s-4 border-[var(--dy-success)]",
 		icon: "check-circle",
-		iconColor: "text-green-600",
-		titleColor: "text-green-900",
-		messageColor: "text-green-700",
-		closeColor: "text-green-600 hover:text-green-900",
+		iconColor: "text-[var(--dy-success)]",
+		titleColor: "text-[var(--dy-success)]",
+		messageColor: "text-[var(--dy-success)]",
+		closeColor: "text-[var(--dy-success)] hover:text-[var(--dy-success-hover)]",
 	},
 	error: {
-		container: "bg-red-50 border-s-4 border-red-500",
+		container:
+			"bg-[var(--dy-danger-soft)] border-s-4 border-[var(--dy-danger)]",
 		icon: "x-circle",
-		iconColor: "text-red-600",
-		titleColor: "text-red-900",
-		messageColor: "text-red-700",
-		closeColor: "text-red-600 hover:text-red-900",
+		iconColor: "text-[var(--dy-danger)]",
+		titleColor: "text-[var(--dy-danger)]",
+		messageColor: "text-[var(--dy-danger)]",
+		closeColor: "text-[var(--dy-danger)] hover:text-[var(--dy-danger-hover)]",
 	},
 	warning: {
-		container: "bg-orange-50 border-s-4 border-orange-500",
+		container:
+			"bg-[var(--dy-warning-soft)] border-s-4 border-[var(--dy-warning)]",
 		icon: "alert-circle",
-		iconColor: "text-orange-600",
-		titleColor: "text-orange-900",
-		messageColor: "text-orange-700",
-		closeColor: "text-orange-600 hover:text-orange-900",
+		iconColor: "text-[var(--dy-warning)]",
+		titleColor: "text-[var(--dy-warning)]",
+		messageColor: "text-[var(--dy-warning)]",
+		closeColor: "text-[var(--dy-warning)] hover:text-[var(--dy-warning-hover)]",
 	},
 	info: {
-		container: "bg-indigo-50 border-s-4 border-indigo-500",
+		container: "bg-[var(--dy-info-soft)] border-s-4 border-[var(--dy-info)]",
 		icon: "info",
-		iconColor: "text-indigo-600",
-		titleColor: "text-indigo-900",
-		messageColor: "text-indigo-700",
-		closeColor: "text-indigo-600 hover:text-indigo-900",
+		iconColor: "text-[var(--dy-info)]",
+		titleColor: "text-[var(--dy-info)]",
+		messageColor: "text-[var(--dy-info)]",
+		closeColor: "text-[var(--dy-info)] hover:text-[var(--dy-info-hover)]",
 	},
 }
 

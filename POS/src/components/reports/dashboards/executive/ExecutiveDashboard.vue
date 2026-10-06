@@ -24,6 +24,7 @@
 			:currency-ids="CURRENCY_IDS"
 			:percent-ids="PERCENT_IDS"
 			:columns="4"
+			:loading="loading"
 		/>
 
 		<div v-if="models.alerts.length" class="mb-6">
