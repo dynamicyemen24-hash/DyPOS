@@ -37,7 +37,6 @@ import DyPanel from "@/components/common/DyPanel.vue"
 import ShiftOpsPanel from "@/components/common/ShiftOpsPanel.vue"
 import LoginSessionLockDialog from "@/components/common/LoginSessionLockDialog.vue"
 import LoginSessionTimeoutDialog from "@/components/common/LoginSessionTimeoutDialog.vue"
-import TouchKeyboard from "@/components/common/TouchKeyboard.vue"
 import NotificationBar from "@/components/NotificationBar.vue"
 import LoginBackendUnavailableBanner from "@/components/common/LoginBackendUnavailableBanner.vue"
 import LoginErrorBanner from "@/components/common/LoginErrorBanner.vue"
@@ -47,7 +46,6 @@ import TechnicalModeToggle from "@/components/common/TechnicalModeToggle.vue"
 import HardwareDiagnosticsPanel from "@/components/common/HardwareDiagnosticsPanel.vue"
 import NetworkDiagnosticsPanel from "@/components/common/NetworkDiagnosticsPanel.vue"
 import VersionInfo from "@/components/common/VersionInfo.vue"
-import LoginWorkspacePanel from "@/components/common/LoginWorkspacePanel.vue"
 import LoginShortcutsDialog from "@/components/common/LoginShortcutsDialog.vue"
 import LoginEmailSuggestions from "@/components/common/LoginEmailSuggestions.vue"
 import LoginPinQuickActions from "@/components/common/LoginPinQuickActions.vue"
@@ -159,8 +157,6 @@ const loginError = ref("")
 
 const selectedMethod = ref("email")
 
-const touchKeyboardRef = ref(null)
-
 const biometricResult = ref(
 	/** @type {{ success: boolean; error?: string } | null} */ (null),
 )
@@ -173,16 +169,6 @@ const subscriberCode = ref("")
 
 const emailInput = ref(null)
 const passwordInput = ref(null)
-/**
- * Whether the on-screen PIN keyboard is up.
- *
- * Read by `selectMethod("keyboard")` and cleared on every method switch. It
- * was removed once on the assumption that a dead-binding gate had found it —
- * the gate was actually reporting a DIFFERENT pair of names — and the page
- * then broke on the first tap of the PIN method. The variable is live.
- */
-const showKeyboard = ref(false)
-
 const loginForm = ref(null)
 
 /** Loading state for skeleton screens during initial load */
@@ -285,8 +271,6 @@ const {
 	selectedMethod,
 	biometricResult,
 	biometricAvailable,
-	touchKeyboardRef,
-	showKeyboard,
 	branches,
 	selectedBranchId,
 	subscriberCode,
@@ -302,13 +286,11 @@ const {
 	initializeLoginData: initializeMethodsData,
 } = useLoginMethods({
 	selectedMethod,
-	showKeyboard,
 	biometricResult,
 	biometricAvailable,
 	branches,
 	selectedBranchId,
 	subscriberCode,
-	touchKeyboardRef,
 })
 
 const {
@@ -1189,20 +1171,6 @@ watch(
                                 theme="brand"
                                 size="sm"
                                 class="dy-login__method-btn"
-                                :class="{ 'dy-login__method-btn--active': selectedMethod === 'keyboard' }"
-                                @click="selectMethod('keyboard')"
-                                :disabled="isSubmitting"
-                                :aria-pressed="selectedMethod === 'keyboard'"
-                            >
-                                <FeatherIcon name="smartphone" :size="18" aria-hidden="true" />
-                                <span>{{ __('لوحة مفاتيح') }}</span>
-                            </ActionButton>
-                            <ActionButton
-                                type="button"
-                                variant="ghost"
-                                theme="brand"
-                                size="sm"
-                                class="dy-login__method-btn"
                                 :class="{ 'dy-login__method-btn--active': selectedMethod === 'passkey' }"
                                 @click="selectMethod('passkey')"
                                 :disabled="isSubmitting"
@@ -1410,12 +1378,7 @@ watch(
 
             </div>
         </section>
-
-        <!-- Workspace panel (desktop ≥1101px) — company identity + link.
-             Hidden when technical mode is enabled (technical panels take the workspace area). -->
-        <LoginWorkspacePanel v-if="!technicalModeEnabled" />
-
-        <!-- Technical mode panels rendered outside the form for full width -->
+<!-- Technical mode panels rendered outside the form for full width -->
         <HardwareDiagnosticsPanel v-if="technicalModeEnabled" class="dy-login__technical-panel" />
         <NetworkDiagnosticsPanel v-if="technicalModeEnabled" class="dy-login__technical-panel" />
 
@@ -1436,17 +1399,7 @@ watch(
         <!-- بيانات التثبيت — تُعرض مرة واحدة. التفصيل في المكوّن. -->
         <InstallCredentialsCard />
 
-<TouchKeyboard
-            v-model:is-open="showKeyboard"
-            :model-value="password"
-            @update:model-value="password = $event"
-            @confirm="handleKeyboardSubmit"
-            :title="__('لوحة مفاتيح رقمية')"
-            :placeholder="__('أدخل رمز المرور')"
-            mask
-            :max-length="8"
-        />
-        <NotificationBar />
+<NotificationBar />
     </main>
 </template>
 <style scoped src="@/styles/pages/login.css"></style>
