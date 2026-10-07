@@ -8,6 +8,8 @@
     * إذا كان المشترك/المستخدم غير موجود -> زر انتقال لتسجيل مشترك جديد / إنشاء حساب
     * إذا كانت كلمة المرور غير صحيحة -> زر انتقال لاستعادة / تغيير كلمة المرور
     * إذا كانت الخدمة الخلفية غير متاحة (503) -> توضيح وإمكانية المتابعة أوفلاين
+  - السماح بتصحيح البيانات مباشرة من الشريط (إعادة تركيز الحقل، مسح الخطأ)
+  - عرض تلميحات سياقية حسب نوع الخطأ
 -->
 
 <template>
@@ -25,6 +27,12 @@
     <div class="dy-login__error-content">
       <strong>{{ __('تعذر تسجيل الدخول') }}</strong>
       <span>{{ error }}</span>
+
+      <!-- تلميحات سياقية حسب نوع الخطأ -->
+      <div v-if="errorHint" class="dy-login__error-hint">
+        <FeatherIcon name="info" :size="14" aria-hidden="true" />
+        <span>{{ errorHint }}</span>
+      </div>
 
       <!-- إجراءات التعافي الفورية حسب نوع الخطأ -->
       <div v-if="hasRecoveryAction" class="dy-login__error-recovery">
@@ -46,10 +54,68 @@
           variant="ghost"
           size="xs"
           class="dy-login__error-btn"
-          @click="$emit('forgot-password')"
+          @click="handleForgotPassword"
         >
           <FeatherIcon name="key" :size="14" aria-hidden="true" />
           <span>{{ __('استعادة / تغيير كلمة المرور') }}</span>
+        </ActionButton>
+
+        <ActionButton
+          v-if="isOfflineMode"
+          type="button"
+          variant="ghost"
+          size="xs"
+          class="dy-login__error-btn"
+          @click="handleOfflineLogin"
+        >
+          <FeatherIcon name="wifi-off" :size="14" aria-hidden="true" />
+          <span>{{ __('متابعة دون اتصال') }}</span>
+        </ActionButton>
+
+        <ActionButton
+          v-if="isBackendUnavailable"
+          type="button"
+          variant="ghost"
+          size="xs"
+          class="dy-login__error-btn"
+          @click="handleRetryBackend"
+        >
+          <FeatherIcon name="refresh-cw" :size="14" aria-hidden="true" />
+          <span>{{ __('إعادة محاولة الاتصال') }}</span>
+        </ActionButton>
+      </div>
+
+      <!-- إجراءات تصحيح سريعة -->
+      <div v-if="showQuickFix" class="dy-login__error-quickfix">
+        <ActionButton
+          type="button"
+          variant="ghost"
+          size="xs"
+          class="dy-login__error-btn"
+          @click="focusEmailField"
+        >
+          <FeatherIcon name="mail" :size="14" aria-hidden="true" />
+          <span>{{ __('تصحيح البريد الإلكتروني') }}</span>
+        </ActionButton>
+        <ActionButton
+          type="button"
+          variant="ghost"
+          size="xs"
+          class="dy-login__error-btn"
+          @click="focusPasswordField"
+        >
+          <FeatherIcon name="lock" :size="14" aria-hidden="true" />
+          <span>{{ __('تصحيح كلمة المرور') }}</span>
+        </ActionButton>
+        <ActionButton
+          type="button"
+          variant="ghost"
+          size="xs"
+          class="dy-login__error-btn"
+          @click="clearErrorAndFocus"
+        >
+          <FeatherIcon name="rotate-ccw" :size="14" aria-hidden="true" />
+          <span>{{ __('مسح والمحاولة مرة أخرى') }}</span>
         </ActionButton>
       </div>
     </div>
@@ -77,9 +143,17 @@ const props = defineProps({
 		type: String,
 		default: "",
 	},
+	isOfflineMode: {
+		type: Boolean,
+		default: false,
+	},
+	isBackendUnavailable: {
+		type: Boolean,
+		default: false,
+	},
 })
 
-defineEmits(["clear", "register", "forgot-password"])
+const emit = defineEmits(["clear", "register", "forgot-password", "retry-backend", "offline-login", "focus-email", "focus-password"])
 
 const isWrongPassword = computed(() => {
 	if (!props.error) return false
@@ -93,9 +167,68 @@ const isMissingUserOrSubscriber = computed(() => {
 	)
 })
 
+const isOfflineMode = computed(() => props.isOfflineMode)
+const isBackendUnavailable = computed(() => props.isBackendUnavailable)
+
 const hasRecoveryAction = computed(() => {
+	return isWrongPassword.value || isMissingUserOrSubscriber.value || isOfflineMode.value || isBackendUnavailable.value
+})
+
+const showQuickFix = computed(() => {
+	if (!props.error) return false
+	// Show quick fix for credential errors
 	return isWrongPassword.value || isMissingUserOrSubscriber.value
 })
+
+const errorHint = computed(() => {
+	if (!props.error) return ""
+	
+	if (isWrongPassword.value) {
+		return __('تأكد من كتابة كلمة المرور بشكل صحيح، مع مراعاة حالة الأحرف (Caps Lock)')
+	}
+	
+	if (isMissingUserOrSubscriber.value) {
+		return __('تحقق من كتابة البريد الإلكتروني بشكل صحيح، أو سجل ك مشترك جديد')
+	}
+	
+	if (isOfflineMode.value) {
+		return __('الوضع غير متصل: سيتم تسجيل الدخول محلياً ومزامنة البيانات عند عودة الاتصال')
+	}
+	
+	if (isBackendUnavailable.value) {
+		return __('خدمة المزامنة غير متاحة مؤقتاً، يمكنك المتابعة في وضع عدم الاتصال')
+	}
+	
+	return ""
+})
+
+function handleForgotPassword() {
+	emit('forgot-password')
+}
+
+function handleOfflineLogin() {
+	emit('offline-login')
+}
+
+function handleRetryBackend() {
+	emit('retry-backend')
+}
+
+function focusEmailField() {
+	emit('focus-email')
+}
+
+function focusPasswordField() {
+	emit('focus-password')
+}
+
+function clearErrorAndFocus() {
+	emit('clear')
+	// Focus email field after a brief delay to allow error to clear
+	setTimeout(() => {
+		emit('focus-email')
+	}, 100)
+}
 </script>
 
 <style scoped>
@@ -104,6 +237,29 @@ const hasRecoveryAction = computed(() => {
   flex-wrap: wrap;
   gap: var(--dy-space-2, 8px);
   margin-top: var(--dy-space-2, 6px);
+}
+
+.dy-login__error-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--dy-space-1, 4px);
+  margin-top: var(--dy-space-2, 6px);
+  padding: var(--dy-space-2, 6px) var(--dy-space-3, 8px);
+  background: var(--dy-color-status-info-bg, #eff6ff);
+  border-radius: var(--dy-radius-sm, 4px);
+  color: var(--dy-color-status-info-text, #1e40af);
+  font-size: var(--dy-text-sm, 0.875rem);
+  line-height: 1.4;
+  border: 1px solid var(--dy-color-status-info-border, #bfdbfe);
+}
+
+.dy-login__error-quickfix {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dy-space-2, 8px);
+  margin-top: var(--dy-space-2, 6px);
+  padding-top: var(--dy-space-2, 6px);
+  border-top: 1px solid var(--dy-color-border, #e0e0e0);
 }
 
 .dy-login__error-btn {

@@ -3,7 +3,6 @@
   DyPOS — Enterprise SaaS Authentication Surface
   Production Grade / End-to-End SaaS
   =============================================================================
-
   المسؤوليات:
   - Authentication UI
   - Session bootstrap
@@ -23,7 +22,6 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
-
 import { FeatherIcon } from "dypos-ui"
 import { ActionButton } from "dypos-ui"
 import SkeletonLoader from "@/components/ui/SkeletonLoader.vue"
@@ -31,7 +29,6 @@ import SkeletonLoader from "@/components/ui/SkeletonLoader.vue"
 import { endpoints } from "@/utils/apiEndpoints"
 import { COMPANY_WEBSITE, COMPANY_WEBSITE_LABEL } from "@/utils/brand"
 import { translationVersion } from "@/utils/translation"
-
 import DyPOSLogo from "@/assets/DyPOSLogo.png"
 
 import ShiftOpeningDialog from "@/components/ShiftOpeningDialog.vue"
@@ -111,13 +108,15 @@ import { useLoginShiftDialog } from "@/composables/useLoginShiftDialog"
 import { useLoginPinAuth } from "@/composables/useLoginPinAuth"
 import { useLoginBackendUnavailable } from "@/composables/useLoginBackendUnavailable"
 import { useLoginForm } from "@/composables/useLoginForm"
-import { useLoginMethods } from "@/composables/useLoginMethods"
+import { useLoginErrorHandling } from "@/composables/useLoginErrorHandling"
+import { useLoginEmail } from "@/composables/useLoginEmail"
 import { useTechnicalMode } from "@/composables/useTechnicalMode"
 import { useHardwareDiagnostics } from "@/composables/useHardwareDiagnostics"
 import { useNetworkDiagnostics } from "@/composables/useNetworkDiagnostics"
-
 import { methodGetList } from "@/utils/methodClient"
 import { cleanupUserSession, normalizeAuthError } from "@/utils/auth"
+import { useCompleteAuthentication } from "@/composables/useCompleteAuthentication"
+import { useLoginMethods } from "@/composables/useLoginMethods"
 import { __ } from "@/utils/translation"
 import {
 	handleAuthFailure,
@@ -129,9 +128,6 @@ import { createSessionSecurityMonitor } from "@/composables/useLoginSecurityMoni
 /* ============================================================================
  * Constants
  * ========================================================================== */
-
-/** مدة الجلسة قبل التحذير — نفس القيمة التي يمررها useSessionTimeout. */
-const SESSION_DURATION_MS = 30 * 60 * 1000
 
 /* ============================================================================
  * Props / Emits
@@ -201,11 +197,7 @@ const showShortcutsHelp = ref(false)
 
 const showEmailSuggestions = ref(false)
 
-function completeEmail(domain) {
-	email.value = `${email.value}@${domain}`
-	showEmailSuggestions.value = false
-	emailInput.value?.focus()
-}
+const { completeEmail } = useLoginEmail({ email, emailInput, showEmailSuggestions })
 
 /** تلميح Caps Lock: يُحدَّث من الحدث نفسه، لا بمراقب دائم للمستند. */
 const { capsLockOn, trackCapsLock } = useCapsLock()
@@ -462,6 +454,13 @@ const { technicalModeEnabled } = useTechnicalMode()
  * Error
  * ========================================================================== */
 
+const { handleOfflineLogin, focusEmailField, focusPasswordField } = useLoginErrorHandling({
+	loginError,
+	emailInput,
+	passwordInput,
+	clearLoginError,
+})
+
 /** خطأ واحد واضح، ومسار واحد لعرضه وإخفائه. */
 function clearLoginError() {
 	loginError.value = ""
@@ -477,20 +476,16 @@ async function retryBackend() {
  * Authentication
  * ========================================================================== */
 
-/** الإجراء الذي ينجح بعده كلٌّ من المسارين — مسار واحد للحساب بدل مسارين. */
-function completeAuthentication(stage) {
-	loginRateLimiter.recordSuccess()
-	sessionReady.value = true
-	authenticationCompleted.value = true
-
-	sessionTimeout.start(SESSION_DURATION_MS)
-	installSessionSecurityMonitor()
-
-	log.info(`DyPOS authentication completed (${stage})`)
-	handleAuthSuccess({ stage })
-
-	emit("authenticated")
-}
+const { completeAuthentication } = useCompleteAuthentication({
+	loginRateLimiter,
+	sessionReady,
+	authenticationCompleted,
+	sessionTimeout,
+	installSessionSecurityMonitor,
+	handleAuthSuccess,
+	emit,
+	stage,
+})
 
 /**
  * بعد نجاح البصمة على السيرفر.
@@ -916,9 +911,15 @@ watch(
                 <LoginErrorBanner
                     v-if="loginError"
                     :error="loginError"
+                    :is-offline-mode="isOfflineMode"
+                    :is-backend-unavailable="isBackendUnavailable"
                     @clear="clearLoginError"
                     @register="goToRegister"
                     @forgot-password="goToForgotPassword"
+                    @retry-backend="retryBackend"
+                    @offline-login="handleOfflineLogin"
+                    @focus-email="focusEmailField"
+                    @focus-password="focusPasswordField"
                 />
 
                 <!-- =================================================================
