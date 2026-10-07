@@ -990,6 +990,7 @@ onUnmounted(() => {
 					<ActionButton
 						variant="subtle"
 						size="lg"
+						class="dy-register__return-login"
 						@click="goToLogin"
 						:title="__('عودة إلى تسجيل الدخول')"
 						:aria-label="__('عودة إلى تسجيل الدخول')"
@@ -1460,6 +1461,10 @@ onUnmounted(() => {
 
 .dy-register__submit {
 	margin-top: var(--dy-space-3);
+}
+
+.dy-register__return-login {
+	grid-column: 1 / -1;
 }
 
 /* =============================================================================
