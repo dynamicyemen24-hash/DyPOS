@@ -609,12 +609,14 @@ const doRegister = async (params, req, res) => {
 			if (isPublicOnboarding) {
 				db.prepare('INSERT INTO tenants (id,name,code,plan) VALUES (?,?,?,?)').run(tenantId, companyName, tenantCode, 'standard');
 			}
-			organizationId = crypto.randomUUID();
-			db.prepare('INSERT INTO organizations (id,tenant_id,name,code) VALUES (?,?,?,?)').run(organizationId, tenantId, companyName, tenantCode);
-			warehouseId = crypto.randomUUID();
-			db.prepare('INSERT INTO warehouses (id,name,tenant_id) VALUES (?,?,?)').run(warehouseId, 'المستودع الرئيسي', tenantId);
-			branchId = crypto.randomUUID();
-			db.prepare('INSERT INTO branches (id,org_id,tenant_id,name,code,warehouse_id) VALUES (?,?,?,?,?,?)').run(branchId, organizationId, tenantId, branchName, branchCode, warehouseId);
+			if (isPublicOnboarding) {
+				organizationId = crypto.randomUUID();
+				db.prepare('INSERT INTO organizations (id,tenant_id,name,code) VALUES (?,?,?,?)').run(organizationId, tenantId, companyName, tenantCode);
+				warehouseId = crypto.randomUUID();
+				db.prepare('INSERT INTO warehouses (id,name,tenant_id) VALUES (?,?,?)').run(warehouseId, 'المستودع الرئيسي', tenantId);
+				branchId = crypto.randomUUID();
+				db.prepare('INSERT INTO branches (id,org_id,tenant_id,name,code,warehouse_id) VALUES (?,?,?,?,?,?)').run(branchId, organizationId, tenantId, branchName, branchCode, warehouseId);
+			}
 			db.prepare('INSERT INTO users (id,username,password_hash,full_name,role,tenant_id) VALUES (?,?,?,?,?,?)').run(id, username, hash, fullName, finalRole, tenantId);
 			try {
 				db.prepare('INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)').run('tenant.' + tenantId + '.currency', currency);
