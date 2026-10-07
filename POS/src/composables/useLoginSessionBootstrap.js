@@ -21,11 +21,10 @@ export function useLoginSessionBootstrap({
 				await session.bootstrap()
 			}
 
-			if (typeof session.refresh === "function") {
-				if (!sessionReady.value) {
-					await session.refresh()
-				}
-			}
+			// session.bootstrap() is the authoritative POS entry pipeline.
+			// Do not perform a second user-resource request here: it adds a
+			// network dependency after successful local/offline authentication
+			// and can strand the cashier before POS renders.
 
 			sessionReady.value = true
 
