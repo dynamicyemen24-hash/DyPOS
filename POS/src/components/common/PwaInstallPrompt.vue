@@ -30,12 +30,16 @@
 
 <script setup>
 import { computed, ref } from "vue"
+import { useRoute } from "vue-router"
 import { usePwaInstall } from "@/composables/usePwaInstall"
 
 const { canInstall, showIosGuide, install: promptInstall, dismiss: dismissInstall } = usePwaInstall()
+const route = useRoute()
 const guideOpen = ref(false)
 
-const visible = computed(() => canInstall.value || showIosGuide.value)
+const visible = computed(
+	() => route.name !== "SelfCheckout" && (canInstall.value || showIosGuide.value),
+)
 
 async function install() {
 	const result = await promptInstall()
