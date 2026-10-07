@@ -17,8 +17,6 @@ export function useLoginForm({
 	selectedMethod,
 	biometricResult,
 	biometricAvailable,
-	touchKeyboardRef,
-	showKeyboard,
 	branches,
 	selectedBranchId,
 	subscriberCode,
@@ -83,21 +81,7 @@ export function useLoginForm({
 	}
 
 	function handleGlobalKeydown(event) {
-		if (event.key === "Enter" && !event.shiftKey) {
-			if (selectedMethod.value === "keyboard" && touchKeyboardRef.value) {
-				touchKeyboardRef.value.close?.()
-			}
-		}
-	}
-
-	function onMethodSelect(method) {
-		selectedMethod.value = method
-
-		if (method === "keyboard" && !showKeyboard.value) {
-			showKeyboard.value = true
-		} else if (method !== "keyboard") {
-			showKeyboard.value = false
-		}
+		if (event.key !== "Enter" || event.shiftKey) return
 	}
 
 	function selectBranch(branchId) {
@@ -110,7 +94,6 @@ export function useLoginForm({
 		handleSubmitLogin,
 		initializeLoginData,
 		handleGlobalKeydown,
-		onMethodSelect,
 		selectBranch,
 	}
 }
