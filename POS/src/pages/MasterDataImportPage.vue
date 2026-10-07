@@ -6,6 +6,7 @@ const types = [
   { value: "products", label: "الأصناف" },
   { value: "customers", label: "العملاء" },
   { value: "warehouses", label: "المخازن" },
+  { value: "opening_balances", label: "الأرصدة الافتتاحية" },
 ]
 const type = ref("products")
 const csv = ref("")
@@ -40,19 +41,37 @@ function download(text, filename) {
 }
 async function template() {
   busy.value=true
-  try { const r=await call("DyPOS.api.onboarding.master_data_template",{type:type.value}); download(r.message.csv,r.message.filename) }
+  try {
+    const path = type.value === "opening_balances"
+      ? "DyPOS.api.opening_balances.opening_balance_template"
+      : "DyPOS.api.onboarding.master_data_template"
+    const r=await call(path,{type:type.value})
+    download(r.message.csv,r.message.filename)
+  }
   catch(e){report.value={error:e.message}}
   finally{busy.value=false}
 }
 async function preview() {
   busy.value=true
-  try { const r=await call("DyPOS.api.onboarding.import_master_data",{type:type.value,csv:csv.value,dryRun:1});report.value=r.message }
+  try {
+    const path = type.value === "opening_balances"
+      ? "DyPOS.api.opening_balances.import_opening_balances"
+      : "DyPOS.api.onboarding.import_master_data"
+    const r=await call(path,{type:type.value,csv:csv.value,dryRun:1})
+    report.value=r.message
+  }
   catch(e){report.value={error:e.message}}
   finally{busy.value=false}
 }
 async function apply() {
   busy.value=true
-  try { const r=await call("DyPOS.api.onboarding.import_master_data",{type:type.value,csv:csv.value});report.value=r.message }
+  try {
+    const path = type.value === "opening_balances"
+      ? "DyPOS.api.opening_balances.import_opening_balances"
+      : "DyPOS.api.onboarding.import_master_data"
+    const r=await call(path,{type:type.value,csv:csv.value})
+    report.value=r.message
+  }
   catch(e){report.value={error:e.message}}
   finally{busy.value=false}
 }
@@ -64,7 +83,7 @@ async function apply() {
       <div>
         <span>تهيئة المشترك</span>
         <h1>استيراد البيانات الأساسية</h1>
-        <p>قوالب موحّدة للبيانات الحقيقية قبل بدء التشغيل. التحقق يسبق الكتابة.</p>
+        <p>قوالب موحّدة للبيانات الحقيقية قبل بدء التشغيل. التحقق يسبق الكتابة، والأرصدة الافتتاحية تُعتمد كسجل مالي لا كبيانات تجريبية.</p>
       </div>
       <button class="md-back" @click="router.back()">رجوع</button>
     </header>
@@ -99,8 +118,8 @@ async function apply() {
 
     <section class="md-card md-note">
       <strong>الترتيب المعياري</strong>
-      <p>القالب → المطابقة → التحقق → المعاينة → الاستيراد الذري → سجل التدقيق → الأرصدة الافتتاحية.</p>
-      <p>لا تُعتبر البيانات مكتملة إلا بعد نجاح العملية على قاعدة البيانات الفعلية.</p>
+      <p>القالب → المطابقة → التحقق → المعاينة → الاستيراد الذري → سجل التدقيق → اعتماد الأرصدة الافتتاحية ضمن سنة مالية محددة.</p>
+      <p>لا تُعتبر البيانات مكتملة إلا بعد نجاح العملية على قاعدة البيانات الفعلية. للاستيراد المالي: أدخل الأصناف والعملاء أولًا، ثم الأرصدة الافتتاحية، وراجع المعاينة قبل التطبيق.</p>
     </section>
   </main>
 </template>
