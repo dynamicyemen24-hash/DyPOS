@@ -446,8 +446,8 @@ onUnmounted(() => {
 
 					<!-- Back to login -->
 
-					<a
-						href="/account/login"
+					<RouterLink
+						:to="{ name: 'Login' }"
 						class="dy-register__back"
 					>
 						<FeatherIcon
@@ -456,7 +456,7 @@ onUnmounted(() => {
 							aria-hidden="true"
 						/>
 						العودة إلى تسجيل الدخول
-					</a>
+					</RouterLink>
 				</header>
 
 				<!-- Success -->
@@ -549,6 +549,7 @@ onUnmounted(() => {
 					v-else
 					ref="registerForm"
 					class="dy-register__form"
+					:class="`dy-register__form--step-${registerStep}`"
 					novalidate
 					@submit.prevent="submitRegistration"
 				>
@@ -942,13 +943,11 @@ onUnmounted(() => {
 
 							<span id="dypos-register-terms-desc">
 								أوافق على
-								<a href="/terms" class="dy-register__link">
-									شروط الاستخدام
-								</a>
+								<RouterLink :to="{ name: 'Terms' }" class="dy-register__link">شروط الاستخدام</RouterLink>
 								و
-								<a href="/privacy" class="dy-register__link">
-									سياسة الخصوصية
-								</a>
+								<RouterLink :to="{ name: 'Privacy' }" class="dy-register__link">سياسة الخصوصية</RouterLink>
+								و
+								<RouterLink :to="{ name: 'Agreement' }" class="dy-register__link">اتفاقية المشترك</RouterLink>
 							</span>
 						</label>
 					</div>
@@ -962,6 +961,7 @@ onUnmounted(() => {
 					<!-- Submit -->
 
 					<ActionButton
+						v-if="registerStep === registerStepCount"
 						type="submit"
 						variant="solid"
 						size="lg"
@@ -1263,10 +1263,40 @@ onUnmounted(() => {
 .dy-register__progress-item.is-done > span { background:var(--dy-accent); color:var(--dy-on-accent); }
 .dy-register__wizard-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:var(--dy-space-2); }
 .dy-register__form {
-	display: flex;
-	flex-direction: column;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
 	gap: var(--dy-space-5);
 }
+
+/* Each step is a deliberate information group, not one long form. */
+.dy-register__form--step-1,
+.dy-register__form--step-2,
+.dy-register__form--step-3 {
+	align-items: start;
+}
+
+.dy-register__form--step-2,
+.dy-register__form--step-3 {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	column-gap: 14px;
+}
+
+.dy-register__form--step-2 .dy-register__wizard-actions,
+.dy-register__form--step-2 .dy-register__submit,
+.dy-register__form--step-2 > .dy-register__error,
+.dy-register__form--step-3 .dy-register__terms,
+.dy-register__form--step-3 .dy-register__wizard-actions,
+.dy-register__form--step-3 .dy-register__submit {
+	grid-column: 1 / -1;
+}
+
+.dy-register__form--step-3 .dy-register__terms {
+	padding: 12px 14px;
+	border: 1px solid var(--dy-border);
+	border-radius: var(--dy-radius-lg);
+	background: var(--dy-bg-elevated);
+}
+
 
 .dy-register__field {
 	display: flex;
@@ -1579,6 +1609,13 @@ onUnmounted(() => {
 
 @media (max-width: 768px) {
 	.dy-register__progress { grid-template-columns:1fr; gap:6px; }
+	.dy-register__form--step-2,
+	.dy-register__form--step-3 { grid-template-columns:1fr; }
+	.dy-register__form--step-2 .dy-register__wizard-actions,
+	.dy-register__form--step-2 .dy-register__submit,
+	.dy-register__form--step-3 .dy-register__terms,
+	.dy-register__form--step-3 .dy-register__wizard-actions,
+	.dy-register__form--step-3 .dy-register__submit { grid-column:1; }
 
 	.dy-register--mobile .dy-register__panel-inner {
 		padding-inline: 24px;
