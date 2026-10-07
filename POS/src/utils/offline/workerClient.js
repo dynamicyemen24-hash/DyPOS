@@ -50,6 +50,17 @@ class OfflineWorkerClient {
 			this.initAttempts++
 			this.workerCrashed = false
 
+			// Workers are a browser runtime capability; test/SSR environments may
+			// not expose the global constructor. Degrade deterministically there
+			// instead of throwing/restarting in a loop.
+			if (typeof Worker === "undefined") {
+				this.workerCrashed = true
+				this.ready = false
+				this.serverOnline = false
+				log.debug("Worker API unavailable; using main-thread offline fallback")
+				return
+			}
+
 			// Create worker using Vite's worker import syntax
 			this.worker = new Worker(
 				new URL("../../workers/offline.worker.js?worker", import.meta.url),
