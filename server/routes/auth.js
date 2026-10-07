@@ -132,7 +132,7 @@ router.post(
 	validate(loginSchema),
 	ah(async (req, res) => {
 		const rawName = req.body.username || req.body.email;
-		const { password } = req.body;
+		const { password, subscriberCode } = req.body;
 		const clean = String(rawName || '').trim();
 		if (!clean || !password) {
 			return res.status(400).json({ error: 'اسم المستخدم وكلمة المرور مطلوبان' });
@@ -149,6 +149,13 @@ router.post(
 			return res.status(429).json({ error: 'محاولات كثيرة — حاول بعد 15 دقيقة', retryAfterSeconds: waitLeft });
 		}
 		const user = db.prepare('SELECT * FROM users WHERE username=? AND is_active=1').get(clean);
+		if (user && subscriberCode) {
+			const subscriber = db.prepare('SELECT id FROM tenants WHERE code=? AND is_active=1').get(String(subscriberCode).trim().toUpperCase());
+			if (!subscriber || String(subscriber.id) !== String(user.tenant_id || '')) {
+				await recordFail(clean);
+				return res.status(401).json({ error: 'بيانات الدخول أو رمز المشترك غير صحيحة' });
+			}
+		}
 		if (!user) {
 			await recordFail(clean);
 			try {
