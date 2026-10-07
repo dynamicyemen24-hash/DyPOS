@@ -63,6 +63,7 @@ import { logger } from '../lib/logger.js';
 import { VERSION } from '../lib/version.js';
 import { sendCsrfToken } from '../lib/csrf.js';
 import { registerOpeningBalanceVerbs } from './opening-balance-methods.js';
+import { registerMasterDataImportVerbs } from './master-data-import-methods.js';
 import { registerSubscriptionVerbs } from './subscription-methods.js';
 import {
 	loadInvoiceFull as loadInvoiceFullRows,
@@ -596,32 +597,35 @@ const doRegister = async (params, req, res) => {
 
 	const id = crypto.randomUUID();
 	const hash = await hashPasswordAsync(password);
+	const branchName = String(params.branchName || params.branch_name || 'المركز الرئيسي').trim().slice(0, 120) || 'المركز الرئيسي';
+	const branchCode = String(params.branchCode || params.branch_code || 'MAIN').trim().toUpperCase().slice(0, 32) || 'MAIN';
+	const requestedCurrency = String(params.currency || 'SAR').trim().toUpperCase();
+	const currency = /^[A-Z]{3}$/.test(requestedCurrency) ? requestedCurrency : 'SAR';
+	let organizationId = null;
+	let branchId = null;
+	let warehouseId = null;
 	try {
 		db.transaction(() => {
 			if (isPublicOnboarding) {
-				db.prepare('INSERT INTO tenants (id,name,code,plan) VALUES (?,?,?,?)').run(
-					tenantId,
-					companyName,
-					tenantCode,
-					'standard',
-				);
+				db.prepare('INSERT INTO tenants (id,name,code,plan) VALUES (?,?,?,?)').run(tenantId, companyName, tenantCode, 'standard');
 			}
-			db.prepare('INSERT INTO users (id,username,password_hash,full_name,role,tenant_id) VALUES (?,?,?,?,?,?)').run(
-				id,
-				username,
-				hash,
-				fullName,
-				finalRole,
-				tenantId,
-			);
+			organizationId = crypto.randomUUID();
+			db.prepare('INSERT INTO organizations (id,tenant_id,name,code) VALUES (?,?,?,?)').run(organizationId, tenantId, companyName, tenantCode);
+			warehouseId = crypto.randomUUID();
+			db.prepare('INSERT INTO warehouses (id,name,tenant_id) VALUES (?,?,?)').run(warehouseId, 'المستودع الرئيسي', tenantId);
+			branchId = crypto.randomUUID();
+			db.prepare('INSERT INTO branches (id,org_id,tenant_id,name,code,warehouse_id) VALUES (?,?,?,?,?,?)').run(branchId, organizationId, tenantId, branchName, branchCode, warehouseId);
+			db.prepare('INSERT INTO users (id,username,password_hash,full_name,role,tenant_id) VALUES (?,?,?,?,?,?)').run(id, username, hash, fullName, finalRole, tenantId);
+			try {
+				db.prepare('INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)').run('tenant.' + tenantId + '.currency', currency);
+			} catch { /* legacy settings schema may differ; onboarding core remains atomic */ }
 		})();
 	} catch (e) {
 		if (/UNIQUE/i.test(String(e.message))) return methodError(res, 409, 'ValidationError', 'بيانات الاشتراك مستخدمة مسبقًا');
 		throw e;
 	}
-	req.audit?.('auth.register', { newUser: username, role: finalRole, tenantId, publicOnboarding: isPublicOnboarding });
-	return res.status(201).json({ message: { id, username, fullName, role: finalRole, tenantId, subscriberCode: tenantCode } });
-};
+	req.audit?.('auth.register', { newUser: username, role: finalRole, tenantId, publicOnboarding: isPublicOnboarding, organizationId, branchId, warehouseId });
+	return res.status(201).json({ message: { id, username, fullName, role: finalRole, tenantId, subscriberCode: tenantCode, organizationId, branchId, warehouseId, branchName, currency } });
 def('DyPOS.api.auth.register', doRegister);
 def('dypos.auth.register', doRegister);
 
@@ -4856,6 +4860,7 @@ def('DyPOS.api.pos_profile.update_warehouse', (params, req, res) => {
 
 // ── Lowercase dypos.* aliases (the bridge uses dypos.api.*) ─────────
 registerOpeningBalanceVerbs(def, requireUser);
+registerMasterDataImportVerbs(def, requireUser);
 registerSubscriptionVerbs(def, requireUser);
 
 for (const [key, entry] of [...handlers.entries()]) {
