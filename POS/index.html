@@ -3,6 +3,28 @@
 	<head>
 		<meta charset="UTF-8" />
 		<script>
+			// Runtime compatibility guard.
+			// Some embedded/legacy SDKs expose a global namespace named Q and call
+			// Q.setTimeout. If that namespace is present but incomplete, normalize
+			// it before Vue/application code executes. Never create Q when absent:
+			// this guard is containment for an existing external namespace only.
+			(function () {
+				try {
+					var q = window.Q;
+					if (
+						q &&
+						typeof q === "object" &&
+						typeof q.setTimeout !== "function" &&
+						typeof window.setTimeout === "function"
+					) {
+						q.setTimeout = window.setTimeout.bind(window);
+					}
+				} catch (e) {
+					// Compatibility must never become a bootstrap dependency.
+				}
+			})();
+		</script>
+		<script>
 			// DyPOS theme bootstrap — runs before any CSS paints to avoid FOUC.
 			// Mirrors src/composables/useAppTheme.js persistence contract.
 			(function () {
