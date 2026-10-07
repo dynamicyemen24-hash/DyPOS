@@ -61,6 +61,9 @@ const password = ref("")
 const confirmPassword = ref("")
 const phoneNumber = ref("")
 const companyName = ref("")
+const branchName = ref("المركز الرئيسي")
+const branchCode = ref("MAIN")
+const currency = ref("SAR")
 const agreeToTerms = ref(false)
 
 const isSubmitting = ref(false)
@@ -184,6 +187,8 @@ async function submitRegistration() {
 		const emailValue = normalizeValue(email.value)
 		const phoneValue = phoneNumber.value ? phoneNumber.value.replace(/\D/g, "") : ""
 		const companyValue = normalizeValue(companyName.value)
+		const branchNameValue = normalizeValue(branchName.value) || "المركز الرئيسي"
+		const branchCodeValue = branchCode.value.trim().toUpperCase() || "MAIN"
 		const response = await fetch("/api/method/DyPOS.api.auth.register", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
@@ -196,6 +201,9 @@ async function submitRegistration() {
 				password: password.value,
 				phone: phoneValue,
 				company: companyValue,
+				branchName: branchNameValue,
+				branchCode: branchCodeValue,
+				currency: currency.value.trim().toUpperCase() || "SAR",
 			}),
 		})
 		const payload = await response.json().catch(() => ({}))
@@ -312,7 +320,7 @@ onUnmounted(() => {
 						</h2>
 
 						<p class="dy-register__subtitle">
-							أدخل بياناتك لبدء استخدام نقطة البيع الذكية.
+							أنشئ المشترك والمؤسسة والفرع الرئيسي في خطوة واحدة، ثم استورد بياناتك الأساسية وأرصدة البداية من القوالب.
 						</p>
 					</div>
 
@@ -351,7 +359,7 @@ onUnmounted(() => {
 					</h3>
 
 					<p class="dy-register__success-message">
-						مرحبًا بك في DyPOS. تم إنشاء المشترك والمؤسسة الأساسية ويمكنك الآن الدخول لإكمال إعداد الفرع والجهاز والصلاحيات.
+						مرحبًا بك في DyPOS. تم إنشاء المشترك والمؤسسة والفرع والمستودع الأساسي. بعد الدخول يمكنك استيراد الأصناف والعملاء والمخازن والأرصدة الافتتاحية من القوالب.
 					</p>
 
 					<div v-if="subscriberCode" class="dy-register__subscriber-code">
@@ -738,6 +746,31 @@ onUnmounted(() => {
 						<FeatherIcon name="alert-circle" :size="14" aria-hidden="true" />
 						{{ companyError }}
 					</span>
+					</div>
+
+					<!-- Initial Branch / Operating Defaults -->
+					<div class="dy-register__field">
+						<label for="dypos-register-branch" class="dy-register__label">الفرع الرئيسي <span class="dy-register__required" aria-hidden="true">*</span></label>
+						<div class="dy-register__input-wrap">
+							<FeatherIcon name="map-pin" :size="18" class="dy-register__input-icon" aria-hidden="true" />
+							<input id="dypos-register-branch" v-model="branchName" class="dy-register__input" type="text" dir="rtl" placeholder="المركز الرئيسي" :disabled="isSubmitting" required autocomplete="organization" />
+						</div>
+					</div>
+
+					<div class="dy-register__field">
+						<label for="dypos-register-branch-code" class="dy-register__label">رمز الفرع</label>
+						<div class="dy-register__input-wrap">
+							<FeatherIcon name="hash" :size="18" class="dy-register__input-icon" aria-hidden="true" />
+							<input id="dypos-register-branch-code" v-model="branchCode" class="dy-register__input" type="text" dir="ltr" maxlength="32" placeholder="MAIN" :disabled="isSubmitting" autocomplete="off" />
+						</div>
+					</div>
+
+					<div class="dy-register__field">
+						<label for="dypos-register-currency" class="dy-register__label">العملة الأساسية</label>
+						<div class="dy-register__input-wrap">
+							<FeatherIcon name="dollar-sign" :size="18" class="dy-register__input-icon" aria-hidden="true" />
+							<input id="dypos-register-currency" v-model="currency" class="dy-register__input" type="text" dir="ltr" maxlength="3" placeholder="SAR" :disabled="isSubmitting" autocomplete="off" />
+						</div>
 					</div>
 
 					<!-- Terms -->
