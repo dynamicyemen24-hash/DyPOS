@@ -243,6 +243,119 @@
 }
 
 /* =============================================================================
+   Executive authentication surface
+   ============================================================================= */
+
+.dy-login__panel {
+	position: relative;
+	isolation: isolate;
+}
+
+.dy-login__panel::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	border-radius: inherit;
+	background:
+		radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--dy-brand) 10%, transparent), transparent 34%),
+		linear-gradient(180deg, color-mix(in srgb, var(--dy-surface) 96%, var(--dy-brand)), var(--dy-surface));
+	z-index: -1;
+}
+
+.dy-login__header {
+	padding-block: 4px 14px;
+}
+
+.dy-login__section-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	margin-block-end: 8px;
+	padding: 5px 9px;
+	border: 1px solid color-mix(in srgb, var(--dy-brand) 20%, var(--dy-border-soft));
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--dy-brand) 7%, var(--dy-surface));
+	color: var(--dy-brand);
+	font-size: .72rem;
+	font-weight: 750;
+	letter-spacing: .02em;
+}
+
+.dy-login__title {
+	max-width: 18ch;
+	text-wrap: balance;
+	letter-spacing: -.025em;
+}
+
+.dy-login__subtitle {
+	max-width: 52ch;
+	text-wrap: pretty;
+}
+
+.dy-login__form {
+	gap: 16px;
+}
+
+.dy-login__input-wrap {
+	transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.dy-login__input-wrap:focus-within {
+	border-color: color-mix(in srgb, var(--dy-brand) 58%, var(--dy-border));
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--dy-brand) 11%, transparent);
+	background: var(--dy-surface);
+}
+
+.dy-login__submit {
+	min-height: 50px;
+	font-weight: 750;
+	letter-spacing: -.01em;
+}
+
+.dy-login__alternatives {
+	margin-block-start: 2px;
+	border: 1px solid var(--dy-border-soft);
+	border-radius: var(--dy-radius-md);
+	background: color-mix(in srgb, var(--dy-surface) 94%, var(--dy-surface-soft));
+}
+
+.dy-login__alternatives-summary {
+	min-height: 42px;
+	padding: 10px 12px;
+	font-weight: 650;
+}
+
+.dy-login__register {
+	margin-block-start: 16px;
+	text-align: center;
+}
+
+@media (max-width: 640px) {
+	.dy-login__panel {
+		border-radius: 0;
+		box-shadow: none;
+	}
+
+	.dy-login__title {
+		font-size: clamp(1.45rem, 7vw, 2rem);
+	}
+
+	.dy-login__input,
+	.dy-login__submit {
+		min-height: 50px;
+	}
+
+	.dy-login__options {
+		gap: 12px;
+	}
+
+	.dy-login__alternatives-buttons {
+		grid-template-columns: 1fr 1fr;
+	}
+}
+
+/* =============================================================================
    Brand
    ============================================================================= */
 
