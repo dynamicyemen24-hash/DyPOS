@@ -27,7 +27,6 @@ import OfflineStore from "@/services/offline-store"
 
 import {
 	PAYMENT_LABELS,
-	PAYMENT_STEPS,
 	SELF_CHECKOUT_PAYMENT_INTEGRATION_MESSAGE,
 	SESSION_STATES,
 	addLineToCart,
