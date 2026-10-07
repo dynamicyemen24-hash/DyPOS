@@ -118,7 +118,9 @@ describe("install credentials card", () => {
 		await nextTick()
 
 		expect(dispatched).toEqual({ email: EMAIL, password: PASSWORD })
-		expect(wrapper.find('[data-testid="install-credentials"]').exists()).toBe(false)
+		expect(wrapper.find('[data-testid="install-credentials"]').exists()).toBe(
+			false,
+		)
 
 		globalThis.removeEventListener("dypos:fill-credentials", handler)
 		wrapper.unmount()
