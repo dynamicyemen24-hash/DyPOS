@@ -469,15 +469,32 @@ async function saveOfflineInvoice(invoiceData) {
 			throw new Error("Cannot save empty invoice")
 		}
 
-		// Generate unique offline_id for deduplication
-		const offlineId = generateOfflineId()
+		// Generate the queue identity without mutating the caller-owned invoice object.
+		// The queue id is the server-side idempotency anchor for this offline operation.
+		const offlineId =
+			typeof invoiceData.offline_id === "string" && invoiceData.offline_id.trim()
+				? invoiceData.offline_id.trim()
+				: generateOfflineId()
+		const storedInvoiceData = { ...invoiceData, offline_id: offlineId }
 
-		// Store offline_id in the invoice data for server-side tracking
-		invoiceData.offline_id = offlineId
+		// A retried enqueue with the same explicit operation id must be idempotent.
+		const existing = await db
+			.table("invoice_queue")
+			.where("offline_id")
+			.equals(offlineId)
+			.first()
+		if (existing) {
+			return {
+				success: true,
+				id: existing.id,
+				offline_id: offlineId,
+				deduplicated: true,
+			}
+		}
 
 		const id = await db.table("invoice_queue").add({
 			offline_id: offlineId,
-			data: invoiceData,
+			data: storedInvoiceData,
 			timestamp: Date.now(),
 			synced: false,
 			retry_count: 0,
