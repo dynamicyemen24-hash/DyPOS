@@ -729,6 +729,16 @@ watch(
                     <img :src="DyPOSLogo" alt="DyPOS" class="dy-login__logo" width="48" height="48" decoding="async" />
                 </span>
             </a>
+            <div class="dy-login__brand-copy">
+                <span class="dy-login__brand-kicker">{{ __('نظام نقاط البيع والكاشير الذكي') }}</span>
+                <h2>{{ __('ادخل وابدأ العمل') }}</h2>
+                <p>{{ __('جلسة تشغيل واحدة، أداء سريع، واستمرارية العمل حتى عند انقطاع الشبكة.') }}</p>
+                <div class="dy-login__brand-points">
+                    <span><FeatherIcon name="zap" :size="14" aria-hidden="true" /> {{ __('دخول سريع') }}</span>
+                    <span><FeatherIcon name="wifi-off" :size="14" aria-hidden="true" /> {{ __('Offline First') }}</span>
+                    <span><FeatherIcon name="shield" :size="14" aria-hidden="true" /> {{ __('هوية وصلاحيات المشترك') }}</span>
+                </div>
+            </div>
             <CompanyFooter class="dy-login__brand-company" />
             <LoginAppearanceBar :compact="true" class="dy-login__preferences" />
             <TechnicalModeToggle class="dy-login__technical-toggle" />
