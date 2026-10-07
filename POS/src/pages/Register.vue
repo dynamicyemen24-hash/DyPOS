@@ -28,7 +28,7 @@ import { ActionButton } from "dypos-ui"
 import CompanyFooter from "@/components/common/CompanyFooter.vue"
 import PasswordStrengthBar from "@/components/reports/dashboards/core/PasswordStrengthBar.vue"
 
-import { goToLogin } from "@/router"
+import router, { goToLogin } from "@/router"
 import { session } from "@/stores/session"
 import { normalizeArabic } from "@/utils/arabic"
 import { logger } from "@/utils/logger"
@@ -70,6 +70,8 @@ const isSubmitting = ref(false)
 const registerError = ref("")
 const registerSuccess = ref(false)
 const subscriberCode = ref("")
+const isEnteringSystem = ref(false)
+const entryError = ref("")
 
 const fullNameInput = ref(null)
 const emailInput = ref(null)
@@ -212,6 +214,32 @@ async function submitRegistration() {
 		subscriberCode.value = String(result?.subscriberCode || "").trim()
 		registerSuccess.value = true
 		emit("registered")
+
+		// التسجيل الناجح لا يترك المشترك عند شاشة نجاح ميتة:
+		// نتحقق فورًا من الحساب الذي أُنشئ، ثم نفتح جلسة التشغيل وننقل
+		// المستخدم إلى نقطة البيع. لا نحفظ كلمة المرور؛ تبقى في الذاكرة
+		// حتى انتهاء هذا الطلب فقط.
+		isEnteringSystem.value = true
+		entryError.value = ""
+		try {
+			await session.login({
+			usr: emailValue,
+			pwd: password.value,
+			subscriberCode: subscriberCode.value,
+		})
+			if (typeof session.bootstrap === "function") {
+				await session.bootstrap()
+			}
+			await router.replace({ name: "POSSale" })
+			return
+		} catch (entryErrorValue) {
+			entryError.value =
+				entryErrorValue?.message ||
+				"تم إنشاء المشترك، لكن تعذر فتح جلسة التشغيل تلقائيًا. يمكنك الدخول يدويًا."
+			log.warn("Registration succeeded but automatic sign-in failed", entryErrorValue)
+		} finally {
+			isEnteringSystem.value = false
+		}
 	} catch (error) {
 		registerSuccess.value = false
 		registerError.value = error?.message || "تعذر إنشاء الاشتراك. تحقق من الاتصال وحاول مرة أخرى."
@@ -359,8 +387,16 @@ onUnmounted(() => {
 					</h3>
 
 					<p class="dy-register__success-message">
-						مرحبًا بك في DyPOS. تم إنشاء المشترك والمؤسسة والفرع والمستودع الأساسي. بعد الدخول يمكنك استيراد الأصناف والعملاء والمخازن والأرصدة الافتتاحية من القوالب.
+						مرحبًا بك في DyPOS. تم إنشاء المشترك والمؤسسة والفرع والمستودع الأساسي، ويتم الآن تجهيز جلسة التشغيل.
 					</p>
+					<div v-if="isEnteringSystem" class="dy-register__success-progress" role="status" aria-live="polite">
+						<FeatherIcon name="loader" :size="18" aria-hidden="true" />
+						<span>جاري فتح النظام وتجهيز بيانات المشترك...</span>
+					</div>
+					<div v-else-if="entryError" class="dy-register__success-recovery" role="alert" aria-live="assertive">
+						<strong>تم إنشاء المشترك بنجاح.</strong>
+						<span>{{ entryError }}</span>
+					</div>
 
 					<div v-if="subscriberCode" class="dy-register__subscriber-code">
 						<strong>رمز المشترك</strong>
@@ -368,11 +404,12 @@ onUnmounted(() => {
 						<small>احتفظ به لربط أجهزة ومستخدمي المشترك بالنطاق الصحيح.</small>
 					</div>
 					<ActionButton
+						v-if="entryError"
 						variant="solid"
 						size="lg"
 						@click="goToLogin"
 					>
-						الانتقال إلى تسجيل الدخول
+						تسجيل الدخول والمتابعة
 					</ActionButton>
 				</div>
 
