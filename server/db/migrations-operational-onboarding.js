@@ -4,16 +4,11 @@
  * DyPOS is a cashier/POS system. This stores operational identity only;
  * accounting/fiscal-year data belongs to the separate accounting product.
  */
-export function migrateOperationalOnboarding(db) {
-  db.exec(`
-    ALTER TABLE organizations ADD COLUMN country_code TEXT NOT NULL DEFAULT 'YE';
-  `);
-  db.exec(`
-    ALTER TABLE organizations ADD COLUMN timezone TEXT NOT NULL DEFAULT 'Asia/Aden';
-  `);
-  db.exec(`
-    ALTER TABLE organizations ADD COLUMN establishment_type TEXT NOT NULL DEFAULT 'retail';
-  `);
+export function migrateOperationalOnboarding(db, addColumnIfMissing) {
+  // v37 can be retried after a deferred/partial upgrade; schema changes must be idempotent.
+  addColumnIfMissing('organizations', 'country_code', "TEXT NOT NULL DEFAULT 'YE'");
+  addColumnIfMissing('organizations', 'timezone', "TEXT NOT NULL DEFAULT 'Asia/Aden'");
+  addColumnIfMissing('organizations', 'establishment_type', "TEXT NOT NULL DEFAULT 'retail'");
   db.exec(`
     CREATE TABLE IF NOT EXISTS onboarding_templates (
       id TEXT PRIMARY KEY,
