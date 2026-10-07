@@ -209,6 +209,7 @@ import {
 } from "@/components/reports/dashboards/inventory/stockManagementData"
 import { useDashboardExport } from "@/components/reports/dashboards/core/useDashboardExport"
 import WorkEmptyState from "@/components/work/WorkEmptyState.vue"
+import { useToast } from "@/composables/useToast"
 
 import WorkShell from "@/components/work/WorkShell.vue"
 import WorkToolbar from "@/components/work/WorkToolbar.vue"
@@ -275,6 +276,7 @@ const currentPage = ref(1)
 
 const selectedProduct = ref(null)
 const selectedRows = ref([])
+const { showWarning } = useToast()
 const showAdjustmentDialog = ref(false)
 const showTransferDialog = ref(false)
 const showImportExportDialog = ref(false)
@@ -571,13 +573,22 @@ const breadcrumbs = computed(() => [
 	{ label: "إدارة المخزون", current: true },
 ])
 
+function openPrimaryAdjustment() {
+	const selected = selectedRows.value?.[0] || null
+	if (!selected) {
+		showWarning("حدد صنفًا من الجدول أولًا لتنفيذ التسوية")
+		return
+	}
+	openAdjustment(selected)
+}
+
 const primaryActions = ref([
 	{
 		id: "adjustment",
 		label: "تسوية",
 		icon: "edit-2",
 		variant: "primary",
-		handler: () => {},
+		handler: openPrimaryAdjustment,
 	},
 ])
 
