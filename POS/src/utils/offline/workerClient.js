@@ -427,8 +427,11 @@ class OfflineWorkerClient {
 					lastSync: null,
 				}
 			case "PING_SERVER":
+				// Never claim server connectivity when the worker is unavailable.
+				return false
 			case "CHECK_OFFLINE":
-				return true // Assume offline when worker unavailable
+				// Only the browser signal is knowable in this fallback path.
+				return payload?.browserOnline === false
 			case "SAVE_INVOICE":
 			case "DELETE_INVOICE":
 			case "CACHE_ITEMS":
