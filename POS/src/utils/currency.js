@@ -183,7 +183,7 @@ export function formatCurrency(
 /** Format value as number string (no symbol) */
 export function formatCurrencyNumber(value, locale = DEFAULT_LOCALE) {
 	if (typeof value !== "number" || Number.isNaN(value)) return "0.00"
-	return getFormatter(settings.currency, locale).format(value)
+	return getFormatter(settings.currency, locale).format(value).replace(/[\u200E\u200F\u061C]/g, "")
 }
 
 /**
