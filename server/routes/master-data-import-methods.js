@@ -112,18 +112,18 @@ function validateRows(type, rows, tenantId) {
       if (!Number.isFinite(price)||price<0) { errors.push({row:line,message:'سعر البيع غير صالح'}); continue; }
       if (!Number.isFinite(cost)||cost<0) { errors.push({row:line,message:'التكلفة غير صالحة'}); continue; }
       if (!Number.isFinite(tax)||tax<0||tax>100) { errors.push({row:line,message:'الضريبة يجب أن تكون بين 0 و100'}); continue; }
-      const exists=db.prepare('SELECT id FROM products WHERE code=? AND (tenant_id=? OR tenant_id IS NULL)').get(key,tenantId);
+      const exists=db.prepare('SELECT id FROM products WHERE code=? AND tenant_id=?').get(key,tenantId);
       if (exists) { errors.push({row:line,message:'كود الصنف موجود مسبقًا: '+key}); continue; }
     } else if (type==='customers') {
       if (String(r.name||'').trim().length<2) { errors.push({row:line,message:'اسم العميل مطلوب'}); continue; }
       if (r.credit_limit!=='' && (!Number.isFinite(Number(r.credit_limit)) || Number(r.credit_limit)<0)) { errors.push({row:line,message:'حد الائتمان غير صالح'}); continue; }
       if (r.id) {
-        const exists=db.prepare('SELECT id FROM customers WHERE id=? AND (tenant_id=? OR tenant_id IS NULL)').get(String(r.id).trim(),tenantId);
+        const exists=db.prepare('SELECT id FROM customers WHERE id=? AND tenant_id=?').get(String(r.id).trim(),tenantId);
         if (exists) { errors.push({row:line,message:'معرّف العميل موجود مسبقًا: '+r.id}); continue; }
       }
     } else {
       if (String(r.name||'').trim().length<2) { errors.push({row:line,message:'اسم المخزن مطلوب'}); continue; }
-      if (r.id && db.prepare('SELECT id FROM warehouses WHERE id=? AND (tenant_id=? OR tenant_id IS NULL)').get(String(r.id).trim(),tenantId)) { errors.push({row:line,message:'معرّف المخزن موجود مسبقًا: '+r.id}); continue; }
+      if (r.id && db.prepare('SELECT id FROM warehouses WHERE id=? AND tenant_id=?').get(String(r.id).trim(),tenantId)) { errors.push({row:line,message:'معرّف المخزن موجود مسبقًا: '+r.id}); continue; }
     }
     valid.push(r);
   }
@@ -151,9 +151,9 @@ function applyRows(type, rows, tenantId, userId) {
     const org=db.prepare('SELECT id,name,country_code,timezone,establishment_type FROM organizations WHERE tenant_id=? AND is_active=1 ORDER BY created_at LIMIT 1').get(tenantId);
     if(!org) return res.status(404).json({message:'المؤسسة غير موجودة'});
     const readiness = {
-      products: Number(db.prepare('SELECT COUNT(*) AS n FROM products WHERE tenant_id=? OR tenant_id IS NULL').get(tenantId)?.n || 0),
-      customers: Number(db.prepare('SELECT COUNT(*) AS n FROM customers WHERE tenant_id=? OR tenant_id IS NULL').get(tenantId)?.n || 0),
-      warehouses: Number(db.prepare('SELECT COUNT(*) AS n FROM warehouses WHERE tenant_id=? OR tenant_id IS NULL').get(tenantId)?.n || 0),
+      products: Number(db.prepare('SELECT COUNT(*) AS n FROM products WHERE tenant_id=?').get(tenantId)?.n || 0),
+      customers: Number(db.prepare('SELECT COUNT(*) AS n FROM customers WHERE tenant_id=?').get(tenantId)?.n || 0),
+      warehouses: Number(db.prepare('SELECT COUNT(*) AS n FROM warehouses WHERE tenant_id=?').get(tenantId)?.n || 0),
       defaultWarehouse: getSetting('default_warehouse',''),
       currency: getSetting('currency',''),
     };
