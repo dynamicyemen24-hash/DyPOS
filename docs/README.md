@@ -137,3 +137,20 @@ When adding new documentation:
 3. Follow the existing documentation style
 4. Include code examples where appropriate
 5. Add troubleshooting sections
+
+
+## ⚖️ المركز القانوني والسياسات — DyPOS 2.0
+
+الوثائق التجارية والقانونية المرجعية:
+
+- [مركز السياسات القانونية](LEGAL_CENTER.md)
+- [سياسة الخصوصية](PRIVACY_POLICY.md)
+- [شروط وأحكام الاستخدام](TERMS_OF_SERVICE.md)
+- [سياسة الاشتراك والأرصدة](SUBSCRIPTION_CREDITS_POLICY.md)
+- [سياسة الإلغاء والاسترداد](REFUND_AND_CANCELLATION_POLICY.md)
+- [سياسة ملفات الارتباط والتخزين المحلي](COOKIES_AND_LOCAL_STORAGE_POLICY.md)
+- [سياسة الاستخدام المقبول](ACCEPTABLE_USE_POLICY.md)
+- [الإشعارات والتواصل القانوني](LEGAL_CONTACT_AND_NOTICES.md)
+- [الترخيص والملكية](../license.txt)
+
+**تنبيه:** DyPOS منتج تجاري مملوك وليس مجانيًا أو مفتوح المصدر. الأرصدة المجانية جزء من نموذج الخدمة ولا تغيّر طبيعة الترخيص.
