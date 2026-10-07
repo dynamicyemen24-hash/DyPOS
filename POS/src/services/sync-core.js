@@ -354,7 +354,7 @@ export async function runInitialSync({
  * @param {boolean} [opts.full=false]
  * @returns {Promise<{pulled: number, pushed: number, conflicts: number, checkpoint: number, pullError: *, pushError: *}>}
  */
-export async function runSyncCycle({
+async function runSyncCycleInternal({
 	protocol = getProtocol(),
 	store = defaultStore,
 	full = false,
@@ -426,6 +426,23 @@ export async function runSyncCycle({
 		pullError,
 		pushError,
 	}
+}
+
+let activeSyncCycle = null
+
+/**
+ * Serialize sync cycles at the engine boundary. UI guards are insufficient:
+ * visibility changes, reconnect events and manual sync can fire concurrently.
+ * A single in-flight cycle prevents duplicate push attempts and checkpoint
+ * races while still allowing callers to await the same result.
+ */
+export function runSyncCycle(options = {}) {
+	if (activeSyncCycle) return activeSyncCycle
+	const cycle = runSyncCycleInternal(options)
+	activeSyncCycle = cycle.finally(() => {
+		if (activeSyncCycle === cycle) activeSyncCycle = null
+	})
+	return activeSyncCycle
 }
 
 export default {
