@@ -85,3 +85,18 @@ describe("detectOfflineMode — pure local, zero network", () => {
 		setLinkMode(LINK_MODES.STANDALONE, LINK_REASONS.REVOKED)
 	})
 })
+
+
+describe("Login.vue template timer safety", () => {
+	it("never resolves browser setTimeout through the Vue render context", async () => {
+		const { readFile } = await import("node:fs/promises")
+		const source = await readFile(
+			new URL("../src/pages/Login.vue", import.meta.url),
+			"utf8",
+		)
+
+		expect(source).not.toMatch(/@(?:blur|click|input|change)="[^"]*\bsetTimeout\s*\(/)
+		expect(source).toContain('@blur="deferHideEmailSuggestions"')
+		expect(source).toContain("window.setTimeout")
+	})
+})
