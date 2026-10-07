@@ -12,6 +12,8 @@
  */
 import { describe, expect, it, vi } from "vitest"
 import { join } from "node:path"
+import { defineComponent, ref } from "vue"
+import { mount } from "@vue/test-utils"
 
 import {
 	detectOfflineMode,
@@ -98,6 +100,30 @@ describe("Login.vue template timer safety", () => {
 
 		expect(source).not.toMatch(/@(?:blur|click|input|change)="[^"]*\bsetTimeout\s*\(/)
 		expect(source).toContain('@blur="deferHideEmailSuggestions"')
-		expect(source).toContain("window.setTimeout")
+	})
+
+	it("owns the browser timer in the composable and cancels the previous hide", async () => {
+		const { useLoginEmailBlur } = await import("../src/composables/useLoginEmailBlur.js")
+		vi.useFakeTimers()
+		const visible = ref(true)
+		let api
+		const wrapper = mount(defineComponent({
+			setup() {
+				api = useLoginEmailBlur({ showEmailSuggestions: visible, delay: 200 })
+				return () => null
+			},
+		}))
+
+		api.deferHideEmailSuggestions()
+		vi.advanceTimersByTime(199)
+		expect(visible.value).toBe(true)
+		api.deferHideEmailSuggestions()
+		vi.advanceTimersByTime(1)
+		expect(visible.value).toBe(true)
+		vi.advanceTimersByTime(199)
+		expect(visible.value).toBe(false)
+
+		wrapper.unmount()
+		vi.useRealTimers()
 	})
 })
