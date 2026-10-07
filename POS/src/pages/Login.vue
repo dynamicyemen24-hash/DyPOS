@@ -542,6 +542,7 @@ async function submitLogin() {
 			await session.login({
 				usr: sanitizeForInput(email.value.trim()),
 				pwd: sanitizeForInput(password.value),
+				subscriberCode: sanitizeForInput(subscriberCode.value.trim().toUpperCase()),
 			})
 
 			if (!offlineDetected.value) {
