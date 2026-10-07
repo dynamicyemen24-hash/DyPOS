@@ -25,7 +25,7 @@ const profileMessage = ref("");
 const setup = ref({
   countryCode: "YE",
   timezone: "Asia/Aden",
-  currency: r.organization?.currency || countries.value.find((x) => x.code === (r.organization?.country_code || "YE"))?.currency || "YER",
+  currency: "YER",
   establishmentType: "retail",
 });
 
