@@ -46,6 +46,7 @@ const ROUTE_NAMES = Object.freeze({
 	WORK_SCREENS: "WorkScreens",
 	SETTINGS: "Settings",
 	OPENING_BALANCES: "OpeningBalances",
+	MASTER_DATA_IMPORT: "MasterDataImport",
 	THIRD_PARTY_SALES: "ThirdPartySales",
 	SELF_CHECKOUT: "SelfCheckout",
 	QUEUE: "Queue",
@@ -62,6 +63,7 @@ const ROUTE_TITLES = Object.freeze({
 	[ROUTE_NAMES.WORK_SCREENS]: "شاشات العمل",
 	[ROUTE_NAMES.SETTINGS]: "الإعدادات العامة",
 	[ROUTE_NAMES.OPENING_BALANCES]: "الأرصدة الافتتاحية",
+	[ROUTE_NAMES.MASTER_DATA_IMPORT]: "استيراد البيانات الأساسية",
 	[ROUTE_NAMES.THIRD_PARTY_SALES]: "البيع بالنيابة",
 	[ROUTE_NAMES.SELF_CHECKOUT]: "الكاشير الذاتي",
 	[ROUTE_NAMES.QUEUE]: "الطوابير",
@@ -246,6 +248,15 @@ const routes = [
 		path: "/opening-balances",
 		name: ROUTE_NAMES.OPENING_BALANCES,
 		component: () => import("@/pages/OpeningBalancesPage.vue"),
+		meta: {
+			[ROUTE_META.requiresAuth]: true,
+		},
+	},
+
+	{
+		path: "/master-data-import",
+		name: ROUTE_NAMES.MASTER_DATA_IMPORT,
+		component: () => import("@/pages/MasterDataImportPage.vue"),
 		meta: {
 			[ROUTE_META.requiresAuth]: true,
 		},
