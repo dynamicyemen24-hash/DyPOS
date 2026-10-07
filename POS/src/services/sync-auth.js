@@ -40,6 +40,12 @@ export const authState = {
 	isInitialized: false,
 }
 
+
+// Refresh-token rotation is often single-use. Serialize concurrent callers
+// (reconnect, visibility and multiple sync triggers) so only one refresh
+// request can consume the refresh token at a time.
+let refreshPromise = null
+
 /**
  * Load persisted auth from localStorage + IndexedDB at boot.
  */
@@ -231,22 +237,30 @@ export async function getValidToken() {
 		)
 	}
 
-	try {
-		const result = await refreshTokenViaPlatform(authState.refreshToken)
-		await saveAuth(
-			result.access_token,
-			result.refresh_token || authState.refreshToken,
-			result.expires_in || 3600,
-			result.tenant_id || authState.tenantId,
-			result.employee_id || authState.employeeId,
-		)
-		return authState.token
-	} catch (error) {
-		if (error.kind === SyncErrorKind.AUTH_REVOKED) {
-			await revokeAuth()
+	if (refreshPromise) return refreshPromise
+
+	refreshPromise = (async () => {
+		try {
+			const result = await refreshTokenViaPlatform(authState.refreshToken)
+			await saveAuth(
+				result.access_token,
+				result.refresh_token || authState.refreshToken,
+				result.expires_in || 3600,
+				result.tenant_id || authState.tenantId,
+				result.employee_id || authState.employeeId,
+			)
+			return authState.token
+		} catch (error) {
+			if (error.kind === SyncErrorKind.AUTH_REVOKED) {
+				await revokeAuth()
+			}
+			throw error
+		} finally {
+			refreshPromise = null
 		}
-		throw error
-	}
+	})()
+
+	return refreshPromise
 }
 
 export default {
