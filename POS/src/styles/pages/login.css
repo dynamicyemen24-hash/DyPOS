@@ -3484,3 +3484,23 @@
     padding-block: 20px;
   }
 }
+
+
+/* Legal navigation — quiet secondary layer, never competing with sign-in. */
+.dy-login__legal {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 16px;
+  margin: 12px auto 0;
+  max-width: 500px;
+  font-size: .72rem;
+}
+.dy-login__legal a {
+  color: var(--dy-text-muted);
+  text-decoration: none;
+}
+.dy-login__legal a:hover {
+  color: var(--dy-accent);
+  text-decoration: underline;
+}
