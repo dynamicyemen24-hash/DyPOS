@@ -131,6 +131,23 @@ function onCountryChange() {
   }
 }
 
+const registerStep = ref(1)
+const registerStepCount = 3
+const registerStepMeta = computed(() => [
+	{ number: 1, title: "بيانات الحساب", hint: "الهوية وبيانات الدخول" },
+	{ number: 2, title: "المنشأة والفرع", hint: "البيانات التشغيلية الأساسية" },
+	{ number: 3, title: "التهيئة", hint: "الدولة والعملة والنشاط" },
+])
+function stepOneValid() { return fullName.value.trim().length >= 2 && email.value.trim().length > 0 && isPasswordAcceptable(password.value) && password.value === confirmPassword.value }
+function stepTwoValid() { return companyName.value.trim().length >= 2 }
+function nextRegisterStep() {
+	clearErrors()
+	if (registerStep.value === 1 && !stepOneValid()) { registerError.value = "أكمل بيانات الحساب وتحقق من كلمة المرور قبل المتابعة."; return }
+	if (registerStep.value === 2 && !stepTwoValid()) { registerError.value = "أدخل اسم المنشأة قبل المتابعة."; return }
+	registerStep.value = Math.min(registerStepCount, registerStep.value + 1)
+}
+function previousRegisterStep() { clearErrors(); registerStep.value = Math.max(1, registerStep.value - 1) }
+
 const canSubmit = computed(() => {
 	return (
 		fullName.value.trim().length >= 2 &&
@@ -384,6 +401,13 @@ onUnmounted(() => {
 
 		<section class="dy-register__panel">
 			<div class="dy-register__panel-inner">
+				<!-- Guided registration progress -->
+				<nav class="dy-register__progress" aria-label="مراحل التسجيل">
+					<div v-for="item in registerStepMeta" :key="item.number" class="dy-register__progress-item" :class="{ 'is-active': registerStep === item.number, 'is-done': registerStep > item.number }">
+						<span>{{ item.number }}</span><strong>{{ item.title }}</strong><small>{{ item.hint }}</small>
+					</div>
+				</nav>
+
 				<!-- Header -->
 
 				<header class="dy-register__header">
@@ -512,7 +536,7 @@ onUnmounted(() => {
 				>
 					<!-- Full Name -->
 
-					<div class="dy-register__field">
+					<div v-if="registerStep === 1" class="dy-register__field">
 						<label
 							for="dypos-register-name"
 							class="dy-register__label"
@@ -561,7 +585,7 @@ onUnmounted(() => {
 
 					<!-- Email -->
 
-					<div class="dy-register__field">
+					<div v-if="registerStep === 1" class="dy-register__field">
 						<label
 							for="dypos-register-email"
 							class="dy-register__label"
@@ -611,7 +635,7 @@ onUnmounted(() => {
 
 					<!-- Password -->
 
-					<div class="dy-register__field">
+					<div v-if="registerStep === 1" class="dy-register__field">
 						<div class="dy-register__label-row">
 							<label
 								for="dypos-register-password"
@@ -695,7 +719,7 @@ onUnmounted(() => {
 
 					<!-- Confirm Password -->
 
-					<div class="dy-register__field">
+					<div v-if="registerStep === 1" class="dy-register__field">
 						<label
 							for="dypos-register-confirm"
 							class="dy-register__label"
@@ -760,7 +784,7 @@ onUnmounted(() => {
 
 					<!-- Phone (Optional) -->
 
-					<div class="dy-register__field">
+					<div v-if="registerStep === 1" class="dy-register__field">
 						<label
 							for="dypos-register-phone"
 							class="dy-register__label"
@@ -794,7 +818,7 @@ onUnmounted(() => {
 
 					<!-- Company (Required for a new subscriber tenant) -->
 
-					<div class="dy-register__field">
+					<div v-if="registerStep === 2" class="dy-register__field">
 						<label
 							for="dypos-register-company"
 							class="dy-register__label"
@@ -836,7 +860,7 @@ onUnmounted(() => {
 					</div>
 
 					<!-- Initial Branch / Operating Defaults -->
-					<div class="dy-register__field">
+					<div v-if="registerStep === 2" class="dy-register__field">
 						<label for="dypos-register-branch" class="dy-register__label">الفرع الرئيسي <span class="dy-register__required" aria-hidden="true">*</span></label>
 						<div class="dy-register__input-wrap">
 							<FeatherIcon name="map-pin" :size="18" class="dy-register__input-icon" aria-hidden="true" />
@@ -844,7 +868,7 @@ onUnmounted(() => {
 						</div>
 					</div>
 
-					<div class="dy-register__field">
+					<div v-if="registerStep === 2" class="dy-register__field">
 						<label for="dypos-register-branch-code" class="dy-register__label">رمز الفرع</label>
 						<div class="dy-register__input-wrap">
 							<FeatherIcon name="hash" :size="18" class="dy-register__input-icon" aria-hidden="true" />
@@ -852,7 +876,7 @@ onUnmounted(() => {
 						</div>
 					</div>
 
-					<div class="dy-register__field">
+					<div v-if="registerStep === 3" class="dy-register__field">
 						<label for="dypos-register-country" class="dy-register__label">الدولة</label>
 						<div class="dy-register__input-wrap">
 							<FeatherIcon name="globe" :size="18" class="dy-register__input-icon" aria-hidden="true" />
@@ -862,7 +886,7 @@ onUnmounted(() => {
 						</div>
 					</div>
 
-					<div class="dy-register__field">
+					<div v-if="registerStep === 3" class="dy-register__field">
 						<label for="dypos-register-establishment-type" class="dy-register__label">نوع المنشأة</label>
 						<div class="dy-register__input-wrap">
 							<FeatherIcon name="briefcase" :size="18" class="dy-register__input-icon" aria-hidden="true" />
@@ -872,7 +896,7 @@ onUnmounted(() => {
 						</div>
 					</div>
 
-					<div class="dy-register__field">
+					<div v-if="registerStep === 3" class="dy-register__field">
 						<label for="dypos-register-currency" class="dy-register__label">العملة الأساسية</label>
 						<div class="dy-register__input-wrap">
 							<FeatherIcon name="dollar-sign" :size="18" class="dy-register__input-icon" aria-hidden="true" />
@@ -882,7 +906,7 @@ onUnmounted(() => {
 
 					<!-- Terms -->
 
-					<div class="dy-register__terms">
+					<div v-if="registerStep === 3" class="dy-register__terms">
 						<label class="dy-register__checkbox-label">
 							<input
 								v-model="agreeToTerms"
@@ -909,6 +933,12 @@ onUnmounted(() => {
 								</a>
 							</span>
 						</label>
+					</div>
+
+					<!-- Guided registration navigation -->
+					<div class="dy-register__wizard-actions">
+						<ActionButton v-if="registerStep > 1" type="button" variant="subtle" size="lg" :disabled="isSubmitting" @click="previousRegisterStep">السابق</ActionButton>
+						<ActionButton v-if="registerStep < registerStepCount" type="button" variant="solid" size="lg" :disabled="isSubmitting" @click="nextRegisterStep">التالي <FeatherIcon name="arrow-left" :size="17" /></ActionButton>
 					</div>
 
 					<!-- Submit -->
@@ -1205,6 +1235,15 @@ onUnmounted(() => {
    Form
    ============================================================================= */
 
+.dy-register__progress { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:0 0 var(--dy-space-6); }
+.dy-register__progress-item { display:grid; grid-template-columns:auto 1fr; column-gap:8px; align-items:center; min-width:0; padding:9px 10px; border:1px solid var(--dy-border); border-radius:var(--dy-radius-md); background:var(--dy-surface); color:var(--dy-text-muted); }
+.dy-register__progress-item > span { grid-row:span 2; display:flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:999px; background:var(--dy-bg); font-weight:800; }
+.dy-register__progress-item strong,.dy-register__progress-item small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dy-register__progress-item strong { font-size:.76rem; color:var(--dy-text-secondary); }
+.dy-register__progress-item small { font-size:.64rem; }
+.dy-register__progress-item.is-active { border-color:var(--dy-accent); background:rgb(var(--dy-brand-c-500) / .06); color:var(--dy-text-strong); }
+.dy-register__progress-item.is-done > span { background:var(--dy-accent); color:var(--dy-on-accent); }
+.dy-register__wizard-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:var(--dy-space-2); }
 .dy-register__form {
 	display: flex;
 	flex-direction: column;
@@ -1521,6 +1560,8 @@ onUnmounted(() => {
    ============================================================================= */
 
 @media (max-width: 768px) {
+	.dy-register__progress { grid-template-columns:1fr; gap:6px; }
+
 	.dy-register--mobile .dy-register__panel-inner {
 		padding-inline: 24px;
 	}
