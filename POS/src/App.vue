@@ -62,6 +62,8 @@
 		-->
 		<ServiceWorkerUpdateBanner />
 
+		<PwaInstallPrompt />
+
 		<!--
 			Live cart recovery notice — global so an unsent open invoice
 			surviving a restart, power cut, or logout is offered back
@@ -105,6 +107,7 @@ import Toast from "@/components/common/Toast.vue"
 import ServiceWorkerUpdateBanner from "@/components/reports/dashboards/core/ServiceWorkerUpdateBanner.vue"
 import LiveCartRecoveryBanner from "@/components/reports/dashboards/core/LiveCartRecoveryBanner.vue"
 import NotificationBar from "@/components/NotificationBar.vue"
+import PwaInstallPrompt from "@/components/common/PwaInstallPrompt.vue"
 import { PROFESSIONAL_NOTIF_EVENT } from "@/composables/useSaleNotification"
 import { useAppTheme } from "@/composables/useAppTheme"
 import { useLocale } from "@/composables/useLocale"
