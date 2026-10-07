@@ -565,20 +565,6 @@ async function submitLogin() {
 }
 
 /**
- * Confirm on the on-screen numeric keypad.
- *
- * The keypad's `✓` key emits `confirm` and the page bound it to a handler that
- * did not exist, so the button rendered and did nothing — a dead contract in the
- * exact shape AGENTS.md warns about: a control a cashier taps on the shop floor
- * that silently does nothing. It routes through the SAME `submitLogin` the
- * on-screen button uses, so there is still one login path, one rate-limit
- * check, and one session bootstrap.
- */
-async function handleKeyboardSubmit() {
-	await submitLogin()
-}
-
-/**
  * PIN sign-in and PIN setup both land here once `LoginPinForm` reports success.
  *
  * The form owns the fields and the messages; the page owns the session, so the
