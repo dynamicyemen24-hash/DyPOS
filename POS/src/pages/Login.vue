@@ -956,7 +956,7 @@ watch(
                             class="dy-login__input-wrap"
                         >
                             <FeatherIcon
-                                name="mail"
+                                name="user"
                                 :size="18"
                                 class="dy-login__input-icon"
                                 aria-hidden="true"
@@ -969,11 +969,11 @@ watch(
                                 class="dy-login__input"
                                 :class="{ 'dy-login__input--error': emailMissing }"
                                 type="text"
-                                inputmode="email"
+                                inputmode="text"
                                 name="username"
-                                autocomplete="email"
+                                autocomplete="username"
                                 dir="ltr"
-                                placeholder="name@company.com أو اسم المستخدم"
+                                 :placeholder="__('البريد الإلكتروني أو اسم المستخدم')"
                                 :disabled="isSubmitting"
                                 autocapitalize="none"
                                 autocorrect="off"
@@ -984,6 +984,7 @@ watch(
                                 @input="clearLoginError"
                                 @focus="showEmailSuggestions = true"
                                 @blur="deferHideEmailSuggestions"
+                                @keydown.enter.prevent="passwordInput?.focus?.()"
                             />
                             <!-- Email Domain Suggestions -->
                             <LoginEmailSuggestions
@@ -1001,7 +1002,7 @@ watch(
                             aria-live="polite"
                         >
                             <FeatherIcon name="alert-circle" :size="14" aria-hidden="true" />
-                            {{ __('البريد الإلكتروني مطلوب') }}
+                            {{ __('البريد الإلكتروني أو اسم المستخدم مطلوب') }}
                         </span>
                     </div>
 
@@ -1263,8 +1264,13 @@ watch(
                         <span class="dy-login__subscriber-value">{{ subscriberCode }}</span>
                     </div>
 
-                    <!-- Subscriber / tenant binding: optional for established devices,
-                         authoritative when supplied on server login. -->
+                    <!-- Subscriber / tenant binding: progressive disclosure keeps the primary
+                         login path simple; when supplied it is enforced by the server. -->
+                    <details class="dy-login__subscriber-options">
+                        <summary class="dy-login__alternatives-summary">
+                            <FeatherIcon name="briefcase" :size="16" aria-hidden="true" />
+                            <span>{{ __('خيارات المشترك والمؤسسة') }}</span>
+                        </summary>
                     <div class="dy-login__field dy-login__subscriber-field">
                         <label for="dypos-login-subscriber" class="dy-login__label">
                             {{ __('رمز المشترك') }}
@@ -1290,9 +1296,10 @@ watch(
                             />
                         </div>
                         <small class="dy-login__field-help">
-                            {{ __('للمشتركين الذين لديهم أكثر من مؤسسة أو فرع، استخدم الرمز المعتمد من إدارة الاشتراك.') }}
+                            {{ __('اتركه فارغًا في الدخول المعتاد. استخدم الرمز المعتمد فقط عند الحاجة لتحديد نطاق المشترك.') }}
                         </small>
                     </div>
+                    </details>
 
                     <!-- Submit -->
 
@@ -1327,6 +1334,9 @@ watch(
                         {{ __(submitLabel) }}
                     </ActionButton>
                 </form>
+
+                <!-- Guided onboarding: collapsed by default to keep the login path simple. -->
+                <LoginOnboardingGuide />
 
                 <!-- =================================================================
                      Quick-access row: PIN entry + setup
