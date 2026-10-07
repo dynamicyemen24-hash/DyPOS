@@ -3,6 +3,7 @@ import { methodGetList } from "@/utils/methodClient"
 import { endpoints } from "@/utils/apiEndpoints"
 import { useBiometric } from "@/composables/useBiometric"
 import { logger } from "@/utils/logger"
+import { isLinkEnabled } from "@/services/link-consent"
 
 const log = logger.create("useLoginMethods")
 
@@ -49,6 +50,7 @@ export function useLoginMethods({
 	}
 
 	async function loadBranches() {
+		if (!isLinkEnabled()) return
 		try {
 			const response = await methodGetList(endpoints.branches.list, {
 				fields: ["name"],
