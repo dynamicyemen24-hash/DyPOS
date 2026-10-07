@@ -43,7 +43,6 @@
 /* Imports                                                                    */
 /* -------------------------------------------------------------------------- */
 
-import qz from "qz-tray"
 import { ref } from "vue"
 
 import { call } from "@/utils/apiWrapper"
@@ -142,6 +141,34 @@ let connectPromise = null
 let securityEpoch = 0
 
 let callbacksInstalled = false
+
+// QZ Tray is a peripheral integration, never a login/bootstrap dependency.
+// Load it only when a user explicitly enters a print/device operation. This
+// prevents a broken/incompatible QZ runtime from aborting the application
+// entry bundle (the exact class of failure seen as Q.setTimeout errors).
+let qz = null
+let qzModulePromise = null
+
+async function loadQZ() {
+	if (qz) return qz
+	if (qzModulePromise) return qzModulePromise
+
+	qzModulePromise = import("qz-tray")
+		.then((module) => {
+			qz = module?.default || module
+			if (!qz?.websocket) {
+				throw new Error("QZ Tray client is unavailable")
+			}
+			return qz
+		})
+		.catch((error) => {
+			qzModulePromise = null
+			qz = null
+			throw normalizeError(error, "Unable to load QZ Tray client")
+		})
+
+	return qzModulePromise
+}
 
 /* -------------------------------------------------------------------------- */
 /* Browser helpers                                                            */
@@ -441,6 +468,7 @@ export async function connect(options = {}) {
 }
 
 async function performConnect(options = {}) {
+	await loadQZ()
 	setupSecurity()
 	installQZCallbacks()
 
@@ -490,7 +518,7 @@ async function performConnect(options = {}) {
  * Disconnect from QZ Tray.
  */
 export async function disconnect() {
-	if (!isQZActive()) {
+	if (!qz || !isQZActive()) {
 		qzConnected.value = false
 		qzConnecting.value = false
 		qzConnectionState.value = QZ_CONNECTION_STATES.DISCONNECTED
@@ -568,7 +596,7 @@ async function getQZVersionSafe() {
  * Public QZ version helper.
  */
 export async function getQZVersion() {
-	if (!isQZActive()) {
+	if (!qz || !isQZActive()) {
 		return null
 	}
 
