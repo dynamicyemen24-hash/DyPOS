@@ -1,9 +1,28 @@
-# Changelog
+# DyPOS 2.0.0 — الإصدار الرئيسي الثاني
 
-All notable changes to this project will be documented in this file.
+## 2026-10-07 — Production Major Release
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+### الهدف
+الانتقال من سلسلة 1.x إلى خط إصدار رئيسي 2.x مع تثبيت DyPOS كمنصة نقاط بيع تجارية offline-first قابلة للتشغيل الفعلي، مع الحفاظ على المنتج الحالي ومسار الترقية.
+
+### الجودة والأمان
+- إغلاق الثغرة عالية الخطورة في source-map-js وتثبيته على 1.2.2.
+- توحيد رقم الإصدار للمنتج والواجهة والخادم وملفات lock.
+- استمرار بوابات الاختبار وlint وtypecheck وbuild وbundle budget وparity وcontract وbackup/restore وlive verification.
+- تحديث GitHub Actions إلى الإصدارات الحديثة.
+
+### التشغيل الفعلي
+- استمرار Offline-first للعمليات الأساسية.
+- استمرار idempotency والمزامنة الآمنة وعزل المستأجرين والجلسات.
+- استمرار حماية Service Worker والكاش ومنع نشر shell/worker قديم.
+
+### ترقية الإصدار
+- السابق: 1.48.0
+- الجديد: **2.0.0**
+- لا ينشئ هذا الإصدار تطبيقًا ثانيًا ولا قاعدة بيانات ثانية؛ إنه خط الإصدار الرئيسي الجديد فوق المنتج الحالي.
+
+---
+
 ## [1.48.0] - 2026-10-06 — بيع ذرّي دائم + شاشة أعمال التدقيق + إقلاع أسرع
 
 ### ✨ Added
