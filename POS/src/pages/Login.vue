@@ -1357,6 +1357,12 @@ watch(
                     </RouterLink>
                 </p>
 
+                <nav class="dy-login__legal" aria-label="الوثائق القانونية">
+                    <RouterLink :to="{ name: 'Terms' }">شروط الاستخدام</RouterLink>
+                    <RouterLink :to="{ name: 'Privacy' }">الخصوصية</RouterLink>
+                    <RouterLink :to="{ name: 'Agreement' }">اتفاقية المشترك</RouterLink>
+                </nav>
+
             </div>
         </section>
 <!-- Technical mode panels rendered outside the form for full width -->
