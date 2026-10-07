@@ -23,7 +23,7 @@ import { ActionButton } from "dypos-ui"
 
 // The retired four-family button import was left behind after the 1.44.5
 // unification, so this page failed to resolve — and nothing caught it:
-// `vite build` reports one missing module at a time, and no test mounted the
+// vite build` reports one missing module at a time, and no test mounted the
 // register screen until the mount-every-SFC block landed.
 import CompanyFooter from "@/components/common/CompanyFooter.vue"
 import PasswordStrengthBar from "@/components/reports/dashboards/core/PasswordStrengthBar.vue"
@@ -1464,4 +1464,4 @@ onUnmounted(() => {
 .dy-register__checkbox-label:focus-visible {
 	border-radius: var(--dy-radius-sm);
 }
-</style>
+`.dy-register__subscriber-code { display:grid; gap:6px; margin:0 0 16px; padding:12px; border:1px solid var(--dy-border); border-radius:10px; background:var(--dy-bg-elevated); } .dy-register__subscriber-code code { font-size:1.1rem; font-weight:800; letter-spacing:.08em; } .dy-register__subscriber-code small { color:var(--dy-text-muted); }\n</style>
