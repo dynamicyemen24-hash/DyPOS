@@ -40,6 +40,9 @@ const ROUTE_NAMES = Object.freeze({
 	REGISTER: "Register",
 	FORGOT_PASSWORD: "ForgotPassword",
 	RESET_PASSWORD: "ResetPassword",
+	TERMS: "Terms",
+	PRIVACY: "Privacy",
+	AGREEMENT: "Agreement",
 	NOT_FOUND: "NotFound",
 	STOCK_MANAGEMENT: "StockManagement",
 	REPORTS: "Reports",
@@ -58,6 +61,9 @@ const ROUTE_TITLES = Object.freeze({
 	[ROUTE_NAMES.REGISTER]: "حساب جديد",
 	[ROUTE_NAMES.FORGOT_PASSWORD]: "استعادة كلمة المرور",
 	[ROUTE_NAMES.RESET_PASSWORD]: "تعيين كلمة مرور جديدة",
+	[ROUTE_NAMES.TERMS]: "شروط الاستخدام",
+	[ROUTE_NAMES.PRIVACY]: "سياسة الخصوصية",
+	[ROUTE_NAMES.AGREEMENT]: "اتفاقية المشترك",
 	[ROUTE_NAMES.REPORTS]: "التقارير",
 	[ROUTE_NAMES.STOCK_MANAGEMENT]: "إدارة المخزون",
 	[ROUTE_NAMES.WORK_SCREENS]: "شاشات العمل",
@@ -188,6 +194,25 @@ const routes = [
 		meta: {
 			[ROUTE_META.guestOnly]: true,
 		},
+	},
+
+	{
+		path: "/terms",
+		name: ROUTE_NAMES.TERMS,
+		component: () => import("@/pages/LegalPage.vue"),
+		meta: { [ROUTE_META.guestOnly]: true },
+	},
+	{
+		path: "/privacy",
+		name: ROUTE_NAMES.PRIVACY,
+		component: () => import("@/pages/LegalPage.vue"),
+		meta: { [ROUTE_META.guestOnly]: true },
+	},
+	{
+		path: "/subscriber-agreement",
+		name: ROUTE_NAMES.AGREEMENT,
+		component: () => import("@/pages/LegalPage.vue"),
+		meta: { [ROUTE_META.guestOnly]: true },
 	},
 
 	{
