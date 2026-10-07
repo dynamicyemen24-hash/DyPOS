@@ -1,4 +1,4 @@
-# DyPOS v1.48.0
+# DyPOS 2.0.0 — نظام نقاط البيع والكاشير الذكي العالمي
 
 [![CI](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/ci.yml/badge.svg)](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/ci.yml)
 [![Deploy](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/deploy-cloudflare.yml/badge.svg)](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/deploy-cloudflare.yml)
@@ -6,7 +6,7 @@
 
 ## الكاشير الذكي ونظام نقاط البيع المتكامل — جاهز للإنتاج
 
-**DyPOS** هو نظام **كاشير ذكي ونقاط بيع احترافي ومستقل** من تطوير **شركة المنافذ الذكية للبرمجيات (Smart Ports Software)**، صُمم ليخدم مختلف أنواع المنشآت التي تعتمد على عمليات البيع والتحصيل وإدارة المنتجات والخدمات والعملاء والمخزون.
+**DyPOS** هو **نظام نقاط بيع وكاشير ذكي عالمي متعدد المشتركين** من تطوير **شركة المنافذ الذكية للبرمجيات (Smart Ports Software)**، صُمم للتشغيل التجاري الفعلي مع عزل بيانات المشتركين والصلاحيات، والعمل دون اتصال والمزامنة الذكية.
 
 يدعم DyPOS **المتاجر والمطاعم والمقاهي والمنشآت الخدمية والتجزئة والأنشطة التجارية المختلفة**، مع بنية مرنة تسمح بتكييف النظام وفق طبيعة النشاط وطريقة التشغيل.
 
@@ -30,12 +30,12 @@
 
 ---
 
-## 🏷️ الإصدار الحالي: v1.48.0 (Production Ready)
+## 🏷️ الإصدار الحالي: v2.0.0 (Production Ready)
 
 | المكون | الإصدار | الحالة |
 |----------|---------|--------|
-| **Frontend (Vue 3 + Vite + PWA)** | 1.48.0 | ✅ Production |
-| **Backend (Node.js + Express + SQLite/Postgres)** | 1.48.0 | ✅ Production |
+| **Frontend (Vue 3 + Vite + PWA)** | 2.0.0 | ✅ Production |
+| **Backend (Node.js + Express + SQLite/Postgres)** | 2.0.0 | ✅ Production |
 | **PWA / Service Worker** | precache 102 assets | ✅ Active |
 | **Offline Sync Engine** | Chunked + Idempotent | ✅ Verified |
 
@@ -331,9 +331,11 @@ curl https://dypos.smartportssoft.com/assets/DyPOS/pos/version.json
 
 ---
 
-## 📄 الترخيص
+## 📄 الترخيص والملكية
 
-**ISC License** — مجاني ومفتوح المصدر للاستخدام التجاري وغير التجاري.
+**DyPOS هو منتج تجاري مملوك وليس برنامجًا مجانيًا أو مفتوح المصدر.**
+
+الأرصدة المجانية التي قد توفرها الخدمة للمشتركين هي جزء من نموذج الخدمة والعروض التجارية، ولا تعني أن المنتج أو الشفرة المصدرية مرخصة كبرمجيات حرة أو مفتوحة المصدر. جميع حقوق الملكية الفكرية والعلامة التجارية والشفرة والمنتج محفوظة لشركة المنافذ الذكية للبرمجيات (Smart Ports Software)، ويخضع استخدام الخدمة لشروط الترخيص والاشتراك المعمول بها.
 
 ---
 
