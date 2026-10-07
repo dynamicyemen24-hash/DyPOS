@@ -29,7 +29,7 @@ export const useBootstrapStore = defineStore("bootstrap", () => {
 	 * Load all initial data in a single API call
 	 * @returns {Promise<Object|null>} Bootstrap data or null on error
 	 */
-	async function loadInitialData() {
+	async function loadInitialData({ timeoutMs = 2500 } = {}) {
 		if (loaded.value) {
 			log.debug("Bootstrap data already loaded")
 			return data.value
@@ -54,7 +54,18 @@ export const useBootstrapStore = defineStore("bootstrap", () => {
 
 		try {
 			log.info("Loading bootstrap data...")
-			const result = await call("DyPOS.api.bootstrap.get_initial_data", {})
+			const request = call("DyPOS.api.bootstrap.get_initial_data", {})
+			const result = await Promise.race([
+				request,
+				new Promise((resolve) =>
+					setTimeout(() => resolve(null), Math.max(250, Number(timeoutMs) || 2500)),
+				),
+			])
+
+			if (result === null) {
+				log.warn("Bootstrap API timed out; continuing with local POS context")
+				return null
+			}
 
 			if (result?.success) {
 				data.value = result
