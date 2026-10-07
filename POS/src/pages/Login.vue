@@ -948,7 +948,7 @@ watch(
                             for="dypos-login-email"
                             class="dy-login__label"
                         >
-                            {{ __('البريد الإلكتروني') }}
+                            {{ __('البريد الإلكتروني أو اسم المستخدم') }}
                         </label>
 
                         <div
@@ -967,12 +967,12 @@ watch(
                                 v-model="email"
                                 class="dy-login__input"
                                 :class="{ 'dy-login__input--error': emailMissing }"
-                                type="email"
+                                type="text"
                                 inputmode="email"
                                 name="username"
                                 autocomplete="email"
                                 dir="ltr"
-                                placeholder="name@company.com"
+                                placeholder="name@company.com أو اسم المستخدم"
                                 :disabled="isSubmitting"
                                 autocapitalize="none"
                                 autocorrect="off"
@@ -1260,6 +1260,37 @@ watch(
                         <FeatherIcon name="barcode" :size="16" aria-hidden="true" />
                         <span class="dy-login__subscriber-label">{{ __('رمز المشترك') }}</span>
                         <span class="dy-login__subscriber-value">{{ subscriberCode }}</span>
+                    </div>
+
+                    <!-- Subscriber / tenant binding: optional for established devices,
+                         authoritative when supplied on server login. -->
+                    <div class="dy-login__field dy-login__subscriber-field">
+                        <label for="dypos-login-subscriber" class="dy-login__label">
+                            {{ __('رمز المشترك') }}
+                            <span class="dy-login__optional">{{ __('اختياري') }}</span>
+                        </label>
+                        <div class="dy-login__input-wrap">
+                            <FeatherIcon name="briefcase" :size="18" class="dy-login__input-icon" aria-hidden="true" />
+                            <input
+                                id="dypos-login-subscriber"
+                                v-model="subscriberCode"
+                                class="dy-login__input"
+                                type="text"
+                                inputmode="text"
+                                autocomplete="organization"
+                                dir="ltr"
+                                maxlength="32"
+                                placeholder="مثال: DYPOS-ABC123"
+                                :disabled="isSubmitting"
+                                autocapitalize="characters"
+                                autocorrect="off"
+                                spellcheck="false"
+                                @input="clearLoginError"
+                            />
+                        </div>
+                        <small class="dy-login__field-help">
+                            {{ __('للمشتركين الذين لديهم أكثر من مؤسسة أو فرع، استخدم الرمز المعتمد من إدارة الاشتراك.') }}
+                        </small>
                     </div>
 
                     <!-- Submit -->
