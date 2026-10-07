@@ -35,7 +35,6 @@
 				mode="register"
 				:email="email"
 				:device-label="deviceLabel"
-				@registered="onRegistered"
 			/>
 
 			<!--
@@ -87,8 +86,6 @@ function goBack() {
 	else router.replace({ name: "POSSale" })
 }
 
-/** لا شيء يُفعل: الزر نفسه يعرض تأكيده. نُبقي المستمع للتوسّع لاحقًا. */
-function onRegistered() {}
 </script>
 
 <style scoped>
