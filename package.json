@@ -23,5 +23,5 @@
   "devDependencies": {
     "playwright": "^1.57.0"
   },
-  "private": true
+  "license": "UNLICENSED"
 }
