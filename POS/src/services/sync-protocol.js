@@ -71,12 +71,13 @@ export default class SyncProtocol {
 		const url = this.buildUrl(endpoint, params)
 		const finalHeaders = await this.buildHeaders(headers)
 
+		const timeout = this.createTimeoutSignal()
 		try {
 			const response = await fetch(url, {
 				method,
 				headers: finalHeaders,
 				body: body ? JSON.stringify(body) : undefined,
-				signal: this.createTimeoutSignal(),
+				signal: timeout.signal,
 			})
 			return await this.handleResponse(response, endpoint)
 		} catch (error) {
@@ -86,6 +87,8 @@ export default class SyncProtocol {
 				})
 			}
 			throw error
+		} finally {
+			timeout.cancel()
 		}
 	}
 
@@ -121,8 +124,11 @@ export default class SyncProtocol {
 
 	createTimeoutSignal() {
 		const controller = new AbortController()
-		setTimeout(() => controller.abort(), this.timeout)
-		return controller.signal
+		const timer = setTimeout(() => controller.abort(), this.timeout)
+		return {
+			signal: controller.signal,
+			cancel: () => clearTimeout(timer),
+		}
 	}
 
 	async handleResponse(response, endpoint) {
