@@ -11,7 +11,7 @@
  * either one must fail here, not in a customer's shop.
  */
 import { describe, expect, it, vi } from "vitest"
-import { fileURLToPath } from "node:url"
+import { join } from "node:path"
 
 import {
 	detectOfflineMode,
@@ -92,7 +92,7 @@ describe("Login.vue template timer safety", () => {
 	it("never resolves browser setTimeout through the Vue render context", async () => {
 		const { readFile } = await import("node:fs/promises")
 		const source = await readFile(
-			fileURLToPath(new URL("../src/pages/Login.vue", import.meta.url)),
+			join(process.cwd(), "src/pages/Login.vue"),
 			"utf8",
 		)
 
