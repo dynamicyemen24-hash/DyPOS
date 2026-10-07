@@ -559,10 +559,13 @@ def('dypos.auth.get_logged_user', (_p, req, res) => {
 //   - `dypos.auth.register` — the pre-existing lowercase name; kept so no
 //     deployed client loses a verb.
 const doRegister = async (params, req, res) => {
-	// Canonical alias: POS Register posts { email }, legacy posts username/usr.
+	// Public registration is subscriber onboarding, not a loose user account.
+	// An authenticated ADMIN may still create a user in an existing tenant.
 	const username = String(params.username || params.usr || params.email || '').trim();
 	const password = String(params.password || params.pwd || '');
 	const fullName = String(params.full_name || params.fullName || username).trim();
+	const companyName = String(params.company || params.company_name || params.organization || '').trim();
+	const requestedTenantId = String(params.tenantId || '').trim();
 	const role = String(params.role || 'CASHIER').toUpperCase();
 	if (!username || username.length < 3) return methodError(res, 400, 'ValidationError', 'اسم المستخدم غير صالح');
 	if (password.length < 8 || !/(?=.*[A-Za-z])(?=.*\d)/.test(password)) {
@@ -570,25 +573,54 @@ const doRegister = async (params, req, res) => {
 	}
 	const existing = db.prepare('SELECT 1 FROM users WHERE username=?').get(username);
 	if (existing) return methodError(res, 409, 'ValidationError', 'اسم المستخدم موجود مسبقًا');
-	const countRow = db.prepare('SELECT COUNT(*) as c FROM users').get();
-	const isBootstrap = Number(countRow?.c || 0) === 0;
-	const finalRole = ['ADMIN', 'MANAGER', 'CASHIER', 'AUDITOR'].includes(role) ? role : 'CASHIER';
-	if (!isBootstrap && (finalRole === 'ADMIN' || finalRole === 'MANAGER')) {
-		if (req.user?.role !== 'ADMIN') {
-			return methodError(res, 403, 'PermissionError', 'التسجيل يتطلب صلاحية مدير');
-		}
+
+	const isPublicOnboarding = !req.user;
+	let tenantId = requestedTenantId || null;
+	let tenantCode = null;
+	let finalRole = ['ADMIN', 'MANAGER', 'CASHIER', 'AUDITOR'].includes(role) ? role : 'CASHIER';
+
+	if (isPublicOnboarding) {
+		if (requestedTenantId) return methodError(res, 403, 'PermissionError', 'إنشاء اشتراك جديد لا يقبل نطاق مشترك موجود');
+		if (companyName.length < 2) return methodError(res, 400, 'ValidationError', 'اسم المؤسسة مطلوب لإنشاء اشتراك جديد');
+		finalRole = 'ADMIN';
+		tenantId = crypto.randomUUID();
+		tenantCode = `DYPOS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+	} else if (requestedTenantId) {
+		const tenant = db.prepare('SELECT id FROM tenants WHERE id=? AND is_active=1').get(requestedTenantId);
+		if (!tenant) return methodError(res, 404, 'NotFoundError', 'المشترك غير موجود أو موقوف');
+		if (req.user.role !== 'ADMIN') return methodError(res, 403, 'PermissionError', 'فقط المدير يمكنه إنشاء حسابات داخل المشترك');
+		tenantId = requestedTenantId;
+	} else if (finalRole === 'ADMIN' || finalRole === 'MANAGER') {
+		if (req.user.role !== 'ADMIN') return methodError(res, 403, 'PermissionError', 'التسجيل يتطلب صلاحية مدير');
 	}
+
 	const id = crypto.randomUUID();
 	const hash = await hashPasswordAsync(password);
-	db.prepare('INSERT INTO users (id,username,password_hash,full_name,role) VALUES (?,?,?,?,?)').run(
-		id,
-		username,
-		hash,
-		fullName,
-		finalRole,
-	);
-	req.audit?.('auth.register', { newUser: username, role: finalRole });
-	return res.json({ message: { id, username, fullName, role: finalRole } });
+	try {
+		db.transaction(() => {
+			if (isPublicOnboarding) {
+				db.prepare('INSERT INTO tenants (id,name,code,plan) VALUES (?,?,?,?)').run(
+					tenantId,
+					companyName,
+					tenantCode,
+					'standard',
+				);
+			}
+			db.prepare('INSERT INTO users (id,username,password_hash,full_name,role,tenant_id) VALUES (?,?,?,?,?,?)').run(
+				id,
+				username,
+				hash,
+				fullName,
+				finalRole,
+				tenantId,
+			);
+		})();
+	} catch (e) {
+		if (/UNIQUE/i.test(String(e.message))) return methodError(res, 409, 'ValidationError', 'بيانات الاشتراك مستخدمة مسبقًا');
+		throw e;
+	}
+	req.audit?.('auth.register', { newUser: username, role: finalRole, tenantId, publicOnboarding: isPublicOnboarding });
+	return res.status(201).json({ message: { id, username, fullName, role: finalRole, tenantId, subscriberCode: tenantCode } });
 };
 def('DyPOS.api.auth.register', doRegister);
 def('dypos.auth.register', doRegister);
