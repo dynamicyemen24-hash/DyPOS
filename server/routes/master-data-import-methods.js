@@ -163,14 +163,14 @@ function applyRows(type, rows, tenantId, userId) {
     const timezone=String(params.timezone||country.timezone).trim().slice(0,64);
     const currency=String(params.currency||country.currency).trim().toUpperCase();
     if(!/^[A-Z]{3}$/.test(currency)) return res.status(422).json({message:'رمز العملة غير صالح'});
-    const org=db.prepare('SELECT id FROM organizations WHERE tenant_id=? AND is_active=1 ORDER BY created_at LIMIT 1').get(tenantId);
+    const org=db.prepare('SELECT id,name FROM organizations WHERE tenant_id=? AND is_active=1 ORDER BY created_at LIMIT 1').get(tenantId);
     if(!org) return res.status(404).json({message:'المؤسسة غير موجودة'});
     db.transaction(()=>{
       db.prepare('UPDATE organizations SET country_code=?, timezone=?, establishment_type=?, updated_at=datetime("now") WHERE id=? AND tenant_id=?')
         .run(country.code,timezone,type.value,org.id,tenantId);
       setSetting('currency',currency);
       setSetting('country_code',country.code);
-      setSetting('business_name',String(req.user?.full_name || '').slice(0,200));
+      setSetting('business_name',String(org.name || '').slice(0,200));
       setSetting('tax_rate_default','0');
     })();
     req.audit?.('onboarding.profile.update',{tenantId,organizationId:org.id,country:country.code,establishmentType:type.value});
