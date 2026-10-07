@@ -138,13 +138,13 @@ export const useSessionStore = defineStore("session", () => {
 	 * @returns {Promise<string|null>} The logged-in user id.
 	 */
 	async function login(credentials = {}) {
-		const { usr, pwd } = credentials || {}
+		const { usr, pwd, subscriberCode } = credentials || {}
 		if (!usr || !pwd) {
 			const error = new Error("بيانات الدخول ناقصة")
 			throw error
 		}
 
-		await lowSession.login.submit({ email: usr, password: pwd })
+		await lowSession.login.submit({ email: usr, password: pwd, subscriberCode })
 
 		// The user explicitly demanded the server (typed credentials +
 		// pressed login): grant linkage consent. Local/PIN logins never
