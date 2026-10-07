@@ -235,31 +235,28 @@ function handleGlobalKeydown(event) {
  * Lifecycle
  * ============================================================================ */
 
-onMounted(async () => {
+function handleOnline() {
+	isOfflineMode.value = false
+	showOfflineIndicator.value = false
+}
+
+function handleOffline() {
+	isOfflineMode.value = true
+	showOfflineIndicator.value = true
+}
+
+onMounted(() => {
 	window.addEventListener("keydown", handleGlobalKeydown)
+	window.addEventListener("online", handleOnline)
+	window.addEventListener("offline", handleOffline)
 	emailInput.value?.focus?.()
-
-	await detectAndSetOfflineMode()
-
-	window.addEventListener("online", () => {
-		if (isOfflineMode.value) {
-			log.info("Connection restored — switching to online mode")
-			isOfflineMode.value = false
-			showOfflineIndicator.value = false
-		}
-	})
-
-	window.addEventListener("offline", () => {
-		if (!isOfflineMode.value) {
-			log.info("Connection lost — switching to offline mode")
-			isOfflineMode.value = true
-			showOfflineIndicator.value = true
-		}
-	})
+	detectAndSetOfflineMode()
 })
 
 onUnmounted(() => {
 	window.removeEventListener("keydown", handleGlobalKeydown)
+	window.removeEventListener("online", handleOnline)
+	window.removeEventListener("offline", handleOffline)
 })
 </script>
 
