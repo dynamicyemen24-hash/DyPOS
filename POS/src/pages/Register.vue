@@ -63,8 +63,35 @@ const phoneNumber = ref("")
 const companyName = ref("")
 const branchName = ref("المركز الرئيسي")
 const branchCode = ref("MAIN")
-const currency = ref("SAR")
+const currency = ref("YER")
+const countryCode = ref("YE")
+const timezone = ref("Asia/Aden")
+const establishmentType = ref("retail")
 const agreeToTerms = ref(false)
+
+const establishmentTypes = [
+  { value: "retail", label: "متجر / تجزئة" },
+  { value: "supermarket", label: "سوبر ماركت / بقالة" },
+  { value: "restaurant", label: "مطعم" },
+  { value: "cafe", label: "مقهى / كافيه" },
+  { value: "fast_food", label: "مطاعم سريعة" },
+  { value: "bakery_sweets", label: "حلويات / مخابز" },
+  { value: "beverages", label: "عصائر / مشروبات" },
+  { value: "services", label: "منشأة خدمية" },
+  { value: "multi_branch", label: "منشأة متعددة الفروع" },
+  { value: "integrated", label: "منشأة متكاملة / ربط خارجي" },
+]
+
+const countries = [
+  { code: "YE", name: "اليمن", timezone: "Asia/Aden", currency: "YER" },
+  { code: "SA", name: "السعودية", timezone: "Asia/Riyadh", currency: "SAR" },
+  { code: "AE", name: "الإمارات", timezone: "Asia/Dubai", currency: "AED" },
+  { code: "OM", name: "عُمان", timezone: "Asia/Muscat", currency: "OMR" },
+  { code: "QA", name: "قطر", timezone: "Asia/Qatar", currency: "QAR" },
+  { code: "BH", name: "البحرين", timezone: "Asia/Bahrain", currency: "BHD" },
+  { code: "KW", name: "الكويت", timezone: "Asia/Kuwait", currency: "KWD" },
+  { code: "EG", name: "مصر", timezone: "Africa/Cairo", currency: "EGP" },
+]
 
 const isSubmitting = ref(false)
 const registerError = ref("")
@@ -96,6 +123,14 @@ const showConfirmPassword = ref(false)
  * registered with six characters and be refused the same value later.
  * One module, one answer, both screens.
  */
+function onCountryChange() {
+  const country = countries.find((item) => item.code === countryCode.value)
+  if (country) {
+    timezone.value = country.timezone
+    currency.value = country.currency
+  }
+}
+
 const canSubmit = computed(() => {
 	return (
 		fullName.value.trim().length >= 2 &&
@@ -205,7 +240,10 @@ async function submitRegistration() {
 				company: companyValue,
 				branchName: branchNameValue,
 				branchCode: branchCodeValue,
-				currency: currency.value.trim().toUpperCase() || "SAR",
+				currency: currency.value.trim().toUpperCase() || "YER",
+        countryCode: countryCode.value,
+        timezone: timezone.value,
+        establishmentType: establishmentType.value,
 			}),
 		})
 		const payload = await response.json().catch(() => ({}))
@@ -799,6 +837,26 @@ onUnmounted(() => {
 						<div class="dy-register__input-wrap">
 							<FeatherIcon name="hash" :size="18" class="dy-register__input-icon" aria-hidden="true" />
 							<input id="dypos-register-branch-code" v-model="branchCode" class="dy-register__input" type="text" dir="ltr" maxlength="32" placeholder="MAIN" :disabled="isSubmitting" autocomplete="off" />
+						</div>
+					</div>
+
+					<div class="dy-register__field">
+						<label for="dypos-register-country" class="dy-register__label">الدولة</label>
+						<div class="dy-register__input-wrap">
+							<FeatherIcon name="globe" :size="18" class="dy-register__input-icon" aria-hidden="true" />
+							<select id="dypos-register-country" v-model="countryCode" class="dy-register__input" :disabled="isSubmitting" @change="onCountryChange">
+								<option v-for="item in countries" :key="item.code" :value="item.code">{{ item.name }}</option>
+							</select>
+						</div>
+					</div>
+
+					<div class="dy-register__field">
+						<label for="dypos-register-establishment-type" class="dy-register__label">نوع المنشأة</label>
+						<div class="dy-register__input-wrap">
+							<FeatherIcon name="briefcase" :size="18" class="dy-register__input-icon" aria-hidden="true" />
+							<select id="dypos-register-establishment-type" v-model="establishmentType" class="dy-register__input" :disabled="isSubmitting">
+								<option v-for="item in establishmentTypes" :key="item.value" :value="item.value">{{ item.label }}</option>
+							</select>
 						</div>
 					</div>
 
