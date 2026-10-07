@@ -135,7 +135,7 @@ const router = useRouter()
 
 const period = provideDashboardPeriod()
 
-let filterModel = reactive({
+const filterModel = reactive({
 	from: period.from.value,
 	to: period.to.value,
 })
