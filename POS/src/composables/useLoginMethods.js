@@ -1,4 +1,3 @@
-import { ref, onMounted } from "vue"
 import { methodGetList } from "@/utils/methodClient"
 import { endpoints } from "@/utils/apiEndpoints"
 import { useBiometric } from "@/composables/useBiometric"
@@ -9,15 +8,14 @@ const log = logger.create("useLoginMethods")
 
 export function useLoginMethods({
 	selectedMethod,
-	showKeyboard,
 	biometricResult,
 	biometricAvailable,
 	branches,
 	selectedBranchId,
 	subscriberCode,
-	touchKeyboardRef,
 }) {
-	async function selectMethod(key) {		biometricResult.value = null
+	async function selectMethod(key) {
+		biometricResult.value = null
 
 		selectedMethod.value = key
 
