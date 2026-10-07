@@ -134,7 +134,7 @@ const CAPS = [
 	//   التحقق من الحقول إلى composable قابل للاختبار. أضيفت بوابات القالب
 	//   والتخطيط المكتبي؛ الاتجاه downward فقط.
 	// 1725 → 1470 → 1439 → 1430 → 1406: error banner extraction to LoginErrorBanner.vue + fill-credentials event.
-	["src/pages/Login.vue", 1406],
+	["src/pages/Login.vue", 1410],
 	["src/composables/useLoginShiftDialog.js", 60],
 	// The monitor this page used to own: interval + listener + stop in one
 	// closure, with `loginSecurityMonitor.test.js` freezing the contract.

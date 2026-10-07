@@ -4,6 +4,7 @@ const log = logger.create("CacheManager")
 
 import { call } from "@/utils/apiWrapper"
 import { db, getSetting, setSetting } from "./db"
+export { getSetting, setSetting } from "./db"
 import { offlineState } from "./offlineState"
 
 // Cache structure definition - modify this when cache structure changes

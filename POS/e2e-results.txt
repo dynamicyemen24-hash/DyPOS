@@ -1,0 +1,136 @@
+﻿
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mD:/SulationDy/DyPOS/POS[39m
+
+[90mstdout[2m | tests/offlineSale.test.js
+[22m[39m[16:57:43] INFO [Logger] Logger initialized {
+  enabled: [33mtrue[39m,
+  level: [32m'DEBUG'[39m,
+  isDev: [33mtrue[39m,
+  enabledNamespaces: [],
+  disabledNamespaces: []
+}
+[16:57:43] DEBUG [Logger] Type posLogger.help() in console for usage guide
+
+[90mstdout[2m | tests/loginRuntime.test.js
+[22m[39m[16:57:43] INFO [Logger] Logger initialized {
+  enabled: [33mtrue[39m,
+  level: [32m'DEBUG'[39m,
+  isDev: [33mtrue[39m,
+  enabledNamespaces: [],
+  disabledNamespaces: []
+}
+[16:57:43] DEBUG [Logger] Type posLogger.help() in console for usage guide
+
+[90mstdout[2m | tests/offlineFirst.test.js
+[22m[39m[16:57:43] INFO [Logger] Logger initialized {
+  enabled: [33mtrue[39m,
+  level: [32m'DEBUG'[39m,
+  isDev: [33mtrue[39m,
+  enabledNamespaces: [],
+  disabledNamespaces: []
+}
+[16:57:43] DEBUG [Logger] Type posLogger.help() in console for usage guide
+
+ [32mΓ£ô[39m tests/standaloneBoot.test.js [2m([22m[2m10 tests[22m[2m)[22m[90m 287[2mms[22m[39m
+[90mstdout[2m | tests/offlineSale.test.js
+[22m[39m[16:57:43] INFO [OfflineState] Network monitor started in standalone mode ΓÇö server pings await link consent
+[16:57:43] INFO [OfflineState] Offline state initialized {
+  isOffline: [33mfalse[39m,
+  manualOffline: [33mfalse[39m,
+  serverOnline: [33mtrue[39m,
+  browserOnline: [33mtrue[39m,
+  quality: { quality: [32m'unknown'[39m, avgLatency: [33m0[39m, successRate: [33m0[39m }
+}
+
+node.exe : [90mstderr[2m | tests/loginRuntime.test.js
+At D:\SulationDy\DyPOS\POS\node_modules\.bin\vitest.ps1:24 char:5
++     & "node$exe"  "$basedir/../vitest/vitest.mjs" $args
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([90mstderr[2m...Runtime.test.js:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[22m[39m[16:57:43] ERROR [OfflineWorker] Failed to create worker ReferenceError: Worker is not defined
+    at OfflineWorkerClient.init [90m(D:\SulationDy\DyPOS\POS\[39msrc\utils\offline\workerClient.js:54:22[90m)[39m
+    at [90mD:\SulationDy\DyPOS\POS\[39msrc\utils\offline\workerClient.js:694:16
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+    at VitestExecutor.runModule 
+[90m(file:///D:/SulationDy/DyPOS/POS/[39mnode_modules/[4mvite-node[24m/dist/client.mjs:399:5[90m)[39m
+    at VitestExecutor.directRequest 
+[90m(file:///D:/SulationDy/DyPOS/POS/[39mnode_modules/[4mvite-node[24m/dist/client.mjs:381:5[90m)[39m
+    at VitestExecutor.cachedRequest 
+[90m(file:///D:/SulationDy/DyPOS/POS/[39mnode_modules/[4mvite-node[24m/dist/client.mjs:206:14[90m)[39m
+    at VitestExecutor.dependencyRequest 
+[90m(file:///D:/SulationDy/DyPOS/POS/[39mnode_modules/[4mvite-node[24m/dist/client.mjs:259:12[90m)[39m
+    at [90mD:\SulationDy\DyPOS\POS\[39msrc\composables\useLoginRuntime.js:4:31
+    at VitestExecutor.runModule 
+[90m(file:///D:/SulationDy/DyPOS/POS/[39mnode_modules/[4mvite-node[24m/dist/client.mjs:399:5[90m)[39m
+    at VitestExecutor.directRequest 
+[90m(file:///D:/SulationDy/DyPOS/POS/[39mnode_modules/[4mvite-node[24m/dist/client.mjs:381:5[90m)[39m
+[16:57:44] ERROR [OfflineWorker] Worker crashed: Worker creation failed Worker is not defined
+
+[90mstdout[2m | tests/loginRuntime.test.js
+[22m[39m[16:57:44] INFO [OfflineWorker] Attempting worker restart in 4000ms
+[16:57:44] INFO [OfflineState] Network monitor started in standalone mode ΓÇö server pings await link consent
+[16:57:44] INFO [OfflineState] Offline state initialized {
+  isOffline: [33mfalse[39m,
+  manualOffline: [33mfalse[39m,
+  serverOnline: [33mtrue[39m,
+  browserOnline: [33mtrue[39m,
+  quality: { quality: [32m'unknown'[39m, avgLatency: [33m0[39m, successRate: [33m0[39m }
+}
+
+[90mstdout[2m | tests/offlineFirst.test.js
+[22m[39m[16:57:44] INFO [OfflineDB] Schema changed detected. Upgrading from v1 to v2
+[16:57:44] DEBUG [OfflineDB] Initializing database with schema version: 2
+
+ [32mΓ£ô[39m tests/offlineFirst.test.js [2m([22m[2m9 tests[22m[2m)[22m[90m 43[2mms[22m[39m
+[90mstdout[2m | Logger.success (D:\SulationDy\DyPOS\POS\src\utils\logger.js:260:12)
+[22m[39m[16:57:44] INFO [OfflineDB] DyPOS offline database initialized
+
+[90mstdout[2m | tests/offlineSale.test.js[2m > [22m[2moffline sale ΓÇö ┘è╪╣┘à┘ä ╪¿┘ä╪º ╪Ñ┘å╪¬╪▒┘å╪¬╪î ╪¿╪º┘ä┘â╪º┘à┘ä[2m > [22m[2mrings up a whole sale and takes the money with every wire trapped
+[22m[39m[16:57:44] INFO [Sync] Invoice saved to offline queue { offline_id: [32m'pos_offline_06e3955a-278e-4ceb-8e21-a17ce59fd417'[39m }
+
+[90mstdout[2m | tests/offlineSale.test.js[2m > [22m[2moffline sale ΓÇö ┘è╪╣┘à┘ä ╪¿┘ä╪º ╪Ñ┘å╪¬╪▒┘å╪¬╪î ╪¿╪º┘ä┘â╪º┘à┘ä[2m > [22m[2mtakes the stock off the shelf so a second terminal cannot oversell
+[22m[39m[16:57:44] INFO [Sync] Invoice saved to offline queue { offline_id: [32m'pos_offline_642baaaa-0dd4-40b6-8f8e-63c8b56a2516'[39m }
+
+[90mstdout[2m | tests/offlineSale.test.js[2m > [22m[2moffline sale ΓÇö ┘è╪╣┘à┘ä ╪¿┘ä╪º ╪Ñ┘å╪¬╪▒┘å╪¬╪î ╪¿╪º┘ä┘â╪º┘à┘ä[2m > [22m[2mkeeps the sale pending for sync instead of pushing it on its own
+[22m[39m[16:57:44] INFO [Sync] Invoice saved to offline queue { offline_id: [32m'pos_offline_4121e48c-9ec1-4775-8ac7-2c618da1b809'[39m }
+
+[90mstdout[2m | tests/offlineSale.test.js[2m > [22m[2moffline sale ΓÇö ┘è╪╣┘à┘ä ╪¿┘ä╪º ╪Ñ┘å╪¬╪▒┘å╪¬╪î ╪¿╪º┘ä┘â╪º┘à┘ä[2m > [22m[2msurvives the network staying dead ΓÇö a second sale is still a real sale
+[22m[39m[16:57:44] INFO [Sync] Invoice saved to offline queue { offline_id: [32m'pos_offline_4b3b1859-0643-4d64-a4cc-1c63e00e5bbb'[39m }
+[16:57:44] INFO [Sync] Invoice saved to offline queue { offline_id: [32m'pos_offline_5c5edcff-0834-48d1-9a17-9d2e52663c5a'[39m }
+
+ [32mΓ£ô[39m tests/offlineSale.test.js [2m([22m[2m9 tests[22m[2m)[22m[90m 45[2mms[22m[39m
+[90mstdout[2m | tests/loginRuntime.test.js
+[22m[39m[16:57:45] INFO [OfflineDB] Schema changed detected. Upgrading from v1 to v2
+[16:57:45] DEBUG [OfflineDB] Initializing database with schema version: 2
+
+[90mstdout[2m | tests/loginRuntime.test.js
+[22m[39m[16:57:45] INFO [OfflineDB] DyPOS offline database initialized
+
+[90mstdout[2m | tests/loginRuntime.test.js
+[22m[39m[16:57:45] DEBUG [CacheManager] Cache structure changed. Upgrading from v1 to v2
+[16:57:45] DEBUG [CacheManager] Initializing memory cache...
+
+[90mstdout[2m | tests/loginRuntime.test.js
+[22m[39m[16:57:45] DEBUG [CacheManager] Cache initialized: 0 items, 0 customers
+[16:57:45] DEBUG [CacheManager] Cache ready: false, Stock ready: false
+
+[90mstderr[2m | tests/loginRuntime.test.js[2m > [22m[2museLoginRuntime ΓÇö exported bindings[2m > [22m[2mbinds 
+sanitizeForInput to the securityHardening implementation
+[22m[39m[16:57:46] WARN [SecurityHardening] [SecurityEvent] xss_blocked { reason: [32m'html_tag'[39m, length: 
+[33m8[39m }
+
+[90mstdout[2m | tests/loginRuntime.test.js[2m > [22m[2mdetectOfflineMode ΓÇö pure local, zero network[2m > [22m[2mleaves standalone mode only through granted linkage
+[22m[39m[16:57:46] INFO [OfflineState] Link consent revoked ΓÇö server pings stopped
+
+[90mstdout[2m | tests/loginRuntime.test.js[2m > [22m[2mdetectOfflineMode ΓÇö pure local, zero network[2m > [22m[2mnever calls fetch while deciding the mode
+[22m[39m[16:57:46] INFO [OfflineState] Link consent revoked ΓÇö server pings stopped
+
+ [32mΓ£ô[39m tests/loginRuntime.test.js [2m([22m[2m7 tests[22m[2m)[22m[90m 21[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m4 passed[39m[22m[90m (4)[39m
+[2m      Tests [22m [1m[32m35 passed[39m[22m[90m (35)[39m
+[2m   Start at [22m 19:57:40
+[2m   Duration [22m 6.46s[2m (transform 2.50s, setup 270ms, collect 4.57s, tests 395ms, environment 5.92s, prepare 1.07s)[22m
+

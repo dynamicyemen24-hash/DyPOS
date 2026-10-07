@@ -153,7 +153,15 @@ const props = defineProps({
 	},
 })
 
-const emit = defineEmits(["clear", "register", "forgot-password", "retry-backend", "offline-login", "focus-email", "focus-password"])
+const emit = defineEmits([
+	"clear",
+	"register",
+	"forgot-password",
+	"retry-backend",
+	"offline-login",
+	"focus-email",
+	"focus-password",
+])
 
 const isWrongPassword = computed(() => {
 	if (!props.error) return false
@@ -171,7 +179,12 @@ const isOfflineMode = computed(() => props.isOfflineMode)
 const isBackendUnavailable = computed(() => props.isBackendUnavailable)
 
 const hasRecoveryAction = computed(() => {
-	return isWrongPassword.value || isMissingUserOrSubscriber.value || isOfflineMode.value || isBackendUnavailable.value
+	return (
+		isWrongPassword.value ||
+		isMissingUserOrSubscriber.value ||
+		isOfflineMode.value ||
+		isBackendUnavailable.value
+	)
 })
 
 const showQuickFix = computed(() => {
@@ -182,51 +195,57 @@ const showQuickFix = computed(() => {
 
 const errorHint = computed(() => {
 	if (!props.error) return ""
-	
+
 	if (isWrongPassword.value) {
-		return __('تأكد من كتابة كلمة المرور بشكل صحيح، مع مراعاة حالة الأحرف (Caps Lock)')
+		return __(
+			"تأكد من كتابة كلمة المرور بشكل صحيح، مع مراعاة حالة الأحرف (Caps Lock)",
+		)
 	}
-	
+
 	if (isMissingUserOrSubscriber.value) {
-		return __('تحقق من كتابة البريد الإلكتروني بشكل صحيح، أو سجل ك مشترك جديد')
+		return __("تحقق من كتابة البريد الإلكتروني بشكل صحيح، أو سجل ك مشترك جديد")
 	}
-	
+
 	if (isOfflineMode.value) {
-		return __('الوضع غير متصل: سيتم تسجيل الدخول محلياً ومزامنة البيانات عند عودة الاتصال')
+		return __(
+			"الوضع غير متصل: سيتم تسجيل الدخول محلياً ومزامنة البيانات عند عودة الاتصال",
+		)
 	}
-	
+
 	if (isBackendUnavailable.value) {
-		return __('خدمة المزامنة غير متاحة مؤقتاً، يمكنك المتابعة في وضع عدم الاتصال')
+		return __(
+			"خدمة المزامنة غير متاحة مؤقتاً، يمكنك المتابعة في وضع عدم الاتصال",
+		)
 	}
-	
+
 	return ""
 })
 
 function handleForgotPassword() {
-	emit('forgot-password')
+	emit("forgot-password")
 }
 
 function handleOfflineLogin() {
-	emit('offline-login')
+	emit("offline-login")
 }
 
 function handleRetryBackend() {
-	emit('retry-backend')
+	emit("retry-backend")
 }
 
 function focusEmailField() {
-	emit('focus-email')
+	emit("focus-email")
 }
 
 function focusPasswordField() {
-	emit('focus-password')
+	emit("focus-password")
 }
 
 function clearErrorAndFocus() {
-	emit('clear')
+	emit("clear")
 	// Focus email field after a brief delay to allow error to clear
 	setTimeout(() => {
-		emit('focus-email')
+		emit("focus-email")
 	}, 100)
 }
 </script>

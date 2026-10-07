@@ -12,9 +12,8 @@ export function useCompleteAuthentication({
 	installSessionSecurityMonitor,
 	handleAuthSuccess,
 	emit,
-	stage,
 }) {
-	function completeAuthentication() {
+	function completeAuthentication(stage) {
 		loginRateLimiter.recordSuccess()
 		sessionReady.value = true
 		authenticationCompleted.value = true

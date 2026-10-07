@@ -197,8 +197,6 @@ const showShortcutsHelp = ref(false)
 
 const showEmailSuggestions = ref(false)
 
-const { completeEmail } = useLoginEmail({ email, emailInput, showEmailSuggestions })
-
 /** تلميح Caps Lock: يُحدَّث من الحدث نفسه، لا بمراقب دائم للمستند. */
 const { capsLockOn, trackCapsLock } = useCapsLock()
 
@@ -264,6 +262,12 @@ const {
 } = useRememberedEmail({
 	enabled: props.rememberEmail,
 	onError: (message, error) => log.debug(message, error),
+})
+
+const { completeEmail } = useLoginEmail({
+	email,
+	emailInput,
+	showEmailSuggestions,
 })
 
 const {
@@ -454,12 +458,13 @@ const { technicalModeEnabled } = useTechnicalMode()
  * Error
  * ========================================================================== */
 
-const { handleOfflineLogin, focusEmailField, focusPasswordField } = useLoginErrorHandling({
-	loginError,
-	emailInput,
-	passwordInput,
-	clearLoginError,
-})
+const { handleOfflineLogin, focusEmailField, focusPasswordField } =
+	useLoginErrorHandling({
+		loginError,
+		emailInput,
+		passwordInput,
+		clearLoginError,
+	})
 
 /** خطأ واحد واضح، ومسار واحد لعرضه وإخفائه. */
 function clearLoginError() {
@@ -484,7 +489,6 @@ const { completeAuthentication } = useCompleteAuthentication({
 	installSessionSecurityMonitor,
 	handleAuthSuccess,
 	emit,
-	stage,
 })
 
 /**
@@ -1403,5 +1407,4 @@ watch(
         <NotificationBar />
     </main>
 </template>
-
 <style scoped src="@/styles/pages/login.css"></style>
