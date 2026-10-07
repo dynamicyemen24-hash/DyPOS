@@ -25,11 +25,18 @@ const profileMessage = ref("");
 const setup = ref({
   countryCode: "YE",
   timezone: "Asia/Aden",
-  currency: "YER",
+  currency: r.organization?.currency || countries.value.find((x) => x.code === (r.organization?.country_code || "YE"))?.currency || "YER",
   establishmentType: "retail",
 });
 
 const activeTab = ref("profile");
+const currentStep = ref(1);
+const loading = ref(true);
+const online = ref(typeof navigator === "undefined" ? true : navigator.onLine);
+const lastValidatedCsv = ref("");
+const lastValidatedType = ref("");
+const canApply = computed(() => Boolean(csv.value.trim()) && Boolean(report.value?.dryRun) && report.value?.invalid === 0 && lastValidatedCsv.value === csv.value && lastValidatedType.value === type.value);
+const progress = computed(() => activeTab.value === "profile" ? 25 : currentStep.value === 1 ? 50 : currentStep.value === 2 ? 75 : 100);
 
 async function call(path, body = {}) {
   const response = await fetch("/api/method/" + path, {
@@ -128,9 +135,12 @@ function download(text, filename) {
 
 async function preview() {
   busy.value = true;
+  currentStep.value = 2;
   try {
     const r = await call("DyPOS.api.onboarding.import_master_data", { type: type.value, csv: csv.value, dryRun: 1 });
     report.value = r;
+    lastValidatedCsv.value = csv.value;
+    lastValidatedType.value = type.value;
   } catch (e) {
     report.value = { error: e.message };
   } finally {
@@ -139,10 +149,14 @@ async function preview() {
 }
 
 async function apply() {
+  if (!canApply.value) return;
   busy.value = true;
+  currentStep.value = 3;
   try {
     const r = await call("DyPOS.api.onboarding.import_master_data", { type: type.value, csv: csv.value });
     report.value = r;
+    lastValidatedCsv.value = "";
+    lastValidatedType.value = "";
     await loadTemplates();
   } catch (e) {
     report.value = { error: e.message };
@@ -175,6 +189,9 @@ function useTemplate(item) {
   csv.value = item.content;
   selectedTemplateId.value = item.id;
   report.value = null;
+  lastValidatedCsv.value = "";
+  lastValidatedType.value = "";
+  currentStep.value = 1;
   activeTab.value = "import";
 }
 
@@ -196,29 +213,34 @@ const currentCountry = computed(() => countries.value.find((x) => x.code === set
 const currentType = computed(() => establishmentTypes.value.find((x) => x.value === setup.value.establishmentType));
 
 onMounted(async () => {
-  try {
-    await Promise.all([loadProfile(), loadTemplates()]);
-  } catch (e) {
-    report.value = { error: e.message };
-  }
+  loading.value = true;
+  const results = await Promise.allSettled([loadProfile(), loadTemplates()]);
+  const failed = results.find((x) => x.status === "rejected");
+  if (failed) report.value = { error: failed.reason?.message || "تعذر تحميل بيانات مركز الإعداد" };
+  loading.value = false;
+  window.addEventListener("online", () => { online.value = true; });
+  window.addEventListener("offline", () => { online.value = false; });
 });
 </script>
 
 <template>
   <main class="onboarding" dir="rtl">
+    <div v-if="loading" class="loading-shell" role="status" aria-live="polite"><div class="spinner"></div><strong>جاري تحميل مركز الإعداد…</strong><span>بيانات حقيقية مرتبطة بالمشترك الحالي.</span></div>
+    <template v-else>
     <header class="head">
       <div>
         <span class="eyebrow">DyPOS · تهيئة المشترك</span>
         <h1>مركز إعداد وتشغيل المنشأة</h1>
         <p>تهيئة تشغيلية حقيقية للكاشير ونقاط البيع، مستقلة عن النظام المحاسبي.</p>
       </div>
-      <button class="back" @click="router.back()">رجوع</button>
+      <div class="head-actions"><span class="connection" :class="{offline: !online}"><i></i>{{ online ? "متصل" : "اتصال غير متاح" }}</span><button class="back" @click="router.back()">رجوع</button></div>
     </header>
 
+    <div class="progressbar"><span :style="{width: progress + '%'}"></span></div>
     <nav class="tabs" aria-label="مراحل التهيئة">
-      <button :class="{active: activeTab === 'profile'}" @click="activeTab='profile'">المؤسسة والتشغيل</button>
-      <button :class="{active: activeTab === 'import'}" @click="activeTab='import'">استيراد البيانات</button>
-      <button :class="{active: activeTab === 'templates'}" @click="activeTab='templates'">القوالب المحفوظة</button>
+      <button :class="{active: activeTab === 'profile'}" @click="activeTab='profile'"><b>1</b> المؤسسة والتشغيل</button>
+      <button :class="{active: activeTab === 'import'}" @click="activeTab='import'"><b>2</b> استيراد البيانات</button>
+      <button :class="{active: activeTab === 'templates'}" @click="activeTab='templates'"><b>3</b> القوالب المحفوظة</button>
     </nav>
 
     <section v-if="activeTab === 'profile'" class="card">
@@ -290,8 +312,8 @@ onMounted(async () => {
       </div>
 
       <div class="actions">
-        <button :disabled="busy || !csv.trim()" @click="preview">تحقق ومعاينة بلا كتابة</button>
-        <button class="primary" :disabled="busy || !csv.trim() || report?.invalid" @click="apply">اعتماد الاستيراد الذري</button>
+        <button :disabled="busy || !csv.trim()" @click="preview">① تحقق ومعاينة بلا كتابة</button>
+        <button class="primary" :disabled="busy || !canApply" @click="apply">② اعتماد الاستيراد الذري</button>
       </div>
 
       <section v-if="report" class="report">
@@ -299,6 +321,7 @@ onMounted(async () => {
         <p v-else-if="report.success" class="success">{{ report.success }}</p>
         <template v-else>
           <strong v-if="report.dryRun">المعاينة: {{ report.valid }} صالح، {{ report.invalid }} مرفوض — لم تُكتب أي بيانات.</strong>
+          <div v-if="report.dryRun" class="summary-strip"><span>جاهز للاعتماد: <b>{{ report.invalid === 0 ? "نعم" : "لا" }}</b></span><span>السجلات: <b>{{ report.valid + report.invalid }}</b></span><span>المرحلة: <b>{{ report.invalid === 0 ? "اعتماد" : "تصحيح" }}</b></span></div>
           <strong v-else>تم الاستيراد الفعلي: {{ report.applied }} سجل.</strong>
           <ul v-if="report.errors?.length">
             <li v-for="(e,i) in report.errors" :key="i">سطر {{ e.row ?? "—" }}: {{ e.message }}</li>
@@ -311,6 +334,7 @@ onMounted(async () => {
       <div class="section-title">
         <div><strong>القوالب المحفوظة</strong><p>القالب محفوظ داخل بيانات المشترك، ويمكن تحميله وتعديله وإعادة استخدامه.</p></div>
       </div>
+      <div class="smart-note">القوالب محفوظة داخل بيانات المشترك ويمكن إعادة استخدامها وتعديلها دون إعادة تعريف الأعمدة.</div>
       <div v-if="!templates.length" class="empty">لا توجد قوالب محفوظة بعد.</div>
       <article v-for="item in templates" :key="item.id" class="template-row">
         <div>
@@ -324,16 +348,17 @@ onMounted(async () => {
       </article>
     </section>
   </main>
+    </template>
 </template>
 
 <style scoped>
-.onboarding{min-height:100dvh;padding:32px;display:grid;gap:18px;background:var(--dy-bg);color:var(--dy-text)}
-.head{display:flex;justify-content:space-between;gap:20px;align-items:center}.eyebrow{font-size:12px;color:var(--dy-accent);font-weight:700}.head h1{margin:4px 0;font-size:28px;color:var(--dy-text-strong)}.head p{margin:0;color:var(--dy-text-muted)}
-.tabs{display:flex;gap:6px;flex-wrap:wrap}.tabs button,.actions button,.back,.file{min-height:42px;padding:0 15px;border:1px solid var(--dy-border);border-radius:10px;background:var(--dy-surface);color:var(--dy-text);cursor:pointer}.tabs .active{background:var(--dy-accent);color:var(--dy-on-accent);border-color:var(--dy-accent)}
+.onboarding{min-height:100dvh;padding:32px;display:grid;gap:18px;background:var(--dy-bg);color:var(--dy-text);max-width:1280px;margin:auto}.loading-shell{min-height:60dvh;display:grid;place-content:center;justify-items:center;gap:10px;color:var(--dy-text-muted)}.loading-shell span{font-size:12px}.spinner{width:30px;height:30px;border:3px solid var(--dy-border);border-top-color:var(--dy-accent);border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.head{display:flex;justify-content:space-between;gap:20px;align-items:center}.head-actions{display:flex;align-items:center;gap:10px}.connection{font-size:12px;padding:7px 10px;border:1px solid var(--dy-border);border-radius:999px}.connection i{display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-inline-end:6px}.connection.offline{color:var(--dy-warning-contrast)}.eyebrow{font-size:12px;color:var(--dy-accent);font-weight:700}.head h1{margin:4px 0;font-size:28px;color:var(--dy-text-strong)}.head p{margin:0;color:var(--dy-text-muted)}
+.progressbar{height:4px;background:var(--dy-border);border-radius:99px;overflow:hidden}.progressbar span{display:block;height:100%;background:var(--dy-accent);transition:width .2s ease}.tabs{display:flex;gap:6px;flex-wrap:wrap}.tabs button,.actions button,.back,.file{min-height:42px;padding:0 15px;border:1px solid var(--dy-border);border-radius:10px;background:var(--dy-surface);color:var(--dy-text);cursor:pointer}.tabs .active{background:var(--dy-accent);color:var(--dy-on-accent);border-color:var(--dy-accent)}.tabs b{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--dy-bg);color:var(--dy-text);margin-inline-end:5px}.tabs .active b{background:color-mix(in srgb,var(--dy-on-accent) 18%,transparent);color:inherit}
 .card{display:grid;gap:18px;background:var(--dy-surface);border:1px solid var(--dy-border);border-radius:16px;padding:22px;max-width:1100px}.section-title{display:flex;justify-content:space-between;gap:16px}.section-title strong{font-size:18px}.section-title p{margin:4px 0 0;color:var(--dy-text-muted);font-size:13px}.badge{align-self:start;padding:5px 10px;border-radius:999px;background:var(--dy-bg);border:1px solid var(--dy-border);font-size:12px}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.grid label{display:grid;gap:6px;font-size:12px;color:var(--dy-text-muted)}select,input,textarea{font:inherit;color:var(--dy-text);background:var(--dy-bg);border:1px solid var(--dy-border);border-radius:10px;padding:10px}textarea{direction:ltr;text-align:left;resize:vertical}
 .facts{display:flex;gap:10px;flex-wrap:wrap}.facts span{padding:8px 10px;border-radius:9px;background:var(--dy-bg);font-size:12px}.actions{display:flex;gap:8px;flex-wrap:wrap}.primary{background:var(--dy-accent)!important;color:var(--dy-on-accent)!important;border-color:var(--dy-accent)!important}.message,.success{margin:0;padding:10px;border-radius:9px;background:var(--dy-bg)}.notice{padding:12px;border-radius:10px;background:var(--dy-bg);font-size:12px;color:var(--dy-text-muted)}
-.file-box{display:flex;align-items:end;gap:8px;flex-wrap:wrap}.file-box span{width:100%;font-size:12px;color:var(--dy-text-muted)}.file input{display:none}.template-save{display:flex;gap:8px}.template-save input{flex:1}.report{padding:12px;border:1px solid var(--dy-border);border-radius:10px}.error{color:var(--dy-danger-contrast)}.report ul{margin:8px 0 0;padding-inline-start:22px}.template-row{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:14px;border:1px solid var(--dy-border);border-radius:10px}.template-row span{display:block;color:var(--dy-text-muted);font-size:12px;margin-top:4px}.danger{color:var(--dy-danger-contrast)!important}
+.file-box{display:flex;align-items:end;gap:8px;flex-wrap:wrap}.file-box span{width:100%;font-size:12px;color:var(--dy-text-muted)}.file input{display:none}.template-save{display:flex;gap:8px}.template-save input{flex:1}.report{padding:12px;border:1px solid var(--dy-border);border-radius:10px;display:grid;gap:10px}.summary-strip{display:flex;gap:8px;flex-wrap:wrap}.summary-strip span,.smart-note{padding:9px 11px;border-radius:9px;background:var(--dy-bg);font-size:12px}.smart-note{color:var(--dy-text-muted)}.error{color:var(--dy-danger-contrast)}.report ul{margin:8px 0 0;padding-inline-start:22px}.template-row{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:14px;border:1px solid var(--dy-border);border-radius:10px}.template-row span{display:block;color:var(--dy-text-muted);font-size:12px;margin-top:4px}.danger{color:var(--dy-danger-contrast)!important}
 .empty{padding:24px;text-align:center;color:var(--dy-text-muted);border:1px dashed var(--dy-border);border-radius:10px}
-@media(max-width:700px){.onboarding{padding:18px}.grid{grid-template-columns:1fr}.template-row{align-items:stretch;flex-direction:column}.template-save{flex-direction:column}.head{align-items:flex-start;flex-direction:column}}
+@media(max-width:700px){.onboarding{padding:18px}.head-actions{width:100%;justify-content:space-between}.grid{grid-template-columns:1fr}.template-row{align-items:stretch;flex-direction:column}.template-save{flex-direction:column}.head{align-items:flex-start;flex-direction:column}}
 </style>
