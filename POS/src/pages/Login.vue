@@ -51,7 +51,6 @@ import LoginWorkspacePanel from "@/components/common/LoginWorkspacePanel.vue"
 import LoginShortcutsDialog from "@/components/common/LoginShortcutsDialog.vue"
 import LoginEmailSuggestions from "@/components/common/LoginEmailSuggestions.vue"
 import LoginPinQuickActions from "@/components/common/LoginPinQuickActions.vue"
-
 /*
  * تنسيقات شاشة الدخول في ملف مستقل: `styles/pages/login.css`.
  *
