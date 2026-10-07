@@ -17,19 +17,11 @@ export function useLoginMethods({
 	subscriberCode,
 	touchKeyboardRef,
 }) {
-	async function selectMethod(key) {
-		if (touchKeyboardRef.value) {
-			touchKeyboardRef.value.stopScan?.()
-			touchKeyboardRef.value = null
-		}
-		showKeyboard.value = false
-		biometricResult.value = null
+	async function selectMethod(key) {		biometricResult.value = null
 
 		selectedMethod.value = key
 
-		if (key === "keyboard") {
-			showKeyboard.value = true
-		} else if (key === "biometric") {
+		if (key === "biometric") {
 			biometricResult.value = { processing: true }
 			const { verify } = useBiometric()
 			verify()
