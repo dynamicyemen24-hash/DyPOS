@@ -36,6 +36,7 @@ export const loginSchema = z.object({
 		.optional(),
 	email: z.string().trim().min(3).max(128).optional(),
 	password: z.string().min(6).max(128),
+	subscriberCode: z.string().trim().min(2).max(32).regex(/^[A-Za-z0-9-]+$/).optional(),
 });
 
 export const registerSchema = z.object({
