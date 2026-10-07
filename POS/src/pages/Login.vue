@@ -12,25 +12,20 @@
   - Tenant / branch / POS context presentation
   - Accessible operational feedback
   - Responsive POS-first experience
-
   المبدأ:
   Login → Session → Runtime → Shift → POS
-
   لا يتم وضع منطق ERP داخل هذه الصفحة.
   =============================================================================
 -->
-
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { FeatherIcon } from "dypos-ui"
 import { ActionButton } from "dypos-ui"
 import SkeletonLoader from "@/components/ui/SkeletonLoader.vue"
-
 import { endpoints } from "@/utils/apiEndpoints"
 import { COMPANY_WEBSITE, COMPANY_WEBSITE_LABEL } from "@/utils/brand"
 import { translationVersion } from "@/utils/translation"
 import DyPOSLogo from "@/assets/DyPOSLogo.png"
-
 import ShiftOpeningDialog from "@/components/ShiftOpeningDialog.vue"
 import CompanyFooter from "@/components/common/CompanyFooter.vue"
 import LoginPasskeyActions from "@/components/common/LoginPasskeyActions.vue"
