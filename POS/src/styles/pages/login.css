@@ -2918,3 +2918,134 @@
 		padding-block: 20px;
 	}
 }
+
+
+/* =============================================================================
+   DyPOS Login — cashier-speed interaction layer
+   ============================================================================= */
+
+.dy-login {
+	background:
+		radial-gradient(circle at 85% 8%, color-mix(in srgb, var(--dy-brand) 8%, transparent), transparent 28rem),
+		var(--dy-surface-soft);
+}
+
+.dy-login__brand {
+	border-bottom-color: color-mix(in srgb, var(--dy-brand) 14%, var(--dy-border-soft));
+	box-shadow: 0 1px 0 rgb(255 255 255 / .35);
+}
+
+.dy-login__panel-inner {
+	border-color: color-mix(in srgb, var(--dy-brand) 14%, var(--dy-border));
+	background: var(--dy-surface);
+	box-shadow:
+		0 24px 60px -38px rgb(0 0 0 / .30),
+		0 8px 24px -20px color-mix(in srgb, var(--dy-brand) 20%, transparent);
+}
+
+.dy-login__section-label {
+	background: color-mix(in srgb, var(--dy-brand) 9%, var(--dy-surface));
+	border-color: color-mix(in srgb, var(--dy-brand) 20%, var(--dy-border-soft));
+}
+
+.dy-login__input-wrap {
+	background: color-mix(in srgb, var(--dy-surface-soft) 42%, var(--dy-surface));
+	border-color: var(--dy-border);
+}
+
+.dy-login__input-wrap:focus-within {
+	border-color: var(--dy-brand);
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--dy-brand) 14%, transparent);
+	background: var(--dy-surface);
+}
+
+.dy-login__input {
+	font-size: 1rem;
+	font-weight: 560;
+}
+
+.dy-login__submit {
+	border-radius: var(--dy-radius-md);
+	box-shadow: 0 8px 18px -12px color-mix(in srgb, var(--dy-brand) 55%, transparent);
+	transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+}
+
+.dy-login__submit:not(:disabled):hover {
+	transform: translateY(-1px);
+	box-shadow: 0 12px 24px -14px color-mix(in srgb, var(--dy-brand) 65%, transparent);
+	filter: brightness(1.02);
+}
+
+.dy-login__submit:not(:disabled):active {
+	transform: translateY(0);
+}
+
+.dy-login__alternatives,
+.dy-login__subscriber-options {
+	border-color: color-mix(in srgb, var(--dy-border) 90%, var(--dy-brand));
+	background: color-mix(in srgb, var(--dy-surface-soft) 34%, var(--dy-surface));
+}
+
+.dy-login__alternatives-summary {
+	color: var(--dy-text-strong);
+	cursor: pointer;
+	user-select: none;
+}
+
+.dy-login__alternatives-summary:hover {
+	background: color-mix(in srgb, var(--dy-brand) 5%, transparent);
+}
+
+.dy-login__field-help,
+.dy-login__optional,
+.dy-login__register,
+.dy-login__subtitle {
+	color: var(--dy-text-secondary);
+}
+
+.dy-login__shortcuts-trigger {
+	min-width: 38px;
+	min-height: 38px;
+	border-radius: 10px;
+}
+
+.dy-login__status-indicator {
+	inset-inline-end: clamp(12px, 2vw, 24px);
+}
+
+.dy-login__status-item--online {
+	color: var(--dy-success, var(--dy-brand));
+}
+
+.dy-login__status-item--offline {
+	color: var(--dy-warning, #a16207);
+}
+
+@media (max-width: 640px) {
+	.dy-login__panel {
+		padding-inline: 8px;
+	}
+
+	.dy-login__panel-inner {
+		border-inline: 0;
+	}
+
+	.dy-login__brand {
+		background: var(--dy-surface);
+	}
+
+	.dy-login__submit {
+		min-height: 54px;
+		font-size: 1rem;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.dy-login__submit {
+		transition: none;
+	}
+
+	.dy-login__submit:not(:disabled):hover {
+		transform: none;
+	}
+}
