@@ -126,16 +126,21 @@ describe("a self-checkout sale end to end", () => {
 		expect(till.canPay.value).toBe(true)
 
 		// --- choose a payment method -----------------------------------
-		const card = PAYMENT_METHODS.find((m) => m.id !== "cash")
-		expect(card, "more than one method must exist").toBeTruthy()
+		const card = PAYMENT_METHODS.find((m) => m.id === "card")
+		expect(card, "card rail must be declared").toBeTruthy()
+		expect(card.availableOffline).toBe(false)
 		till.chooseMethod(card.id)
 		expect(till.method.value).toBe(card.id)
+		expect(till.canConfirm.value).toBe(false)
+		expect(till.error.value).toContain("تكامل دفع")
 
 		// An unknown id must NOT move state to something no button shows.
 		till.chooseMethod("not-a-method")
 		expect(till.method.value).toBe(card.id)
 
-		// --- pay exactly ------------------------------------------------
+		// Self-checkout may not pretend a card was charged without a real
+		// payment provider. Return to the locally supported cash rail.
+		till.chooseMethod("cash")
 		till.beginPayment()
 		expect(till.state.value).toBe(SESSION_STATES.PAYING)
 
@@ -157,6 +162,20 @@ describe("a self-checkout sale end to end", () => {
 		expect(till.itemCount.value).toBe(0)
 
 		// --- and none of it needed a network ---------------------------
+		expect(fetchSpy).not.toHaveBeenCalled()
+	})
+
+	it("refuses an unconfigured card rail instead of recording a fake payment", async () => {
+		const till = newTill()
+		till.addItem(product(), 1)
+		till.chooseMethod("card")
+		till.beginPayment()
+		till.setTenderMinor(till.totalMinor.value)
+
+		expect(till.canConfirm.value).toBe(false)
+		await till.confirmPayment()
+		expect(till.receipt.value).toBeNull()
+		expect(till.error.value).toContain("تكامل دفع")
 		expect(fetchSpy).not.toHaveBeenCalled()
 	})
 
