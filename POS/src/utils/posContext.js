@@ -9,6 +9,7 @@
 import { reactive } from "vue"
 
 import { logger } from "@/utils/logger"
+import { sessionTenantId } from "@/data/session"
 
 const log = logger.create("PosContext")
 
@@ -161,6 +162,7 @@ export function refreshPosContext({
 	const tenantId =
 		auth?.tenantId ||
 		pick(bootstrapData, ["tenant_id", "tenantId", "tenant_code"]) ||
+		sessionTenantId() ||
 		posContext.tenantId
 
 	const tenantName =
@@ -169,15 +171,18 @@ export function refreshPosContext({
 		pick(bootstrapData, ["company", "site_name"]) ||
 		posContext.tenantName
 
-	const branchName =
+	const resolvedBranchName =
 		pickNamed(bootstrapData, ["branch_name", "branch"], "name") ||
 		pick(settings, ["branch_name", "warehouse"]) ||
 		posContext.branchName
 
-	const branchCode =
+	const resolvedBranchCode =
 		pickNamed(bootstrapData, ["branch_code", "branch"], "code") ||
 		pick(settings, ["branch_code"]) ||
 		posContext.branchCode
+
+	const branchName = resolvedBranchName || (tenantId ? "Main Branch" : null)
+	const branchCode = resolvedBranchCode || (tenantId ? "MAIN" : null)
 
 	const company =
 		pick(bootstrapData, ["company", "company_name"]) ||
