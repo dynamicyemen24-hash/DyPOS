@@ -1,144 +1,339 @@
 <script setup>
-import { ref } from "vue"
-import router from "@/router"
+import { computed, onMounted, ref } from "vue";
+import router from "@/router";
 
 const types = [
   { value: "products", label: "الأصناف" },
   { value: "customers", label: "العملاء" },
   { value: "warehouses", label: "المخازن" },
-  { value: "opening_balances", label: "الأرصدة الافتتاحية" },
-]
-const type = ref("products")
-const csv = ref("")
-const report = ref(null)
-const busy = ref(false)
-const fileInput = ref(null)
+];
 
-async function call(path, body) {
+const type = ref("products");
+const csv = ref("");
+const report = ref(null);
+const busy = ref(false);
+const profile = ref(null);
+const countries = ref([]);
+const establishmentTypes = ref([]);
+const templates = ref([]);
+const templateName = ref("");
+const selectedTemplateId = ref("");
+const fileInput = ref(null);
+const profileSaving = ref(false);
+const profileMessage = ref("");
+
+const setup = ref({
+  countryCode: "YE",
+  timezone: "Asia/Aden",
+  currency: "YER",
+  establishmentType: "retail",
+});
+
+const activeTab = ref("profile");
+
+async function call(path, body = {}) {
   const response = await fetch("/api/method/" + path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
     cache: "no-store",
     body: JSON.stringify(body),
-  })
-  const payload = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(payload?.message?._error_message || payload?._error_message || payload?.message || "تعذر تنفيذ العملية")
-  return payload
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.message?._error_message || payload?._error_message || payload?.message || "تعذر تنفيذ العملية");
+  }
+  return payload?.message ?? payload;
 }
-function onFile(e) {
-  const file=e?.target?.files?.[0]
-  if(!file) return
-  const reader=new FileReader()
-  reader.onload=()=>{csv.value=String(reader.result||"");report.value=null}
-  reader.readAsText(file)
+
+async function loadProfile() {
+  const r = await call("DyPOS.api.onboarding.profile");
+  profile.value = r.organization;
+  countries.value = r.countries || [];
+  establishmentTypes.value = r.establishmentTypes || [];
+  setup.value = {
+    countryCode: r.organization?.country_code || "YE",
+    timezone: r.organization?.timezone || "Asia/Aden",
+    currency: "YER",
+    establishmentType: r.organization?.establishment_type || "retail",
+  };
+  const country = countries.value.find((x) => x.code === setup.value.countryCode);
+  if (country && !setup.value.currency) setup.value.currency = country.currency;
 }
-function download(text, filename) {
-  const blob=new Blob(["\uFEFF"+text],{type:"text/csv;charset=utf-8"})
-  const url=URL.createObjectURL(blob)
-  const a=document.createElement("a");a.href=url;a.download=filename;a.click()
-  setTimeout(()=>URL.revokeObjectURL(url),0)
+
+async function saveProfile() {
+  profileSaving.value = true;
+  profileMessage.value = "";
+  try {
+    await call("DyPOS.api.onboarding.save_profile", setup.value);
+    profileMessage.value = "تم حفظ ملف التشغيل الفعلي للمؤسسة.";
+    await loadProfile();
+  } catch (e) {
+    profileMessage.value = e.message;
+  } finally {
+    profileSaving.value = false;
+  }
 }
+
+function onCountryChange() {
+  const c = countries.value.find((x) => x.code === setup.value.countryCode);
+  if (c) {
+    setup.value.timezone = c.timezone;
+    setup.value.currency = c.currency;
+  }
+}
+
+async function loadTemplates() {
+  const r = await call("DyPOS.api.onboarding.templates");
+  templates.value = r.templates || [];
+}
+
 async function template() {
-  busy.value=true
+  busy.value = true;
   try {
-    const path = type.value === "opening_balances"
-      ? "DyPOS.api.opening_balances.opening_balance_template"
-      : "DyPOS.api.onboarding.master_data_template"
-    const r=await call(path,{type:type.value})
-    download(r.message.csv,r.message.filename)
+    const r = await call("DyPOS.api.onboarding.master_data_template", { type: type.value });
+    download(r.csv, r.filename);
+  } catch (e) {
+    report.value = { error: e.message };
+  } finally {
+    busy.value = false;
   }
-  catch(e){report.value={error:e.message}}
-  finally{busy.value=false}
 }
+
+function onFile(e) {
+  const file = e?.target?.files?.[0];
+  if (!file) return;
+  if (!/\.(csv|txt)$/i.test(file.name)) {
+    report.value = { error: "استخدم قالب Excel متوافقًا عبر CSV. الملف الناتج يفتح ويُحرر مباشرة في Excel." };
+    e.target.value = "";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    csv.value = String(reader.result || "");
+    report.value = null;
+  };
+  reader.readAsText(file);
+}
+
+function download(text, filename) {
+  const blob = new Blob(["\uFEFF" + text], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 async function preview() {
-  busy.value=true
+  busy.value = true;
   try {
-    const path = type.value === "opening_balances"
-      ? "DyPOS.api.opening_balances.import_opening_balances"
-      : "DyPOS.api.onboarding.import_master_data"
-    const r=await call(path,{type:type.value,csv:csv.value,dryRun:1})
-    report.value=r.message
+    const r = await call("DyPOS.api.onboarding.import_master_data", { type: type.value, csv: csv.value, dryRun: 1 });
+    report.value = r;
+  } catch (e) {
+    report.value = { error: e.message };
+  } finally {
+    busy.value = false;
   }
-  catch(e){report.value={error:e.message}}
-  finally{busy.value=false}
 }
+
 async function apply() {
-  busy.value=true
+  busy.value = true;
   try {
-    const path = type.value === "opening_balances"
-      ? "DyPOS.api.opening_balances.import_opening_balances"
-      : "DyPOS.api.onboarding.import_master_data"
-    const r=await call(path,{type:type.value,csv:csv.value})
-    report.value=r.message
+    const r = await call("DyPOS.api.onboarding.import_master_data", { type: type.value, csv: csv.value });
+    report.value = r;
+    await loadTemplates();
+  } catch (e) {
+    report.value = { error: e.message };
+  } finally {
+    busy.value = false;
   }
-  catch(e){report.value={error:e.message}}
-  finally{busy.value=false}
 }
+
+async function saveTemplate() {
+  if (!templateName.value.trim() || !csv.value.trim()) return;
+  busy.value = true;
+  try {
+    await call("DyPOS.api.onboarding.save_template", {
+      name: templateName.value.trim(),
+      dataType: type.value,
+      content: csv.value,
+    });
+    templateName.value = "";
+    await loadTemplates();
+    report.value = { success: "تم حفظ القالب ويمكن إعادة استخدامه وتعديله لاحقًا." };
+  } catch (e) {
+    report.value = { error: e.message };
+  } finally {
+    busy.value = false;
+  }
+}
+
+function useTemplate(item) {
+  type.value = item.data_type;
+  csv.value = item.content;
+  selectedTemplateId.value = item.id;
+  report.value = null;
+  activeTab.value = "import";
+}
+
+async function deleteTemplate(id) {
+  if (!id) return;
+  busy.value = true;
+  try {
+    await call("DyPOS.api.onboarding.delete_template", { id });
+    await loadTemplates();
+    if (selectedTemplateId.value === id) selectedTemplateId.value = "";
+  } catch (e) {
+    report.value = { error: e.message };
+  } finally {
+    busy.value = false;
+  }
+}
+
+const currentCountry = computed(() => countries.value.find((x) => x.code === setup.value.countryCode));
+const currentType = computed(() => establishmentTypes.value.find((x) => x.value === setup.value.establishmentType));
+
+onMounted(async () => {
+  try {
+    await Promise.all([loadProfile(), loadTemplates()]);
+  } catch (e) {
+    report.value = { error: e.message };
+  }
+});
 </script>
 
 <template>
-  <main class="md-page" dir="rtl">
-    <header class="md-head">
+  <main class="onboarding" dir="rtl">
+    <header class="head">
       <div>
-        <span>تهيئة المشترك</span>
-        <h1>استيراد البيانات الأساسية</h1>
-        <p>قوالب موحّدة للبيانات الحقيقية قبل بدء التشغيل. التحقق يسبق الكتابة، والأرصدة الافتتاحية تُعتمد كسجل مالي لا كبيانات تجريبية.</p>
+        <span class="eyebrow">DyPOS · تهيئة المشترك</span>
+        <h1>مركز إعداد وتشغيل المنشأة</h1>
+        <p>تهيئة تشغيلية حقيقية للكاشير ونقاط البيع، مستقلة عن النظام المحاسبي.</p>
       </div>
-      <button class="md-back" @click="router.back()">رجوع</button>
+      <button class="back" @click="router.back()">رجوع</button>
     </header>
 
-    <section class="md-card">
-      <label>نوع البيانات
-        <select v-model="type">
-          <option v-for="item in types" :key="item.value" :value="item.value">{{ item.label }}</option>
-        </select>
-      </label>
-      <div class="md-actions">
-        <button :disabled="busy" @click="template">تنزيل القالب</button>
-        <label class="md-file">اختيار ملف CSV<input ref="fileInput" type="file" accept=".csv,text/csv" @change="onFile"></label>
+    <nav class="tabs" aria-label="مراحل التهيئة">
+      <button :class="{active: activeTab === 'profile'}" @click="activeTab='profile'">المؤسسة والتشغيل</button>
+      <button :class="{active: activeTab === 'import'}" @click="activeTab='import'">استيراد البيانات</button>
+      <button :class="{active: activeTab === 'templates'}" @click="activeTab='templates'">القوالب المحفوظة</button>
+    </nav>
+
+    <section v-if="activeTab === 'profile'" class="card">
+      <div class="section-title">
+        <div><strong>الهوية التشغيلية</strong><p>الدولة ونوع المنشأة يحددان سياق تشغيل DyPOS، وليس النظام المحاسبي.</p></div>
+        <span v-if="currentType" class="badge">{{ currentType.label }}</span>
       </div>
-      <textarea v-model="csv" rows="10" placeholder="أو الصق محتوى CSV هنا"></textarea>
-      <div class="md-actions">
-        <button :disabled="busy || !csv.trim()" @click="preview">تحقق بلا كتابة</button>
-        <button class="md-primary" :disabled="busy || !csv.trim() || report?.invalid" @click="apply">تطبيق الاستيراد الذري</button>
+
+      <div class="grid">
+        <label>الدولة
+          <select v-model="setup.countryCode" @change="onCountryChange">
+            <option v-for="item in countries" :key="item.code" :value="item.code">{{ item.name }} ({{ item.code }})</option>
+          </select>
+        </label>
+        <label>نوع المنشأة
+          <select v-model="setup.establishmentType">
+            <option v-for="item in establishmentTypes" :key="item.value" :value="item.value">{{ item.label }}</option>
+          </select>
+        </label>
+        <label>المنطقة الزمنية
+          <input v-model="setup.timezone" dir="ltr" maxlength="64">
+        </label>
+        <label>العملة التشغيلية
+          <input v-model="setup.currency" dir="ltr" maxlength="3">
+        </label>
+      </div>
+
+      <div class="facts">
+        <span>الدولة: <b>{{ currentCountry?.name || "—" }}</b></span>
+        <span>المنطقة الزمنية: <b>{{ setup.timezone }}</b></span>
+        <span>العملة: <b>{{ setup.currency }}</b></span>
+      </div>
+
+      <div class="actions">
+        <button class="primary" :disabled="profileSaving" @click="saveProfile">{{ profileSaving ? "جاري الحفظ..." : "حفظ إعداد التشغيل" }}</button>
+        <button @click="router.push({name:'Settings'})">فتح إعدادات نقطة البيع</button>
+      </div>
+      <p v-if="profileMessage" class="message">{{ profileMessage }}</p>
+
+      <div class="notice">
+        <strong>ملاحظة محاسبية:</strong>
+        لا توجد سنة مالية أو قيود أو دليل حسابات هنا؛ هذه المسؤوليات تبقى في الإصدار المحاسبي المنفصل.
       </div>
     </section>
 
-    <section v-if="report" class="md-card" aria-live="polite">
-      <p v-if="report.error" class="md-error">{{ report.error }}</p>
-      <template v-else>
-        <strong v-if="report.dryRun">المعاينة: {{ report.valid }} صالح، {{ report.invalid }} مرفوض — لم تُكتب أي بيانات.</strong>
-        <strong v-else>تم الاستيراد: {{ report.applied }} سجل.</strong>
-        <ul v-if="report.errors?.length">
-          <li v-for="(e,i) in report.errors" :key="i">سطر {{ e.row ?? "—" }}: {{ e.message }}</li>
-        </ul>
-      </template>
+    <section v-if="activeTab === 'import'" class="card">
+      <div class="section-title">
+        <div><strong>استيراد البيانات الأساسية</strong><p>القالب ← المطابقة ← التحقق ← المعاينة ← الاستيراد الذري.</p></div>
+      </div>
+
+      <div class="grid">
+        <label>نوع البيانات
+          <select v-model="type">
+            <option v-for="item in types" :key="item.value" :value="item.value">{{ item.label }}</option>
+          </select>
+        </label>
+        <div class="file-box">
+          <span>قالب Excel</span>
+          <button :disabled="busy" @click="template">تنزيل قالب Excel متوافق</button>
+          <label class="file">رفع CSV محرر في Excel<input ref="fileInput" type="file" accept=".csv,.txt,text/csv" @change="onFile"></label>
+        </div>
+      </div>
+
+      <textarea v-model="csv" rows="12" placeholder="الصق محتوى القالب هنا أو حرره في Excel ثم ارفعه بصيغة CSV."></textarea>
+
+      <div class="template-save">
+        <input v-model="templateName" placeholder="اسم القالب المحفوظ، مثال: أصناف الفرع الرئيسي">
+        <button :disabled="busy || !templateName.trim() || !csv.trim()" @click="saveTemplate">حفظ القالب لاستخدامه لاحقًا</button>
+      </div>
+
+      <div class="actions">
+        <button :disabled="busy || !csv.trim()" @click="preview">تحقق ومعاينة بلا كتابة</button>
+        <button class="primary" :disabled="busy || !csv.trim() || report?.invalid" @click="apply">اعتماد الاستيراد الذري</button>
+      </div>
+
+      <section v-if="report" class="report">
+        <p v-if="report.error" class="error">{{ report.error }}</p>
+        <p v-else-if="report.success" class="success">{{ report.success }}</p>
+        <template v-else>
+          <strong v-if="report.dryRun">المعاينة: {{ report.valid }} صالح، {{ report.invalid }} مرفوض — لم تُكتب أي بيانات.</strong>
+          <strong v-else>تم الاستيراد الفعلي: {{ report.applied }} سجل.</strong>
+          <ul v-if="report.errors?.length">
+            <li v-for="(e,i) in report.errors" :key="i">سطر {{ e.row ?? "—" }}: {{ e.message }}</li>
+          </ul>
+        </template>
+      </section>
     </section>
 
-    <section class="md-card md-note">
-      <strong>الترتيب المعياري</strong>
-      <p>القالب → المطابقة → التحقق → المعاينة → الاستيراد الذري → سجل التدقيق → اعتماد الأرصدة الافتتاحية ضمن سنة مالية محددة.</p>
-      <p>لا تُعتبر البيانات مكتملة إلا بعد نجاح العملية على قاعدة البيانات الفعلية. للاستيراد المالي: أدخل الأصناف والعملاء أولًا، ثم الأرصدة الافتتاحية، وراجع المعاينة قبل التطبيق.</p>
+    <section v-if="activeTab === 'templates'" class="card">
+      <div class="section-title">
+        <div><strong>القوالب المحفوظة</strong><p>القالب محفوظ داخل بيانات المشترك، ويمكن تحميله وتعديله وإعادة استخدامه.</p></div>
+      </div>
+      <div v-if="!templates.length" class="empty">لا توجد قوالب محفوظة بعد.</div>
+      <article v-for="item in templates" :key="item.id" class="template-row">
+        <div>
+          <strong>{{ item.name }}</strong>
+          <span>{{ types.find(t => t.value === item.data_type)?.label || item.data_type }} · الإصدار {{ item.version }}</span>
+        </div>
+        <div class="actions">
+          <button @click="useTemplate(item)">استخدام وتعديل</button>
+          <button class="danger" :disabled="busy" @click="deleteTemplate(item.id)">حذف</button>
+        </div>
+      </article>
     </section>
   </main>
 </template>
 
 <style scoped>
-.md-page{min-height:100dvh;padding:var(--dy-page-padding);display:grid;gap:var(--dy-space-4);color:var(--dy-text);background:var(--dy-bg)}
-.md-head{display:flex;justify-content:space-between;gap:var(--dy-space-4);align-items:center}
-.md-head span{color:var(--dy-accent);font-size:var(--dy-text-xs);font-weight:var(--dy-weight-semibold)}
-.md-head h1{margin:var(--dy-space-1) 0;color:var(--dy-text-strong);font-size:var(--dy-text-xl)}
-.md-head p,.md-note p{margin:var(--dy-space-1) 0;color:var(--dy-text-muted);font-size:var(--dy-text-xs)}
-.md-back,.md-actions button,.md-file{min-height:var(--dy-control-h-lg);padding:0 var(--dy-space-3);border:var(--dy-border-width-thin) solid var(--dy-border);border-radius:var(--dy-radius-md);background:var(--dy-surface);color:var(--dy-text);cursor:pointer}
-.md-card{display:grid;gap:var(--dy-space-3);max-width:900px;background:var(--dy-surface);border:var(--dy-border-width-thin) solid var(--dy-border);border-radius:var(--dy-radius-lg);padding:var(--dy-space-4)}
-.md-card label{display:grid;gap:var(--dy-space-1);font-size:var(--dy-text-xs);color:var(--dy-text-muted)}
-select,textarea{font:inherit;color:var(--dy-text);background:var(--dy-bg);border:var(--dy-border-width-thin) solid var(--dy-border);border-radius:var(--dy-radius-md);padding:var(--dy-space-2)}
-textarea{resize:vertical;direction:ltr;text-align:left}
-.md-actions{display:flex;gap:var(--dy-space-2);flex-wrap:wrap}
-.md-primary{background:var(--dy-accent)!important;color:var(--dy-on-accent)!important}
-.md-file{display:inline-flex;align-items:center}
-.md-file input{display:none}
-.md-error{color:var(--dy-danger-contrast);font-weight:var(--dy-weight-semibold)}
-.md-card ul{margin:0;padding-inline-start:var(--dy-space-5);color:var(--dy-danger-contrast);font-size:var(--dy-text-xs)}
+.onboarding{min-height:100dvh;padding:32px;display:grid;gap:18px;background:var(--dy-bg);color:var(--dy-text)}
+.head{display:flex;justify-content:space-between;gap:20px;align-items:center}.eyebrow{font-size:12px;color:var(--dy-accent);font-weight:700}.head h1{margin:4px 0;font-size:28px;color:var(--dy-text-strong)}.head p{margin:0;color:var(--dy-text-muted)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}.tabs button,.actions button,.back,.file{min-height:42px;padding:0 15px;border:1px solid var(--dy-border);border-radius:10px;background:var(--dy-surface);color:var(--dy-text);cursor:pointer}.tabs .active{background:var(--dy-accent);color:var(--dy-on-accent);border-color:var(--dy-accent)}
+.card{display:grid;gap:18px;background:var(--dy-surface);border:1px solid var(--dy-border);border-radius:16px;padding:22px;max-width:1100px}.section-title{display:flex;justify-content:space-between;gap:16px}.section-title strong{font-size:18px}.section-title p{margin:4px 0 0;color:var(--dy-text-muted);font-size:13px}.badge{align-self:start;padding:5px 10px;border-radius:999px;background:var(--dy-bg);border:1px solid var(--dy-border);font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.grid label{display:grid;gap:6px;font-size:12px;color:var(--dy-text-muted)}select,input,textarea{font:inherit;color:var(--dy-text);background:var(--dy-bg);border:1px solid var(--dy-border);border-radius:10px;padding:10px}textarea{direction:ltr;text-align:left;resize:vertical}
+.facts{display:flex;gap:10px;flex-wrap:wrap}.facts span{padding:8px 10px;border-radius:9px;background:var(--dy-bg);font-size:12px}.actions{display:flex;gap:8px;flex-wrap:wrap}.primary{background:var(--dy-accent)!important;color:var(--dy-on-accent)!important;border-color:var(--dy-accent)!important}.message,.success{margin:0;padding:10px;border-radius:9px;background:var(--dy-bg)}.notice{padding:12px;border-radius:10px;background:var(--dy-bg);font-size:12px;color:var(--dy-text-muted)}
+.file-box{display:flex;align-items:end;gap:8px;flex-wrap:wrap}.file-box span{width:100%;font-size:12px;color:var(--dy-text-muted)}.file input{display:none}.template-save{display:flex;gap:8px}.template-save input{flex:1}.report{padding:12px;border:1px solid var(--dy-border);border-radius:10px}.error{color:var(--dy-danger-contrast)}.report ul{margin:8px 0 0;padding-inline-start:22px}.template-row{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:14px;border:1px solid var(--dy-border);border-radius:10px}.template-row span{display:block;color:var(--dy-text-muted);font-size:12px;margin-top:4px}.danger{color:var(--dy-danger-contrast)!important}
+.empty{padding:24px;text-align:center;color:var(--dy-text-muted);border:1px dashed var(--dy-border);border-radius:10px}
+@media(max-width:700px){.onboarding{padding:18px}.grid{grid-template-columns:1fr}.template-row{align-items:stretch;flex-direction:column}.template-save{flex-direction:column}.head{align-items:flex-start;flex-direction:column}}
 </style>
