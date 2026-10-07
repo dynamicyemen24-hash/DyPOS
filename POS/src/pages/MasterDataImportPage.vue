@@ -21,11 +21,12 @@ const selectedTemplateId = ref("");
 const fileInput = ref(null);
 const profileSaving = ref(false);
 const profileMessage = ref("");
+const readiness = ref({ products: 0, customers: 0, warehouses: 0, defaultWarehouse: "", currency: "" });
 
 const setup = ref({
   countryCode: "YE",
   timezone: "Asia/Aden",
-  currency: "YER",
+  currency: r.readiness?.currency || "YER",
   establishmentType: "retail",
 });
 
@@ -58,6 +59,7 @@ async function loadProfile() {
   profile.value = r.organization;
   countries.value = r.countries || [];
   establishmentTypes.value = r.establishmentTypes || [];
+  readiness.value = r.readiness || readiness.value;
   setup.value = {
     countryCode: r.organization?.country_code || "YE",
     timezone: r.organization?.timezone || "Asia/Aden",
@@ -75,6 +77,8 @@ async function saveProfile() {
     await call("DyPOS.api.onboarding.save_profile", setup.value);
     profileMessage.value = "تم حفظ ملف التشغيل الفعلي للمؤسسة.";
     await loadProfile();
+    activeTab.value = "import";
+    currentStep.value = 1;
   } catch (e) {
     profileMessage.value = e.message;
   } finally {
@@ -268,6 +272,8 @@ onMounted(async () => {
         </label>
       </div>
 
+      <div class="readiness" aria-label="جاهزية التشغيل"><div><b>{{ readiness.products }}</b><span>أصناف</span></div><div><b>{{ readiness.customers }}</b><span>عملاء</span></div><div><b>{{ readiness.warehouses }}</b><span>مخازن</span></div><div><b>{{ readiness.defaultWarehouse ? "جاهز" : "يحتاج تعيين" }}</b><span>المخزن الافتراضي</span></div></div>
+
       <div class="facts">
         <span>الدولة: <b>{{ currentCountry?.name || "—" }}</b></span>
         <span>المنطقة الزمنية: <b>{{ setup.timezone }}</b></span>
@@ -275,7 +281,7 @@ onMounted(async () => {
       </div>
 
       <div class="actions">
-        <button class="primary" :disabled="profileSaving" @click="saveProfile">{{ profileSaving ? "جاري الحفظ..." : "حفظ إعداد التشغيل" }}</button>
+        <button class="primary" :disabled="profileSaving" @click="saveProfile">{{ profileSaving ? "جاري الحفظ..." : "حفظ ثم الانتقال للبيانات" }}</button>
         <button @click="router.push({name:'Settings'})">فتح إعدادات نقطة البيع</button>
       </div>
       <p v-if="profileMessage" class="message">{{ profileMessage }}</p>
@@ -288,7 +294,8 @@ onMounted(async () => {
 
     <section v-if="activeTab === 'import'" class="card">
       <div class="section-title">
-        <div><strong>استيراد البيانات الأساسية</strong><p>القالب ← المطابقة ← التحقق ← المعاينة ← الاستيراد الذري.</p></div>
+        <div><strong>استيراد البيانات الأساسية</strong><p>ابدأ بالأصناف، ثم العملاء والمخازن. كل خطوة قابلة للمراجعة ولا تُكتب البيانات قبل الاعتماد.</p></div>
+        <span class="badge">{{ readiness.products ? "الكتالوج متاح" : "ابدأ بالكتالوج" }}</span>
       </div>
 
       <div class="grid">
@@ -357,8 +364,8 @@ onMounted(async () => {
 .progressbar{height:4px;background:var(--dy-border);border-radius:99px;overflow:hidden}.progressbar span{display:block;height:100%;background:var(--dy-accent);transition:width .2s ease}.tabs{display:flex;gap:6px;flex-wrap:wrap}.tabs button,.actions button,.back,.file{min-height:42px;padding:0 15px;border:1px solid var(--dy-border);border-radius:10px;background:var(--dy-surface);color:var(--dy-text);cursor:pointer}.tabs .active{background:var(--dy-accent);color:var(--dy-on-accent);border-color:var(--dy-accent)}.tabs b{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--dy-bg);color:var(--dy-text);margin-inline-end:5px}.tabs .active b{background:color-mix(in srgb,var(--dy-on-accent) 18%,transparent);color:inherit}
 .card{display:grid;gap:18px;background:var(--dy-surface);border:1px solid var(--dy-border);border-radius:16px;padding:22px;max-width:1100px}.section-title{display:flex;justify-content:space-between;gap:16px}.section-title strong{font-size:18px}.section-title p{margin:4px 0 0;color:var(--dy-text-muted);font-size:13px}.badge{align-self:start;padding:5px 10px;border-radius:999px;background:var(--dy-bg);border:1px solid var(--dy-border);font-size:12px}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.grid label{display:grid;gap:6px;font-size:12px;color:var(--dy-text-muted)}select,input,textarea{font:inherit;color:var(--dy-text);background:var(--dy-bg);border:1px solid var(--dy-border);border-radius:10px;padding:10px}textarea{direction:ltr;text-align:left;resize:vertical}
-.facts{display:flex;gap:10px;flex-wrap:wrap}.facts span{padding:8px 10px;border-radius:9px;background:var(--dy-bg);font-size:12px}.actions{display:flex;gap:8px;flex-wrap:wrap}.primary{background:var(--dy-accent)!important;color:var(--dy-on-accent)!important;border-color:var(--dy-accent)!important}.message,.success{margin:0;padding:10px;border-radius:9px;background:var(--dy-bg)}.notice{padding:12px;border-radius:10px;background:var(--dy-bg);font-size:12px;color:var(--dy-text-muted)}
+.readiness{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.readiness div{padding:12px;border:1px solid var(--dy-border);border-radius:10px;background:var(--dy-bg);display:grid;gap:2px}.readiness b{font-size:18px;color:var(--dy-text-strong)}.readiness span{font-size:11px;color:var(--dy-text-muted)}.facts{display:flex;gap:10px;flex-wrap:wrap}.facts span{padding:8px 10px;border-radius:9px;background:var(--dy-bg);font-size:12px}.actions{display:flex;gap:8px;flex-wrap:wrap}.primary{background:var(--dy-accent)!important;color:var(--dy-on-accent)!important;border-color:var(--dy-accent)!important}.message,.success{margin:0;padding:10px;border-radius:9px;background:var(--dy-bg)}.notice{padding:12px;border-radius:10px;background:var(--dy-bg);font-size:12px;color:var(--dy-text-muted)}
 .file-box{display:flex;align-items:end;gap:8px;flex-wrap:wrap}.file-box span{width:100%;font-size:12px;color:var(--dy-text-muted)}.file input{display:none}.template-save{display:flex;gap:8px}.template-save input{flex:1}.report{padding:12px;border:1px solid var(--dy-border);border-radius:10px;display:grid;gap:10px}.summary-strip{display:flex;gap:8px;flex-wrap:wrap}.summary-strip span,.smart-note{padding:9px 11px;border-radius:9px;background:var(--dy-bg);font-size:12px}.smart-note{color:var(--dy-text-muted)}.error{color:var(--dy-danger-contrast)}.report ul{margin:8px 0 0;padding-inline-start:22px}.template-row{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:14px;border:1px solid var(--dy-border);border-radius:10px}.template-row span{display:block;color:var(--dy-text-muted);font-size:12px;margin-top:4px}.danger{color:var(--dy-danger-contrast)!important}
 .empty{padding:24px;text-align:center;color:var(--dy-text-muted);border:1px dashed var(--dy-border);border-radius:10px}
-@media(max-width:700px){.onboarding{padding:18px}.head-actions{width:100%;justify-content:space-between}.grid{grid-template-columns:1fr}.template-row{align-items:stretch;flex-direction:column}.template-save{flex-direction:column}.head{align-items:flex-start;flex-direction:column}}
+@media(max-width:700px){.onboarding{padding:18px}.readiness{grid-template-columns:repeat(2,minmax(0,1fr))}.head-actions{width:100%;justify-content:space-between}.grid{grid-template-columns:1fr}.template-row{align-items:stretch;flex-direction:column}.template-save{flex-direction:column}.head{align-items:flex-start;flex-direction:column}}
 </style>
