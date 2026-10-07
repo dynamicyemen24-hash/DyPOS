@@ -61,7 +61,7 @@ import LoginOnboardingGuide from "@/components/common/LoginOnboardingGuide.vue"
  */
 
 import { session } from "@/stores/session"
-import { goToForgotPassword, goToRegister } from "@/router"
+import { goToForgotPassword, goToRegister, goToPOS } from "@/router"
 import { useBiometric } from "@/composables/useBiometric"
 import { useSessionLock } from "@/composables/useSessionLock"
 import { useSessionTimeout } from "@/composables/useSessionTimeout"
@@ -223,6 +223,11 @@ const {
 	onShiftOpened,
 	onShiftDialogClosed,
 } = useLoginShiftDialog({ emit, isRuntimeReady })
+
+async function handleShiftOpened() {
+	onShiftOpened()
+	await goToPOS()
+}
 
 const authenticationCompleted = ref(false)
 
@@ -530,6 +535,12 @@ async function submitLogin() {
 		}
 
 		await bootstrapAuthenticatedSession()
+			// Authentication is complete; the router guard is now satisfied.
+			// If a shift is required, the dialog owns the transition and calls
+			// handleShiftOpened(). Otherwise enter the POS immediately.
+			if (!shiftDialogOpen.value) {
+				await goToPOS()
+			}
 	} catch (error) {
 		authenticationCompleted.value = false
 
@@ -1356,7 +1367,7 @@ watch(
         <ShiftOpeningDialog
             v-if="shiftDialogOpen"
             v-model="shiftDialogOpen"
-            @shift-opened="onShiftOpened"
+            @shift-opened="handleShiftOpened"
             @dialog-closed="onShiftDialogClosed"
         />
 
