@@ -24,6 +24,7 @@ import { migrateQueueManagement } from './migrations-queue-management.js';
 import { migrateRecordProtection } from './migrations-record-protection.js';
 import { migrateCatalogBaseUnits } from './migrations-catalog-base-units.js';
 import { migrateInvoiceTenantUniqueness } from './migrations-invoice-tenant-uniqueness.js';
+import { migrateOperationalOnboarding } from './migrations-operational-onboarding.js';
 
 /**
  * Ordered by version; `migrate()` applies every row above the recorded version
