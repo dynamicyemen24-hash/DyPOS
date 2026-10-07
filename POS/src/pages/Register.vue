@@ -283,7 +283,7 @@ onUnmounted(() => {
 			aria-live="polite"
 		>
 			<FeatherIcon name="wifi-off" :size="16" aria-hidden="true" />
-			<span>وضع عدم الاتصال — سيتم حفظ الحساب محليًا</span>
+			<span>لا يمكن إنشاء اشتراك جديد دون اتصال. اتصل بالإنترنت لإكمال التسجيل.</span>
 		</div>
 
 		<!--
@@ -731,6 +731,16 @@ onUnmounted(() => {
 								autocomplete="organization"
 							/>
 						</div>
+					<span
+						v-if="companyError"
+						id="dypos-register-company-error"
+						class="dy-register__field-error"
+						role="alert"
+						aria-live="polite"
+					>
+						<FeatherIcon name="alert-circle" :size="14" aria-hidden="true" />
+						{{ companyError }}
+					</span>
 					</div>
 
 					<!-- Terms -->
