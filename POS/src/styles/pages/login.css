@@ -350,7 +350,7 @@
 		gap: 12px;
 	}
 
-	.dy-login__alternatives-buttons {
+	.dy-login__methods-buttons {
 		grid-template-columns: 1fr 1fr;
 	}
 }
