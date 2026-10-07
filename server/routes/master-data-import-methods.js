@@ -2,6 +2,37 @@ import crypto from 'node:crypto';
 import db from '../db/schema.js';
 import { assertTenantScope } from '../lib/tenant.js';
 
+const ESTABLISHMENT_TYPES = Object.freeze([
+  { value: 'retail', label: 'متجر / تجزئة' },
+  { value: 'supermarket', label: 'سوبر ماركت / بقالة' },
+  { value: 'restaurant', label: 'مطعم' },
+  { value: 'cafe', label: 'مقهى / كافيه' },
+  { value: 'fast_food', label: 'مطاعم سريعة' },
+  { value: 'bakery_sweets', label: 'حلويات / مخابز' },
+  { value: 'beverages', label: 'عصائر / مشروبات' },
+  { value: 'services', label: 'منشأة خدمية' },
+  { value: 'multi_branch', label: 'منشأة متعددة الفروع' },
+  { value: 'integrated', label: 'منشأة متكاملة / ربط خارجي' },
+]);
+
+const COUNTRIES = Object.freeze([
+  { code: 'YE', name: 'اليمن', timezone: 'Asia/Aden', currency: 'YER' },
+  { code: 'SA', name: 'السعودية', timezone: 'Asia/Riyadh', currency: 'SAR' },
+  { code: 'AE', name: 'الإمارات', timezone: 'Asia/Dubai', currency: 'AED' },
+  { code: 'OM', name: 'عُمان', timezone: 'Asia/Muscat', currency: 'OMR' },
+  { code: 'QA', name: 'قطر', timezone: 'Asia/Qatar', currency: 'QAR' },
+  { code: 'BH', name: 'البحرين', timezone: 'Asia/Bahrain', currency: 'BHD' },
+  { code: 'KW', name: 'الكويت', timezone: 'Asia/Kuwait', currency: 'KWD' },
+  { code: 'EG', name: 'مصر', timezone: 'Africa/Cairo', currency: 'EGP' },
+  { code: 'JO', name: 'الأردن', timezone: 'Asia/Amman', currency: 'JOD' },
+  { code: 'IQ', name: 'العراق', timezone: 'Asia/Baghdad', currency: 'IQD' },
+  { code: 'TR', name: 'تركيا', timezone: 'Europe/Istanbul', currency: 'TRY' },
+  { code: 'US', name: 'الولايات المتحدة', timezone: 'America/New_York', currency: 'USD' },
+  { code: 'GB', name: 'المملكة المتحدة', timezone: 'Europe/London', currency: 'GBP' },
+  { code: 'DE', name: 'ألمانيا', timezone: 'Europe/Berlin', currency: 'EUR' },
+  { code: 'FR', name: 'فرنسا', timezone: 'Europe/Paris', currency: 'EUR' },
+]);
+
 const TYPES = Object.freeze({
   products: {
     label: 'الأصناف',
@@ -111,6 +142,77 @@ function applyRows(type, rows, tenantId, userId) {
   })();
   return rows.length;
 }
+
+  def('DyPOS.api.onboarding.profile', (params, req, res) => {
+    if (!requireUser(req,res)) return;
+    if (!ensureAdmin(req,res)) return;
+    const tenantId=tenant(req,res); if(tenantId===null) return;
+    const org=db.prepare('SELECT id,name,country_code,timezone,establishment_type FROM organizations WHERE tenant_id=? AND is_active=1 ORDER BY created_at LIMIT 1').get(tenantId);
+    if(!org) return res.status(404).json({message:'المؤسسة غير موجودة'});
+    return res.json({message:{organization:org,countries:COUNTRIES,establishmentTypes:ESTABLISHMENT_TYPES}});
+  });
+
+  def('DyPOS.api.onboarding.save_profile', (params, req, res) => {
+    if (!requireUser(req,res)) return;
+    if (!ensureAdmin(req,res)) return;
+    const tenantId=tenant(req,res); if(tenantId===null) return;
+    const country=COUNTRIES.find(c=>c.code===String(params.countryCode||'').toUpperCase());
+    const type=ESTABLISHMENT_TYPES.find(t=>t.value===String(params.establishmentType||''));
+    if(!country || !type) return res.status(422).json({message:'الدولة أو نوع المنشأة غير صالح'});
+    const timezone=String(params.timezone||country.timezone).trim().slice(0,64);
+    const currency=String(params.currency||country.currency).trim().toUpperCase();
+    if(!/^[A-Z]{3}$/.test(currency)) return res.status(422).json({message:'رمز العملة غير صالح'});
+    const org=db.prepare('SELECT id FROM organizations WHERE tenant_id=? AND is_active=1 ORDER BY created_at LIMIT 1').get(tenantId);
+    if(!org) return res.status(404).json({message:'المؤسسة غير موجودة'});
+    db.transaction(()=>{
+      db.prepare('UPDATE organizations SET country_code=?, timezone=?, establishment_type=?, updated_at=datetime("now") WHERE id=? AND tenant_id=?')
+        .run(country.code,timezone,type.value,org.id,tenantId);
+      const settings=[
+        ['currency',currency],
+        ['default_currency',currency],
+        ['business_country',country.code],
+        ['business_timezone',timezone],
+        ['establishment_type',type.value],
+      ];
+      const stmt=db.prepare('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value');
+      for(const [k,v] of settings) stmt.run(k,v);
+    })();
+    req.audit?.('onboarding.profile.update',{tenantId,organizationId:org.id,country:country.code,establishmentType:type.value});
+    return res.json({message:{saved:true,country,establishmentType:type}});
+  });
+
+  def('DyPOS.api.onboarding.templates', (params, req, res) => {
+    if (!requireUser(req,res)) return;
+    if (!ensureAdmin(req,res)) return;
+    const tenantId=tenant(req,res); if(tenantId===null) return;
+    const rows=db.prepare('SELECT id,name,data_type,content,version,updated_at FROM onboarding_templates WHERE tenant_id=? AND is_active=1 ORDER BY updated_at DESC').all(tenantId);
+    return res.json({message:{templates:rows}});
+  });
+
+  def('DyPOS.api.onboarding.save_template', (params, req, res) => {
+    if (!requireUser(req,res)) return;
+    if (!ensureAdmin(req,res)) return;
+    const tenantId=tenant(req,res); if(tenantId===null) return;
+    const name=String(params.name||'').trim().slice(0,100);
+    const dataType=String(params.dataType||'').trim();
+    const content=String(params.content||'');
+    if(name.length<2 || !TYPES[dataType] || !content.trim()) return res.status(422).json({message:'اسم القالب ونوع البيانات والمحتوى مطلوبة'});
+    const id=crypto.randomUUID();
+    db.prepare(`INSERT INTO onboarding_templates (id,tenant_id,name,data_type,content,version,created_by) VALUES (?,?,?,?,?,?,?)
+      ON CONFLICT(tenant_id,name,data_type) DO UPDATE SET content=excluded.content,version=onboarding_templates.version+1,updated_at=datetime('now')`).run(id,tenantId,name,dataType,content,1,String(req.user.id||''));
+    req.audit?.('onboarding.template.save',{tenantId,name,dataType});
+    return res.json({message:{saved:true,name,dataType}});
+  });
+
+  def('DyPOS.api.onboarding.delete_template', (params, req, res) => {
+    if (!requireUser(req,res)) return;
+    if (!ensureAdmin(req,res)) return;
+    const tenantId=tenant(req,res); if(tenantId===null) return;
+    const id=String(params.id||'').trim();
+    if(!id) return res.status(422).json({message:'معرّف القالب مطلوب'});
+    db.prepare('UPDATE onboarding_templates SET is_active=0,updated_at=datetime("now") WHERE id=? AND tenant_id=?').run(id,tenantId);
+    return res.json({message:{deleted:true}});
+  });
 
 export function registerMasterDataImportVerbs(def, requireUser) {
   def('DyPOS.api.onboarding.master_data_template', (params, req, res) => {
