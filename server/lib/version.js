@@ -1,5 +1,5 @@
 /**
- * DyPOS single source of truth for the server version (C3) v1.48.0
+ * DyPOS single source of truth for the server version (C3) v2.0.0
  *
  * 1.44.6 -- the round where a green suite stopped being evidence. Fourteen real
  * defects, and the reason no gate saw them is the same every time: a gate that
@@ -175,5 +175,5 @@
  * contractProbe as CSRF/auth/session/tenant/logout (clean BLOCKER report
  * instead of an uncaught throw under --contract=online).
  */
-export const VERSION = '1.48.0';
+export const VERSION = '2.0.0';
 export default VERSION;
