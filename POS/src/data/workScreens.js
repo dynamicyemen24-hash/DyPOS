@@ -15,9 +15,10 @@ import { methodGetListWithSource } from "@/utils/methodClient"
 import { productRepository } from "@/repositories/productRepository"
 import db from "@/services/db"
 import { sessionRole } from "@/data/session"
+import { formatCurrencyNumber } from "@/utils/currency"
 
 const money = (row) => Number(row?.grand_total ?? row?.total ?? 0)
-const amount = (field) => (row) => Number(row?.[field] ?? 0).toFixed(2)
+const amount = (field) => (row) => formatCurrencyNumber(Number(row?.[field] ?? 0))
 
 /** @type {ReadonlyArray<{id:string,label:string,emptyTitle:string,icon:string,doctype:string,permission:string,orderBy:string,columns:Array<object>,load:Function}>} */
 export const WORK_SCREENS = Object.freeze([
@@ -44,7 +45,7 @@ export const WORK_SCREENS = Object.freeze([
 				align: "end",
 				sortable: true,
 				aggregate: "sum",
-				format: (row) => money(row).toFixed(2),
+				format: (row) => formatCurrencyNumber(money(row)),
 			},
 			{ key: "status", label: "الحالة", filterable: true },
 		],
