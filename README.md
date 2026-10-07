@@ -1,4 +1,4 @@
-# DyPOS v1.42.0
+# DyPOS v1.48.0
 
 [![CI](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/ci.yml/badge.svg)](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/ci.yml)
 [![Deploy](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/deploy-cloudflare.yml/badge.svg)](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/deploy-cloudflare.yml)
@@ -30,12 +30,12 @@
 
 ---
 
-## 🏷️ الإصدار الحالي: v1.42.0 (Production Ready)
+## 🏷️ الإصدار الحالي: v1.48.0 (Production Ready)
 
 | المكون | الإصدار | الحالة |
 |----------|---------|--------|
-| **Frontend (Vue 3 + Vite + PWA)** | 1.42.0 | ✅ Production |
-| **Backend (Node.js + Express + SQLite/Postgres)** | 1.42.0 | ✅ Production |
+| **Frontend (Vue 3 + Vite + PWA)** | 1.48.0 | ✅ Production |
+| **Backend (Node.js + Express + SQLite/Postgres)** | 1.48.0 | ✅ Production |
 | **PWA / Service Worker** | precache 102 assets | ✅ Active |
 | **Offline Sync Engine** | Chunked + Idempotent | ✅ Verified |
 
