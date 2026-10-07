@@ -68,6 +68,7 @@ const agreeToTerms = ref(false)
 const isSubmitting = ref(false)
 const registerError = ref("")
 const registerSuccess = ref(false)
+const subscriberCode = ref("")
 
 const fullNameInput = ref(null)
 const emailInput = ref(null)
@@ -225,84 +226,38 @@ function normalizeValue(value) {
 
 async function submitRegistration() {
 	if (!canSubmit.value) return
-
 	clearErrors()
 	isSubmitting.value = true
 	registerSuccess.value = false
-
+	subscriberCode.value = ""
 	try {
 		const name = normalizeValue(fullName.value)
 		const emailValue = normalizeValue(email.value)
-		const phoneValue = phoneNumber.value
-			? phoneNumber.value.replace(/\D/g, "")
-			: ""
+		const phoneValue = phoneNumber.value ? phoneNumber.value.replace(/\D/g, "") : ""
 		const companyValue = normalizeValue(companyName.value)
-
-		let result
-
-		if (isOfflineMode.value) {
-			result = await attemptOfflineRegistration({
-				fullName: name,
+		const response = await fetch("/api/method/DyPOS.api.auth.register", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			credentials: "same-origin",
+			cache: "no-store",
+			body: JSON.stringify({
+				username: emailValue,
 				email: emailValue,
+				full_name: name,
 				password: password.value,
 				phone: phoneValue,
 				company: companyValue,
-			})
-		} else {
-			// Online mode - canonical method path (legacy compat accepts email alias).
-			try {
-				const response = await fetch("/api/method/DyPOS.api.auth.register", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						username: emailValue,
-						full_name: name,
-						email: emailValue,
-						password: password.value,
-						phone: phoneValue,
-						company: companyValue,
-					}),
-				})
-				if (response.ok) {
-					result = { success: true }
-				} else {
-					const err = await response.json().catch(() => ({}))
-					throw new Error(err.message || "Registration failed")
-				}
-			} catch {
-				// Fallback to local registration if API unavailable
-				const localResult = await attemptOfflineRegistration({
-					fullName: name,
-					email: emailValue,
-					password: password.value,
-					phone: phoneValue,
-					company: companyValue,
-				})
-				result = localResult
-			}
-		}
-
-		if (result.success) {
-			registerSuccess.value = true
-			emit("registered")
-			log.info("DyPOS subscriber registered successfully", {
-				offline: isOfflineMode.value,
-			})
-		} else {
-			throw new Error(result.error || "Registration failed")
-		}
+			}),
+		})
+		const payload = await response.json().catch(() => ({}))
+		if (!response.ok) throw new Error(payload?.message || payload?.error || "تعذر إنشاء الاشتراك")
+		const result = payload?.message || payload
+		subscriberCode.value = String(result?.subscriberCode || "").trim()
+		registerSuccess.value = true
+		emit("registered")
 	} catch (error) {
 		registerSuccess.value = false
-
-		const errorMessage =
-			error?.message ||
-			error?.response?.data?.message ||
-			"حدث خطأ أثناء التسجيل. يرجى المحاولة مرة أخرى."
-
-		registerError.value = errorMessage
-
-		log.warn("DyPOS registration failed", error)
-
+		registerError.value = error?.message || "تعذر إنشاء الاشتراك. تحقق من الاتصال وحاول مرة أخرى."
 		emit("error", error)
 	} finally {
 		isSubmitting.value = false
@@ -450,10 +405,14 @@ onUnmounted(() => {
 					</h3>
 
 					<p class="dy-register__success-message">
-						مرحبًا بك في DyPOS. يمكنك الآن تسجيل الدخول
-						لبدء استخدام نقطة البيع.
+						مرحبًا بك في DyPOS. تم إنشاء المشترك والمؤسسة الأساسية ويمكنك الآن الدخول لإكمال إعداد الفرع والجهاز والصلاحيات.
 					</p>
 
+					<div v-if="subscriberCode" class="dy-register__subscriber-code">
+						<strong>رمز المشترك</strong>
+						<code>{{ subscriberCode }}</code>
+						<small>احتفظ به لربط أجهزة ومستخدمي المشترك بالنطاق الصحيح.</small>
+					</div>
 					<ActionButton
 						variant="solid"
 						size="lg"
