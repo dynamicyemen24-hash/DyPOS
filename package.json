@@ -1,7 +1,7 @@
 {
   "name": "DyPOS",
   "version": "2.0.0",
-  "description": "POS built on DyPOS that brings together real-time billing, stock management, multi-user access, offline mode, and direct ERP integration. Run your store or restaurant with confidence and control, while staying 100% open source.",
+  "description": "Global multi-tenant smart POS and cashier platform for commercial operations, with offline-first execution, intelligent synchronization, and service-based free credits. Proprietary commercial software.",
   "scripts": {
     "install:pos": "npm --prefix POS ci",
     "dev": "npm --prefix POS run dev",
@@ -13,7 +13,6 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
   "comment": [
     "The root manifest orchestrates the workspaces: it holds no runtime code of",
     "its own. dompurify and baseline-browser-mapping were declared here while",
@@ -23,5 +22,6 @@
   ],
   "devDependencies": {
     "playwright": "^1.57.0"
-  }
+  },
+  "private": true
 }
