@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import db from '../db/schema.js';
 import { assertTenantScope } from '../lib/tenant.js';
-import { setSetting } from '../lib/settings.js';
+import { getSetting, setSetting } from '../lib/settings.js';
 
 const ESTABLISHMENT_TYPES = Object.freeze([
   { value: 'retail', label: 'متجر / تجزئة' },
@@ -150,7 +150,14 @@ function applyRows(type, rows, tenantId, userId) {
     const tenantId=tenant(req,res); if(tenantId===null) return;
     const org=db.prepare('SELECT id,name,country_code,timezone,establishment_type FROM organizations WHERE tenant_id=? AND is_active=1 ORDER BY created_at LIMIT 1').get(tenantId);
     if(!org) return res.status(404).json({message:'المؤسسة غير موجودة'});
-    return res.json({message:{organization:org,countries:COUNTRIES,establishmentTypes:ESTABLISHMENT_TYPES}});
+    const readiness = {
+      products: Number(db.prepare('SELECT COUNT(*) AS n FROM products WHERE tenant_id=? OR tenant_id IS NULL').get(tenantId)?.n || 0),
+      customers: Number(db.prepare('SELECT COUNT(*) AS n FROM customers WHERE tenant_id=? OR tenant_id IS NULL').get(tenantId)?.n || 0),
+      warehouses: Number(db.prepare('SELECT COUNT(*) AS n FROM warehouses WHERE tenant_id=? OR tenant_id IS NULL').get(tenantId)?.n || 0),
+      defaultWarehouse: getSetting('default_warehouse',''),
+      currency: getSetting('currency',''),
+    };
+    return res.json({message:{organization:org,countries:COUNTRIES,establishmentTypes:ESTABLISHMENT_TYPES,readiness}});
   });
 
   def('DyPOS.api.onboarding.save_profile', (params, req, res) => {
