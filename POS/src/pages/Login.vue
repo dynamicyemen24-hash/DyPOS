@@ -1127,13 +1127,12 @@ watch(
                             </span>
                         </label>
 
-                        <a
-                            href="/forgot-password"
+                        <RouterLink
+                            :to="{ name: 'ForgotPassword' }"
                             class="dy-login__forgot"
-                            @click.prevent="goToForgotPassword"
                         >
                             {{ __('نسيت كلمة المرور؟') }}
-                        </a>
+                        </RouterLink>
                     </div>
 
                     <details class="dy-login__alternatives">
@@ -1353,9 +1352,9 @@ watch(
                 <!-- Register -->
                 <p class="dy-login__register">
                     {{ __('ليس لديك حساب؟') }}
-                    <a href="/account/register" @click.prevent="goToRegister">
+                    <RouterLink :to="{ name: 'Register' }">
                         {{ __('سجّل الآن') }}
-                    </a>
+                    </RouterLink>
                 </p>
 
             </div>
