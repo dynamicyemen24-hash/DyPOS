@@ -196,10 +196,12 @@
 						type="button"
 						class="self-checkout__method"
 						:aria-pressed="method === option.id"
+						:disabled="option.availableOffline === false"
 						@click="chooseMethod(option.id)"
 					>
 						<FeatherIcon :name="option.icon" aria-hidden="true" />
 						<span>{{ option.label }}</span>
+						<small v-if="option.availableOffline === false">يتطلب ربط دفع</small>
 					</button>
 				</div>
 
