@@ -331,6 +331,20 @@ curl https://dypos.smartportssoft.com/assets/DyPOS/pos/version.json
 
 ---
 
+
+
+### ⚖️ المركز القانوني والسياسات
+
+- [مركز السياسات القانونية](docs/LEGAL_CENTER.md)
+- [سياسة الخصوصية](docs/PRIVACY_POLICY.md)
+- [شروط وأحكام الاستخدام](docs/TERMS_OF_SERVICE.md)
+- [الاشتراك والأرصدة](docs/SUBSCRIPTION_CREDITS_POLICY.md)
+- [الإلغاء والاسترداد](docs/REFUND_AND_CANCELLATION_POLICY.md)
+- [ملفات الارتباط والتخزين المحلي](docs/COOKIES_AND_LOCAL_STORAGE_POLICY.md)
+- [الاستخدام المقبول](docs/ACCEPTABLE_USE_POLICY.md)
+- [التواصل القانوني](docs/LEGAL_CONTACT_AND_NOTICES.md)
+- [الترخيص المملوك](license.txt)
+
 ## 📄 الترخيص والملكية
 
 **DyPOS هو منتج تجاري مملوك وليس برنامجًا مجانيًا أو مفتوح المصدر.**
