@@ -1359,10 +1359,7 @@ watch(
                     @dismiss="dismissWarning"
                 />
 
-                <!-- Technical Mode Panels (Odoo-like debug/tools) -->
-                <HardwareDiagnosticsPanel v-if="technicalModeEnabled" />
-                <NetworkDiagnosticsPanel v-if="technicalModeEnabled" />
-
+                <!-- Technical diagnostics are rendered once below the main login surface. -->
                 <!-- Version Info -->
                 <VersionInfo />
 
