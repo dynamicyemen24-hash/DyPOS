@@ -48,7 +48,6 @@ import NetworkDiagnosticsPanel from "@/components/common/NetworkDiagnosticsPanel
 import VersionInfo from "@/components/common/VersionInfo.vue"
 import LoginShortcutsDialog from "@/components/common/LoginShortcutsDialog.vue"
 import LoginEmailSuggestions from "@/components/common/LoginEmailSuggestions.vue"
-import LoginPinQuickActions from "@/components/common/LoginPinQuickActions.vue"
 import LoginOnboardingGuide from "@/components/common/LoginOnboardingGuide.vue"
 /*
  * تنسيقات شاشة الدخول في ملف مستقل: `styles/pages/login.css`.
@@ -303,9 +302,6 @@ const {
 	pinModeActive,
 	pinSetupDisabled,
 	pinLoginDisabled,
-	pinDeviceHint,
-	PIN_EMAIL_TOO_SHORT,
-	PIN_EMAIL_REQUIRED,
 	showPinSetup,
 	sanitizePinInput,
 	onPinSetupInput,
@@ -316,7 +312,6 @@ const {
 	exitPinMode,
 	cancelPinSetup,
 	loadPinState,
-	wipePin,
 	attemptPinLogin,
 	storePin,
 } = useLoginPinAuth({ email })
@@ -580,18 +575,6 @@ async function onPinAuthenticated(how) {
 	await bootstrapAuthenticatedSession()
 }
 
-/**
- * مسح PIN (للخروج الآمن).
- */
-function handleClearPin() {
-	try {
-		wipePin()
-		pinError.value = ""
-		log.info("DyPOS PIN cleared")
-	} catch (error) {
-		log.warn("DyPOS PIN clear failed", error)
-	}
-}
 
 const {
 	emailMissing,
@@ -1312,24 +1295,6 @@ watch(
                         <LoginOnboardingGuide />
                     </div>
                 </details>
-
-                <!-- =================================================================
-                     Quick-access row: PIN entry + setup
-                     ==================================================================
-                     `handleClearPin` was the fourth dead handler: it existed, was
-                     correct, and nothing could ever call it — so a saved PIN could
-                     not be revoked from the screen that owns it. Both actions are
-                     gated on the same `pinAvailable` fact, so neither can render a
-                     button that does nothing.
-                     ================================================================= -->
-
-                <LoginPinQuickActions
-                    :pin-available="pinAvailable"
-                    :pin-mode-active="pinModeActive"
-                    :busy="isSubmitting"
-                    @enter-pin="enterPinMode"
-                    @clear-pin="handleClearPin"
-                />
 
                 <!-- PIN sign-in / setup — extracted to `LoginPinForm.vue` -->
 
