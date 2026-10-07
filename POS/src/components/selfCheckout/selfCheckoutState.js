@@ -27,11 +27,13 @@ export const SESSION_STATES = Object.freeze({
 
 /** طرق الدفع المتاحة في الكاشير الذاتي. */
 export const PAYMENT_METHODS = Object.freeze([
-	{ id: "cash", label: "نقدًا", icon: "credit-card", keypad: true },
-	{ id: "card", label: "بطاقة", icon: "credit-card", keypad: false },
-	{ id: "wallet", label: "محفظة رقمية", icon: "smartphone", keypad: false },
-	{ id: "transfer", label: "تحويل بنكي", icon: "repeat", keypad: false },
+	{ id: "cash", label: "نقدًا", icon: "credit-card", keypad: true, availableOffline: true },
+	{ id: "card", label: "بطاقة", icon: "credit-card", keypad: false, availableOffline: false, requiresIntegration: true },
+	{ id: "wallet", label: "محفظة رقمية", icon: "smartphone", keypad: false, availableOffline: false, requiresIntegration: true },
+	{ id: "transfer", label: "تحويل بنكي", icon: "repeat", keypad: false, availableOffline: false, requiresIntegration: true },
 ])
+
+export const SELF_CHECKOUT_PAYMENT_INTEGRATION_MESSAGE = "هذه الطريقة تحتاج تكامل دفع معتمدًا؛ لا يمكن اعتمادها محليًا قبل تهيئة موفّر الدفع."
 
 export const PAYMENT_LABELS = Object.freeze(
 	Object.fromEntries(
