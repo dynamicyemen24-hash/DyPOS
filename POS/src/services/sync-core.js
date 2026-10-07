@@ -394,11 +394,15 @@ export async function runSyncCycle({
 		throw pullError?.kind ? pullError : pullError || pushError
 	}
 
-	// Advance the checkpoint using the freshest known server tick.
+	// A checkpoint is a server cursor, never a client clock. If pull failed,
+	// advancing it could permanently skip remote changes created during the
+	// failure window. Push success alone is not sufficient to advance pull state.
 	const serverTime =
-		pullResult.status === "fulfilled" ? pullResult.value.serverTime : Date.now()
-	await store.setCheckpoint(serverTime)
-	await store.markLastSync()
+		pullResult.status === "fulfilled" ? pullResult.value.serverTime : null
+	if (serverTime != null) {
+		await store.setCheckpoint(serverTime)
+		await store.markLastSync()
+	}
 
 	const pulled = pullResult.status === "fulfilled" ? pullResult.value.count : 0
 	const conflicts =
