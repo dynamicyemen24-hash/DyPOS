@@ -261,10 +261,22 @@ async function submitRegistration() {
 		entryError.value = ""
 		try {
 			await session.login({
-			usr: emailValue,
-			pwd: password.value,
-			subscriberCode: subscriberCode.value,
-		})
+				usr: emailValue,
+				pwd: password.value,
+				subscriberCode: subscriberCode.value,
+			})
+			await fetch("/api/method/DyPOS.api.onboarding.save_profile", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				credentials: "same-origin",
+				cache: "no-store",
+				body: JSON.stringify({
+					countryCode: countryCode.value,
+					timezone: timezone.value,
+					currency: currency.value.trim().toUpperCase(),
+					establishmentType: establishmentType.value,
+				}),
+			})
 			if (typeof session.bootstrap === "function") {
 				await session.bootstrap()
 			}
