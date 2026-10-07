@@ -4,7 +4,7 @@
 [![Deploy](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/deploy-cloudflare.yml/badge.svg)](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/deploy-cloudflare.yml)
 [![Uptime](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/uptime.yml/badge.svg)](https://github.com/dynamicyemen24-hash/DyPOS/actions/workflows/uptime.yml)
 
-## الكاشير الذكي ونظام نقاط البيع المتكامل — جاهز للإنتاج
+## الكاشير الذكي ونظام نقاط البيع المتكامل
 
 **DyPOS** هو **نظام نقاط بيع وكاشير ذكي عالمي متعدد المشتركين** من تطوير **شركة المنافذ الذكية للبرمجيات (Smart Ports Software)**، صُمم للتشغيل التجاري الفعلي مع عزل بيانات المشتركين والصلاحيات، والعمل دون اتصال والمزامنة الذكية.
 
@@ -30,7 +30,7 @@
 
 ---
 
-## 🏷️ الإصدار الحالي: v2.0.0 (Production Ready)
+## 🏷️ الإصدار الحالي: v2.0.0
 
 | المكون | الإصدار | الحالة |
 |----------|---------|--------|
@@ -307,7 +307,7 @@ npx wrangler pages deploy .pages-site --project-name=dypos-pos --branch=main
 ### التحقق بعد النشر
 ```bash
 curl https://dypos.smartportssoft.com/assets/DyPOS/pos/version.json
-# {"version":"1.42.0","build":"<generated-by-CI>",...}
+# {"version":"2.0.0","build":"<generated-by-CI>",...}
 ```
 
 ---
