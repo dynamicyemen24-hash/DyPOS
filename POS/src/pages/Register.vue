@@ -39,8 +39,6 @@ import {
 	emailValidationError,
 	fullNameValidationError,
 } from "@/utils/registrationValidation"
-import { isLinkEnabled } from "@/services/link-consent"
-import { userRepository } from "@/repositories/userRepository"
 import {
 	getPasswordStrength,
 	isPasswordAcceptable,
@@ -97,6 +95,7 @@ const canSubmit = computed(() => {
 	return (
 		fullName.value.trim().length >= 2 &&
 		email.value.trim().length > 0 &&
+		companyName.value.trim().length >= 2 &&
 		isPasswordAcceptable(password.value) &&
 		password.value === confirmPassword.value &&
 		agreeToTerms.value &&
@@ -120,13 +119,17 @@ const confirmPasswordError = computed(() =>
 	getConfirmPasswordError(password.value, confirmPassword.value),
 )
 const fullNameError = computed(() => fullNameValidationError(fullName.value))
+const companyError = computed(() =>
+	companyName.value.trim().length >= 2 ? "" : "اسم الشركة أو المؤسسة مطلوب",
+)
 
 const hasErrors = computed(() => {
 	return (
 		emailError.value ||
 		passwordError.value ||
 		confirmPasswordError.value ||
-		fullNameError.value
+		fullNameError.value ||
+		companyError.value
 	)
 })
 
@@ -142,70 +145,16 @@ const showOfflineIndicator = ref(false)
 
 const log = logger.create("Register")
 
-async function detectOfflineMode() {
+function detectOfflineMode() {
 	if (!isBrowser) return false
-
-	// Standalone-first (user-mandated): no boot probe — pinging the backend
-	// to decide the mode was itself an undemanded connection. Pure local
-	// state: standalone until the user demands server linkage.
-	return !isLinkEnabled()
+	return !navigator.onLine
 }
 
-async function detectAndSetOfflineMode() {
-	isOfflineMode.value = await detectOfflineMode()
+function detectAndSetOfflineMode() {
+	isOfflineMode.value = detectOfflineMode()
 	offlineDetected.value = true
-
-	if (isOfflineMode.value) {
-		log.info("OFFLINE MODE: Enabling offline registration")
-		showOfflineIndicator.value = true
-		await initializeOfflineSystems()
-		window.__DYPOS_OFFLINE__ = true
-	} else {
-		log.info("ONLINE MODE: Backend reachable")
-	}
+	showOfflineIndicator.value = isOfflineMode.value
 	return isOfflineMode.value
-}
-
-async function initializeOfflineSystems() {
-	if (!isBrowser) return
-
-	try {
-		log.info("Initializing offline systems...")
-
-		const db = await import("@/services/db").then((m) => m.default)
-		await db.open().catch((error) => {
-			log.warn("Offline DB open failed", error)
-		})
-
-		log.info("Offline systems initialized")
-	} catch (error) {
-		log.error("Offline systems initialization failed", error)
-	}
-}
-
-async function attemptOfflineRegistration(userData) {
-	if (!isOfflineMode.value) {
-		return { success: false, reason: "Online mode - use server registration" }
-	}
-
-	try {
-		const user = await userRepository.create({
-			fullName: normalizeValue(userData.fullName),
-			email: normalizeValue(userData.email),
-			password: userData.password,
-			phone: userData.phone || "",
-			company: userData.company ? normalizeValue(userData.company) : "",
-		})
-
-		log.info("Offline registration successful for:", userData.email)
-		return { success: true, user }
-	} catch (error) {
-		log.error("Offline registration failed:", error)
-		return {
-			success: false,
-			error: error.message || "فشل التسجيل المحلي",
-		}
-	}
 }
 
 /* ============================================================================
@@ -611,7 +560,7 @@ onUnmounted(() => {
 								:class="{ 'dy-register__input--error': passwordError }"
 								:type="showPassword ? 'text' : 'password'"
 								dir="ltr"
-								placeholder="6 أحرف على الأقل"
+								placeholder="8 أحرف على الأقل (حرف ورقم)"
 								:disabled="isSubmitting"
 								required
 								spellcheck="false"
@@ -751,14 +700,14 @@ onUnmounted(() => {
 						</div>
 					</div>
 
-					<!-- Company (Optional) -->
+					<!-- Company (Required for a new subscriber tenant) -->
 
 					<div class="dy-register__field">
 						<label
 							for="dypos-register-company"
 							class="dy-register__label"
 						>
-							اسم الشركة / المؤسسة
+							اسم الشركة / المؤسسة <span class="dy-register__required" aria-hidden="true">*</span>
 						</label>
 
 						<div class="dy-register__input-wrap">
@@ -775,7 +724,7 @@ onUnmounted(() => {
 								class="dy-register__input"
 								type="text"
 								dir="rtl"
-								placeholder="أدخل اسم شركتك"
+								placeholder="أدخل اسم الشركة أو المؤسسة"
 								:disabled="isSubmitting"
 								spellcheck="false"
 								@input="clearErrors"
