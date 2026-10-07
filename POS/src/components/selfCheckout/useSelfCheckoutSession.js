@@ -27,6 +27,8 @@ import OfflineStore from "@/services/offline-store"
 
 import {
 	PAYMENT_LABELS,
+	PAYMENT_STEPS,
+	SELF_CHECKOUT_PAYMENT_INTEGRATION_MESSAGE,
 	SESSION_STATES,
 	addLineToCart,
 	evaluateTender,
@@ -151,11 +153,14 @@ export function useSelfCheckoutSession(options = {}) {
 	 * والشرط الثاني قصدٌ لا تفصيل: الدفع يُعتمد في حالة `PAYING` فقط، فلا
 	 * يستطيع استدعاء الدالة من أي حالة أخرى إصدار فاتورة عارضة.
 	 */
+	const selectedPaymentMethod = computed(() => paymentMethodById(method.value))
+	const paymentMethodReady = computed(() => selectedPaymentMethod.value?.availableOffline === true)
 	const canConfirm = computed(
 		() =>
 			state.value === SESSION_STATES.PAYING &&
 			!isEmpty.value &&
 			tender.value.paid &&
+			paymentMethodReady.value &&
 			!processing.value,
 	)
 
@@ -276,9 +281,12 @@ export function useSelfCheckoutSession(options = {}) {
 	 * عادي، وبعد `beginPayment()` هو بالضبط ما تفعله هذه الشاشة.
 	 */
 	function chooseMethod(id) {
-		if (!paymentMethodById(id)) return
+		const selected = paymentMethodById(id)
+		if (!selected) return
 		method.value = id
-		error.value = ""
+		error.value = selected.availableOffline
+			? ""
+			: SELF_CHECKOUT_PAYMENT_INTEGRATION_MESSAGE
 	}
 
 	/** يدخل وضع الدفع — الإضافات تتوقف هنا. */
@@ -324,6 +332,10 @@ export function useSelfCheckoutSession(options = {}) {
 	 * قصيرًا كما في بقية الوحدة، من غير أن يمسّ العقد الخارجي.
 	 */
 	async function confirmPayment() {
+		if (!paymentMethodReady.value) {
+			error.value = SELF_CHECKOUT_PAYMENT_INTEGRATION_MESSAGE
+			return
+		}
 		if (!canConfirm.value) return
 		processing.value = true
 		error.value = ""
@@ -428,6 +440,8 @@ export function useSelfCheckoutSession(options = {}) {
 		isEmpty,
 		canPay,
 		tender,
+		selectedPaymentMethod,
+		paymentMethodReady,
 		canConfirm,
 		sourceNote,
 		// إجراءات
