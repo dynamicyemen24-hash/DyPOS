@@ -1326,13 +1326,8 @@ watch(
                 <LoginPinQuickActions
                     :pin-available="pinAvailable"
                     :pin-mode-active="pinModeActive"
-                    :email="email"
                     :busy="isSubmitting"
-                    :device-hint="pinDeviceHint"
-                    :email-too-short="PIN_EMAIL_TOO_SHORT"
-                    :email-required="PIN_EMAIL_REQUIRED"
                     @enter-pin="enterPinMode"
-                    @setup-pin="showPinSetup = true"
                     @clear-pin="handleClearPin"
                 />
 
