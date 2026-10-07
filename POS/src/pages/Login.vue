@@ -636,22 +636,24 @@ onMounted(async () => {
 
 	await nextTick()
 
-	/* Initialize login page data (branches, biometric, subscriber code) */
-	await initializeLoginData()
-
 	/*
-	 * تركيز حقل كلمة المرور إذا كان البريد موجوداً مسبقاً.
+	 * Fast-first rendering: the login surface must not wait for network,
+	 * biometric discovery, branch discovery, or runtime preparation.
+	 * Local/offline authentication is deliberately independent of these tasks.
 	 */
+	await nextTick()
+	isInitialLoading.value = false
+
 	if (email.value) {
 		passwordInput.value?.focus?.()
 	} else {
 		emailInput.value?.focus?.()
 	}
 
-	await prepareRuntime()
-
-	// Mark initial loading complete for skeleton screens
-	isInitialLoading.value = false
+	void Promise.allSettled([
+		initializeMethodsData(),
+		prepareRuntime(),
+	])
 })
 
 onBeforeUnmount(async () => {
