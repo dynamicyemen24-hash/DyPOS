@@ -197,6 +197,23 @@ const showShortcutsHelp = ref(false)
 
 const showEmailSuggestions = ref(false)
 
+// Template expressions are evaluated against the Vue render context. Calling
+// the browser global setTimeout directly from a template compiles to
+// _ctx.setTimeout (minified in production as Q.setTimeout), which is not a
+// component method and causes the fatal "Q.setTimeout is not a function" on
+// email blur. Keep browser timers in script scope and expose a real handler.
+let emailSuggestionBlurTimer = null
+function deferHideEmailSuggestions() {
+	if (emailSuggestionBlurTimer !== null) {
+		window.clearTimeout(emailSuggestionBlurTimer)
+	}
+
+	emailSuggestionBlurTimer = window.setTimeout(() => {
+		emailSuggestionBlurTimer = null
+		showEmailSuggestions.value = false
+	}, 200)
+}
+
 /** تلميح Caps Lock: يُحدَّث من الحدث نفسه، لا بمراقب دائم للمستند. */
 const { capsLockOn, trackCapsLock } = useCapsLock()
 
@@ -688,6 +705,11 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(async () => {
+	if (emailSuggestionBlurTimer !== null) {
+		window.clearTimeout(emailSuggestionBlurTimer)
+		emailSuggestionBlurTimer = null
+	}
+
 	window.removeEventListener("online", handleOnline)
 
 	window.removeEventListener("offline", handleOffline)
@@ -983,7 +1005,7 @@ watch(
                                 :aria-describedby="emailMissing ? 'dypos-login-email-error' : undefined"
                                 @input="clearLoginError"
                                 @focus="showEmailSuggestions = true"
-                                @blur="setTimeout(() => showEmailSuggestions = false, 200)"
+                                @blur="deferHideEmailSuggestions"
                             />
                             <!-- Email Domain Suggestions -->
                             <LoginEmailSuggestions
