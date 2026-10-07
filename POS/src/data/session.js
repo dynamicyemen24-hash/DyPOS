@@ -106,7 +106,7 @@ function persistSession(user) {
 	}
 }
 
-async function tryOnlineLogin(email, password) {
+async function tryOnlineLogin(email, password, subscriberCode = "") {
 	const controller = new AbortController()
 	const timeoutId = setTimeout(() => controller.abort(), 8000)
 	try {
@@ -117,7 +117,7 @@ async function tryOnlineLogin(email, password) {
 			cache: "no-store",
 			signal: controller.signal,
 			// Canonical: { username }. `email` stays as an alias for older backends.
-			body: JSON.stringify({ username: email, email, password }),
+			body: JSON.stringify({ username: email, email, password, ...(subscriberCode ? { subscriberCode } : {}) }),
 		})
 		if (
 			response.status === 401 ||
@@ -149,20 +149,22 @@ export const session = reactive({
 	isLoggedIn: computed(() => !!session.user),
 
 	login: {
-		async submit({ email, password } = {}) {
+		async submit({ email, password, subscriberCode = "" } = {}) {
 			const cleanEmail = String(email || "").trim()
+			const cleanSubscriberCode = String(subscriberCode || "").trim().toUpperCase()
 			if (!cleanEmail || !password) {
 				throw new Error("بيانات الدخول ناقصة")
 			}
 
 			// 1) Online attempt (fail-soft — never blocks offline login).
-			const onlineUser = await tryOnlineLogin(cleanEmail, password)
+			const onlineUser = await tryOnlineLogin(cleanEmail, password, cleanSubscriberCode)
 			if (onlineUser?.email) {
 				persistSession({
 					email: onlineUser.email,
 					full_name: onlineUser.full_name || onlineUser.email,
 					id: onlineUser.id || onlineUser.user_id || null,
 					role: onlineUser.role || "POS User",
+					tenantId: onlineUser.tenantId || onlineUser.tenant_id || null,
 				})
 				session.login.reset()
 				return session.user
