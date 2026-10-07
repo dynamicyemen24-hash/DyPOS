@@ -143,7 +143,6 @@ const routes = [
 		component: () => import("@/pages/POSSale.vue"),
 		meta: {
 			[ROUTE_META.requiresAuth]: true,
-			[ROUTE_META.requiresOpenShift]: true,
 		},
 	},
 
