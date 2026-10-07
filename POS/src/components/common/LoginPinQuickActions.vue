@@ -1,5 +1,5 @@
 <template>
-    <div v-if="!pinModeActive" class="dy-login__quick-actions">
+    <div v-if="!pinModeActive && pinAvailable" class="dy-login__quick-actions">
         <ActionButton
             v-if="pinAvailable"
             type="button"
@@ -16,25 +16,6 @@
                 aria-hidden="true"
             />
             {{ __("دخول سريع برمز PIN") }}
-        </ActionButton>
-
-        <ActionButton
-            v-else
-            type="button"
-            variant="tertiary"
-            size="sm"
-            class="dy-login__link-button"
-            :disabled="busy || !email"
-            :title="__(email ? deviceHint : emailTooShort)"
-            :aria-label="__(email ? deviceHint : emailRequired)"
-            @click="emit('setup-pin')"
-        >
-            <FeatherIcon
-                name="key"
-                :size="15"
-                aria-hidden="true"
-            />
-            {{ __("إنشاء رمز دخول سريع") }}
         </ActionButton>
 
         <ActionButton
@@ -59,7 +40,8 @@ import { ActionButton, FeatherIcon } from "dypos-ui"
 import { __ } from "@/utils/translation"
 
 /**
- * Quick-access row: enter a saved PIN, create one, or revoke one.
+ * Quick-access row: enter a saved PIN or revoke it. PIN creation belongs to
+ * authenticated device settings, not the public login path.
  *
  * Extracted from `Login.vue` with its styles (a scoped page stylesheet cannot
  * style markup that lives in another component).
@@ -92,7 +74,7 @@ defineProps({
 	},
 })
 
-const emit = defineEmits(["enter-pin", "setup-pin", "clear-pin"])
+const emit = defineEmits(["enter-pin", "clear-pin"])
 </script>
 
 <style scoped>
