@@ -2694,3 +2694,8 @@
 .dy-login__prefs--compact .dy-login__technical-toggle {
 	margin-inline-start: auto;
 }
+
+
+/* Login information architecture: subscriber binding stays optional and compact. */
+.dy-login__optional { margin-inline-start: 6px; color: var(--dy-text-muted); font-size: .75rem; font-weight: 400; }
+.dy-login__field-help { display: block; margin-top: 5px; color: var(--dy-text-muted); font-size: .75rem; line-height: 1.5; }
