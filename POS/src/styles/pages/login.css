@@ -3049,3 +3049,167 @@
 		transform: none;
 	}
 }
+
+/* =============================================================================
+   DyPOS Login — focused enterprise POS shell
+   One visual decision: work first. Secondary capabilities stay quiet.
+   ============================================================================= */
+.dy-login {
+  min-height: 100dvh;
+  grid-template-columns: minmax(300px, 0.78fr) minmax(500px, 1.22fr);
+  grid-template-rows: 1fr;
+  grid-template-areas: "brand panel";
+  align-items: center;
+  padding: clamp(18px, 3vw, 42px);
+  gap: clamp(22px, 5vw, 72px);
+  background: var(--dy-surface-soft);
+}
+.dy-login__brand {
+  grid-area: brand;
+  min-height: min(680px, calc(100dvh - 84px));
+  padding: clamp(24px, 4vw, 56px);
+  border: 1px solid var(--dy-border-soft);
+  border-radius: 28px;
+  background: var(--dy-surface);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  box-shadow: 0 24px 70px -52px rgb(0 0 0 / .38);
+}
+.dy-login__brand-logo { display: inline-flex; }
+.dy-login__logo-shell {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: var(--dy-surface-soft);
+  border: 1px solid var(--dy-border);
+}
+.dy-login__logo { width: 48px; height: 48px; object-fit: contain; }
+.dy-login__brand-copy { max-width: 430px; margin-block: auto; padding-block: 42px; }
+.dy-login__brand-kicker {
+  display: inline-block;
+  margin-bottom: 12px;
+  color: var(--dy-brand);
+  font-size: .78rem;
+  font-weight: 800;
+}
+.dy-login__brand-copy h2 {
+  margin: 0;
+  color: var(--dy-text-strong);
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  line-height: 1.08;
+  letter-spacing: -.035em;
+}
+.dy-login__brand-copy p {
+  margin: 18px 0 0;
+  color: var(--dy-text-secondary);
+  font-size: clamp(.9rem, 1.3vw, 1.05rem);
+  line-height: 1.8;
+}
+.dy-login__brand-points {
+  display: grid;
+  gap: 10px;
+  margin-top: 26px;
+}
+.dy-login__brand-points span {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--dy-text-secondary);
+  font-size: .8rem;
+  font-weight: 650;
+}
+.dy-login__brand-points svg { color: var(--dy-brand); }
+.dy-login__brand-company { margin-top: auto; }
+.dy-login__preferences { align-self: flex-end; }
+.dy-login__technical-toggle { align-self: flex-end; margin-top: 8px; }
+
+.dy-login__panel {
+  grid-area: panel;
+  width: min(100%, 600px);
+  justify-self: start;
+  padding: 0;
+}
+.dy-login__panel-inner {
+  padding: clamp(28px, 4vw, 46px);
+  border-radius: 24px;
+  border: 1px solid var(--dy-border);
+  background: var(--dy-surface);
+  box-shadow: 0 28px 80px -58px rgb(0 0 0 / .42);
+}
+.dy-login__header {
+  padding-block-end: 20px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.dy-login__section-label { display: none; }
+.dy-login__title {
+  margin: 0;
+  font-size: clamp(1.7rem, 3vw, 2.35rem);
+  letter-spacing: -.025em;
+}
+.dy-login__subtitle { margin: 7px 0 0; max-width: 42ch; }
+.dy-login__runtime { margin-block: 0 14px; }
+.dy-login__form { gap: 13px; }
+.dy-login__input-wrap { min-height: 56px; border-radius: 14px; }
+.dy-login__input { font-size: 1rem; }
+.dy-login__options { margin-block: 0; }
+.dy-login__submit {
+  min-height: 58px;
+  margin-top: 5px;
+  border-radius: 14px;
+  font-size: 1rem;
+  font-weight: 800;
+}
+.dy-login__register {
+  margin: 18px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--dy-border-soft);
+}
+.dy-login__alternatives,
+.dy-login__subscriber-options { border-radius: 14px; }
+.dy-login__brand-company { opacity: .86; }
+
+@media (max-width: 900px) {
+  .dy-login {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    grid-template-areas: "brand" "panel";
+    align-items: stretch;
+    gap: 12px;
+    padding: 10px;
+  }
+  .dy-login__brand {
+    min-height: 0;
+    padding: 12px 14px;
+    border-radius: 18px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 14px;
+  }
+  .dy-login__brand-copy { margin: 0; padding: 0; max-width: none; }
+  .dy-login__brand-copy h2 { font-size: 1rem; letter-spacing: 0; }
+  .dy-login__brand-copy p,
+  .dy-login__brand-points { display: none; }
+  .dy-login__brand-company { display: none; }
+  .dy-login__preferences, .dy-login__technical-toggle { align-self: center; margin: 0; }
+  .dy-login__panel { width: 100%; justify-self: stretch; }
+  .dy-login__panel-inner { padding: 22px 18px 24px; border-radius: 18px; }
+  .dy-login__status-indicator { inset-block-start: 12px; inset-inline-end: 12px; }
+}
+@media (max-width: 560px) {
+  .dy-login { padding: 0; gap: 0; }
+  .dy-login__brand { border-radius: 0; border-inline: 0; border-top: 0; grid-template-columns: auto 1fr auto; }
+  .dy-login__logo-shell { width: 48px; height: 48px; border-radius: 13px; }
+  .dy-login__logo { width: 38px; height: 38px; }
+  .dy-login__panel { padding: 0; }
+  .dy-login__panel-inner { border-inline: 0; border-radius: 0; box-shadow: none; padding: 22px 16px 28px; }
+  .dy-login__header { padding-bottom: 15px; }
+  .dy-login__shortcuts-hint { display: none; }
+  .dy-login__input-wrap { min-height: 54px; }
+}
