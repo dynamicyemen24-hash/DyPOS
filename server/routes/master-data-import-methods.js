@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import db from '../db/schema.js';
 import { assertTenantScope } from '../lib/tenant.js';
+import { setSetting } from '../lib/settings.js';
 
 const ESTABLISHMENT_TYPES = Object.freeze([
   { value: 'retail', label: 'متجر / تجزئة' },
@@ -167,15 +168,10 @@ function applyRows(type, rows, tenantId, userId) {
     db.transaction(()=>{
       db.prepare('UPDATE organizations SET country_code=?, timezone=?, establishment_type=?, updated_at=datetime("now") WHERE id=? AND tenant_id=?')
         .run(country.code,timezone,type.value,org.id,tenantId);
-      const settings=[
-        ['currency',currency],
-        ['default_currency',currency],
-        ['business_country',country.code],
-        ['business_timezone',timezone],
-        ['establishment_type',type.value],
-      ];
-      const stmt=db.prepare('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value');
-      for(const [k,v] of settings) stmt.run(k,v);
+      setSetting('currency',currency);
+      setSetting('country_code',country.code);
+      setSetting('business_name',String(req.user?.full_name || '').slice(0,200));
+      setSetting('tax_rate_default','0');
     })();
     req.audit?.('onboarding.profile.update',{tenantId,organizationId:org.id,country:country.code,establishmentType:type.value});
     return res.json({message:{saved:true,country,establishmentType:type}});
