@@ -282,18 +282,36 @@ async function submitRegistration() {
 				pwd: password.value,
 				subscriberCode: subscriberCode.value,
 			})
-			await fetch("/api/method/DyPOS.api.onboarding.save_profile", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				credentials: "same-origin",
-				cache: "no-store",
-				body: JSON.stringify({
-					countryCode: countryCode.value,
-					timezone: timezone.value,
-					currency: currency.value.trim().toUpperCase(),
-					establishmentType: establishmentType.value,
-				}),
-			})
+			// Persist the operational profile, but never make a successful
+			// authentication wait indefinitely for a secondary onboarding write.
+			// Registration already sent these fields to the authoritative register
+			// endpoint; this call is a reconciliation step for the profile API.
+			try {
+				const controller = new AbortController()
+				const timeoutId = setTimeout(() => controller.abort(), 2500)
+				try {
+					const profileResponse = await fetch("/api/method/DyPOS.api.onboarding.save_profile", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						credentials: "same-origin",
+						cache: "no-store",
+						signal: controller.signal,
+						body: JSON.stringify({
+							countryCode: countryCode.value,
+							timezone: timezone.value,
+							currency: currency.value.trim().toUpperCase(),
+							establishmentType: establishmentType.value,
+						}),
+					})
+					if (!profileResponse.ok) {
+						log.warn("Operational profile reconciliation deferred", profileResponse.status)
+					}
+				} finally {
+					clearTimeout(timeoutId)
+				}
+			} catch (profileError) {
+				log.warn("Operational profile reconciliation deferred", profileError)
+			}
 			if (typeof session.bootstrap === "function") {
 				await session.bootstrap()
 			}
