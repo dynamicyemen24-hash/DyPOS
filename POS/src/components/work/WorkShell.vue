@@ -231,6 +231,11 @@
         <slot name="toolbar" />
       </div>
 
+      <!-- Optional standardized menu strip for screen-level actions -->
+      <div v-if="$slots['menu-strip']" class="work-shell__menu-strip">
+        <slot name="menu-strip" />
+      </div>
+
       <!-- Status Bar (Connection, Sync, Alerts) -->
       <div
         v-if="statusMessage"
@@ -743,6 +748,13 @@ defineOptions({ inheritAttrs: false })
 .work-shell__content { flex: 1; min-height: 0; overflow: auto; padding: clamp(16px, 2.2vw, 32px); scrollbar-gutter: stable; }
 .work-shell__content > * { min-width: 0; }
 .work-shell__content--no-padding { padding: 0; }
+.work-shell__menu-strip { min-width: 0; position: relative; z-index: 25; }
+.work-shell__menu-strip :deep(.work-menu-strip) { border-block-start: 0; }
+.work-shell__content { scrollbar-width: thin; scrollbar-color: var(--dy-border-strong, var(--dy-border)) transparent; }
+.work-shell__content::-webkit-scrollbar, .work-shell__nav::-webkit-scrollbar { width: 8px; height: 8px; }
+.work-shell__content::-webkit-scrollbar-track, .work-shell__nav::-webkit-scrollbar-track { background: transparent; }
+.work-shell__content::-webkit-scrollbar-thumb, .work-shell__nav::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: var(--dy-border-strong, var(--dy-border)); background-clip: padding-box; }
+.work-shell__content::-webkit-scrollbar-thumb:hover, .work-shell__nav::-webkit-scrollbar-thumb:hover { background: var(--dy-text-muted); background-clip: padding-box; }
 @media (max-width: 1023px) {
   .work-shell { grid-template-columns: 1fr; }
   .work-shell__nav { position: fixed; inset-block: 0; inset-inline-start: 0; width: min(280px, 88vw); }
