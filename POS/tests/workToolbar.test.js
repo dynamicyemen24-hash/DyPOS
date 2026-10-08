@@ -8,6 +8,7 @@ describe("WorkToolbar overflow", () => {
 			props: {
 				overflowActions: [{ id: "refresh", label: "إعادة التحديث", handler: vi.fn() }],
 			},
+			attachTo: document.body,
 			global: { stubs: { FeatherIcon: true } },
 		})
 		const trigger = wrapper.get(".work-toolbar__overflow-btn")
