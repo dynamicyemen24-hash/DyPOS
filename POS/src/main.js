@@ -501,9 +501,11 @@ function configureCSRFRequestPipeline() {
 		 * This is more important than ordinary telemetry but should still be
 		 * reported through the centralized logger.
 		 */
-		log.error("Failed to configure CSRF-aware request pipeline", error)
-
-		throw error
+		log.warn(
+			"CSRF-aware request pipeline deferred; Local Core remains available",
+			error,
+		)
+		return false
 	}
 }
 
