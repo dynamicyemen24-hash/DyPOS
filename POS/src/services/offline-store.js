@@ -91,10 +91,12 @@ export async function upsertQueueRow(
 			row &&
 			row.status === "pending" &&
 			String(row.entityType) === String(entityType) &&
-			String(row.operation) === String(operation),
+			String(row.operation) === String(operation) &&
+			String(row.tenantId ?? "") === String(resolvedTenantId ?? ""),
 	)
 	if (dup?.id != null) {
 		await dbLike.syncQueue.update(dup.id, {
+			tenantId: resolvedTenantId ? String(resolvedTenantId) : null,
 			payload: freshPayload,
 			attemptCount: 0,
 			nextRetryAt: null,
