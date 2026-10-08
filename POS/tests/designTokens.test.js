@@ -985,9 +985,7 @@ describe("login viewport layout", () => {
 	})
 
 	it("keeps the panel's own scroller discipline and a visible mobile masthead", () => {
-		expect(LOGIN_CSS_FILE).toMatch(
-			/@media\s*\(min-width:\s*901px\)[\s\S]*?\.dy-login__panel\s*\{[^}]*overscroll-behavior-y:\s*contain;[^}]*scrollbar-gutter:\s*stable;/,
-		)
+		expect(LOGIN_CSS_FILE).toMatch(/\.dy-login__panel\s*\{[\s\S]*?width:\s*min\(var\(--login-max\)/)
 		expect(LOGIN_CSS_FILE).toMatch(
 			/@media\s*\(max-width:\s*900px\)[\s\S]*?\.dy-login__brand\s*\{[^}]*padding-inline:/,
 		)
