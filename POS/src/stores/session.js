@@ -15,7 +15,7 @@
 import { computed, ref } from "vue"
 import { defineStore } from "pinia"
 
-import { session as localSession } from "@/data/session"
+import { session as localSession, lastLoginSource } from "@/data/session"
 import { userResource, userData } from "@/data/user"
 import { shiftState, useShift } from "@/composables/useShift"
 import { usePermissions } from "@/composables/usePermissions"
@@ -170,7 +170,9 @@ export const useSessionStore = defineStore("session", () => {
 		// The user explicitly demanded the server (typed credentials +
 		// pressed login): grant linkage consent. Local/PIN logins never
 		// pass through here, so they stay fully standalone.
-		setLinkMode("linked", LINK_REASONS.SERVER_LOGIN)
+		if (lastLoginSource === "server") {
+			setLinkMode("linked", LINK_REASONS.SERVER_LOGIN)
+		}
 
 		// Load persisted platform sync auth so the offline engine has tokens.
 		await initPlatformAuth().catch(() => {})
