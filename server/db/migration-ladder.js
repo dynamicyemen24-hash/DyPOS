@@ -25,6 +25,7 @@ import { migrateRecordProtection } from './migrations-record-protection.js';
 import { migrateCatalogBaseUnits } from './migrations-catalog-base-units.js';
 import { migrateInvoiceTenantUniqueness } from './migrations-invoice-tenant-uniqueness.js';
 import { migrateOperationalOnboarding } from './migrations-operational-onboarding.js';
+import { migrateShiftTenantScope } from './migrations-shift-tenant-scope.js';
 
 /**
  * Ordered by version; `migrate()` applies every row above the recorded version
@@ -51,6 +52,7 @@ export const LATE_MIGRATIONS = Object.freeze([
 		note: 'tenant-scoped uniqueness on invoices (number + idempotency_key)',
 	},
 	{ version: 37, run: migrateOperationalOnboarding, note: 'POS operational onboarding profile + saved import templates' },
+	{ version: 38, run: migrateShiftTenantScope, note: 'POS shifts tenant isolation' },
 ]);
 
 export default LATE_MIGRATIONS;
