@@ -54,6 +54,14 @@ export function createCartLines({
 
 		if (!normalized || normalized.disabled) return
 
+		// A missing price is master-data incompleteness, never a zero-priced sale.
+		// Keep the item visible for correction, but refuse to create a billable
+		// line until a real price is available.
+		if (normalized.priceMissing) {
+			notify?.("لا يمكن بيع الصنف قبل تحديد سعر بيع صالح.", "warning")
+			return
+		}
+
 		onProductAdded?.({ productId: normalized.id, name: normalized.name })
 
 		const existing = cart.find((item) => item.productId === normalized.id)
@@ -71,7 +79,7 @@ export function createCartLines({
 			image: normalized.image,
 			unit: normalized.unit,
 			quantity: 1,
-			unitPrice: Number(normalized.price) || 0,
+			unitPrice: normalized.price,
 			discount: 0,
 			taxRate: Number(normalized.taxRate ?? 0),
 			notes: "",
