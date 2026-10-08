@@ -1661,4 +1661,136 @@ onUnmounted(() => {
 .dy-register__checkbox-label:focus-visible {
 	border-radius: var(--dy-radius-sm);
 }
-`.dy-register__subscriber-code { display:grid; gap:6px; margin:0 0 16px; padding:12px; border:1px solid var(--dy-border); border-radius:10px; background:var(--dy-bg-elevated); } .dy-register__subscriber-code code { font-size:1.1rem; font-weight:800; letter-spacing:.08em; } .dy-register__subscriber-code small { color:var(--dy-text-muted); }\n</style>
+`.dy-register__subscriber-code { display:grid; gap:6px; margin:0 0 16px; padding:12px; border:1px solid var(--dy-border); border-radius:10px; background:var(--dy-bg-elevated); } .dy-register__subscriber-code code { font-size:1.1rem; font-weight:800; letter-spacing:.08em; } .dy-register__subscriber-code small { color:var(--dy-text-muted); }\n
+/* ============================================================================
+   DyPOS Subscriber Registration — Enterprise Wizard Shell
+   Command strip → status strip → 3-stage work surface → legal/commit actions.
+   ============================================================================ */
+.dy-register{
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  grid-template-rows:auto minmax(0,1fr);
+  align-items:start;
+  justify-items:center;
+  min-height:100dvh;
+  padding:0;
+  overflow:auto;
+  background:
+    radial-gradient(900px 420px at 50% -180px,color-mix(in srgb,var(--dy-brand) 7%,transparent),transparent 70%),
+    var(--dy-bg);
+}
+.dy-register__offline-banner{
+  position:sticky;
+  top:0;
+  z-index:30;
+  width:100%;
+  min-height:36px;
+  padding:7px 14px;
+  border:0;
+  border-bottom:1px solid color-mix(in srgb,var(--dy-warning,#a16207) 25%,var(--dy-border-soft));
+  font-size:.74rem;
+}
+.dy-register__panel{
+  width:100%;
+  min-height:0;
+  padding:28px 16px 48px;
+  background:transparent;
+}
+.dy-register__panel-inner{
+  width:min(100%,760px);
+  margin:0 auto;
+  padding:22px 26px 26px;
+  border:1px solid color-mix(in srgb,var(--dy-brand) 12%,var(--dy-border));
+  border-radius:18px;
+  background:var(--dy-surface);
+  box-shadow:0 24px 65px -50px rgb(0 0 0 / .42);
+}
+.dy-register__progress{
+  position:sticky;
+  top:0;
+  z-index:10;
+  margin:0 -26px 22px;
+  padding:10px 26px;
+  border-bottom:1px solid var(--dy-border-soft);
+  background:color-mix(in srgb,var(--dy-surface) 94%,transparent);
+  backdrop-filter:blur(14px);
+}
+.dy-register__progress-item{
+  min-height:44px;
+  border-radius:10px;
+  padding:7px 9px;
+  transition:border-color 140ms ease,background 140ms ease;
+}
+.dy-register__progress-item strong{font-size:.72rem}
+.dy-register__progress-item small{font-size:.61rem}
+.dy-register__header{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:start;
+  gap:18px;
+  margin-bottom:20px;
+  padding-bottom:16px;
+  border-bottom:1px solid var(--dy-border-soft);
+}
+.dy-register__section-label{
+  display:inline-flex;
+  min-height:26px;
+  align-items:center;
+  padding:3px 8px;
+  margin:0 0 6px;
+  border:1px solid color-mix(in srgb,var(--dy-brand) 18%,var(--dy-border-soft));
+  border-radius:999px;
+  background:color-mix(in srgb,var(--dy-brand) 5%,var(--dy-surface));
+  font-size:.68rem;
+}
+.dy-register__title{font-size:clamp(1.65rem,3vw,2.2rem);letter-spacing:-.025em}
+.dy-register__subtitle{max-width:62ch;margin-top:6px;font-size:.82rem;line-height:1.65}
+.dy-register__back{
+  margin:0;
+  min-height:38px;
+  padding:7px 10px;
+  border:1px solid var(--dy-border-soft);
+  border-radius:9px;
+  white-space:nowrap;
+  font-size:.72rem;
+  background:var(--dy-surface-soft);
+}
+.dy-register__form{gap:12px}
+.dy-register__field{gap:6px;margin-bottom:4px}
+.dy-register__label{font-size:.78rem}
+.dy-register__input-wrap{min-height:50px;border-radius:10px}
+.dy-register__input{min-height:50px;font-size:.9rem}
+.dy-register__terms{
+  border-radius:10px!important;
+  background:var(--dy-surface-soft)!important;
+}
+.dy-register__wizard-actions{
+  margin-top:4px;
+  padding-top:12px;
+  border-top:1px solid var(--dy-border-soft);
+}
+.dy-register__submit{min-height:52px;border-radius:10px;font-weight:800}
+.dy-register__return-login{min-height:42px}
+.dy-register__footer{margin-top:20px;padding-top:14px;border-top:1px solid var(--dy-border-soft);font-size:.68rem}
+.dy-register__success{
+  border:1px solid color-mix(in srgb,var(--dy-success,#15803d) 18%,var(--dy-border));
+  border-radius:12px;
+  padding:18px;
+  background:color-mix(in srgb,var(--dy-success,#15803d) 4%,var(--dy-surface));
+}
+.dy-register__error{border-radius:11px;font-size:.78rem}
+.dy-register__subscriber-code{border-radius:10px}
+@media (max-width:768px){
+  .dy-register__panel{padding:12px 8px 30px}
+  .dy-register__panel-inner{padding:16px 14px 20px;border-radius:14px}
+  .dy-register__progress{margin:0 -14px 16px;padding:8px 14px}
+  .dy-register__header{grid-template-columns:1fr;gap:10px}
+  .dy-register__back{justify-self:start}
+}
+@media (max-width:480px){
+  .dy-register__panel{padding-inline:0}
+  .dy-register__panel-inner{border-inline:0;border-radius:0;box-shadow:none}
+  .dy-register__progress-item small{display:none}
+}
+
+</style>
