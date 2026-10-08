@@ -18,6 +18,17 @@
 			</WorkMenuStrip>
 		</template>
 
+		<template #status-strip>
+			<WorkStatusStrip
+				:state="loading ? 'loading' : errorState || source === 'unavailable' ? 'error' : source === 'local' ? 'offline' : lastLoaded ? 'ready' : 'warning'"
+				:message="loading ? 'جارٍ تحميل البيانات' : errorState ? 'فشل تحميل البيانات' : source === 'unavailable' ? 'مصدر البيانات غير متاح' : source === 'local' ? 'عرض من النسخة المحلية' : lastLoaded ? 'الشاشة جاهزة' : 'لم يتم تحميل البيانات بعد'"
+				:details="errorState || sourceNote"
+				:updated-at="lastLoaded"
+				:items="[{ id: 'total', label: 'السجلات', value: rows.length }, { id: 'visible', label: 'المعروضة', value: visibleRows.length }]"
+				sticky
+			/>
+		</template>
+
 		<template #toolbar>
 			<WorkToolbar>
 				<template #center>
@@ -68,14 +79,7 @@
 			@row-click="onRowClick"
 		/>
 		</WorkPanel>
-		<WorkStatusStrip
-			:state="loading ? 'loading' : errorState || source === 'unavailable' ? 'error' : source === 'local' ? 'offline' : lastLoaded ? 'ready' : 'warning'"
-			:message="loading ? 'جارٍ تحميل البيانات' : errorState ? 'فشل تحميل البيانات' : source === 'unavailable' ? 'مصدر البيانات غير متاح' : source === 'local' ? 'عرض من النسخة المحلية' : lastLoaded ? 'الشاشة جاهزة' : 'لم يتم تحميل البيانات بعد'"
-			:details="errorState || sourceNote"
-			:updated-at="lastLoaded"
-			:items="[{ id: 'total', label: 'السجلات', value: rows.length }, { id: 'visible', label: 'المعروضة', value: visibleRows.length }]"
-			sticky
-		/>
+
 	</WorkShell>
 </template>
 
