@@ -28,6 +28,7 @@ const SRC = join(ROOT, "src")
  * Every entry is screen furniture that never carries an action.
  */
 const DECORATIVE = [
+	".work-shell__subtitle", // non-interactive text label; remains readable on narrow screens
 	// A keyboard-shortcut hint (meaningless without a keyboard, and the shortcut
 	// still fires), an inline search-clear (the field clears on a second tap and
 	// on Escape), connection status text (the coloured dot and the offline
