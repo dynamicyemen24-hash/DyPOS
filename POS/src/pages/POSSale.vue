@@ -1473,6 +1473,25 @@ function onBarcodeScan(code) {
                 <PosStockActions show-import @open="goToStockManagement" />
                 <PosToolsMenu @action="onHeaderGroupAction" />
             </template>
+
+            <template #toolbar-start>
+                <button type="button" @click="router.back" title="العودة"><FeatherIcon name="arrow-right" :size="14" /> العودة</button>
+                <button type="button" @click="router.push({ name: 'Reports' })" title="الرئيسية"><FeatherIcon name="home" :size="14" /> الرئيسية</button>
+                <button type="button" @click="goToWorkScreens" title="العمليات"><FeatherIcon name="activity" :size="14" /> العمليات</button>
+                <button type="button" @click="goToStockManagement" title="المخزون"><FeatherIcon name="package" :size="14" /> المخزون</button>
+            </template>
+            <template #toolbar>
+                <button type="button" :class="{ 'is-primary': canCheckout }" @click="openPayment" :disabled="!canCheckout"><FeatherIcon name="credit-card" :size="14" /> دفع <kbd>Ctrl↵</kbd></button>
+                <button type="button" @click="openScanner"><FeatherIcon name="maximize" :size="14" /> مسح</button>
+                <button type="button" @click="showShortcutsPanel = true"><FeatherIcon name="command" :size="14" /> الاختصارات</button>
+            </template>
+            <template #statusFooter>
+                <span class="dy-pos-sale__footer-status"><i :class="['dy-pos-sale__footer-dot', 'dy-pos-sale__footer-dot--' + syncState]" />{{ saleStatusLabel }}</span>
+                <span><FeatherIcon :name="isOnline ? 'wifi' : 'wifi-off'" :size="12" /> {{ isOnline ? 'متصل' : 'وضع عدم الاتصال' }}</span>
+                <span class="dy-pos-sale__footer-spacer" />
+                <span>{{ cartLabel }}</span><span>الإجمالي {{ formatMoney(total) }}</span>
+                <button type="button" @click="showSyncCenter = true"><FeatherIcon name="refresh-cw" :size="12" /> مركز المزامنة</button>
+            </template>
             </POSHeader>
 
             <!-- Object Header - Sale Summary (Fiori Pattern) -->
@@ -6106,4 +6125,11 @@ function onBarcodeScan(code) {
 </style>
 <style scoped src="@/styles/pages/pos-sale-catalog.css"></style>
 <style scoped src="@/styles/pages/pos-sale-responsive.css"></style>
-<style scoped src="@/styles/pages/pos-sale-accessibility.css"></style>
+<style scoped src="@/styles/pages/pos-sale-accessibility.css">
+.dy-pos-sale__footer-status { display:inline-flex; align-items:center; gap:6px; }
+.dy-pos-sale__footer-dot { width:7px; height:7px; border-radius:50%; background:var(--dy-text-muted); }
+.dy-pos-sale__footer-dot--ready { background:var(--dy-success); }
+.dy-pos-sale__footer-dot--syncing { background:var(--dy-warning); }
+.dy-pos-sale__footer-dot--error { background:var(--dy-danger); }
+.dy-pos-sale__footer-spacer { flex:1; }
+</style>
