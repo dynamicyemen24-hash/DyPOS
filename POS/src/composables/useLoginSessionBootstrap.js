@@ -40,7 +40,10 @@ export function useLoginSessionBootstrap({
 					identity: "هوية المستخدم",
 				}
 				const missingLabels = missing.map((key) => labels[key] || key).join("، ")
-				throw new Error(__("لا يمكن فتح نقطة البيع قبل اكتمال تهيئة: ") + missingLabels)
+				log.warn(
+					"Workspace has deferred setup; continuing to POS",
+					{ missing: missingLabels },
+				)
 			}
 
 			sessionReady.value = true
