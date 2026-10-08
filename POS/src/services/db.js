@@ -117,10 +117,23 @@ class DyPOSDb extends Dexie {
 
 		// v8: tenant provenance for durable offline work. A queue row must never
 		// be pushed under whichever subscriber happens to be logged in later.
-		this.version(8).stores({
-			syncQueue:
-				"++id, tenantId, entityType, entityId, operation, payload, createdAt, attemptCount, lastAttempt, status, [tenantId+status]",
-		})
+		this.version(8)
+			.stores({
+				syncQueue:
+					"++id, tenantId, entityType, entityId, operation, payload, createdAt, attemptCount, lastAttempt, status, [tenantId+status]",
+			})
+			.upgrade((tx) =>
+				tx
+					.table("syncQueue")
+					.toCollection()
+					.modify((row) => {
+						if (row.tenantId == null) {
+							const inferred =
+								row.payload?._tenantId ?? row.payload?.tenantId ?? null
+							if (inferred) row.tenantId = String(inferred)
+						}
+					}),
+			)
 
 	}
 }
