@@ -161,7 +161,7 @@ export function refreshPosContext({
 } = {}) {
 	const tenant = bootstrapData?.tenant || null
 	const organization = bootstrapData?.organization || null
-	const branch = bootstrapData?.pos_profile?.branch || bootstrapData?.branches?.[0] || null
+	const branch = bootstrapData?.pos_profile?.branch || null
 	const terminal = bootstrapData?.terminal || null
 	const tenantId =
 		auth?.tenantId ||
