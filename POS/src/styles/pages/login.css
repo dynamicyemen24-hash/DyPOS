@@ -804,7 +804,9 @@
   }
 
   .dy-login__technical-toggle {
-    display: none;
+    display: inline-flex;
+    min-width: 32px;
+    min-height: 32px;
   }
 
   .dy-login__panel {
