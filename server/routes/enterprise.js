@@ -13,7 +13,7 @@ import net from 'node:net';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
 import db from '../db/schema.js';
 import { ah } from '../lib/async.js';
-import { resolveTenantFilter, assertRecordTenant } from '../lib/tenant.js';
+import { resolveTenantFilter } from '../lib/tenant.js';
 import { VERSION } from '../lib/version.js';
 import { getAdapter, listAdapters, redactConfig } from '../lib/integrations/index.js';
 
@@ -65,7 +65,7 @@ function hasColumn(table, column) {
 function tenantWhere(table, tenantId, params) {
   if (!tenantId || !hasColumn(table, 'tenant_id')) return '';
   params.push(tenantId);
-  return ' AND ' + table + '.tenant_id=?';
+  return ` AND ${table}.tenant_id=?`;
 }
 
 function assertSafeModelEndpoint(raw) {
@@ -85,7 +85,7 @@ function assertSafeModelEndpoint(raw) {
     .split(',')
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
-  if (allowlist.length && !allowlist.some((allowed) => host === allowed || host.endsWith('.' + allowed))) {
+  if (allowlist.length && !allowlist.some((allowed) => host === allowed || host.endsWith(`.${allowed}`))) {
     throw Object.assign(new Error('مضيف مزود الذكاء غير مسموح'), { statusCode: 403 });
   }
   if (
@@ -372,7 +372,7 @@ router.post(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + token,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         model: options.model || 'default',
