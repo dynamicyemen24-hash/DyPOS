@@ -159,24 +159,33 @@ export function refreshPosContext({
 	settings = null,
 	auth = null,
 } = {}) {
+	const tenant = bootstrapData?.tenant || null
+	const organization = bootstrapData?.organization || null
+	const branch = bootstrapData?.pos_profile?.branch || bootstrapData?.branches?.[0] || null
+	const terminal = bootstrapData?.terminal || null
 	const tenantId =
 		auth?.tenantId ||
+		pick(tenant, ["id", "tenantId", "code"]) ||
 		pick(bootstrapData, ["tenant_id", "tenantId", "tenant_code"]) ||
 		sessionTenantId() ||
 		posContext.tenantId
 
 	const tenantName =
-		pickNamed(bootstrapData, ["tenant_name", "tenantName", "tenant"], "name") ||
+		pickNamed(tenant, ["name", "tenantName"], "name") ||
+		pickNamed(organization, ["name"], "name") ||
+		pickNamed(bootstrapData, ["tenant_name", "tenantName"], "name") ||
 		pick(settings, ["tenant_name", "company_name"]) ||
 		pick(bootstrapData, ["company", "site_name"]) ||
 		posContext.tenantName
 
 	const resolvedBranchName =
+		pickNamed(branch, ["name"], "name") ||
 		pickNamed(bootstrapData, ["branch_name", "branch"], "name") ||
 		pick(settings, ["branch_name", "warehouse"]) ||
 		posContext.branchName
 
 	const resolvedBranchCode =
+		pickNamed(branch, ["code"], "code") ||
 		pickNamed(bootstrapData, ["branch_code", "branch"], "code") ||
 		pick(settings, ["branch_code"]) ||
 		posContext.branchCode
@@ -186,6 +195,7 @@ export function refreshPosContext({
 
 	const company =
 		pick(bootstrapData, ["company", "company_name"]) ||
+		pick(organization, ["name"]) ||
 		pick(settings, ["company_name", "default_company"]) ||
 		posContext.company
 
@@ -197,6 +207,7 @@ export function refreshPosContext({
 		pick(settings, ["pos_profile"])?.name ||
 		posContext.posProfile
 
+	posContext.terminalId = terminal?.id || posContext.terminalId
 	posContext.tenantId = tenantId || null
 	posContext.tenantName = tenantName || null
 	posContext.branchCode = branchCode || null
