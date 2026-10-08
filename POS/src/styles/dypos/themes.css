@@ -116,6 +116,7 @@
 
 	/* النص/الأيقونة فوق primary */
 	--dy-primary-contrast: var(--dy-accent-foreground);
+	--dy-on-accent: var(--dy-accent-foreground);
 
 	/*
 	 * الاسم الذي يرسمه ActionButton فعليًا (`text-[var(--dy-text-on-primary)]`).
