@@ -188,10 +188,14 @@ export const tokens = Object.freeze({
 					m3: "teal",
 				}
 				const accent = accentMap[newTheme] || "royal"
-				if (typeof document !== "undefined") {
-					document.documentElement.dataset.accent = accent
+				if (typeof window === "undefined") return accent
+				try {
+					// Legacy callers keep their old names; runtime state is owned by
+					// the central Theme Manager so persistence and subscriptions remain intact.
+					return window.__DYPOS_THEME_MANAGER__?.setAccent?.(accent) || accent
+				} catch {
+					return accent
 				}
-				return accent
 			},
 		},
 	}),
