@@ -88,6 +88,7 @@ CREATE INDEX IF NOT EXISTS idx_stock_warehouse ON stock_levels(warehouse_id, pro
 
 CREATE TABLE IF NOT EXISTS shifts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL,
   terminal_id TEXT NOT NULL,
   opened_by TEXT NOT NULL,
   opening_cash NUMERIC(12,2) NOT NULL DEFAULT 0,
@@ -104,6 +105,7 @@ CREATE TABLE IF NOT EXISTS shifts (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_shifts_terminal ON shifts(terminal_id, status);
+CREATE INDEX IF NOT EXISTS idx_shifts_tenant_terminal_status ON shifts(tenant_id, terminal_id, status);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_shifts_open_terminal ON shifts(COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'), terminal_id) WHERE status='OPEN';
 CREATE INDEX IF NOT EXISTS idx_shifts_settlement ON shifts(tenant_id, status, closed_at DESC, id);
 
@@ -459,11 +461,29 @@ CREATE TABLE IF NOT EXISTS organizations (
   name TEXT NOT NULL,
   code TEXT,
   vat_number TEXT,
+  country_code TEXT NOT NULL DEFAULT 'YE',
+  timezone TEXT NOT NULL DEFAULT 'Asia/Aden',
+  establishment_type TEXT NOT NULL DEFAULT 'retail',
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_orgs_tenant ON organizations(tenant_id);
+CREATE TABLE IF NOT EXISTS onboarding_templates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  data_type TEXT NOT NULL,
+  content TEXT NOT NULL,
+  version INTEGER NOT NULL DEFAULT 1,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by TEXT NOT NULL DEFAULT '',
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, name, data_type)
+);
+CREATE INDEX IF NOT EXISTS idx_onboarding_templates_tenant
+  ON onboarding_templates(tenant_id, data_type, is_active);
+
 CREATE TABLE IF NOT EXISTS branches (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
