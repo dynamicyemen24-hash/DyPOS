@@ -13,7 +13,7 @@
   - Accessible operational feedback
   - Responsive POS-first experience
   المبدأ:
-  Login → Session → Runtime → Shift → POS
+  Login → Session → Runtime → Shift → Dashboard → POS
   لا يتم وضع منطق ERP داخل هذه الصفحة.
   =============================================================================
 -->
