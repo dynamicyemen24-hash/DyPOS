@@ -34,8 +34,6 @@ const DECORATIVE = [
 	// banner carry it, louder), and the brand treatment on auth screens (the
 	// monogram and the form remain).
 	"__shortcut",
-	"__search-clear",
-	"__connection-text",
 	"__technical-toggle",
 	"__preferences",
 	// The login workspace panel (company identity card) — decorative branding,
@@ -44,20 +42,19 @@ const DECORATIVE = [
 	// Hairlines and connectors: the gap between icon buttons, the line between
 	// wizard step markers. Spacing, not controls.
 	"-divider",
-	"step-connector",
 	// The header's location readout — context, not control, with a home on the
 	// status bar — and the cashier chevron, a disclosure hint for a menu that is
 	// still reachable (the name beside it stays visible).
 	"__context-item",
-	"__cashier > svg",
+	"__brand-mark",
+	"__forgot__brand",
+	"__reset__brand",
 	// The breadcrumb's compact modifier changes font size and padding rather
 	// than what is rendered, so hiding the element outright would be the bug.
-	"work-breadcrumb--compact",
 	// Frozen grid panes duplicate the leading/trailing columns; on a narrow
 	// screen they are dropped while the sticky first cell keeps every row
 	// identifiable (covered by tests/workGridResponsive.test.js). No data or
 	// action disappears — the same cells remain in the scrollable main pane.
-	"work-data-grid__frozen",
 ]
 
 function* walk(dir) {
