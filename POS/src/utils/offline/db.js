@@ -325,6 +325,7 @@ export const clearCachedData = async () => {
 		item_prices: 0,
 		payment_methods: 0,
 		sales_persons: 0,
+		opening_balances: 0,
 	}
 
 	try {
@@ -334,6 +335,7 @@ export const clearCachedData = async () => {
 		results.item_prices = await db.item_prices.clear()
 		results.payment_methods = await db.payment_methods.clear()
 		results.sales_persons = await db.sales_persons.clear()
+		results.opening_balances = await db.opening_balances.clear()
 
 		log.info(
 			"Catalog caches cleared (queues/drafts/settings preserved):",
