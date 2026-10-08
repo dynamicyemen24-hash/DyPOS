@@ -29,7 +29,7 @@ const describedBy = computed(() => {
 			<span v-if="required" aria-hidden="true" class="text-[var(--dy-danger,#dc2626)]"> *</span>
 		</label>
 		<div class="dy-form-field__control">
-			<slot :field-id="fieldId" :described-by="describedBy" :error-id="error ? errorId : undefined" :invalid="Boolean(error)" />
+			<slot :field-id="fieldId" :described-by="describedBy" :error-id="error ? errorId : undefined" :invalid="Boolean(error)" :disabled="disabled" :required="required" />
 		</div>
 		<p v-if="description && !error" :id="descriptionId" class="text-xs text-gray-500 mt-0.5 leading-tight">
 			{{ description }}
