@@ -7,6 +7,11 @@ describe("queue capability policy", () => {
     expect(isQueueEnabled({ sector: "خدمي", subscriptionLevel: "3" })).toBe(true)
   })
 
+  it("enables queues when either subscriber sector or business type is service", () => {
+    expect(isQueueEnabled({ sector: "service", businessType: "retail", subscriptionLevel: 2 })).toBe(true)
+    expect(isQueueEnabled({ sector: "retail", businessType: "service", subscriptionLevel: 2 })).toBe(true)
+  })
+
   it("hides queues for non-service subscribers regardless of level", () => {
     expect(isQueueEnabled({ sector: "retail", subscriptionLevel: 5 })).toBe(false)
     expect(isQueueEnabled({ sector: "manufacturing", subscriptionLevel: 3 })).toBe(false)
