@@ -5,8 +5,11 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { extractKey, storedResponse, idempotency, resetIdempotencyForTests, newKey } from '../lib/idempotency.js';
 
-function mockReq(key) {
-	return { headers: key ? { 'x-idempotency-key': key } : {}, body: {} };
+function mockReq(key, tenant = null) {
+	return {
+		headers: key ? { 'x-idempotency-key': key, ...(tenant ? { 'x-tenant-id': tenant } : {}) } : {},
+		body: {},
+	};
 }
 function mockRes() {
 	const calls = [];
@@ -60,6 +63,20 @@ describe('idempotency lib', () => {
 		assert.equal(calls, 2);
 	});
 
+	it('same key is isolated between tenants', async () => {
+		resetIdempotencyForTests();
+		let calls = 0;
+		const fn = async () => ({ call: ++calls });
+		const key = newKey();
+		const a = mockRes();
+		const b = mockRes();
+		await idempotency(mockReq(key, 'tenant-a'), a, 'invoice:create', fn);
+		await idempotency(mockReq(key, 'tenant-b'), b, 'invoice:create', fn);
+		assert.equal(calls, 2);
+		assert.equal(a.sent.call, 1);
+		assert.equal(b.sent.call, 2);
+	});
+
 	it('no key executes directly every time', async () => {
 		resetIdempotencyForTests();
 		let calls = 0;
@@ -106,6 +123,6 @@ describe('idempotency lib', () => {
 		const r = mockRes();
 		await idempotency(mockReq(key), r, 'err', ok);
 		assert.equal(r.sent.recovered, true);
-		assert.equal(storedResponse('err', key)?.body?.recovered, true);
+		assert.equal(storedResponse(mockReq(key), 'err', key)?.body?.recovered, true);
 	});
 });
