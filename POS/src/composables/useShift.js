@@ -192,7 +192,6 @@ export function useShift() {
 		url: "DyPOS.api.shifts.create_opening_shift",
 		makeParams({ pos_profile, company, balance_details }) {
 			return {
-				pos_profile,
 				terminal_id: resolveTerminalId(),
 				pos_profile,
 				company,
