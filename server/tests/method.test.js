@@ -141,11 +141,11 @@ describe('/api/method — auth (login / get_logged_user / has_permission)', () =
 		const reg = await call('POST', '/api/method/dypos.auth.register', {
 			body: { ...user, companyName: 'Test Store', role: 'CASHIER' },
 		});
-		assert.strictEqual(reg.status, 200);
+		assert.strictEqual(reg.status, 201);
 		assert.ok(reg.body.message?.id || reg.body.id);
 	});
 
-	it('POST DyPOS.api.auth.register (the spelling the POS/worker use) → 200', async () => {
+	it('POST DyPOS.api.auth.register (the spelling the POS/worker use) → 201', async () => {
 		// Regression: the shipped Register page (and the Cloudflare worker) call the
 		// capitalised verb. Only the lowercase name existed on this server, so a
 		// real subscriber hit 404 here while the same flow worked on Pages — a
@@ -155,7 +155,7 @@ describe('/api/method — auth (login / get_logged_user / has_permission)', () =
 		const res = await call('POST', '/api/method/DyPOS.api.auth.register', {
 			body: { username, password: 'StrongP@55!', fullName: 'Capitalised', role: 'CASHIER' },
 		});
-		assert.strictEqual(res.status, 200);
+		assert.strictEqual(res.status, 201);
 		const created = res.body.message || res.body;
 		assert.ok(created?.id, 'register must return the new user id');
 
