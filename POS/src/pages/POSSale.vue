@@ -930,6 +930,7 @@ async function confirmPayment() {
 		})
 		if (invalidPriceItem) {
 			paymentError.value = "يوجد صنف بلا سعر بيع صالح. صحح بيانات الصنف قبل إتمام البيع."
+			syncState.value = "error"
 			showNotification(paymentError.value, "warning")
 			return
 		}
