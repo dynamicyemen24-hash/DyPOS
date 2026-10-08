@@ -136,6 +136,8 @@ describe('/api/method — auth (login / get_logged_user / has_permission)', () =
 		password: 'StrongP@55!',
 		fullName: 'Method User',
 	};
+	let cashierUser;
+
 
 	before(async () => {
 		const reg = await call('POST', '/api/method/dypos.auth.register', {
@@ -143,6 +145,24 @@ describe('/api/method — auth (login / get_logged_user / has_permission)', () =
 		});
 		assert.strictEqual(reg.status, 201);
 		assert.ok(reg.body.message?.id || reg.body.id);
+		const adminToken = (await call('POST', '/api/method/login', {
+			body: { usr: user.username, pwd: user.password },
+		})).body.token;
+		cashierUser = {
+			username: `m_cashier_${Date.now()}`,
+			password: 'StrongP@55!',
+		};
+		const cashierReg = await call('POST', '/api/method/dypos.auth.register', {
+			token: adminToken,
+			body: {
+				...cashierUser,
+				fullName: 'Cashier User',
+				role: 'CASHIER',
+				tenantId: reg.body.message.tenantId,
+				companyName: 'Test Store',
+			},
+		});
+		assert.strictEqual(cashierReg.status, 201);
 	});
 
 	it('POST DyPOS.api.auth.register (the spelling the POS/worker use) → 201', async () => {
@@ -153,7 +173,7 @@ describe('/api/method — auth (login / get_logged_user / has_permission)', () =
 		// this proves the handler actually creates the user.
 		const username = `m_cap_${Date.now()}`;
 		const res = await call('POST', '/api/method/DyPOS.api.auth.register', {
-			body: { username, password: 'StrongP@55!', fullName: 'Capitalised', role: 'CASHIER' },
+			body: { username, password: 'StrongP@55!', fullName: 'Capitalised', role: 'CASHIER', companyName: 'Capitalised Store' },
 		});
 		assert.strictEqual(res.status, 201);
 		const created = res.body.message || res.body;
@@ -226,7 +246,7 @@ describe('/api/method — auth (login / get_logged_user / has_permission)', () =
 
 	it('POST dypos.client.has_permission → { has_permission: boolean }', async () => {
 		const login = await call('POST', '/api/method/login', {
-			body: { usr: user.username, pwd: user.password },
+			body: { usr: cashierUser.username, pwd: cashierUser.password },
 		});
 		const token = login.body.token || login.body.message?.token;
 		const yes = await call('POST', '/api/method/dypos.client.has_permission', {
