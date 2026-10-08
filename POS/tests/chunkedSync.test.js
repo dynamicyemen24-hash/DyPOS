@@ -204,7 +204,9 @@ describe("push priority — أولويات الدفع", () => {
 			async audit() {},
 		}
 
-		const result = await pushPendingChanges(protocol, store)
+		authState.tenantId = "tenant-test"
+	const result = await pushPendingChanges(protocol, store)
+	authState.tenantId = null
 
 		expect(result.pushed).toBe(3)
 		expect(pushedOrder).toEqual([
