@@ -354,8 +354,8 @@ onMounted(async () => {
         </div>
       </article>
     </section>
-  </main>
     </template>
+  </main>
 </template>
 
 <style scoped>
