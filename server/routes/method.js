@@ -565,7 +565,7 @@ const doRegister = async (params, req, res) => {
 	const username = String(params.username || params.usr || params.email || '').trim();
 	const password = String(params.password || params.pwd || '');
 	const fullName = String(params.full_name || params.fullName || username).trim();
-	const companyName = String(params.company || params.company_name || params.organization || '').trim();
+	const companyName = String(params.company || params.company_name || params.companyName || params.organization || '').trim();
 	const requestedTenantId = String(params.tenantId || '').trim();
 	const role = String(params.role || 'CASHIER').toUpperCase();
 	if (!username || username.length < 3) return methodError(res, 400, 'ValidationError', 'اسم المستخدم غير صالح');
