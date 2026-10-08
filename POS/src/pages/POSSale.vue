@@ -1294,7 +1294,10 @@ function handleProductGridKeydown(event) {
  * Lifecycle
  * ========================================================================== */
 
+let saleMounted = false
+
 onMounted(async () => {
+	saleMounted = true
 	window.addEventListener("keydown", handleKeydown)
 
 	// Local catalog first: the main POS workspace must not depend on route
@@ -1302,13 +1305,13 @@ onMounted(async () => {
 	try {
 		loadingProducts.value = true
 		const localItems = await searchCachedItems("", 50000)
-		if (Array.isArray(localItems) && localItems.length > 0) {
+		if (saleMounted && Array.isArray(localItems) && localItems.length > 0) {
 			products.value = localItems
 		}
 	} catch (error) {
 		logger.warn("Local POS catalog hydration deferred", error)
 	} finally {
-		loadingProducts.value = false
+		if (saleMounted) loadingProducts.value = false
 	}
 
 	window.addEventListener("online", handleOnline)
@@ -1326,6 +1329,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+	saleMounted = false
 	window.removeEventListener("keydown", handleKeydown)
 
 	window.removeEventListener("online", handleOnline)
