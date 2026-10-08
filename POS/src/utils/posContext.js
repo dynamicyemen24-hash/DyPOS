@@ -161,7 +161,11 @@ export function refreshPosContext({
 } = {}) {
 	const tenant = bootstrapData?.tenant || null
 	const organization = bootstrapData?.organization || null
-	const branch = bootstrapData?.pos_profile?.branch || null
+	const savedBranchId = safeStorage()?.getItem("dypos.lastBranchId") || ""
+	let branch = bootstrapData?.pos_profile?.branch || null
+	if (savedBranchId && Array.isArray(bootstrapData?.branches)) {
+		branch = bootstrapData.branches.find((item) => String(item.id) === String(savedBranchId)) || branch
+	}
 	const terminal = bootstrapData?.terminal || null
 	const tenantId =
 		auth?.tenantId ||
