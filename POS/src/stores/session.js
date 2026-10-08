@@ -114,24 +114,24 @@ export const useSessionStore = defineStore("session", () => {
 	const terminalId = computed(() => posContext.terminalId)
 	const posProfile = computed(() => posContext.posProfile)
 
-	const workspaceReadiness = computed(() => ({
-		identity: Boolean(user.value && lowSession.isLoggedIn),
-		tenant: Boolean(posContext.tenantId),
-		branch: Boolean(posContext.branchCode && posContext.branchName),
-		terminal: Boolean(posContext.terminalId),
-		profile: Boolean(posContext.posProfile),
-		permissions: permissionsLoaded.value,
-		settings: Boolean(bootstrapStore.getPreloadedPOSSettings()),
-		shift: Boolean(shiftState.value.isOpen),
-		saleReady: Boolean(
-			user.value &&
-			lowSession.isLoggedIn &&
-			posContext.tenantId &&
-			posContext.branchCode &&
-			posContext.terminalId &&
-			posContext.posProfile,
-		),
-	}))
+	const workspaceReadiness = computed(() => {
+		const readiness = {
+			identity: Boolean(user.value && lowSession.isLoggedIn),
+			tenant: Boolean(posContext.tenantId),
+			branch: Boolean(posContext.branchCode && posContext.branchName),
+			terminal: Boolean(posContext.terminalId),
+			profile: Boolean(posContext.posProfile),
+			permissions: permissionsLoaded.value,
+			settings: Boolean(bootstrapStore.getPreloadedPOSSettings()),
+			shift: Boolean(shiftState.value.isOpen),
+		}
+		return {
+			...readiness,
+			saleReady: Object.entries(readiness)
+				.filter(([key]) => key !== "shift")
+				.every(([, value]) => value),
+		}
+	})
 
 	const workspaceReady = computed(() => workspaceReadiness.value.saleReady)
 
@@ -252,6 +252,8 @@ export const useSessionStore = defineStore("session", () => {
 				: null
 
 			// 3. POS context (tenant / branch / terminal / profile)
+			// Terminal identity must come from provisioned workspace data or a
+			// previously persisted provisioned terminal; never manufacture one.
 			resolveTerminalId()
 			refreshPosContext({
 				bootstrapData: data,
