@@ -561,8 +561,9 @@ def('dypos.auth.get_logged_user', (_p, req, res) => {
 //     method-coverage gate now prevents.
 //   - `dypos.auth.register` — the pre-existing lowercase name; kept so no
 //     deployed client loses a verb.
-def('DyPOS.api.auth.register', registerSubscriber)
-def('dypos.auth.register', registerSubscriber)
+const register = (params, req, res) => registerSubscriber({ db, crypto, hashPasswordAsync, methodError, params, req, res })
+def('DyPOS.api.auth.register', register)
+def('dypos.auth.register', register)
 
 // ── Password reset (maps to /api/auth/forgot + /reset) ──────────────────
 def('DyPOS.api.auth.send_password_reset', (params, _req, res) => {
