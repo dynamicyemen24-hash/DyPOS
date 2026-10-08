@@ -19,6 +19,7 @@ const SESSION_STORAGE_KEY = "dypos_user_session"
 export const LOCAL_SESSION_TTL_MS = 8 * 60 * 60 * 1000
 
 export let lastLoginSource = "none"
+export let lastServerAuth = null
 
 function readStoredSession() {
 	try {
@@ -165,6 +166,7 @@ export const session = reactive({
 				persistSession(localResult.user)
 				session.login.reset()
 				lastLoginSource = "local"
+				lastServerAuth = null
 				log.info("Local login successful", cleanEmail)
 				return session.user
 			}
@@ -174,6 +176,12 @@ export const session = reactive({
 			// error instead of holding the cashier for a long timeout.
 			const onlineUser = await tryOnlineLogin(cleanEmail, password, cleanSubscriberCode)
 			if (onlineUser?.email) {
+				lastServerAuth = data?.token ? {
+					token: data.token,
+					refreshToken: data.refreshToken || data.refresh_token || null,
+					expiresIn: Number(data.expiresIn || data.expires_in || 3600),
+					user: onlineUser,
+				} : null
 				persistSession({
 					email: onlineUser.email,
 					full_name: onlineUser.full_name || onlineUser.email,
