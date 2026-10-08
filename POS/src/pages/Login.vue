@@ -27,7 +27,6 @@ import { COMPANY_WEBSITE, COMPANY_WEBSITE_LABEL } from "@/utils/brand"
 import { translationVersion } from "@/utils/translation"
 import DyPOSLogo from "@/assets/DyPOSLogo.png"
 import ShiftOpeningDialog from "@/components/ShiftOpeningDialog.vue"
-import CompanyFooter from "@/components/common/CompanyFooter.vue"
 import LoginPasskeyActions from "@/components/common/LoginPasskeyActions.vue"
 import LoginAppearanceBar from "@/components/common/LoginAppearanceBar.vue"
 import LoginContextChips from "@/components/common/LoginContextChips.vue"
@@ -701,74 +700,33 @@ watch(
 		:lang="preferencesLocale"
 		:data-translation-version="translationVersion"
 	>
-		<!-- Offline Indicator -->
-		<div
-			v-if="isOfflineMode && offlineDetected"
-			class="dy-login__offline-banner"
-			role="status"
-			aria-live="polite"
-		>
-			<FeatherIcon name="wifi-off" :size="16" aria-hidden="true" />
-			<span>{{ __('وضع عدم الاتصال — سيتم تسجيل الدخول محليًا') }}</span>
-		</div>
-        <section class="dy-login__brand" :aria-label="__('هوية DyPOS')">
-            <a
-                class="dy-login__brand-logo"
-                :href="COMPANY_WEBSITE"
-                target="_blank"
-                rel="noopener noreferrer"
-                :aria-label="COMPANY_WEBSITE_LABEL"
-            >
-                <span class="dy-login__logo-shell">
-                    <img :src="DyPOSLogo" alt="DyPOS" class="dy-login__logo" width="48" height="48" decoding="async" />
-                </span>
-            </a>
-            <div class="dy-login__brand-copy">
-                <span class="dy-login__brand-kicker">{{ __('نظام نقاط البيع والكاشير الذكي') }}</span>
-                <h2>{{ __('ادخل وابدأ العمل') }}</h2>
-                <p>{{ __('جلسة تشغيل واحدة، أداء سريع، واستمرارية العمل حتى عند انقطاع الشبكة.') }}</p>
-                <div class="dy-login__brand-points">
-                    <span><FeatherIcon name="zap" :size="14" aria-hidden="true" /> {{ __('دخول سريع') }}</span>
-                    <span><FeatherIcon name="wifi-off" :size="14" aria-hidden="true" /> {{ __('Offline First') }}</span>
-                    <span><FeatherIcon name="shield" :size="14" aria-hidden="true" /> {{ __('هوية وصلاحيات المشترك') }}</span>
-                </div>
-            </div>
-            <CompanyFooter class="dy-login__brand-company" />
-            <LoginAppearanceBar :compact="true" class="dy-login__preferences" />
-            <TechnicalModeToggle class="dy-login__technical-toggle" />
-            <nav class="dy-login__command-strip" aria-label="قائمة الوصول السريع">
-                <RouterLink :to="{ name: 'Login' }" class="is-current">{{ __('الدخول') }}</RouterLink>
-                <RouterLink :to="{ name: 'Register' }">{{ __('تسجيل المشترك') }}</RouterLink>
-                <RouterLink :to="{ name: 'Terms' }">{{ __('الشروط') }}</RouterLink>
-                <RouterLink :to="{ name: 'Privacy' }">{{ __('الخصوصية') }}</RouterLink>
-                <RouterLink :to="{ name: 'Agreement' }">{{ __('الاتفاقية') }}</RouterLink>
-            </nav>
-        </section>
+		<!-- Compact operating masthead -->
+		<section class="dy-login__brand" :aria-label="__('هوية DyPOS')">
+			<a class="dy-login__brand-logo" :href="COMPANY_WEBSITE" target="_blank" rel="noopener noreferrer" :aria-label="COMPANY_WEBSITE_LABEL">
+				<span class="dy-login__logo-shell"><img :src="DyPOSLogo" alt="DyPOS" class="dy-login__logo" width="32" height="32" decoding="async" /></span>
+			</a>
+			<nav class="dy-login__command-strip" aria-label="قائمة الوصول السريع">
+				<RouterLink :to="{ name: 'Login' }" class="is-current">{{ __('الدخول') }}</RouterLink>
+				<RouterLink :to="{ name: 'Register' }">{{ __('تسجيل المشترك') }}</RouterLink>
+				<RouterLink :to="{ name: 'Terms' }">{{ __('الشروط') }}</RouterLink>
+				<RouterLink :to="{ name: 'Privacy' }">{{ __('الخصوصية') }}</RouterLink>
+				<RouterLink :to="{ name: 'Agreement' }">{{ __('الاتفاقية') }}</RouterLink>
+			</nav>
+			<div class="dy-login__masthead-tools">
+				<LoginAppearanceBar :compact="true" class="dy-login__preferences" />
+				<TechnicalModeToggle class="dy-login__technical-toggle" />
+			</div>
+		</section>
 
-        <!-- Simplified status indicator — only shows offline/online -->
-        <div
-            v-if="!isOfflineMode && isOnline"
-            class="dy-login__status-indicator"
-            role="status"
-            aria-live="polite"
-        >
-            <span
-                v-if="isOfflineMode"
-                class="dy-login__status-item dy-login__status-item--offline"
-            >
-                <FeatherIcon name="wifi-off" :size="14" aria-hidden="true" />
-                {{ __('غير متصل') }}
-            </span>
-            <span
-                v-else
-                class="dy-login__status-item dy-login__status-item--online"
-            >
-                <FeatherIcon name="wifi" :size="14" aria-hidden="true" />
-                {{ __('متصل') }}
-            </span>
-        </div>
+		<!-- One runtime strip -->
+		<section class="dy-login__status-bar" role="status" aria-live="polite">
+			<span class="dy-login__status-item" :class="isOfflineMode && offlineDetected ? 'dy-login__status-item--offline' : 'dy-login__status-item--online'">
+				<FeatherIcon :name="isOfflineMode && offlineDetected ? 'wifi-off' : 'wifi'" :size="14" aria-hidden="true" />
+				{{ isOfflineMode && offlineDetected ? __('وضع العمل المحلي — لا يتطلب اتصالاً') : (isOnline ? __('متصل — جاهز لتسجيل الدخول') : __('جاري التحقق من الاتصال')) }}
+			</span>
+		</section>
 
-        <!-- Initial Loading Skeleton -->
+		 <!-- Initial Loading Skeleton -->
         <section v-if="isInitialLoading" class="dy-login__panel" aria-busy="true" :aria-label="__('جاري التحميل')">
             <div class="dy-login__panel-inner">
                 <SkeletonLoader :count="3" variant="card" />
