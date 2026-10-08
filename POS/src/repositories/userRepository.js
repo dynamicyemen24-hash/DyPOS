@@ -113,6 +113,11 @@ export async function create({
 	phone = "",
 	company = "",
 	role = "POS User",
+	tenantId = null,
+	tenantName = "",
+	branchCode = "",
+	branchName = "",
+	posProfile = "",
 } = {}) {
 	const cleanEmail = normalizeEmail(email)
 	const name = String(fullName || "").trim()
@@ -135,6 +140,11 @@ export async function create({
 		phone: String(phone || ""),
 		company: String(company || ""),
 		role,
+		tenantId: tenantId || null,
+		tenantName: String(tenantName || ""),
+		branchCode: String(branchCode || ""),
+		branchName: String(branchName || ""),
+		posProfile: String(posProfile || ""),
 		password_hash: await hashPassword(password),
 		created_at: now,
 		updated_at: now,
@@ -207,6 +217,37 @@ export async function authenticate(email, password) {
 	return { success: true, user: upgraded }
 }
 
+export async function upsertAuthenticatedUser(user, password) {
+	const cleanEmail = normalizeEmail(user?.email || user?.username)
+	if (!cleanEmail || !password) return null
+	const existing = await findByEmail(cleanEmail)
+	const patch = {
+		full_name: String(user?.full_name || user?.fullName || cleanEmail),
+		role: String(user?.role || "POS User"),
+		tenantId: user?.tenantId || user?.tenant_id || null,
+		tenantName: String(user?.tenantName || ""),
+		branchCode: String(user?.branchCode || ""),
+		branchName: String(user?.branchName || ""),
+		posProfile: String(user?.posProfile || ""),
+		updated_at: new Date().toISOString(),
+	}
+	if (existing) {
+		await users.update(existing.id, { ...patch, password_hash: await hashPassword(password) })
+		return users.get(existing.id)
+	}
+	return create({
+		fullName: patch.full_name,
+		email: cleanEmail,
+		password,
+		role: patch.role,
+		tenantId: patch.tenantId,
+		tenantName: patch.tenantName,
+		branchCode: patch.branchCode,
+		branchName: patch.branchName,
+		posProfile: patch.posProfile,
+	})
+}
+
 export const userRepository = {
 	...users,
 	normalizeEmail,
@@ -215,6 +256,7 @@ export const userRepository = {
 	upgradePasswordHash,
 	findByEmail,
 	create,
+	upsertAuthenticatedUser,
 	verifyPassword,
 	authenticate,
 }
