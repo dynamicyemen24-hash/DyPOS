@@ -4244,7 +4244,7 @@ CREATE TABLE IF NOT EXISTS opening_balance_template_lines (
   direction TEXT NOT NULL, default_amount TEXT NOT NULL DEFAULT '0', name TEXT NOT NULL, name_ar TEXT NOT NULL DEFAULT '',
   PRIMARY KEY(template_code,account_code)
 );
-CREATE TABLE IF NOT EXISTS onboarding_templates (
+CREATE TABLE IF NOT EXISTS activity_onboarding_templates (
   activity_code TEXT NOT NULL REFERENCES business_activities(code), country_code TEXT NOT NULL DEFAULT '',
   template_version INTEGER NOT NULL DEFAULT 1, config_json TEXT NOT NULL DEFAULT '{}',
   is_active BOOLEAN NOT NULL DEFAULT TRUE, PRIMARY KEY(activity_code,country_code)
@@ -4256,4 +4256,4 @@ CREATE INDEX IF NOT EXISTS idx_business_activities_sector ON business_activities
 CREATE INDEX IF NOT EXISTS idx_activity_classes_activity ON activity_product_classes(activity_code,is_active);
 CREATE INDEX IF NOT EXISTS idx_activity_services_activity ON activity_services(activity_code,is_active);
 CREATE INDEX IF NOT EXISTS idx_ref_enum_name ON ref_enum_values(enum_name,is_active,sort_order);
-CREATE INDEX IF NOT EXISTS idx_onboarding_country ON onboarding_templates(country_code,is_active);
+CREATE INDEX IF NOT EXISTS idx_activity_onboarding_country ON activity_onboarding_templates(country_code,is_active);
