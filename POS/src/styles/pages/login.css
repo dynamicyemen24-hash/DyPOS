@@ -3661,3 +3661,24 @@
 @media (prefers-reduced-motion:reduce){
   .dy-login__brand{scroll-behavior:auto}
 }
+
+/* Functional command strip */
+.dy-login__command-strip{
+  display:flex;align-items:center;gap:3px;flex:0 1 auto;
+  margin-inline:8px 0;padding:3px;
+  border:1px solid var(--dy-border-soft);border-radius:9px;
+  background:var(--dy-surface-soft);
+  order:5;
+}
+.dy-login__command-strip a{
+  display:inline-flex;align-items:center;min-height:30px;
+  padding:4px 8px;border-radius:7px;
+  color:var(--dy-text-secondary);text-decoration:none;
+  font-size:.68rem;font-weight:750;white-space:nowrap;
+}
+.dy-login__command-strip a:hover,.dy-login__command-strip a.is-current{
+  color:var(--dy-text-strong);background:var(--dy-surface);
+}
+@media(max-width:760px){
+ .dy-login__command-strip{display:none}
+}
