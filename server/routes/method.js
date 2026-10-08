@@ -960,36 +960,92 @@ def('dypos.delete_doc', (params, req, res) => {
 });
 
 // ── Bootstrap ────────────────────────────────────────────────────────────
-def('DyPOS.api.bootstrap.get_initial_data', (_p, req, res) => {
+def('DyPOS.api.bootstrap.get_initial_data', (params, req, res) => {
 	if (!requireUser(req, res)) return;
+
+	// Bootstrap is the authoritative workspace context. Every tenant-bound
+	// dataset is scoped here before it reaches the cashier; no legacy/global
+	// fallback may leak another subscriber's branches, warehouses or shifts.
+	let tenantId;
+	try {
+		tenantId = resolveTenantFilter(req).tenantId;
+	} catch {
+		return methodError(res, 403, 'PermissionError', 'نطاق المشترك غير صالح');
+	}
+	if (!tenantId) return methodError(res, 403, 'PermissionError', 'لا يوجد مشترك مرتبط بالمستخدم');
+
 	const settings = allSettings();
+	const terminalId = String(params?.terminal_id || params?.terminalId || '').trim().slice(0, 64) || null;
+
+	let organization = null;
+	try {
+		organization = db
+			.prepare('SELECT id,name,code,country_code,timezone,establishment_type FROM organizations WHERE tenant_id=? AND is_active=1 ORDER BY created_at LIMIT 1')
+			.get(tenantId) || null;
+	} catch {
+		organization = null;
+	}
+
+	let branches = [];
+	try {
+		branches = db
+			.prepare('SELECT id,name,code,warehouse_id FROM branches WHERE tenant_id=? ORDER BY name')
+			.all(tenantId);
+	} catch {
+		branches = [];
+	}
+
+	let warehouses = [];
+	try {
+		warehouses = db
+			.prepare('SELECT id,name,address,is_active,tenant_id FROM warehouses WHERE tenant_id=? AND is_active=1 ORDER BY name')
+			.all(tenantId);
+	} catch {
+		warehouses = [];
+	}
+
 	let shift = null;
 	try {
-		// Prefer open shift for this user's terminal if any; return most recent OPEN.
-		shift = db.prepare(`SELECT * FROM shifts WHERE status='OPEN' ORDER BY opened_at DESC LIMIT 1`).get() || null;
+		const shiftSql = terminalId
+			? 'SELECT * FROM shifts WHERE terminal_id=? AND status=\'OPEN\' ORDER BY opened_at DESC LIMIT 1'
+			: 'SELECT * FROM shifts WHERE opened_by=? AND status=\'OPEN\' ORDER BY opened_at DESC LIMIT 1';
+		shift = terminalId
+			? db.prepare(shiftSql).get(terminalId) || null
+			: db.prepare(shiftSql).get(req.user.fullName || req.user.username) || null;
 	} catch {
-		/* ignore */
+		shift = null;
 	}
+
 	let paymentMethods = [];
 	try {
 		paymentMethods = db.prepare('SELECT * FROM payment_methods WHERE is_active=1 ORDER BY sort_order').all();
 	} catch {
-		/* ignore */
+		/* optional master data */
 	}
-	let warehouses = [];
-	try {
-		warehouses = db.prepare('SELECT * FROM warehouses ORDER BY id').all();
-	} catch {
-		/* ignore */
-	}
+
+	const branch = branches[0] || null;
+	const warehouse = warehouses.find((w) => w.id === branch?.warehouse_id) || warehouses[0] || null;
 	const locale = req.user?.preferred_locale || 'ar';
+	const currency = String(settings.currency || '').trim().toUpperCase();
+	const country = String(organization?.country_code || settings.country_code || '').trim().toUpperCase();
+
 	return res.json({
 		message: {
 			success: true,
 			site_name: 'DyPOS',
 			locale,
-			// One formatting contract for the whole client (settings-driven, never
-			// hardcoded): money/quantity precision, rounding method, display digits.
+			tenant: {
+				id: tenantId,
+				name: organization?.name || null,
+				code: organization?.code || null,
+			},
+			organization,
+			branches,
+			terminal: {
+				id: terminalId,
+				bound: Boolean(terminalId),
+				status: terminalId ? 'local-bound' : 'unbound',
+			},
 			precision: precisionSettings(),
 			stock_control_mode: stockControlMode(),
 			stock_warning_threshold: stockWarningThreshold(),
@@ -997,25 +1053,30 @@ def('DyPOS.api.bootstrap.get_initial_data', (_p, req, res) => {
 			shift,
 			pos_profile: {
 				name: 'POS',
-				warehouse: warehouses[0]?.id || 'W-01',
+				warehouse: warehouse?.id || null,
 				warehouses,
-				company: settings.business_name || 'DyPOS',
-				country: settings.country_code || 'SA',
-				currency: settings.currency || 'SAR',
+				branch: branch
+					? { id: branch.id, name: branch.name, code: branch.code, warehouse_id: branch.warehouse_id || null }
+					: null,
+				company: settings.business_name || organization?.name || null,
+				country: country || null,
+				currency: currency || null,
 			},
 			pos_settings: {
 				allow_negative_stock: settings.allow_negative_stock === '1',
 				tax_inclusive: settings.tax_inclusive === '1',
 				require_customer_on_sale: settings.require_customer_on_sale === '1',
-				tax_rate_default: Number(settings.tax_rate_default || 15),
+				tax_rate_default: Number(settings.tax_rate_default || 0),
 				default_payment_method: settings.default_payment_method || '',
 			},
 			payment_methods: paymentMethods,
 			settings,
 			user: {
+				id: req.user.id || null,
 				username: req.user.username,
 				fullName: req.user.fullName || req.user.username,
 				role: req.user.role,
+				tenantId,
 			},
 		},
 	});
