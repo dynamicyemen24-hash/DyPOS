@@ -483,7 +483,11 @@ function redirectToLogin(to) {
 	}
 }
 
-function redirectToDashboard() {\n\treturn { name: ROUTE_NAMES.REPORTS, replace: true }\n}\n\nfunction redirectToPOS() {
+function redirectToDashboard() {
+	return { name: ROUTE_NAMES.REPORTS, replace: true }
+}
+
+function redirectToPOS() {
 	return {
 		name: ROUTE_NAMES.POS,
 		replace: true,
