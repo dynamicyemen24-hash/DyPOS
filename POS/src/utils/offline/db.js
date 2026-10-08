@@ -359,7 +359,6 @@ export const clearCachedData = async () => {
  */
 export const clearTenantScopedCaches = async () => {
 	const results = {
-		...await clearCachedData(),
 		invoice_history: 0,
 		unpaid_invoices: 0,
 		one_time_redemptions: 0,
@@ -369,6 +368,15 @@ export const clearTenantScopedCaches = async () => {
 		zatca_settings: 0,
 	}
 	try {
+		const catalogResult = await clearCachedData()
+		if (!catalogResult?.success) {
+			return {
+				success: false,
+				error: catalogResult?.error || "تعذر مسح ذاكرة المشترك",
+				cleared: catalogResult?.cleared || {},
+			}
+		}
+		Object.assign(results, catalogResult.cleared || {})
 		results.invoice_history = await db.invoice_history.clear()
 		results.unpaid_invoices = await db.unpaid_invoices.clear()
 		results.one_time_redemptions = await db.one_time_redemptions.clear()
