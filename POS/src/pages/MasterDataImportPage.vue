@@ -26,7 +26,7 @@ const readiness = ref({ products: 0, customers: 0, warehouses: 0, defaultWarehou
 const setup = ref({
   countryCode: "YE",
   timezone: "Asia/Aden",
-  currency: r.readiness?.currency || "YER",
+  currency: "YER",
   establishmentType: "retail",
 });
 
