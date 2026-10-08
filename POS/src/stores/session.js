@@ -291,6 +291,11 @@ export const useSessionStore = defineStore("session", () => {
 
 			const data = null
 
+			if (authState.tenantId) {
+				// Hydration owns its own warehouse discovery, so it can start even if
+				// the small bootstrap request is slow or unavailable.
+				void hydrateSubscriberLocalData({ tenantId: authState.tenantId })
+			}
 			void remoteBootstrap.then((remoteData) => {
 				if (!remoteData) return
 				try {
@@ -301,13 +306,6 @@ export const useSessionStore = defineStore("session", () => {
 					})
 				} catch (error) {
 					log.warn("Remote POS context convergence deferred", error)
-				}
-				if (authState.tenantId) {
-					void hydrateSubscriberLocalData({
-						tenantId: authState.tenantId,
-						warehouseId: remoteData?.pos_profile?.warehouse || null,
-						bootstrapData: remoteData,
-					})
 				}
 			})
 
