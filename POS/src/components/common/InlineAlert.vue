@@ -58,23 +58,23 @@ const closeLabel = computed(() => props.dismissLabel || __("Close"))
 
 <style scoped>
 .dy-inline-alert--info {
-	color: var(--dy-info-text, #1e40af);
-	background: var(--dy-info-bg, #eff6ff);
+	color: var(--dy-info-contrast, #1e40af);
+	background: var(--dy-info-soft, #eff6ff);
 	border-color: var(--dy-info-border, #bfdbfe);
 }
 .dy-inline-alert--success {
-	color: var(--dy-success-text, #166534);
-	background: var(--dy-success-bg, #f0fdf4);
+	color: var(--dy-success-contrast, #166534);
+	background: var(--dy-success-soft, #f0fdf4);
 	border-color: var(--dy-success-border, #bbf7d0);
 }
 .dy-inline-alert--warning {
-	color: var(--dy-warning-text, #92400e);
-	background: var(--dy-warning-bg, #fffbeb);
+	color: var(--dy-warning-contrast, #92400e);
+	background: var(--dy-warning-soft, #fffbeb);
 	border-color: var(--dy-warning-border, #fde68a);
 }
 .dy-inline-alert--error {
-	color: var(--dy-danger-text, #991b1b);
-	background: var(--dy-danger-bg, #fef2f2);
+	color: var(--dy-danger-contrast, #991b1b);
+	background: var(--dy-danger-soft, #fef2f2);
 	border-color: var(--dy-danger-border, #fecaca);
 }
 @media (prefers-reduced-motion: reduce) {
