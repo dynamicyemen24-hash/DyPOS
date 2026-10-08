@@ -23,7 +23,7 @@ const timestamp = computed(() => {
 </script>
 
 <template>
-  <footer class="work-status-strip" :class="[`work-status-strip--${state}`, { 'work-status-strip--sticky': sticky }"
+  <footer class="work-status-strip" :class="[`work-status-strip--${state}`, { 'work-status-strip--sticky': sticky }]"
     :aria-label="'حالة شاشة العمل'" :aria-live="state === 'error' || state === 'warning' ? 'assertive' : 'polite'">
     <div class="work-status-strip__primary">
       <span class="work-status-strip__indicator" aria-hidden="true"><FeatherIcon :name="stateIcon" /></span>
