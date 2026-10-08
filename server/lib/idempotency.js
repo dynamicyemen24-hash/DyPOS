@@ -1,34 +1,15 @@
 /**
- * DyPOS Idempotency — generic Stripe-style safe-retry core (world-class).
+ * DyPOS Idempotency — safe retry core.
  *
- * Problem solved: retried POSTs (double-tap, flaky network, webhook
- * at-least-once) must NEVER execute twice. Every mutating route accepts
- * `Idempotency-Key` header (or body.idempotencyKey) and returns the STORED
- * response on replay instead of re-executing.
- *
- * Design (single-writer SQLite friendly):
- * - Tier-1: `idempotency_keys` table (UNIQUE key) — survives restarts, shared
- *   across processes on the same DB file. Response cached 24h, then GC'd.
- * - Tier-0: in-process Map for keys created before migrate() runs (boot edge).
- * - Singleflight: concurrent identical keys share ONE promise (no thundering
- *   herd inside the 29-parallel-retries window noted in review).
- * - Scope: key is namespaced per route (`scope:key`) so a checkout key can
- *   never collide with a wallet key.
- *
- * Usage in a route:
- *   import { idempotency } from '../lib/idempotency.js';
- *   router.post('/:id/void', ah(async (req, res) => {
- *     return idempotency(req, res, 'invoice:void', async () => {
- *       ... actual mutation, must RETURN the JSON body ...
- *     });
- *   }));
+ * Mutating requests can be retried after network failures without executing
+ * the mutation twice. Keys are scoped by route + tenant/org/branch context.
  */
 import crypto from 'node:crypto';
 import db from '../db/schema.js';
 
 const TTL_HOURS = Number(process.env.DYPOS_IDEMPOTENCY_TTL_H || 24);
-const memFallback = new Map(); // key -> { status, body }
-const inflight = new Map(); // namespaced key -> Promise
+const memFallback = new Map();
+const inflight = new Map();
 
 function tableAvailable() {
 	try {
@@ -42,31 +23,31 @@ function tableAvailable() {
 export function extractKey(req) {
 	const h = req.headers?.['x-idempotency-key'] || req.headers?.['idempotency-key'];
 	const b = req.body?.idempotencyKey || req.body?.idempotency_key;
-	const raw = String(h || b || '')
-		.trim()
-		.slice(0, 128);
+	const raw = String(h || b || '').trim().slice(0, 128);
 	return raw || null;
 }
 
 function requestScope(req, scope) {
-\tconst h = req.headers || {};
-\tconst b = req.body && typeof req.body === 'object' ? req.body : {};
-\tconst tenant = String(req.user?.tenantId || h['x-tenant-id'] || b.tenantId || '').trim();
-\tconst org = String(h['x-org-id'] || b.orgId || '').trim();
-\tconst branch = String(h['x-branch-id'] || b.branchId || '').trim();
-\treturn [scope, tenant || 'legacy', org || '-', branch || '-'].join(':');
+	const h = req.headers || {};
+	const b = req.body && typeof req.body === 'object' ? req.body : {};
+	const tenant = String(req.user?.tenantId || h['x-tenant-id'] || b.tenantId || '').trim();
+	const org = String(h['x-org-id'] || b.orgId || '').trim();
+	const branch = String(h['x-branch-id'] || b.branchId || '').trim();
+	return [scope, tenant || 'legacy', org || '-', branch || '-'].join(':');
 }
 
 function namespaced(req, scope, key) {
-\treturn [requestScope(req, scope), key].join(':');
+	return [requestScope(req, scope), key].join(':');
 }
 
-export function storedResponse(scope, key) {
+export function storedResponse(req, scope, key) {
 	const nk = namespaced(req, scope, key);
 	if (memFallback.has(nk)) return memFallback.get(nk);
 	if (!tableAvailable()) return null;
 	try {
-		const row = db.prepare('SELECT status, body FROM idempotency_keys WHERE key=? AND expires_at > datetime('now')').get(nk);
+		const row = db
+			.prepare("SELECT status, body FROM idempotency_keys WHERE key=? AND expires_at > datetime('now')")
+			.get(nk);
 		if (!row) return null;
 		return { status: Number(row.status) || 200, body: JSON.parse(row.body) };
 	} catch {
@@ -74,14 +55,11 @@ export function storedResponse(scope, key) {
 	}
 }
 
-function storeResponse(scope, key, status, body) {
+function storeResponse(req, scope, key, status, body) {
 	const nk = namespaced(req, scope, key);
 	const entry = { status, body };
 	memFallback.set(nk, entry);
-	if (memFallback.size > 5000) {
-		const first = memFallback.keys().next().value;
-		memFallback.delete(first);
-	}
+	if (memFallback.size > 5000) memFallback.delete(memFallback.keys().next().value);
 	if (!tableAvailable()) return;
 	try {
 		db.prepare(
@@ -94,9 +72,9 @@ function storeResponse(scope, key, status, body) {
          created_at=excluded.created_at,
          expires_at=excluded.expires_at
        WHERE idempotency_keys.expires_at <= datetime('now')`,
-		).run(nk, scope, status, JSON.stringify(body), `+${Math.max(1, TTL_HOURS)} hours`);
+		).run(nk, requestScope(req, scope), status, JSON.stringify(body), `+${Math.max(1, TTL_HOURS)} hours`);
 	} catch {
-		/* memory remains authoritative */
+		/* memory fallback remains authoritative */
 	}
 }
 
@@ -108,19 +86,12 @@ export function idempotencyKeyMiddleware(scope) {
 	};
 }
 
-/**
- * Execute `fn` once per (scope,key). Replays return the stored response
- * WITHOUT re-executing. When no key is supplied, executes directly.
- * `fn` must RETURN the JSON body (not res.json) — this wrapper sends it.
- */
 export async function idempotency(req, res, scope, fn) {
 	const key = req.idempotencyKey || extractKey(req);
-	if (!key) {
-		const body = await fn();
-		return res.json(body);
-	}
+	if (!key) return res.json(await fn());
+
 	const nk = namespaced(req, scope, key);
-	const hit = storedResponse(scope, key);
+	const hit = storedResponse(req, scope, key);
 	if (hit) {
 		res.set('X-Idempotent-Replayed', 'true');
 		return res.status(hit.status).json({ ...hit.body, deduped: true });
@@ -130,10 +101,11 @@ export async function idempotency(req, res, scope, fn) {
 		res.set('X-Idempotent-Replayed', 'true');
 		return res.status(shared.status).json({ ...shared.body, deduped: true });
 	}
+
 	const p = (async () => {
 		const body = await fn();
 		const entry = { status: res.statusCode && res.statusCode !== 200 ? res.statusCode : 200, body };
-		storeResponse(scope, key, entry.status, body);
+		storeResponse(req, scope, key, entry.status, body);
 		return entry;
 	})();
 	inflight.set(nk, p);
@@ -145,7 +117,6 @@ export async function idempotency(req, res, scope, fn) {
 	}
 }
 
-/** Generate a server-side key (for internal retries / tests). */
 export function newKey() {
 	return crypto.randomUUID();
 }
