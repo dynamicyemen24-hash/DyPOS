@@ -239,7 +239,9 @@ export const cacheCustomersFromServer = async (posProfile) => {
 export const searchCachedItems = async (searchTerm = "", limit = 50) => {
 	try {
 		if (!searchTerm) {
-			return await db.items.limit(limit).toArray()
+			return (await db.items.limit(limit).toArray()).filter(
+			(item) => item?.price != null && Number.isFinite(Number(item.price)),
+		)
 		}
 
 		const term = searchTerm.toLowerCase()
@@ -255,7 +257,9 @@ export const searchCachedItems = async (searchTerm = "", limit = 50) => {
 			.limit(limit)
 			.toArray()
 
-		return results
+		return results.filter(
+			(item) => item?.price != null && Number.isFinite(Number(item.price)),
+		)
 	} catch (error) {
 		log.error("Error searching cached items:", error)
 		return []
