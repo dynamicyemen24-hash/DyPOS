@@ -201,7 +201,7 @@ async function load() {
 		const result = await screen.value.load(ROW_LIMIT)
 		rows.value = Array.isArray(result?.rows) ? result.rows : []
 		source.value = String(result?.source ?? "")
-		lastLoaded.value = new Date()
+		lastLoaded.value = result?.source === "unavailable" ? null : new Date()
 		if (result?.error)
 			log.warn("work screen served from fallback", result.error)
 	} catch (error) {
