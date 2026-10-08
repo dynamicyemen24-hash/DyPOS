@@ -15,6 +15,7 @@ import { call } from "@/utils/apiWrapper"
 import { logger } from "@/utils/logger"
 import { defineStore } from "pinia"
 import { ref } from "vue"
+import { resolveTerminalId } from "@/utils/posContext"
 
 const log = logger.create("Bootstrap")
 
@@ -54,7 +55,7 @@ export const useBootstrapStore = defineStore("bootstrap", () => {
 
 		try {
 			log.info("Loading bootstrap data...")
-			const request = call("DyPOS.api.bootstrap.get_initial_data", {})
+			const request = call("DyPOS.api.bootstrap.get_initial_data", { terminal_id: resolveTerminalId() })
 			const result = await Promise.race([
 				request,
 				new Promise((resolve) =>
@@ -122,6 +123,19 @@ export const useBootstrapStore = defineStore("bootstrap", () => {
 		return data.value?.pos_settings || null
 	}
 
+	function getWorkspaceContext() {
+		return {
+			tenant: data.value?.tenant || null,
+			organization: data.value?.organization || null,
+			branches: data.value?.branches || [],
+			terminal: data.value?.terminal || null,
+			shift: data.value?.shift || null,
+			posProfile: data.value?.pos_profile || null,
+			settings: data.value?.pos_settings || null,
+			paymentMethods: data.value?.payment_methods || [],
+		}
+	}
+
 	/**
 	 * Get preloaded payment methods or empty array if not available
 	 */
@@ -175,6 +189,7 @@ export const useBootstrapStore = defineStore("bootstrap", () => {
 		getPreloadedShift,
 		getPreloadedPOSProfile,
 		getPreloadedPOSSettings,
+		getWorkspaceContext,
 		getPreloadedPaymentMethods,
 		getPreloadedPrecision,
 		hasBootstrapData,
