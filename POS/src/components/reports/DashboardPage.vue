@@ -119,6 +119,7 @@ import WorkTabs from "@/components/work/WorkTabs.vue"
 import WorkFilters from "@/components/work/WorkFilters.vue"
 import { goToPOS, goToStockManagement } from "@/router"
 import { resolveDashboardId } from "./dashboards/core/dashboardTab"
+import { useQueueCapability } from "@/utils/queueCapability"
 
 const ARABIC_TITLES = {
 	"executive-dashboard": "لوحة التنفيذيين",
@@ -133,6 +134,221 @@ const route = useRoute()
 const router = useRouter()
 
 const period = provideDashboardPeriod()
+const { enabled: queueEnabled } = useQueueCapability()
+
+const filterModel = reactive({
+	from: period.from.value,
+	to: period.to.value,
+})
+
+const filterFields = [
+	{ key: "from", label: "من تاريخ", type: "date" },
+	{ key: "to", label: "إلى تاريخ", type: "date" },
+]
+
+const dashboardTabs = computed(() =>
+	DASHBOARD_REGISTRY.map((d) => ({
+		id: d.id,
+		label: ARABIC_TITLES[d.id] || d.name,
+		icon: d.icon,
+		component: d.component,
+	})),
+)
+
+const dashboardId = computed({
+	get() {
+		return resolveDashboardId(
+			route.query?.tab,
+			dashboardTabs.value.map((tab) => tab.id),
+			"executive-dashboard",
+		)
+	},
+	set(val) {
+		router.replace({ query: { ...route.query, tab: val } })
+	},
+})
+
+const pageTitle = computed(
+	() => ARABIC_TITLES[dashboardId.value] || "لوحة التحكم",
+)
+
+// Only dashboards the user actually opened are mounted. Rendering all six
+// behind :hidden made every panel run its onMounted fetch AND start its own
+// realtime poller, so opening the reports page fired six round-trips (and six
+// timers) to show one visible dashboard.
+const visitedTabs = ref([dashboardId.value])
+watch(
+	dashboardId,
+	(id) => {
+		if (id && !visitedTabs.value.includes(id))
+			visitedTabs.value = [...visitedTabs.value, id]
+	},
+	{ immediate: true },
+)
+const pageSubtitle = ref("الذكاء التجاري والتحليلات")
+const todayLabel = computed(() =>
+	new Intl.DateTimeFormat("ar-SA", {
+		weekday: "long",
+		day: "numeric",
+		month: "long",
+	}).format(new Date()),
+)
+
+const breadcrumbs = computed(() => [
+	{ label: "الرئيسية", to: { name: "Reports" } },
+	{ label: "التقارير", current: true },
+])
+
+const navItems = computed(() => {
+	const items = [
+		{ id: "pos", label: "نقطة البيع", to: { name: "POSSale" }, icon: "shopping-cart" },
+		{ id: "invoices", label: "الفواتير", to: { name: "WorkScreens", query: { screen: "invoices" } }, icon: "file-text" },
+		{ id: "stock", label: "المخزون", to: { name: "StockManagement" }, icon: "package" },
+		{ id: "reports", label: "التقارير", to: { name: "Reports" }, icon: "bar-chart-2" },
+		{ id: "work", label: "شاشات العمل", to: { name: "WorkScreens" }, icon: "layers" },
+		{ id: "settings", label: "الإعدادات", to: { name: "Settings" }, icon: "settings" },
+	]
+	if (queueEnabled.value) {
+		items.push({ id: "queue", label: "الطوابير", to: { name: "Queue" }, icon: "users" })
+	}
+	return items
+})emplate>
+  <WorkShell
+    :title="pageTitle"
+    :subtitle="pageSubtitle"
+    :nav-items="navItems"
+    :breadcrumbs="breadcrumbs"
+    :has-data="true"
+    @refresh="broadcastRefresh"
+  >
+    <template #toolbar>
+      <WorkToolbar>
+        <template #center>
+          <WorkTabs
+            v-model="dashboardId"
+            :tabs="dashboardTabs"
+            variant="pills"
+            :aria-label="'التقارير'"
+          />
+        </template>
+      </WorkToolbar>
+
+      <WorkFilters
+        v-model="filterModel"
+        :fields="filterFields"
+        :auto-apply="true"
+        @apply="broadcastRefresh"
+        @reset="onFiltersReset"
+      />
+    </template>
+
+    <div>
+      <section class="dashboard-welcome" aria-labelledby="dashboard-welcome-title">
+        <div class="dashboard-welcome__content">
+          <span class="dashboard-welcome__eyebrow">
+            <FeatherIcon name="sunrise" :size="15" aria-hidden="true" />
+            {{ todayLabel }}
+          </span>
+          <h2 id="dashboard-welcome-title">مرحبًا بك في مركز التشغيل</h2>
+          <p>تابع أداء متجرك واتخذ الخطوة التالية من مكان واحد.</p>
+        </div>
+        <div class="dashboard-welcome__actions">
+          <button type="button" class="dashboard-action dashboard-action--primary" @click="goToPOS">
+            <FeatherIcon name="shopping-cart" :size="17" aria-hidden="true" />
+            بدء بيع جديد
+          </button>
+          <button type="button" class="dashboard-action" @click="goToStockManagement">
+            <FeatherIcon name="package" :size="17" aria-hidden="true" />
+            فحص المخزون
+          </button>
+        </div>
+      </section>
+      <section class="dashboard-shortcuts" aria-label="اختصارات التشغيل والحالة">
+        <button
+          type="button"
+          class="dashboard-shortcut dashboard-shortcut--action"
+          aria-label="فتح لوحة التنفيذيين ومؤشرات المتجر"
+          @click="dashboardId = 'executive-dashboard'"
+        >
+          <span class="dashboard-shortcut__icon dashboard-shortcut__icon--blue">
+            <FeatherIcon name="bar-chart-2" :size="17" aria-hidden="true" />
+          </span>
+          <span><strong>مؤشرات المتجر</strong><small>افتح لوحة التنفيذيين لمراجعة الأداء</small></span>
+        </button>
+        <div class="dashboard-shortcut" aria-label="البيع دون اتصال">
+          <span class="dashboard-shortcut__icon dashboard-shortcut__icon--green">
+            <FeatherIcon name="wifi-off" :size="17" aria-hidden="true" />
+          </span>
+          <span><strong>البيع دون اتصال</strong><small>تُحفظ المبيعات محليًا؛ وتبدأ المزامنة عند الطلب</small></span>
+        </div>
+        <router-link
+          class="dashboard-shortcut dashboard-shortcut--action"
+          :to="{ name: 'WorkScreens', query: { screen: 'invoices' } }"
+          aria-label="فتح شاشة الفواتير"
+        >
+          <span class="dashboard-shortcut__icon dashboard-shortcut__icon--amber">
+            <FeatherIcon name="file-text" :size="17" aria-hidden="true" />
+          </span>
+          <span><strong>الفواتير</strong><small>راجع عمليات البيع وسجل الفواتير</small></span>
+        </router-link>
+      </section>
+
+      <RecentInvoicesWidget :key="`recent-${period.refreshKey}`" />
+      <div
+        v-for="tab in dashboardTabs"
+        :key="tab.id"
+        v-show="visitedTabs.includes(tab.id)"
+      >
+        <Suspense>
+          <template #default>
+            <component
+              :is="tab.id === dashboardId ? tab.component : null"
+              :key="`${tab.id}-${period.refreshKey}`"
+            />
+          </template>
+          <template #fallback>
+            <div class="flex items-center justify-center py-20" role="status">
+              <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500" aria-hidden="true" />
+              <span class="sr-only">{{ t('loadingDashboard') }}</span>
+            </div>
+          </template>
+        </Suspense>
+      </div>
+    </div>
+  </WorkShell>
+</template>
+
+<script setup>
+import { ref, computed, reactive, watch, onMounted } from "vue"
+import { useRoute, useRouter } from "vue-router"
+import { FeatherIcon } from "dypos-ui"
+import { t } from "@/utils/translation"
+import { DASHBOARD_REGISTRY } from "./dashboards/index"
+import { provideDashboardPeriod } from "./dashboards/core/useDashboardSource"
+import RecentInvoicesWidget from "./dashboards/core/RecentInvoicesWidget.vue"
+
+import WorkShell from "@/components/work/WorkShell.vue"
+import WorkToolbar from "@/components/work/WorkToolbar.vue"
+import WorkTabs from "@/components/work/WorkTabs.vue"
+import WorkFilters from "@/components/work/WorkFilters.vue"
+import { goToPOS, goToStockManagement } from "@/router"
+import { resolveDashboardId } from "./dashboards/core/dashboardTab"
+import { useQueueCapability } from "@/utils/queueCapability"
+
+const ARABIC_TITLES = {
+	"executive-dashboard": "لوحة التنفيذيين",
+	"sales-summary": "لوحة المبيعات",
+	"finance-overview": "لوحة المالية",
+	"inventory-intelligence": "لوحة المخزون",
+	"customer-intelligence": "لوحة العملاء",
+	"operations-overview": "لوحة العمليات",
+}
+
+const route = useRoute()
+const router = useRouter()
+
+const period = provideDashboardPeriod()
+const { enabled: queueEnabled } = useQueueCapability()
 
 const filterModel = reactive({
 	from: period.from.value,
