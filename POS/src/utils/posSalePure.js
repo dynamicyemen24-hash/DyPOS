@@ -54,9 +54,9 @@ export function normalizeProduct(product) {
 	if (!id) {
 		return null
 	}
-	const price = Number(
-		product.price ?? product.rate ?? product.standard_rate ?? 0,
-	)
+	const rawPrice = product.price ?? product.rate ?? product.standard_rate ?? null
+	const price = rawPrice === null || rawPrice === "" ? null : Number(rawPrice)
+	const priceMissing = price === null || !Number.isFinite(price) || price < 0
 	return {
 		id,
 		code: product.code ?? product.item_code ?? id,
@@ -67,12 +67,14 @@ export function normalizeProduct(product) {
 			product.name ??
 			"منتج",
 		description: product.description_ar ?? product.description ?? "",
-		price: Number.isFinite(price) ? price : 0,
+		price: priceMissing ? null : price,
 		image: product.image ?? product.image_url ?? null,
 		barcode: product.barcode ?? product.bar_code ?? "",
 		stock: product.stock ?? product.actual_qty ?? null,
 		unit: product.unit ?? product.stock_uom ?? "قطعة",
 		disabled: product.disabled === true,
+		priceMissing,
+
 	}
 }
 
