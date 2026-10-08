@@ -108,7 +108,7 @@ function persistSession(user) {
 
 async function tryOnlineLogin(email, password, subscriberCode = "") {
 	const controller = new AbortController()
-	const timeoutId = setTimeout(() => controller.abort(), 8000)
+	const timeoutId = setTimeout(() => controller.abort(), 3500)
 	try {
 		const response = await fetch(endpoints.auth.login, {
 			method: "POST",
@@ -156,7 +156,19 @@ export const session = reactive({
 				throw new Error("بيانات الدخول ناقصة")
 			}
 
-			// 1) Online attempt (fail-soft — never blocks offline login).
+			// 1) Local Core first. An installed terminal must enter without
+			// waiting for API/CSRF/DNS/Cloudflare.
+			const localResult = await userRepository.authenticate(cleanEmail, password)
+			if (localResult.success) {
+				persistSession(localResult.user)
+				session.login.reset()
+				log.info("Local login successful", cleanEmail)
+				return session.user
+			}
+
+			// 2) Only when no local identity exists, try the explicitly
+			// demanded server login. Network failure falls back to the local
+			// error instead of holding the cashier for a long timeout.
 			const onlineUser = await tryOnlineLogin(cleanEmail, password, cleanSubscriberCode)
 			if (onlineUser?.email) {
 				persistSession({
@@ -170,16 +182,7 @@ export const session = reactive({
 				return session.user
 			}
 
-			// 2) Local users table via the user repository.
-			const result = await userRepository.authenticate(cleanEmail, password)
-			if (!result.success) {
-				throw new Error(result.error || "فشل تسجيل الدخول المحلي")
-			}
-
-			persistSession(result.user)
-			session.login.reset()
-			log.info("Local login successful", cleanEmail)
-			return session.user
+			throw new Error(localResult.error || "فشل تسجيل الدخول المحلي")
 		},
 
 		reset() {
