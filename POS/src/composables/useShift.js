@@ -194,9 +194,9 @@ export function useShift() {
 			return {
 				pos_profile,
 				terminal_id: resolveTerminalId(),
+				pos_profile,
 				company,
 				balance_details: JSON.stringify(balance_details),
-				pos_profile,
 			}
 		},
 		onSuccess(data) {
