@@ -362,6 +362,7 @@ export function useSelfCheckoutSession(options = {}) {
 				entityType: SELF_CHECKOUT_ENTITY,
 				entityId: invoiceNo,
 				operation: "create",
+				tenantId: options.tenantId || "DYPOS",
 				queuePayload: sale,
 				invoice: {
 					invoiceNo,
