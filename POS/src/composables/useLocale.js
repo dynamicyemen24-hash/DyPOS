@@ -128,10 +128,18 @@ async function fetchLanguageFromServer() {
  * @returns {string} Language code
  */
 function detectCachedLanguage() {
-	// 1. Explicit in-app switch (persisted when the user used the language switcher)
-	const stored = localStorage.getItem(PREFARED_LANGUAGE_KEY)
-	if (stored && SUPPORTED_LOCALES[stored]) {
-		return stored
+	// Storage is optional: browsers may disable it in private/embedded contexts.
+	// Never let a persistence failure prevent the app from starting in Arabic.
+	try {
+		const stored =
+			typeof localStorage !== "undefined"
+				? localStorage.getItem(PREFARED_LANGUAGE_KEY)
+				: null
+		if (stored && SUPPORTED_LOCALES[stored]) {
+			return stored
+		}
+	} catch (error) {
+		log.warn("Could not read saved language preference", error)
 	}
 
 	// 2. POS Settings default locale (cached) - organization-level preference
