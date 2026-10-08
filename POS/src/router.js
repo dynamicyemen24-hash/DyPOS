@@ -852,6 +852,10 @@ export function goToRegister() {
  * Navigate to the stock management screen.
  * @returns {Promise}
  */
+export function goToDashboard() {
+	return router.replace({ name: ROUTE_NAMES.REPORTS })
+}
+
 export function goToStockManagement() {
 	return router.push({
 		name: ROUTE_NAMES.STOCK_MANAGEMENT,
