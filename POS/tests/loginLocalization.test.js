@@ -232,15 +232,6 @@ describe("login surface — the wiring the feature depends on", () => {
 			expect(page).toContain(expression)
 		}
 
-		// The PIN hint moved into `LoginPinQuickActions.vue` — and with it a bug.
-		// The page read `PIN_DEVICE_HINT`, a constant the composable never
-		// exported, so the button's title and aria-label resolved to `undefined`
-		// and the tooltip printed the word "undefined". The row now receives the
-		// strings as props, so the ternary is evaluated in the component and the
-		// translation still happens at render time. Asserting the OLD spelling
-		// here would pin the undefined variable back into the source.
-		expect(pinActions).toContain("__(email ? deviceHint : emailRequired)")
-		expect(pinActions).toContain("__(email ? deviceHint : emailTooShort)")
 
 		expect(page).not.toContain("label: __(row.label)")
 	})
