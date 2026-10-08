@@ -14,13 +14,13 @@ const sourceLabel = computed(() => {
 	if (props.source === "local") return __("نسخة محلية")
 	if (props.source === "unavailable") return __("المصدر غير متاح")
 	if (!props.source) return __("لم يتم التحميل")
-	return __("مصدر مباشر")
+	return __("مصدر الخادم")
 })
 
 const sourceVariant = computed(() => {
 	if (props.source === "unavailable") return "unavailable"
 	if (props.source === "local") return "local"
-	return props.source ? "live" : "idle"
+	return props.source ? "server" : "idle"
 })
 
 const updatedLabel = computed(() => {
@@ -48,7 +48,7 @@ const updatedLabel = computed(() => {
 			</span>
 			<span class="work-screen-status__metric-copy">
 				<strong class="work-screen-status__count" aria-live="polite">{{ count.toLocaleString() }}</strong>
-				<span class="work-screen-status__label">{{ __("سجل معروض") }}</span>
+				<span class="work-screen-status__label">{{ __("سجل محمّل") }}</span>
 			</span>
 		</div>
 
