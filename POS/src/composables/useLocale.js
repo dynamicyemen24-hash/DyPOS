@@ -88,7 +88,16 @@ function getCachedAllowedLocales() {
 	try {
 		const cached = localStorage.getItem(ALLOWED_LOCALES_KEY)
 		if (cached) {
-			return JSON.parse(cached)
+			const parsed = JSON.parse(cached)
+			if (!Array.isArray(parsed)) {
+				log.warn("Cached allowed locales must be an array")
+				return null
+			}
+
+			// Treat cache as untrusted input; ignore unknown/non-string locale codes.
+			return [...new Set(parsed.filter(
+				(code) => typeof code === "string" && SUPPORTED_LOCALES[code],
+			))]
 		}
 	} catch (error) {
 		log.warn("Failed to parse cached allowed locales", error)
