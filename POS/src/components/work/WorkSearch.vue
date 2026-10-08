@@ -42,7 +42,7 @@
         :aria-expanded="suggestionsOpen"
         :aria-label="label ? undefined : t(placeholder)"
         class="work-search__input"
-        @input="$emit('update:modelValue', $event.target.value)"
+        @input="handleInput"
         @focus="handleFocus"
         @blur="handleBlur"
         @keydown="handleKeydown"
@@ -50,7 +50,7 @@
         @compositionend="handleCompositionEnd"
       />
 
-      <div v-if="modelValue && !disabled" class="work-search__suffix">
+      <div v-if="modelValue && !disabled && clearable" class="work-search__suffix">
         <button
           type="button"
           class="work-search__clear"
@@ -108,7 +108,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue"
+import { ref, computed, watch, onMounted, onUnmounted, nextTick, useId } from "vue"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
 
@@ -148,7 +148,7 @@ const emit = defineEmits([
 	"blur",
 ])
 
-const inputId = `work-search-${Math.random().toString(36).slice(2)}`
+const inputId = `work-search-${useId()}`
 const listboxId = `${inputId}-listbox`
 const wrapperRef = ref(null)
 
