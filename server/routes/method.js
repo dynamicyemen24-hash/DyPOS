@@ -1650,7 +1650,9 @@ def('DyPOS.api.shifts.submit_closing_shift', (params, req, res) => {
 	const closingCash = Number(params.closing_cash || params.closingCash) || 0;
 	if (!shiftId) return methodError(res, 400, 'ValidationError', 'shift مطلوب');
 	try {
-		const shift = db.prepare('SELECT * FROM shifts WHERE id=?').get(shiftId);
+		const tenantId = resolveTenantFilter(req).tenantId;
+		if (!tenantId) return methodError(res, 403, 'PermissionError', 'لا يوجد مشترك مرتبط بالمستخدم');
+		const shift = db.prepare('SELECT * FROM shifts WHERE id=? AND tenant_id=?').get(shiftId, tenantId);
 		if (!shift) return methodError(res, 404, 'NotFoundError', 'الوردية غير موجودة');
 		if (shift.status !== 'OPEN') return methodError(res, 409, 'ValidationError', 'الوردية ليست مفتوحة');
 		const variance = closingCash - (shift.opening_cash || 0);
@@ -2933,9 +2935,11 @@ def('DyPOS.api.shifts.get_closing_shift_data', (params, req, res) => {
 		const shiftId = String(opening.name || opening.id || params.shift_id || params.shift || '')
 			.trim()
 			.slice(0, 64);
+		const tenantId = resolveTenantFilter(req).tenantId;
+		if (!tenantId) return methodError(res, 403, 'PermissionError', 'لا يوجد مشترك مرتبط بالمستخدم');
 		const shift = shiftId
-			? db.prepare('SELECT * FROM shifts WHERE id=?').get(shiftId)
-			: db.prepare("SELECT * FROM shifts WHERE status='OPEN' ORDER BY opened_at DESC LIMIT 1").get();
+			? db.prepare('SELECT * FROM shifts WHERE id=? AND tenant_id=?').get(shiftId, tenantId)
+			: db.prepare("SELECT * FROM shifts WHERE tenant_id=? AND status='OPEN' ORDER BY opened_at DESC LIMIT 1").get(tenantId);
 		if (!shift) return methodError(res, 404, 'NotFoundError', 'الوردية غير موجودة');
 		const stats = db
 			.prepare(
