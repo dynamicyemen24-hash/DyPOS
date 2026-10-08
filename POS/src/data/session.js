@@ -135,7 +135,7 @@ async function tryOnlineLogin(email, password, subscriberCode = "") {
 		}
 		if (!response.ok) return null
 		const data = await response.json().catch(() => null)
-		return data?.user || null
+		return data || null
 	} catch (error) {
 		// Explicit rejections propagate; network/abort/5xx fall through to local.
 		if (error?.status === 401 || error?.status === 403 || error?.status === 429)
@@ -174,17 +174,18 @@ export const session = reactive({
 			// 2) Only when no local identity exists, try the explicitly
 			// demanded server login. Network failure falls back to the local
 			// error instead of holding the cashier for a long timeout.
-			const onlineUser = await tryOnlineLogin(cleanEmail, password, cleanSubscriberCode)
-			if (onlineUser?.email) {
-				lastServerAuth = data?.token ? {
-					token: data.token,
-					refreshToken: data.refreshToken || data.refresh_token || null,
-					expiresIn: Number(data.expiresIn || data.expires_in || 3600),
+			const onlineAuth = await tryOnlineLogin(cleanEmail, password, cleanSubscriberCode)
+			const onlineUser = onlineAuth?.user || null
+			if (onlineUser?.username || onlineUser?.email) {
+				lastServerAuth = onlineAuth?.token ? {
+					token: onlineAuth.token,
+					refreshToken: onlineAuth.refreshToken || onlineAuth.refresh_token || null,
+					expiresIn: Number(onlineAuth.expiresIn || onlineAuth.expires_in || 86400),
 					user: onlineUser,
 				} : null
 				persistSession({
-					email: onlineUser.email,
-					full_name: onlineUser.full_name || onlineUser.email,
+					email: onlineUser.email || onlineUser.username,
+					full_name: onlineUser.full_name || onlineUser.fullName || onlineUser.username || onlineUser.email,
 					id: onlineUser.id || onlineUser.user_id || null,
 					role: onlineUser.role || "POS User",
 					tenantId: onlineUser.tenantId || onlineUser.tenant_id || null,
