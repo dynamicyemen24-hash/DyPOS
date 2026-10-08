@@ -39,11 +39,11 @@
           <p>تابع أداء متجرك واتخذ الخطوة التالية من مكان واحد.</p>
         </div>
         <div class="dashboard-welcome__actions">
-          <button type="button" class="dashboard-action dashboard-action--primary" @click="goToPOS">
+          <ActionButton type="button" class="dashboard-action dashboard-action--primary" @click="goToPOS">
             <FeatherIcon name="shopping-cart" :size="17" aria-hidden="true" />
             بدء بيع جديد
           </button>
-          <button type="button" class="dashboard-action" @click="goToStockManagement">
+          <ActionButton type="button" class="dashboard-action" @click="goToStockManagement">
             <FeatherIcon name="package" :size="17" aria-hidden="true" />
             فحص المخزون
           </button>
@@ -107,7 +107,7 @@
 <script setup>
 import { ref, computed, reactive, watch, onMounted } from "vue"
 import { useRoute, useRouter } from "vue-router"
-import { FeatherIcon } from "dypos-ui"
+import { ActionButton, FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
 import { DASHBOARD_REGISTRY } from "./dashboards/index"
 import { provideDashboardPeriod } from "./dashboards/core/useDashboardSource"
