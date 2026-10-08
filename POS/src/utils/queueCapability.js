@@ -22,8 +22,11 @@ function levelNumber(value) {
  *     otherwise numeric level >= 2 is the conservative fallback.
  */
 export function isQueueEnabled(context = posContext) {
-  const sector = normalize(context.sector || context.businessType)
-  if (!SERVICE_VALUES.has(sector)) return false
+  const sector = normalize(context.sector)
+  const businessType = normalize(context.businessType)
+  const isServiceSubscriber =
+    SERVICE_VALUES.has(sector) || SERVICE_VALUES.has(businessType)
+  if (!isServiceSubscriber) return false
 
   const configured = context.queueLevels
   const level = context.subscriptionLevel
