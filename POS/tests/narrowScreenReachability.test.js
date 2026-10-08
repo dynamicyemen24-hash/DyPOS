@@ -52,7 +52,6 @@ const DECORATIVE = [
 	"__cashier > svg",
 	"work-data-grid__frozen",
 	"dy-forgot__brand",
-	"dy-reset__brand",
 	// The breadcrumb's compact modifier changes font size and padding rather
 	// than what is rendered, so hiding the element outright would be the bug.
 	// Frozen grid panes duplicate the leading/trailing columns; on a narrow
