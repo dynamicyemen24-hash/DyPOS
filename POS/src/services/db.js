@@ -108,6 +108,13 @@ class DyPOSDb extends Dexie {
 			queueEvents:
 				"&id, tenantId, sessionId, type, version, [sessionId+version]",
 		})
+		// v7: authoritative opening balances — customer/cash/stock baselines.
+		// These are real subscriber records, never synthetic defaults.
+		this.version(7).stores({
+			openingBalances:
+				"++id, tenantId, fiscalYear, accountType, accountId, accountCode, productId, amountMinor, quantity, status, updatedAt, syncedAt, syncStatus, [tenantId+fiscalYear], [accountType+accountId]",
+		})
+
 	}
 }
 
