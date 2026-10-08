@@ -5,7 +5,7 @@
       <button type="button" @click="$emit('home')" title="الرئيسية"><FeatherIcon name="home" :size="14" /> الرئيسية</button>
       <button type="button" @click="$emit('operations')" title="العمليات"><FeatherIcon name="activity" :size="14" /> العمليات</button>
       <button type="button" @click="$emit('stock')" title="المخزون"><FeatherIcon name="package" :size="14" /> المخزون</button>
-      <button type="button" @click="$emit('enterprise')" title="مركز القيادة"><FeatherIcon name="activity" :size="14" /> مركز القيادة</button>
+      <ActionButton theme="brand" variant="ghost" type="button" @click="$emit('enterprise')" title="مركز القيادة" icon-left="activity">مركز القيادة</ActionButton>
     </div>
     <div class="dypos-global-tools__actions">
       <button type="button" :class="{ 'is-primary': canCheckout }" :disabled="!canCheckout" @click="$emit('payment')"><FeatherIcon name="credit-card" :size="14" /> دفع <kbd>Ctrl↵</kbd></button>
@@ -23,7 +23,7 @@
 </template>
 
 <script setup>
-import { FeatherIcon } from "dypos-ui"
+import { ActionButton, FeatherIcon } from "dypos-ui"
 defineProps({
   canCheckout: Boolean,
   isOnline: Boolean,
