@@ -444,12 +444,12 @@ function closeMobileNav({ restoreFocus = false } = {}) {
 }
 
 function handleShellKeydown(event) {
-	if (!mobileNavOpen.value) return
-	if (event.key === "Escape") {
+	if (event.key === "Escape" && mobileNavOpen.value) {
 		event.preventDefault()
 		closeMobileNav({ restoreFocus: true })
 		return
 	}
+	if (!mobileNavOpen.value) return
 	if (event.key !== "Tab" || typeof document === "undefined") return
 	const nav = document.getElementById("work-shell-nav")
 	const focusable = nav?.querySelectorAll('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])')
