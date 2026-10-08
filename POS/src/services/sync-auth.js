@@ -113,7 +113,8 @@ export async function saveAuth(
 
 	try {
 		localStorage.setItem(TOKEN_KEY, token)
-		localStorage.setItem(REFRESH_KEY, refreshToken)
+		if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken)
+		else localStorage.removeItem(REFRESH_KEY)
 		localStorage.setItem(EXPIRY_KEY, expiry.getTime().toString())
 		if (tenantId) localStorage.setItem(TENANT_KEY, tenantId)
 		if (employeeId) localStorage.setItem(EMPLOYEE_KEY, employeeId)
@@ -230,7 +231,7 @@ export async function refreshTokenViaPlatform(refreshToken) {
 export async function getValidToken() {
 	if (isTokenValid()) return authState.token
 
-	if (!authState.refreshToken) {
+	if (!authState.refreshToken || authState.refreshToken === "null") {
 		throw new SyncError(
 			SyncErrorKind.AUTH_REQUIRED,
 			"لا يوجد رمز تحديث — يحتاج إعادة تسجيل الدخول",
