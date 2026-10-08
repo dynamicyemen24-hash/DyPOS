@@ -333,6 +333,7 @@ const routes = [
 		component: () => import("@/pages/QueuePage.vue"),
 		meta: {
 			[ROUTE_META.requiresAuth]: true,
+			feature: "queue",
 		},
 	},
 
