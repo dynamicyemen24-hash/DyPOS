@@ -41,5 +41,8 @@ describe("DyPOS front-door navigation", () => {
     }
 
     expect(dashboard).not.toContain("EnterpriseControlCenter")
+
+    const toolbar = await source("src/components/pos/POSGlobalToolbar.vue")
+    expect(toolbar).not.toContain("enterprise")
   })
 })
