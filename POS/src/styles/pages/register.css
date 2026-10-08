@@ -1,0 +1,815 @@
+/* =============================================================================
+   DyPOS — Subscriber Registration Page
+   RTL-first / Arabic-first / Production Grade
+   ============================================================================= */
+
+.dy-register {
+	--register-panel-width: min(100%, 620px);
+	--register-content-width: 480px;
+
+	position: relative;
+	/* A single centered column. This was a two-column grid whose left cell
+	   held the 1200×630 artwork; removing the artwork without touching the
+	   grid would have left a guaranteed-empty column — the "stupid space".
+	   One column, one job. */
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	min-height: 100vh;
+	min-height: 100dvh;
+
+	overflow: hidden;
+
+	background: var(--dy-bg);
+	color: var(--dy-text);
+
+	font-family: var(--dy-font-arabic);
+
+	isolation: isolate;
+}
+
+/* =============================================================================
+   Brand panel — REMOVED, deliberately
+   =============================================================================
+   This page used to be a two-column grid: the left cell held the 1200x630
+   company card in a glass plaque (`.dy-register__brand*`). Every rule of
+   that column is gone with it — 13 selectors, zero references in the
+   template. They were kept because "the CSS looks nice", which is how a
+   stylesheet grows to a thousand lines of rules nothing renders.
+
+   The card moved to `components/common/SystemAboutPanel.vue`, which is the
+   identity card the login family renders; `CompanyFooter` carries the
+   company name at the bottom of the page. What is deliberately NOT here:
+   the artwork behind live copy. A 1200x630 sharing card used as a `cover`
+   backdrop of a tall panel can only ever show fragments of that
+   typography, cut mid-word, underneath the headline.
+   ============================================================================= */
+/* =============================================================================
+   Registration Panel
+   ============================================================================= */
+
+.dy-register__panel {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	min-width: 0;
+	min-height: 100%;
+
+	overflow: auto;
+
+	background: var(--dy-bg);
+}
+
+.dy-register__panel-inner {
+	width: min(100%, var(--register-content-width));
+
+	padding:
+		max(48px, env(safe-area-inset-top))
+		40px
+		max(40px, env(safe-area-inset-bottom));
+}
+
+.dy-register__header {
+	margin-bottom: var(--dy-space-8);
+}
+
+.dy-register__section-label {
+	display: block;
+
+	margin-bottom: 8px;
+
+	color: var(--dy-accent);
+
+	font-size: 0.82rem;
+	font-weight: 800;
+}
+
+.dy-register__title {
+	margin: 0;
+
+	color: var(--dy-text-strong);
+
+	font-size: clamp(2rem, 4vw, 2.7rem);
+
+	font-weight: 800;
+	letter-spacing: -0.035em;
+	line-height: 1.15;
+}
+
+.dy-register__subtitle {
+	margin: var(--dy-space-3) 0 0;
+
+	color: var(--dy-text-secondary);
+
+	font-size: 0.98rem;
+	line-height: 1.8;
+}
+
+/* Back to login link */
+
+.dy-register__back {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+
+	margin-top: var(--dy-space-4);
+
+	color: var(--dy-accent);
+
+	font-size: 0.84rem;
+	font-weight: 600;
+
+	text-decoration: none;
+
+	cursor: pointer;
+
+	transition: opacity var(--dy-dur-fast) var(--dy-ease-standard);
+}
+
+.dy-register__back:hover {
+	opacity: 0.8;
+}
+
+/* =============================================================================
+   Success
+   ============================================================================= */
+
+.dy-register__success {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--dy-space-4);
+
+	padding: var(--dy-space-6) 0;
+
+	text-align: center;
+}
+
+.dy-register__success-icon {
+	display: inline-flex;
+
+	color: var(--dy-mint-600);
+}
+
+.dy-register__success-title {
+	margin: 0;
+
+	color: var(--dy-text-strong);
+
+	font-size: 1.5rem;
+	font-weight: 800;
+}
+
+.dy-register__success-message {
+	margin: 0;
+
+	color: var(--dy-text-secondary);
+
+	font-size: 0.95rem;
+	line-height: 1.8;
+}
+
+/* =============================================================================
+   Error
+   ============================================================================= */
+
+.dy-register__error {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+
+	margin-bottom: var(--dy-space-5);
+	padding: 13px 14px;
+
+	border: 1px solid rgb(var(--dy-crimson-c-500) / 0.24);
+
+	border-radius: var(--dy-radius-lg);
+
+	background: rgb(var(--dy-crimson-c-500) / 0.07);
+
+	color: var(--dy-crimson-700);
+}
+
+.dy-register__error-icon {
+	display: inline-flex;
+	flex: 0 0 auto;
+
+	margin-top: 1px;
+}
+
+.dy-register__error-content {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 2px;
+
+	min-width: 0;
+
+	font-size: 0.82rem;
+	line-height: 1.6;
+}
+
+.dy-register__error-content strong {
+	font-weight: 800;
+}
+
+.dy-register__error-close {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+
+	width: 32px;
+	height: 32px;
+
+	flex: 0 0 auto;
+
+	border: 0;
+	border-radius: var(--dy-radius-md);
+
+	background: transparent;
+
+	color: inherit;
+
+	cursor: pointer;
+}
+
+.dy-register__error-close:hover {
+	background: rgb(var(--dy-crimson-c-500) / 0.08);
+}
+
+/* =============================================================================
+   Form
+   ============================================================================= */
+
+.dy-register__progress { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:0 0 var(--dy-space-6); }
+.dy-register__progress-item { display:grid; grid-template-columns:auto 1fr; column-gap:8px; align-items:center; min-width:0; padding:9px 10px; border:1px solid var(--dy-border); border-radius:var(--dy-radius-md); background:var(--dy-surface); color:var(--dy-text-muted); }
+.dy-register__progress-item > span { grid-row:span 2; display:flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:999px; background:var(--dy-bg); font-weight:800; }
+.dy-register__progress-item strong,.dy-register__progress-item small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dy-register__progress-item strong { font-size:.76rem; color:var(--dy-text-secondary); }
+.dy-register__progress-item small { font-size:.64rem; }
+.dy-register__progress-item.is-active { border-color:var(--dy-accent); background:rgb(var(--dy-brand-c-500) / .06); color:var(--dy-text-strong); }
+.dy-register__progress-item.is-done > span { background:var(--dy-accent); color:var(--dy-on-accent); }
+.dy-register__wizard-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:var(--dy-space-2); }
+.dy-register__form {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: var(--dy-space-5);
+}
+
+/* Each step is a deliberate information group, not one long form. */
+.dy-register__form--step-1,
+.dy-register__form--step-2,
+.dy-register__form--step-3 {
+	align-items: start;
+}
+
+.dy-register__form--step-2,
+.dy-register__form--step-3 {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	column-gap: 14px;
+}
+
+.dy-register__form--step-2 .dy-register__wizard-actions,
+.dy-register__form--step-2 .dy-register__submit,
+.dy-register__form--step-2 > .dy-register__error,
+.dy-register__form--step-3 .dy-register__terms,
+.dy-register__form--step-3 .dy-register__wizard-actions,
+.dy-register__form--step-3 .dy-register__submit {
+	grid-column: 1 / -1;
+}
+
+.dy-register__form--step-3 .dy-register__terms {
+	padding: 12px 14px;
+	border: 1px solid var(--dy-border);
+	border-radius: var(--dy-radius-lg);
+	background: var(--dy-bg-elevated);
+}
+
+
+.dy-register__field {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.dy-register__label-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.dy-register__label {
+	color: var(--dy-text-strong);
+
+	font-size: 0.84rem;
+	font-weight: 750;
+}
+
+.dy-register__required {
+	color: var(--dy-crimson-600);
+}
+
+.dy-register__input-wrap {
+	position: relative;
+
+	display: flex;
+	align-items: center;
+
+	min-height: var(--dy-control-h-xl);
+
+	border: 1px solid var(--dy-input-border);
+
+	border-radius: var(--dy-radius-lg);
+
+	background: var(--dy-input-bg);
+
+	transition:
+		border-color var(--dy-dur-fast) var(--dy-ease-standard),
+		box-shadow var(--dy-dur-fast) var(--dy-ease-standard),
+		background-color var(--dy-dur-fast) var(--dy-ease-standard);
+}
+
+.dy-register__input-wrap:focus-within {
+	border-color: var(--dy-accent);
+
+	box-shadow:
+		0 0 0 3px rgb(var(--dy-brand-c-500) / 0.12);
+}
+
+.dy-register__input-icon {
+	position: absolute;
+	inset-inline-start: 16px;
+
+	color: var(--dy-text-muted);
+
+	pointer-events: none;
+}
+
+.dy-register__input {
+	width: 100%;
+	min-width: 0;
+	min-height: var(--dy-control-h-xl);
+
+	padding: 0 48px 0 48px;
+
+	border: 0;
+	border-radius: var(--dy-radius-lg);
+
+	background: transparent;
+
+	color: var(--dy-text);
+
+	font: inherit;
+	font-size: 0.94rem;
+
+	outline: none;
+}
+
+.dy-register__input::placeholder {
+	color: var(--dy-text-muted);
+}
+
+.dy-register__input:disabled {
+	opacity: 0.6;
+}
+
+.dy-register__password-toggle {
+	position: absolute;
+	inset-inline-end: 12px;
+
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+
+	width: 36px;
+	height: 36px;
+
+	border: 0;
+	border-radius: var(--dy-radius-md);
+
+	background: transparent;
+
+	color: var(--dy-text-muted);
+
+	cursor: pointer;
+}
+
+.dy-register__password-toggle:hover {
+	background: var(--dy-surface);
+}
+
+.dy-register__field-error {
+	color: var(--dy-crimson-600);
+
+	font-size: 0.78rem;
+	font-weight: 600;
+}
+
+/* Password strength indicator */
+
+.dy-register__strength {
+	font-size: 0.78rem;
+	font-weight: 700;
+}
+
+/* Terms checkbox */
+
+.dy-register__terms {
+	margin-top: var(--dy-space-2);
+}
+
+.dy-register__checkbox-label {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+
+	color: var(--dy-text-secondary);
+
+	font-size: 0.84rem;
+	line-height: 1.6;
+
+	cursor: pointer;
+}
+
+.dy-register__checkbox-label input[type="checkbox"] {
+	margin-top: 2px;
+	accent-color: var(--dy-accent);
+}
+
+.dy-register__link {
+	color: var(--dy-accent);
+
+	font-weight: 600;
+
+	text-decoration: underline;
+}
+
+/* Submit */
+
+.dy-register__submit {
+	margin-top: var(--dy-space-3);
+}
+
+.dy-register__return-login {
+	grid-column: 1 / -1;
+}
+
+/* =============================================================================
+   Footer
+   ============================================================================= */
+
+.dy-register__footer {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+
+	margin-top: var(--dy-space-8);
+
+	color: var(--dy-text-muted);
+
+	font-size: 0.75rem;
+}
+
+/* =============================================================================
+   Responsive
+   =============================================================================
+   The page is a single centred column (see `.dy-register`), so there is
+   nothing to collapse at 768px. The rule that used to live here
+   (`grid-template-columns: 1fr`, plus hiding the brand column and showing a
+   mobile logo) all addressed markup this page no longer has — a media
+   query that styles nothing is a comment that costs a parse.
+   ============================================================================= */
+
+/* =============================================================================
+   Password Strength Bar
+   ============================================================================= */
+
+.dy-register__field {
+	margin-bottom: var(--dy-space-3);
+}
+
+/* =============================================================================
+   Offline Indicator
+   ============================================================================= */
+
+.dy-register__offline-banner {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+
+	padding: 10px 16px;
+
+	background: rgb(var(--dy-amber-c-500) / 0.12);
+	border-bottom: 1px solid rgb(var(--dy-amber-c-500) / 0.24);
+
+	color: var(--dy-amber-700);
+
+	font-size: 0.82rem;
+	font-weight: 600;
+
+	animation: dy-slide-down var(--dy-dur-standard) var(--dy-ease-standard);
+}
+
+@keyframes dy-slide-down {
+	from {
+		opacity: 0;
+		transform: translateY(-100%);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+/* =============================================================================
+   Input Error State
+   ============================================================================= */
+
+.dy-register__input--error + .dy-register__password-toggle {
+	color: var(--dy-crimson-600);
+}
+
+.dy-register__input-wrap:has(.dy-register__input--error) {
+	border-color: var(--dy-crimson-500);
+}
+
+.dy-register__input-wrap:has(.dy-register__input--error):focus-within {
+	border-color: var(--dy-crimson-500);
+	box-shadow: 0 0 0 3px rgb(var(--dy-crimson-c-500) / 0.12);
+}
+
+/* =============================================================================
+   Offline Mode Variant
+   ============================================================================= */
+
+.dy-register--offline .dy-register__panel {
+	background: var(--dy-bg);
+}
+
+.dy-register--offline .dy-register__title::after {
+	content: " (غير متصل)";
+	color: var(--dy-amber-600);
+	font-weight: 600;
+	font-size: 0.9em;
+}
+
+/* =============================================================================
+   Reduced Motion
+   ============================================================================= */
+
+.dy-register--reduced-motion *,
+.dy-register--reduced-motion *::before,
+.dy-register--reduced-motion *::after {
+	animation-duration: 0.01ms !important;
+	transition-duration: 0.01ms !important;
+}
+
+/* =============================================================================
+   Dark Mode Enhancements
+   ============================================================================= */
+
+.dy-register--dark .dy-register__offline-banner {
+	background: rgb(var(--dy-amber-c-500) / 0.18);
+	border-bottom-color: rgb(var(--dy-amber-c-500) / 0.3);
+	color: var(--dy-amber-400);
+}
+
+.dy-register--dark .dy-register__input-wrap {
+	background: var(--dy-surface);
+	border-color: var(--dy-border);
+}
+
+.dy-register--dark .dy-register__input-wrap:focus-within {
+	box-shadow: 0 0 0 3px rgb(var(--dy-brand-c-500) / 0.18);
+}
+
+.dy-register--dark .dy-register__error {
+	background: rgb(var(--dy-crimson-c-500) / 0.12);
+	border-color: rgb(var(--dy-crimson-c-500) / 0.3);
+	color: var(--dy-crimson-400);
+}
+
+.dy-register--dark .dy-register__error-close:hover {
+	background: rgb(var(--dy-crimson-c-500) / 0.12);
+}
+
+/* =============================================================================
+   Mobile Enhancements
+   ============================================================================= */
+
+@media (max-width: 768px) {
+	.dy-register__progress { grid-template-columns:1fr; gap:6px; }
+	.dy-register__form--step-2,
+	.dy-register__form--step-3 { grid-template-columns:1fr; }
+	.dy-register__form--step-2 .dy-register__wizard-actions,
+	.dy-register__form--step-2 .dy-register__submit,
+	.dy-register__form--step-3 .dy-register__terms,
+	.dy-register__form--step-3 .dy-register__wizard-actions,
+	.dy-register__form--step-3 .dy-register__submit { grid-column:1; }
+
+	.dy-register--mobile .dy-register__panel-inner {
+		padding-inline: 24px;
+	}
+
+	.dy-register--mobile .dy-register__offline-banner {
+		font-size: 0.78rem;
+		padding: 8px 12px;
+	}
+}
+
+@media (max-width: 480px) {
+	.dy-register--mobile .dy-register__panel-inner {
+		padding-inline: 16px;
+	}
+
+	.dy-register--mobile .dy-register__title {
+		font-size: 1.6rem;
+	}
+
+	.dy-register--mobile .dy-register__submit {
+		width: 100%;
+	}
+}
+
+/* =============================================================================
+   Focus Visible Enhancement
+   ============================================================================= */
+
+.dy-register__input:focus-visible,
+.dy-register__password-toggle:focus-visible,
+.dy-register__back:focus-visible,
+.dy-register__link:focus-visible,
+.dy-register__checkbox-label:focus-visible {
+	outline: 2px solid var(--dy-accent);
+	outline-offset: 2px;
+}
+.dy-register__checkbox-label:focus-visible {
+	border-radius: var(--dy-radius-sm);
+}
+`.dy-register__subscriber-code { display:grid; gap:6px; margin:0 0 16px; padding:12px; border:1px solid var(--dy-border); border-radius:10px; background:var(--dy-bg-elevated); } .dy-register__subscriber-code code { font-size:1.1rem; font-weight:800; letter-spacing:.08em; } .dy-register__subscriber-code small { color:var(--dy-text-muted); }\n
+/* ============================================================================
+   DyPOS Subscriber Registration — Enterprise Wizard Shell
+   Command strip → status strip → 3-stage work surface → legal/commit actions.
+   ============================================================================ */
+.dy-register{
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  grid-template-rows:auto minmax(0,1fr);
+  align-items:start;
+  justify-items:center;
+  min-height:100dvh;
+  padding:0;
+  overflow:auto;
+  background:
+    radial-gradient(900px 420px at 50% -180px,color-mix(in srgb,var(--dy-brand) 7%,transparent),transparent 70%),
+    var(--dy-bg);
+}
+.dy-register__offline-banner{
+  position:sticky;
+  top:0;
+  z-index:30;
+  width:100%;
+  min-height:36px;
+  padding:7px 14px;
+  border:0;
+  border-bottom:1px solid color-mix(in srgb,var(--dy-warning,#a16207) 25%,var(--dy-border-soft));
+  font-size:.74rem;
+}
+.dy-register__panel{
+  width:100%;
+  min-height:0;
+  padding:28px 16px 48px;
+  background:transparent;
+}
+.dy-register__panel-inner{
+  width:min(100%,760px);
+  margin:0 auto;
+  padding:22px 26px 26px;
+  border:1px solid color-mix(in srgb,var(--dy-brand) 12%,var(--dy-border));
+  border-radius:18px;
+  background:var(--dy-surface);
+  box-shadow:0 24px 65px -50px rgb(0 0 0 / .42);
+}
+.dy-register__progress{
+  position:sticky;
+  top:0;
+  z-index:10;
+  margin:0 -26px 22px;
+  padding:10px 26px;
+  border-bottom:1px solid var(--dy-border-soft);
+  background:color-mix(in srgb,var(--dy-surface) 94%,transparent);
+  backdrop-filter:blur(14px);
+}
+.dy-register__progress-item{
+  min-height:44px;
+  border-radius:10px;
+  padding:7px 9px;
+  transition:border-color 140ms ease,background 140ms ease;
+}
+.dy-register__progress-item strong{font-size:.72rem}
+.dy-register__progress-item small{font-size:.61rem}
+.dy-register__header{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:start;
+  gap:18px;
+  margin-bottom:20px;
+  padding-bottom:16px;
+  border-bottom:1px solid var(--dy-border-soft);
+}
+.dy-register__section-label{
+  display:inline-flex;
+  min-height:26px;
+  align-items:center;
+  padding:3px 8px;
+  margin:0 0 6px;
+  border:1px solid color-mix(in srgb,var(--dy-brand) 18%,var(--dy-border-soft));
+  border-radius:999px;
+  background:color-mix(in srgb,var(--dy-brand) 5%,var(--dy-surface));
+  font-size:.68rem;
+}
+.dy-register__title{font-size:clamp(1.65rem,3vw,2.2rem);letter-spacing:-.025em}
+.dy-register__subtitle{max-width:62ch;margin-top:6px;font-size:.82rem;line-height:1.65}
+.dy-register__back{
+  margin:0;
+  min-height:38px;
+  padding:7px 10px;
+  border:1px solid var(--dy-border-soft);
+  border-radius:9px;
+  white-space:nowrap;
+  font-size:.72rem;
+  background:var(--dy-surface-soft);
+}
+.dy-register__form{gap:12px}
+.dy-register__field{gap:6px;margin-bottom:4px}
+.dy-register__label{font-size:.78rem}
+.dy-register__input-wrap{min-height:50px;border-radius:10px}
+.dy-register__input{min-height:50px;font-size:.9rem}
+.dy-register__terms{
+  border-radius:10px!important;
+  background:var(--dy-surface-soft)!important;
+}
+.dy-register__wizard-actions{
+  margin-top:4px;
+  padding-top:12px;
+  border-top:1px solid var(--dy-border-soft);
+}
+.dy-register__submit{min-height:52px;border-radius:10px;font-weight:800}
+.dy-register__return-login{min-height:42px}
+.dy-register__footer{margin-top:20px;padding-top:14px;border-top:1px solid var(--dy-border-soft);font-size:.68rem}
+.dy-register__success{
+  border:1px solid color-mix(in srgb,var(--dy-success,#15803d) 18%,var(--dy-border));
+  border-radius:12px;
+  padding:18px;
+  background:color-mix(in srgb,var(--dy-success,#15803d) 4%,var(--dy-surface));
+}
+.dy-register__error{border-radius:11px;font-size:.78rem}
+.dy-register__subscriber-code{border-radius:10px}
+@media (max-width:768px){
+  .dy-register__panel{padding:12px 8px 30px}
+  .dy-register__panel-inner{padding:16px 14px 20px;border-radius:14px}
+  .dy-register__progress{margin:0 -14px 16px;padding:8px 14px}
+  .dy-register__header{grid-template-columns:1fr;gap:10px}
+  .dy-register__back{justify-self:start}
+}
+@media (max-width:480px){
+  .dy-register__panel{padding-inline:0}
+  .dy-register__panel-inner{border-inline:0;border-radius:0;box-shadow:none}
+  .dy-register__progress-item small{display:none}
+}
+
+
+/* Functional registration command strip */
+.dy-register__command-strip{
+  position:sticky;top:0;z-index:31;
+  width:100%;min-height:44px;
+  display:flex;align-items:center;justify-content:center;gap:3px;
+  padding:6px 10px;
+  border-bottom:1px solid var(--dy-border);
+  background:color-mix(in srgb,var(--dy-surface) 96%,transparent);
+  backdrop-filter:blur(16px);
+}
+.dy-register__command-strip strong{
+  margin-inline-end:auto;
+  color:var(--dy-text-strong);font-size:.78rem;font-weight:900;
+}
+.dy-register__command-strip a{
+  display:inline-flex;align-items:center;min-height:30px;
+  padding:4px 9px;border-radius:7px;
+  color:var(--dy-text-secondary);text-decoration:none;
+  font-size:.66rem;font-weight:750;
+}
+.dy-register__command-strip a:hover,.dy-register__command-strip a.is-current{
+  color:var(--dy-text-strong);background:var(--dy-surface-soft);
+}
+@media(max-width:520px){
+ .dy-register__command-strip{justify-content:flex-start;overflow-x:auto;scrollbar-width:none}
+ .dy-register__command-strip::-webkit-scrollbar{display:none}
+ .dy-register__command-strip strong{display:none}
+ .dy-register__command-strip a{flex:0 0 auto}
+}
+
