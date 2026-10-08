@@ -32,6 +32,7 @@ import LoginAppearanceBar from "@/components/common/LoginAppearanceBar.vue"
 import LoginContextChips from "@/components/common/LoginContextChips.vue"
 import LoginPinForm from "@/components/common/LoginPinForm.vue"
 import InstallCredentialsCard from "@/components/common/InstallCredentialsCard.vue"
+import SystemAboutPanel from "@/components/common/SystemAboutPanel.vue"
 import DyPanel from "@/components/common/DyPanel.vue"
 import ShiftOpsPanel from "@/components/common/ShiftOpsPanel.vue"
 import LoginSessionLockDialog from "@/components/common/LoginSessionLockDialog.vue"
@@ -1272,6 +1273,7 @@ watch(
                     </summary>
                     <div class="dy-login__secondary-content">
                         <LoginOnboardingGuide />
+                        <SystemAboutPanel />
                         <VersionInfo />
                         <InstallCredentialsCard />
                     </div>
