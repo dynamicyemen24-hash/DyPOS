@@ -1475,7 +1475,7 @@ function onBarcodeScan(code) {
                 <PosToolsMenu @action="onHeaderGroupAction" />
             </template>
 
-            <template #toolbar-start><POSGlobalToolbar :can-checkout="canCheckout" :is-online="isOnline" :sync-state="syncState" :sale-status-label="saleStatusLabel" :cart-label="cartLabel" :total-label="formatMoney(total)" @back="router.back" @home="router.push({ name: 'Reports' })" @operations="goToWorkScreens" @stock="goToStockManagement" @payment="openPayment" @scan="openScanner" @shortcuts="showShortcutsPanel = true" @sync="showSyncCenter = true" /></template>
+            <template #toolbar-start><POSGlobalToolbar :can-checkout="canCheckout" :is-online="isOnline" :sync-state="syncState" :sale-status-label="saleStatusLabel" :cart-label="cartLabel" :total-label="formatMoney(total)" @back="router.back" @home="router.push({ name: 'Reports' })" @operations="goToWorkScreens" @stock="goToStockManagement" @enterprise="router.push({ name: 'EnterpriseControlCenter' })" @payment="openPayment" @scan="openScanner" @shortcuts="showShortcutsPanel = true" @sync="showSyncCenter = true" /></template>
             </POSHeader>
 
             <!-- Object Header - Sale Summary (Fiori Pattern) -->
