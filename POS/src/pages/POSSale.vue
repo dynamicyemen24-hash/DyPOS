@@ -107,6 +107,7 @@ import { useBarcodeScanner } from "@/composables/useBarcodeScanner"
 import { handleScan } from "@/utils/barcode-service.js"
 import { usePOSSettingsStore } from "@/stores/posSettings"
 import { logger } from "@/utils/logger"
+import db from "@/services/db"
 import { __ } from "@/utils/translation"
 import {
 	buildProductIndex,
@@ -1295,6 +1296,20 @@ function handleProductGridKeydown(event) {
 
 onMounted(async () => {
 	window.addEventListener("keydown", handleKeydown)
+
+	// Local catalog first: the main POS workspace must not depend on route
+	// props or a live API. Synchronization can refresh the same source later.
+	try {
+		loadingProducts.value = true
+		const localItems = await db.items.toArray()
+		if (Array.isArray(localItems) && localItems.length > 0) {
+			products.value = localItems
+		}
+	} catch (error) {
+		logger.warn("Local POS catalog hydration deferred", error)
+	} finally {
+		loadingProducts.value = false
+	}
 
 	window.addEventListener("online", handleOnline)
 
