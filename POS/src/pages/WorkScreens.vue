@@ -29,6 +29,14 @@
 				:loading="loading"
 				:updated-at="lastLoaded"
 			/>
+			<WorkQuickFilters
+				v-if="quickFilterField && quickFilterOptions.length"
+				:label="`تصفية حسب ${quickFilterField.label}`"
+				:options="quickFilterOptions"
+				:model-value="quickFilterValue"
+				:total="rows.length"
+				@update:model-value="quickFilterValue = $event"
+			/>
 			<InlineAlert
 				v-if="sourceNote"
 				:variant="source === 'unavailable' ? 'error' : 'warning'"
@@ -39,9 +47,9 @@
 
 		<WorkDataGrid
 			:columns="screen.columns"
-			:rows="rows"
+			:rows="visibleRows"
 			:row-key="rowKey"
-			:total-items="rows.length"
+			:total-items="visibleRows.length"
 			:loading="loading"
 			:aria-label="screen.label"
 			:empty-title="emptyTitle"
@@ -76,6 +84,7 @@ import {
 	WorkTabs,
 	WorkToolbar,
 	WorkScreenStatus,
+	WorkQuickFilters,
 } from "@/components/work"
 import { flatWorkNav } from "@/components/work/workNav"
 import { WORK_SCREENS, workScreenById } from "@/data/workScreens"
@@ -95,6 +104,7 @@ const loading = ref(false)
 const errorState = ref("")
 const source = ref("")
 const lastLoaded = ref(null)
+const quickFilterValue = ref("")
 
 const screenId = computed(() => String(route.query.screen ?? "invoices"))
 const screen = computed(() => workScreenById(screenId.value))
@@ -162,6 +172,32 @@ const subtitle = computed(() =>
 	readonly ? "عرض فقط لصلاحية الكاشير" : "إدارة كاملة",
 )
 
+const quickFilterField = computed(() => {
+	if (!screen.value.columns.some((column) => column.key === "status")) return null
+	return screen.value.columns.find((column) => column.key === "status")
+})
+
+const quickFilterOptions = computed(() => {
+	if (!quickFilterField.value) return []
+	const counts = new Map()
+	for (const row of rows.value) {
+		const value = row?.[quickFilterField.value.key]
+		if (value === null || value === undefined || value === "") continue
+		const key = String(value)
+		counts.set(key, (counts.get(key) ?? 0) + 1)
+	}
+	return [...counts.entries()]
+		.sort(([a], [b]) => a.localeCompare(b))
+		.map(([value, count]) => ({ value, label: value, count }))
+})
+
+const visibleRows = computed(() => {
+	if (!quickFilterValue.value || !quickFilterField.value) return rows.value
+	return rows.value.filter(
+		(row) => String(row?.[quickFilterField.value.key] ?? "") === quickFilterValue.value,
+	)
+})
+
 const sourceNote = computed(() => {
 	if (source.value === "local")
 		return "معروضة من النسخة المحلية (السيرفر غير متاح)"
@@ -228,6 +264,9 @@ function onRowClick(row) {
 	}
 }
 
-watch(screenId, load)
+watch(screenId, (next, previous) => {
+	if (next !== previous) quickFilterValue.value = ""
+	load()
+})
 onMounted(load)
 </script>
