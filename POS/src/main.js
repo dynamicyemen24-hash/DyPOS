@@ -1047,14 +1047,13 @@ let isOfflineMode = false
 async function detectOfflineMode() {
 	if (!isBrowser) return false
 
-	// Standalone-first (user-mandated): deciding the mode by PINGING the
-	// backend was itself a network connection nobody demanded — on every
-	// boot, on every device. The mode is now pure local state: standalone
-	// until the user demands server linkage (server login, Sync Now, or the
-	// linkage toggle), which grants consent via services/link-consent.
-	// Server reachability is then learned from the demanded call itself —
-	// failure means local mode, never a blocker.
-	return !isLinkEnabled()
+	// Linkage and reachability are two different states. A linked terminal
+	// must still become local/offline immediately when Wi-Fi/DNS/API is down.
+	try {
+		return navigator.onLine === false || !isLinkEnabled()
+	} catch {
+		return !isLinkEnabled()
+	}
 }
 
 /**
@@ -1182,6 +1181,13 @@ async function initializeApp() {
 		}
 
 		/* ---------------------------------------------------------------------
+		   Local Core — MUST be ready before Router navigation.
+		   This is the critical first-run fix: seed/DB/session are local and
+		   never depend on API, CSRF, Socket, DNS or Cloudflare.
+		   ------------------------------------------------------------------ */
+		await initializeOfflineSystems()
+
+		/* ---------------------------------------------------------------------
 		   Create application
 		   ------------------------------------------------------------------ */
 
@@ -1201,26 +1207,25 @@ async function initializeApp() {
 		setupCSRFRefreshListener()
 
 		/* ---------------------------------------------------------------------
-		   Authentication — SKIP in offline mode
+		   Authentication — local session first, network only when explicitly
+		   linked and reachable. Never erase a valid local session just because
+		   the server is unavailable.
 		   ------------------------------------------------------------------ */
 
-		let user = null
+		let user = await initializeUser()
 
 		if (!isOfflineMode) {
 			const csrfPromise = initializeCSRF()
-			const userPromise = initializeUser()
-
-			const [, resolvedUser] = await Promise.all([csrfPromise, userPromise])
-
+			const [, resolvedUser] = await Promise.all([
+				csrfPromise,
+				Promise.resolve(user),
+			])
 			user = resolvedUser
-
-			log.info(
-				`User authentication resolved: ${user ? "authenticated" : "guest"}`,
-			)
-		} else {
-			log.info("Offline mode: skipping authentication, continuing as guest")
-			session.user = null
 		}
+
+		log.info(
+			`User authentication resolved: ${user ? "authenticated" : "guest"}`,
+		)
 
 		/* ---------------------------------------------------------------------
 		   Router
@@ -1266,8 +1271,6 @@ async function initializeApp() {
 			log.info(
 				"Offline mode: skipping bootstrap data, platform sync, realtime sync",
 			)
-			// Initialize offline-only systems (IndexedDB, local data)
-			void initializeOfflineSystems()
 		}
 
 		// Performance & device monitoring (safe in both modes)
