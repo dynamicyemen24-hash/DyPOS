@@ -33,6 +33,8 @@ import { APP_NAME } from "@/utils/brand"
 import { session } from "@/stores/session"
 import { normalizeArabic } from "@/utils/arabic"
 import { logger } from "@/utils/logger"
+import { userRepository } from "@/repositories/userRepository"
+import { isLinkEnabled } from "@/services/link-consent"
 import { useReducedMotion } from "@/composables/useReducedMotion"
 import { useMediaQuery } from "@/composables/useMediaQuery"
 import {
@@ -244,6 +246,29 @@ async function submitRegistration() {
 		const companyValue = normalizeValue(companyName.value)
 		const branchNameValue = normalizeValue(branchName.value) || "المركز الرئيسي"
 		const branchCodeValue = branchCode.value.trim().toUpperCase() || "MAIN"
+		// Standalone-first registration: without explicit linkage, create a
+		// real local PBKDF2 credential immediately. This is a real account,
+		// not demo/mock data, and it can enter the POS without a server.
+		if (!isLinkEnabled() || navigator.onLine === false) {
+			await userRepository.create({
+				fullName: name,
+				email: emailValue,
+				password: password.value,
+				phone: phoneValue,
+				company: companyValue,
+				role: "ADMIN",
+			})
+			subscriberCode.value = `LOCAL-${emailValue.split("@")[0].slice(0, 8).toUpperCase()}`
+			await session.login({ usr: emailValue, pwd: password.value })
+			registerSuccess.value = true
+			emit("registered")
+			isEnteringSystem.value = true
+			entryError.value = ""
+			await session.bootstrap().catch(() => {})
+			await router.replace({ name: "POSSale" })
+			return
+		}
+
 		const response = await fetch("/api/method/DyPOS.api.auth.register", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
@@ -259,9 +284,9 @@ async function submitRegistration() {
 				branchName: branchNameValue,
 				branchCode: branchCodeValue,
 				currency: currency.value.trim().toUpperCase() || "YER",
-        countryCode: countryCode.value,
-        timezone: timezone.value,
-        establishmentType: establishmentType.value,
+        				countryCode: countryCode.value,
+        				timezone: timezone.value,
+        				establishmentType: establishmentType.value,
 			}),
 		})
 		const payload = await response.json().catch(() => ({}))
@@ -270,7 +295,6 @@ async function submitRegistration() {
 		subscriberCode.value = String(result?.subscriberCode || "").trim()
 		registerSuccess.value = true
 		emit("registered")
-
 		// التسجيل الناجح لا يترك المشترك عند شاشة نجاح ميتة:
 		// نتحقق فورًا من الحساب الذي أُنشئ، ثم نفتح جلسة التشغيل وننقل
 		// المستخدم إلى نقطة البيع. لا نحفظ كلمة المرور؛ تبقى في الذاكرة
