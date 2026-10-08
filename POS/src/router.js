@@ -3,6 +3,7 @@ import { userResource } from "@/data/user"
 import { logger } from "@/utils/logger"
 import { createRouter, createWebHistory } from "vue-router"
 import { session } from "./data/session"
+import { isLinkEnabled } from "./services/link-consent"
 
 const log = logger.create("Router")
 
@@ -639,7 +640,10 @@ router.beforeEach(async (to, from) => {
 
 	let authenticated = wasAuthenticated
 
-	if (requiresAuth || guestOnly) {
+	// Never bootstrap a remote user resource merely to render Login/Register.
+	// Local Core is initialized before router navigation; guest routes are
+	// therefore instant even when API/DNS/Cloudflare is unavailable.
+	if (requiresAuth && !authenticated && isLinkEnabled()) {
 		authenticated = await settleSession()
 	}
 
