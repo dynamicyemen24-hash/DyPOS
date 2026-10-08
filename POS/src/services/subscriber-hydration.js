@@ -6,7 +6,7 @@
  * subscriber master data and opening balances. None of the rows are fabricated.
  */
 import { methodCall } from "@/utils/methodClient"
-import { db, setSetting } from "@/utils/offline/db"
+import { clearTenantScopedCaches, db, getSetting, setSetting } from "@/utils/offline/db"
 import { logger } from "@/utils/logger"
 
 const log = logger.create("SubscriberHydration")
@@ -113,6 +113,14 @@ export async function hydrateSubscriberLocalData({
 
 	try {
 		await db.open()
+
+		// A browser profile can outlive the subscriber/account using the terminal.
+		// Legacy cache tables are not tenant-prefixed, so never expose one
+		// subscriber's catalog/history to another. Pending queues remain intact.
+		const previousTenant = await getSetting("subscriber_hydration_tenant", "")
+		if (previousTenant && tenantId && String(previousTenant) !== String(tenantId)) {
+			await clearTenantScopedCaches()
+		}
 	} catch (error) {
 		log.warn("Offline cache open deferred", error)
 		return null
