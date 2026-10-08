@@ -173,7 +173,40 @@ export const useSessionStore = defineStore("session", () => {
 
 		await lowSession.login.submit({ email: usr, password: pwd, subscriberCode })
 
-		if (lastLoginSource === "local") {\n		\tif (typeof navigator === "undefined" || navigator.onLine !== false) {\n		\t\tvoid refreshOnlineSession(usr, pwd, subscriberCode)\n		\t\t\t.then(async (onlineAuth) => {\n		\t\t\t\tif (!onlineAuth?.user) return\n		\t\t\t\ttry {\n		\t\t\t\t\tsetLinkMode("linked", LINK_REASONS.SERVER_LOGIN)\n		\t\t\t\t\tconst serverUser = onlineAuth.user\n		\t\t\t\t\tawait initPlatformAuth().catch(() => {})\n		\t\t\t\t\tif (lastServerAuth?.token) {\n		\t\t\t\t\t\tawait savePlatformAuth(lastServerAuth.token, lastServerAuth.refreshToken, lastServerAuth.expiresIn || 86400, serverUser?.tenantId || serverUser?.tenant_id || localSession.user?.tenantId || null, serverUser?.id || serverUser?.user_id || localSession.user?.id || null)\n		\t\t\t\t\t}\n		\t\t\t\t\tawait userRepository.upsertAuthenticatedUser({ ...serverUser, email: serverUser.email || serverUser.username || usr }, pwd)\n		\t\t\t\t\tawait hydrateSubscriberLocalData({ tenantId: serverUser.tenantId || serverUser.tenant_id || localSession.user?.tenantId || null })\n		\t\t\t\t} catch (error) {\n		\t\t\t\t\tlog.warn("Background online session convergence deferred", error)\n		\t\t\t\t}\n		\t\t\t})\n		\t\t\t.catch((error) => log.warn("Background online reauthentication deferred", error))\n		\t\t}\n		}\n\n		if (lastLoginSource === "server") {
+		if (lastLoginSource === "local") {
+			if (typeof navigator === "undefined" || navigator.onLine !== false) {
+				void refreshOnlineSession(usr, pwd, subscriberCode)
+					.then(async (onlineAuth) => {
+						if (!onlineAuth?.user) return
+						try {
+							setLinkMode("linked", LINK_REASONS.SERVER_LOGIN)
+							const serverUser = onlineAuth.user
+							await initPlatformAuth().catch(() => {})
+							if (lastServerAuth?.token) {
+								await savePlatformAuth(
+									lastServerAuth.token,
+									lastServerAuth.refreshToken,
+									lastServerAuth.expiresIn || 86400,
+									serverUser?.tenantId || serverUser?.tenant_id || localSession.user?.tenantId || null,
+									serverUser?.id || serverUser?.user_id || localSession.user?.id || null,
+								)
+							}
+							await userRepository.upsertAuthenticatedUser(
+								{ ...serverUser, email: serverUser.email || serverUser.username || usr },
+								pwd,
+							)
+							await hydrateSubscriberLocalData({
+								tenantId: serverUser.tenantId || serverUser.tenant_id || localSession.user?.tenantId || null,
+							})
+						} catch (error) {
+							log.warn("Background online session convergence deferred", error)
+						}
+					})
+					.catch((error) => log.warn("Background online reauthentication deferred", error))
+			}
+		}
+
+\n		if (lastLoginSource === "server") {
 			setLinkMode("linked", LINK_REASONS.SERVER_LOGIN)
 
 			// The API login is the explicit network demand. Persist its
