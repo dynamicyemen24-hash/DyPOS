@@ -29,6 +29,16 @@ try {
 let listenerInstalled = false
 let loadedVersion = null
 
+function compareVersions(a, b) {
+	const parse = (value) => String(value || "").split(/[.+-]/, 1)[0].split(".").map((part) => Number.parseInt(part, 10) || 0)
+	const aa = parse(a)
+	const bb = parse(b)
+	for (let i = 0; i < Math.max(aa.length, bb.length); i += 1) {
+		if ((aa[i] || 0) !== (bb[i] || 0)) return (aa[i] || 0) - (bb[i] || 0)
+	}
+	return 0
+}
+
 async function loadReleaseFeed(version = currentVersion.value) {
 	const requestedVersion = version ? String(version) : null
 	if (loadedVersion === requestedVersion && release.value) return release.value
@@ -52,8 +62,7 @@ async function loadReleaseFeed(version = currentVersion.value) {
 					// server response from a lagging edge cache.
 					if (
 						!requestedVersion ||
-						remoteVersion === requestedVersion ||
-						remoteVersion !== String(currentVersion.value)
+						compareVersions(remoteVersion, requestedVersion) >= 0
 					) {
 						release.value = {
 							version: remoteVersion,
