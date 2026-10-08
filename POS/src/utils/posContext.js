@@ -104,18 +104,10 @@ export function resolveTerminalId(storage = safeStorage()) {
 		}
 	}
 
-	const id = generateTerminalId()
-	posContext.terminalId = id
-
-	if (storage) {
-		try {
-			storage.setItem(TERMINAL_STORAGE_KEY, id)
-		} catch (error) {
-			log.warn("Could not persist terminal id", error)
-		}
-	}
-
-	return id
+	// A business terminal is provisioned data, not a client-generated identifier.
+	// Never manufacture a terminal that can be mistaken for a real POS terminal.
+	posContext.terminalId = null
+	return null
 }
 
 /**
