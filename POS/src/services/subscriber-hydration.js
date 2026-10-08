@@ -79,7 +79,7 @@ async function pullCustomers() {
 async function pullOpeningBalances(tenantId) {
 	const response = await methodCall(
 		"DyPOS.api.opening_balances.get_opening_balances",
-		{},
+		{ tenant_id: tenantId || undefined },
 	)
 	const payload = response?.rows ? response : unwrap(response)
 	const rows = Array.isArray(payload?.rows) ? payload.rows : []
