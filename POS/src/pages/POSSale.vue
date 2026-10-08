@@ -2095,10 +2095,10 @@ function onBarcodeScan(code) {
                                 activeProductIndex ===
                                 index,
                             'is-disabled':
-                                product.disabled,
+                                product.disabled || product.priceMissing,
                         }"
                         :disabled="
-                            product.disabled
+                            product.disabled || product.priceMissing
                         "
                         :aria-label="
                             `${product.name}، ${product.priceMissing ? "السعر غير محدد" : formatMoney(product.price)}`
