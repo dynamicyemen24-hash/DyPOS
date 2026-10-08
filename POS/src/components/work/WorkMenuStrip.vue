@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, onMounted, onUnmounted } from "vue"
+import { computed, ref, onMounted, onUnmounted, useId } from "vue"
 import { FeatherIcon } from "dypos-ui"
 
 const props = defineProps({
@@ -12,7 +12,7 @@ const emit = defineEmits(["action"])
 const root = ref(null)
 const activeIndex = ref(0)
 const overflowOpen = ref(false)
-const idBase = `work-menu-${Math.random().toString(36).slice(2, 9)}`
+const idBase = `work-menu-${useId()}`
 const visibleItems = computed(() => props.items.filter(item => !item.hidden))
 const enabledItems = computed(() => visibleItems.value.filter(item => !item.separator && !item.disabled))
 function run(item) {
@@ -43,11 +43,22 @@ function onKeydown(event) {
   }
 }
 function onGlobalShortcut(event) {
-  if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+  if (event.defaultPrevented || event.isComposing) return
   const target = event.target
   if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return
-  const key = event.key.toLowerCase()
-  const item = enabledItems.value.find(entry => entry.shortcut && entry.shortcut.toLowerCase() === key)
+  const item = enabledItems.value.find(entry => {
+    if (!entry.shortcut) return false
+    const parts = entry.shortcut.toLowerCase().split("+").map(part => part.trim())
+    const key = parts.pop()
+    const wantsCtrl = parts.includes("ctrl") || parts.includes("control")
+    const wantsMeta = parts.includes("meta") || parts.includes("cmd") || parts.includes("command")
+    const wantsAlt = parts.includes("alt") || parts.includes("option")
+    const wantsShift = parts.includes("shift")
+    if (!(wantsCtrl || wantsMeta || wantsAlt || wantsShift)) return false
+    return event.key.toLowerCase() === key &&
+      event.ctrlKey === wantsCtrl && event.metaKey === wantsMeta &&
+      event.altKey === wantsAlt && event.shiftKey === wantsShift
+  })
   if (item) { event.preventDefault(); run(item) }
 }
 onMounted(() => window.addEventListener("keydown", onGlobalShortcut))
