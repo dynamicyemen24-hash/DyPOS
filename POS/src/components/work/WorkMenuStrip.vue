@@ -11,7 +11,6 @@ const props = defineProps({
 const emit = defineEmits(["action"])
 const root = ref(null)
 const activeIndex = ref(0)
-const overflowOpen = ref(false)
 const idBase = `work-menu-${useId()}`
 const visibleItems = computed(() => props.items.filter(item => !item.hidden))
 const enabledItems = computed(() => visibleItems.value.filter(item => !item.separator && !item.disabled))
@@ -38,8 +37,13 @@ function onKeydown(event) {
     event.preventDefault(); focusItem(0)
   } else if (event.key === "End") {
     event.preventDefault(); focusItem(buttons.length - 1)
-  } else if (event.key === "Escape" && overflowOpen.value) {
-    overflowOpen.value = false
+  } else if (event.key === "Escape") {
+    const details = root.value?.querySelector("details[open]")
+    if (details) {
+      details.open = false
+      details.querySelector("summary")?.focus()
+      event.preventDefault()
+    }
   }
 }
 function onGlobalShortcut(event) {
@@ -82,16 +86,17 @@ onUnmounted(() => window.removeEventListener("keydown", onGlobalShortcut))
       </template>
       <slot name="end" />
     </div>
-    <button v-if="$slots.overflow" type="button" class="work-menu-strip__overflow" :aria-expanded="overflowOpen"
-      @click="overflowOpen = !overflowOpen">{{ overflowLabel }} <FeatherIcon name="chevron-down" aria-hidden="true" /></button>
-    <div v-if="overflowOpen" class="work-menu-strip__overflow-content"><slot name="overflow" /></div>
+    <details v-if="$slots.overflow" class="work-menu-strip__overflow-wrap">
+      <summary class="work-menu-strip__overflow">{{ overflowLabel }} <FeatherIcon name="chevron-down" aria-hidden="true" /></summary>
+      <div class="work-menu-strip__overflow-content"><slot name="overflow" /></div>
+    </details>
   </nav>
 </template>
 
 <style scoped>
 .work-menu-strip{position:relative;display:flex;align-items:center;gap:8px;min-width:0;padding:8px 12px;border-block:1px solid var(--dy-border);background:var(--dy-surface);color:var(--dy-text);z-index:20}
 .work-menu-strip__items{display:flex;align-items:center;gap:5px;min-width:0;max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:thin;scrollbar-color:var(--dy-border-strong,var(--dy-border)) transparent;scrollbar-gutter:stable;white-space:nowrap}
-.work-menu-strip__items::-webkit-scrollbar{height:6px}.work-menu-strip__items::-webkit-scrollbar-track{background:transparent}.work-menu-strip__items::-webkit-scrollbar-thumb{background:var(--dy-border-strong,var(--dy-border));border-radius:99px}
+.work-menu-strip__overflow-wrap{position:relative;flex:0 0 auto}.work-menu-strip__overflow{list-style:none}.work-menu-strip__overflow::-webkit-details-marker{display:none}.work-menu-strip__items::-webkit-scrollbar{height:6px}.work-menu-strip__items::-webkit-scrollbar-track{background:transparent}.work-menu-strip__items::-webkit-scrollbar-thumb{background:var(--dy-border-strong,var(--dy-border));border-radius:99px}
 .work-menu-strip__item,.work-menu-strip__overflow{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:8px 12px;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--dy-text-secondary);font:inherit;font-size:13px;font-weight:600;cursor:pointer;flex:0 0 auto}
 .work-menu-strip__item:hover:not(:disabled),.work-menu-strip__overflow:hover{background:var(--dy-bg-hover,var(--dy-bg));color:var(--dy-text)}
 .work-menu-strip__item.is-active{background:var(--dy-primary-soft);border-color:color-mix(in srgb,var(--dy-primary) 24%,transparent);color:var(--dy-primary)}
