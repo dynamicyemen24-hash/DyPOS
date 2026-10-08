@@ -43,11 +43,9 @@ CREATE INDEX IF NOT EXISTS idx_products_active_cat ON products(is_active, catego
 -- "1001". Postgres needs no table rebuild here — the constraint is on the
 -- column, so the narrower index replaces it outright.
 CREATE INDEX IF NOT EXISTS idx_products_code ON products(code);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_products_tenant_code ON products(tenant_id, code);
 -- …and the unbound half. In Postgres a NULL in a unique index is also distinct,
 -- so legacy (tenant_id IS NULL) rows need their own partial unique index or
 -- duplicate codes sail through.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_products_null_tenant_code ON products(code) WHERE tenant_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_products_name_active ON products(is_active, name);
 
 CREATE TABLE IF NOT EXISTS customers (
@@ -134,11 +132,8 @@ CREATE TABLE IF NOT EXISTS invoices (
 -- Invoice number is unique PER TENANT, not globally (v36). Tenancy added
 -- tenant_id after this index existed; a global unique made a second shop —
 -- which also numbers from 1 — fail with a constraint error.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_number ON invoices(tenant_id, number);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_null_tenant_number ON invoices(number) WHERE tenant_id IS NULL;
 -- Idempotency key likewise: a cross-tenant collision could return one tenant's
 -- invoice to another's retry.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_idem ON invoices(tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_idem ON invoices(tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
 CREATE INDEX IF NOT EXISTS idx_invoices_shift ON invoices(shift_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
@@ -210,8 +205,6 @@ CREATE TABLE IF NOT EXISTS coupons (
 CREATE INDEX IF NOT EXISTS idx_coupons_code ON coupons(code);
 -- Coupon code is unique PER TENANT (v36) — a discount is money, and two shops
 -- running the same promotion code is the normal case, not a collision.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_coupons_tenant_code ON coupons(tenant_id, code);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_coupons_null_tenant_code ON coupons(code) WHERE tenant_id IS NULL;
 
 CREATE TABLE IF NOT EXISTS loyalty_transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -523,6 +516,8 @@ CREATE TABLE IF NOT EXISTS audit_trail (
 CREATE INDEX IF NOT EXISTS idx_trail_entity ON audit_trail(entity_type, entity_id, id);
 CREATE INDEX IF NOT EXISTS idx_trail_tenant ON audit_trail(tenant_id, created_at DESC);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS tenant_id UUID;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_products_tenant_code ON products(tenant_id, code);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_products_null_tenant_code ON products(code) WHERE tenant_id IS NULL;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS created_by TEXT;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS updated_by TEXT;
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS tenant_id UUID;
@@ -922,6 +917,8 @@ INSERT INTO schema_version (version, description) VALUES (22, 'partial returns: 
 -- ── v23: promotions plane tenant isolation (offers + coupons) ──
 ALTER TABLE offers ADD COLUMN IF NOT EXISTS tenant_id TEXT;
 ALTER TABLE coupons ADD COLUMN IF NOT EXISTS tenant_id TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_coupons_tenant_code ON coupons(tenant_id, code);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_coupons_null_tenant_code ON coupons(code) WHERE tenant_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_offers_tenant ON offers(tenant_id, is_active);
 CREATE INDEX IF NOT EXISTS idx_coupons_tenant ON coupons(tenant_id, is_active);
 INSERT INTO schema_version (version, description) VALUES (23, 'offers + coupons tenant isolation') ON CONFLICT DO NOTHING;
