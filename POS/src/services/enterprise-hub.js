@@ -34,6 +34,8 @@ export const ENTERPRISE_PROVIDER_CATALOG = Object.freeze([
 export async function getEnterpriseOverview() { return request("/enterprise/overview") }
 export async function getEnterpriseLive() { return request("/enterprise/live") }
 export async function getIntegrationCatalog() { return request("/enterprise/catalog") }
+export async function getConfiguredIntegrations() { return request("/enterprise/integrations") }
+export async function testEnterpriseIntegration(id) { return request(`/enterprise/integrations/${encodeURIComponent(id)}/test`, { method:"POST", body:"{}" }) }
 export async function getZatcaStatus() { return request("/enterprise/zakat/status") }
 export async function askEnterpriseAI(prompt) { return request("/enterprise/ai/ask", { method:"POST", body:JSON.stringify({ prompt }) }) }
 export async function previewEnterpriseSync(adapter) { return request("/enterprise/sync/preview", { method:"POST", body:JSON.stringify({ adapter }) }) }
