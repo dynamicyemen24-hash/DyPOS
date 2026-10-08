@@ -167,8 +167,8 @@ describe("runSyncCycle", () => {
 
 		expect(result.pulled).toBe(0)
 		expect(result.pushed).toBe(0)
-		expect(result.checkpoint).toBeGreaterThan(0)
-		expect(store.setCheckpoint).toHaveBeenCalled()
+		expect(result.checkpoint).toBeNull()
+		expect(store.setCheckpoint).not.toHaveBeenCalled()
 	})
 
 	it("permanently fails locally invalid rows instead of aborting the cycle", async () => {
