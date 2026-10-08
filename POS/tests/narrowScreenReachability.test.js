@@ -45,6 +45,7 @@ const DECORATIVE = [
 	// status bar — and the cashier chevron, a disclosure hint for a menu that is
 	// still reachable (the name beside it stays visible).
 	"__context-item",
+	"dypos-header__actions-divider",
 	"__brand-mark",
 	"__connection-text",
 	"__cashier > svg",
