@@ -60,6 +60,8 @@ export function useLoginForm({
 	}
 
 	async function initializeLoginData() {
+		// Login screen must be interactive immediately. Branch discovery is
+		// secondary data and must never delay the credential form.
 		try {
 			biometricAvailable.value = await useBiometric().available()
 		} catch {
@@ -67,17 +69,28 @@ export function useLoginForm({
 		}
 
 		try {
+			const persistedBranch = localStorage.getItem("dypos.lastBranchId") || ""
+			selectedBranchId.value = persistedBranch
+		} catch {
+			selectedBranchId.value = ""
+		}
+
+		subscriberCode.value = ""
+		void loadRemoteBranches()
+	}
+
+	async function loadRemoteBranches() {
+		if (typeof navigator !== "undefined" && navigator.onLine === false) return
+		try {
 			const response = await methodGetList(endpoints.branches.list, {
 				fields: ["name"],
 				limit: 200,
 			})
-			branches.value = response.message || []
+			branches.value = Array.isArray(response.message) ? response.message : []
 		} catch {
+			// Branch discovery is optional before authentication.
 			branches.value = []
 		}
-
-		subscriberCode.value = ""
-		selectedBranchId.value = ""
 	}
 
 	function handleGlobalKeydown(event) {
