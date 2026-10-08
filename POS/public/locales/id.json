@@ -202,5 +202,17 @@
   "شروط الاستخدام": "Ketentuan penggunaan",
   "الخصوصية": "Privasi",
   "اتفاقية المشترك": "Perjanjian pelanggan",
-  "الدخول": "Masuk"
+  "الدخول": "Masuk",
+  "تسجيل المشترك": "Pendaftaran pelanggan",
+  "الشروط": "Ketentuan",
+  "الاتفاقية": "Perjanjian",
+  "وضع العمل المحلي — لا يتطلب اتصالاً": "Mode lokal — tidak memerlukan koneksi",
+  "متصل — جاهز لتسجيل الدخول": "Online — siap masuk",
+  "جاري التحقق من الاتصال": "Memeriksa koneksi",
+  "البريد الإلكتروني أو اسم المستخدم": "Email atau nama pengguna",
+  "البريد الإلكتروني أو اسم المستخدم مطلوب": "Email atau nama pengguna wajib diisi",
+  "خيارات المشترك والمؤسسة": "Opsi pelanggan dan organisasi",
+  "اختياري": "Opsional",
+  "اتركه فارغًا في الدخول المعتاد. استخدم الرمز المعتمد فقط عند الحاجة لتحديد نطاق المشترك.": "Biarkan kosong untuk masuk biasa. Gunakan kode yang disetujui hanya saat cakupan pelanggan perlu ditentukan.",
+  "أدوات النظام": "Alat sistem"
 }
