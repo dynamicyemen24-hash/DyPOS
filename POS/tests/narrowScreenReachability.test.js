@@ -35,7 +35,7 @@ const DECORATIVE = [
 	// banner carry it, louder), and the brand treatment on auth screens (the
 	// monogram and the form remain).
 	"__shortcut",
-	"__technical-toggle",
+	"dypos-header__actions-divider",
 	"__preferences",
 	// The login workspace panel (company identity card) — decorative branding,
 	// not a control. The link inside is supplementary; the primary brand and
