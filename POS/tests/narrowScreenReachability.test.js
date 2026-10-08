@@ -41,7 +41,6 @@ const DECORATIVE = [
 	// form remain accessible.
 	// Hairlines and connectors: the gap between icon buttons, the line between
 	// wizard step markers. Spacing, not controls.
-	"-divider",
 	// The header's location readout — context, not control, with a home on the
 	// status bar — and the cashier chevron, a disclosure hint for a menu that is
 	// still reachable (the name beside it stays visible).
@@ -50,8 +49,8 @@ const DECORATIVE = [
 	"__connection-text",
 	"__cashier > svg",
 	"work-data-grid__frozen",
-	"__forgot__brand",
-	"__reset__brand",
+	"dy-forgot__brand",
+	"dy-reset__brand",
 	// The breadcrumb's compact modifier changes font size and padding rather
 	// than what is rendered, so hiding the element outright would be the bug.
 	// Frozen grid panes duplicate the leading/trailing columns; on a narrow
