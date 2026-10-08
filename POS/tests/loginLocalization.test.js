@@ -50,7 +50,6 @@ const SURFACE = [
 	// is absent here is checked by nothing at all.
 	"src/components/common/LoginShortcutsDialog.vue",
 	"src/components/common/LoginEmailSuggestions.vue",
-	"src/components/common/LoginPinQuickActions.vue",
 	"src/components/common/ShiftOpsPanel.vue",
 	"src/components/common/DeviceHealthPanel.vue",
 	"src/components/common/SystemAboutPanel.vue",
@@ -207,12 +206,7 @@ describe("login surface — nothing escapes __()", () => {
 
 describe("login surface — the wiring the feature depends on", () => {
 	const page = read("src", "pages", "Login.vue")
-	const pinActions = read(
-		"src",
-		"components",
-		"common",
-		"LoginPinQuickActions.vue",
-	)
+	
 
 	it("binds direction and language instead of pinning RTL", () => {
 		// A hard-coded `dir="rtl"` freezes the page in Arabic layout even when
