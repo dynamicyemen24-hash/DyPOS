@@ -129,6 +129,15 @@ describe("build config integrity", () => {
 		)
 	})
 
+	it("Cloudflare Pages build switches the PWA to root scope", () => {
+		const pagesBuild = readFileSync(
+			join(POS, "scripts/build-pages.mjs"),
+			"utf8",
+		)
+		expect(pagesBuild).toContain("process.env.DYPOS_PAGES_BUILD = \"1\"")
+		expect(pagesBuild).toContain('base: "/"')
+	})
+
 	it("service-worker update notices do not call retired remote release feeds", () => {
 		const updater = readFileSync(
 			join(POS, "src/composables/useAppUpdate.js"),
