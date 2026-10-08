@@ -187,7 +187,7 @@ export const useSessionStore = defineStore("session", () => {
 					await savePlatformAuth(
 						lastServerAuth.token,
 						lastServerAuth.refreshToken,
-						lastServerAuth.expiresIn || 3600,
+						lastServerAuth.expiresIn || 86400,
 						serverSession?.tenantId || lastServerAuth.user?.tenantId || null,
 						serverSession?.user_id || serverSession?.id || lastServerAuth.user?.id || null,
 					)
