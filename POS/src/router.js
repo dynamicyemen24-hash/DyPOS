@@ -667,6 +667,11 @@ router.beforeEach(async (to, from) => {
 		return redirectToLogin(to)
 	}
 
+	// Feature routes are capability-gated, not merely hidden in the UI.
+	if (to.meta?.feature === "queue" && authenticated && !isQueueEnabled()) {
+		return { name: ROUTE_NAMES.REPORTS, query: { feature: "queue-unavailable" } }
+	}
+
 	/**
 	 * Optional shift protection.
 	 *
