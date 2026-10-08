@@ -222,6 +222,24 @@ const navItems = ref([
 		to: { name: "Reports" },
 		icon: "bar-chart-2",
 	},
+	{
+		id: "work",
+		label: "شاشات العمل",
+		to: { name: "WorkScreens" },
+		icon: "layers",
+	},
+	{
+		id: "settings",
+		label: "الإعدادات",
+		to: { name: "Settings" },
+		icon: "settings",
+	},
+	{
+		id: "queue",
+		label: "الطوابير",
+		to: { name: "Queue" },
+		icon: "users",
+	},
 ])
 
 function broadcastRefresh() {
