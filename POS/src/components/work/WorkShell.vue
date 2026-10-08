@@ -34,8 +34,6 @@
       'work-shell--mobile-open': mobileNavOpen,
       'work-shell--reduced-motion': prefersReducedMotion,
     }"
-    role="application"
-    aria-label="DyPOS Work Screens"
   >
     <!-- Skip Link (WCAG 2.4.1) -->
     <a
@@ -72,9 +70,7 @@
       id="work-shell-nav"
       class="work-shell__nav"
       :class="{ 'work-shell__nav--mobile': mobileNavOpen }"
-      role="navigation"
       :aria-label="t('mainNavigation')"
-      :aria-expanded="mobileNavOpen"
     >
       <div class="work-shell__nav-header">
         <div class="work-shell__brand">
@@ -145,6 +141,7 @@
       v-if="isMobile"
       type="button"
       class="work-shell__mobile-toggle"
+      ref="mobileToggleRef"
       @click="openMobileNav"
       :aria-label="t('openNavigation')"
       :aria-expanded="mobileNavOpen"
@@ -367,7 +364,9 @@ const { locale, dir: direction, isRTL } = useLocale()
 const language = computed(() => locale.value)
 
 const mainRef = ref(null)
+const mobileToggleRef = ref(null)
 const mobileNavOpen = ref(false)
+let previousBodyOverflow = ""
 const prefersReducedMotion = ref(false)
 
 let mediaQuery = null
@@ -421,6 +420,8 @@ function announce(message) {
 }
 
 function openMobileNav() {
+	if (typeof document === "undefined") return
+	previousBodyOverflow = document.body.style.overflow
 	mobileNavOpen.value = true
 	document.body.style.overflow = "hidden"
 	announce(t("navigationOpened"))
@@ -430,10 +431,18 @@ function openMobileNav() {
 	})
 }
 
-function closeMobileNav() {
+function closeMobileNav({ restoreFocus = false } = {}) {
 	mobileNavOpen.value = false
-	document.body.style.overflow = ""
+	if (typeof document !== "undefined") document.body.style.overflow = previousBodyOverflow
 	announce(t("navigationClosed"))
+	if (restoreFocus) vueNextTick(() => mobileToggleRef.value?.focus({ preventScroll: true }))
+}
+
+function handleShellKeydown(event) {
+	if (event.key === "Escape" && mobileNavOpen.value) {
+		event.preventDefault()
+		closeMobileNav({ restoreFocus: true })
+	}
 }
 
 function navigateBack() {
@@ -449,6 +458,7 @@ function updateMotionPreference(e) {
 }
 
 onMounted(() => {
+	if (typeof document !== "undefined") document.addEventListener("keydown", handleShellKeydown)
 	if (typeof window !== "undefined") {
 		mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)")
 		updateMotionPreference()
@@ -458,12 +468,13 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+	if (typeof document !== "undefined") document.removeEventListener("keydown", handleShellKeydown)
 	if (mediaQuery)
 		mediaQuery.removeEventListener?.("change", updateMotionPreference)
 	if (typeof window !== "undefined")
 		window.removeEventListener("resize", handleResize)
 	if (announcementTimer) clearTimeout(announcementTimer)
-	document.body.style.overflow = ""
+	if (typeof document !== "undefined") document.body.style.overflow = previousBodyOverflow
 })
 
 watch(
@@ -480,9 +491,9 @@ defineOptions({ inheritAttrs: false })
 <style scoped>
 .work-shell {
   display: grid;
-  grid-template-columns: var(--dy-sidebar-w, 240px) minmax(0, 1fr);
+  grid-template-columns: var(--dy-sidebar-w, 256px) minmax(0, 1fr);
   min-height: 100dvh;
-  background: var(--dy-bg);
+  background: radial-gradient(ellipse at 92% 0%, color-mix(in srgb, var(--dy-primary-soft) 54%, transparent), transparent 34rem), var(--dy-bg);
   color: var(--dy-text);
   font-family: var(--dy-font-ui);
   font-size: var(--dy-text-base);
@@ -518,8 +529,9 @@ defineOptions({ inheritAttrs: false })
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  background: var(--dy-surface);
+  background: color-mix(in srgb, var(--dy-surface) 96%, var(--dy-primary-soft));
   border-inline-end: 1px solid var(--dy-border);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--dy-border) 28%, transparent);
   z-index: 40;
 }
 .work-shell__nav-header {
@@ -550,7 +562,7 @@ defineOptions({ inheritAttrs: false })
 .work-shell__nav-items { list-style: none; margin: 0; padding: 0; }
 .work-shell__nav-item { margin: 0 0 var(--dy-space-1); }
 .work-shell__nav-link {
-  min-height: var(--dy-nav-item-h, 40px);
+  min-height: max(44px, var(--dy-nav-item-h, 44px));
   display: flex;
   align-items: center;
   gap: var(--dy-space-3);
@@ -652,8 +664,10 @@ defineOptions({ inheritAttrs: false })
   align-items: center;
   gap: var(--dy-space-4);
   padding-inline: var(--dy-space-5);
-  background: var(--dy-surface);
+  background: color-mix(in srgb, var(--dy-surface) 94%, transparent);
   border-block-end: 1px solid var(--dy-border);
+  box-shadow: 0 4px 18px rgb(15 23 42 / 0.035);
+  backdrop-filter: blur(14px);
   position: sticky;
   inset-block-start: 0;
   z-index: 30;
@@ -683,7 +697,7 @@ defineOptions({ inheritAttrs: false })
 }
 .work-shell__subtitle { margin: var(--dy-space-1) 0 0; color: var(--dy-text-secondary); font-size: var(--dy-text-xs); }
 .work-shell__toolbar {
-  min-height: var(--dy-toolbar-h, 48px);
+  min-height: var(--dy-toolbar-h, 52px);
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -708,7 +722,8 @@ defineOptions({ inheritAttrs: false })
 .work-shell__status-bar--warning { background: var(--dy-warning-soft); color: var(--dy-warning); }
 .work-shell__status-bar--error { background: var(--dy-danger-soft); color: var(--dy-danger); }
 .work-shell__status-close { width: 32px; height: 32px; border-radius: var(--dy-radius-sm); }
-.work-shell__content { flex: 1; min-height: 0; overflow: auto; padding: var(--dy-content-padding, 24px); }
+.work-shell__content { flex: 1; min-height: 0; overflow: auto; padding: clamp(16px, 2.2vw, 32px); scrollbar-gutter: stable; }
+.work-shell__content > * { min-width: 0; }
 .work-shell__content--no-padding { padding: 0; }
 @media (max-width: 1023px) {
   .work-shell { grid-template-columns: 1fr; }
