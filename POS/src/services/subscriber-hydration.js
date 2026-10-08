@@ -138,11 +138,20 @@ export async function hydrateSubscriberLocalData({
 			result.paymentMethods = paymentMethods.length
 		}
 
-		const warehouse =
+		let warehouse =
 			warehouseId ||
 			bootstrapData?.pos_profile?.warehouse ||
 			bootstrapData?.warehouses?.[0]?.id ||
-			"W-01"
+			null
+		if (!warehouse) {
+			try {
+				const warehouses = unwrap(await methodCall("DyPOS.api.pos_profile.get_warehouses", {}))
+				warehouse = warehouses?.[0]?.id || warehouses?.[0]?.name || null
+			} catch {
+				/* warehouse discovery is best effort; item master still hydrates */
+			}
+		}
+		warehouse = warehouse || "W-01"
 
 		const [items, customers, balances] = await Promise.all([
 			pullItems({ warehouseId: warehouse }),
