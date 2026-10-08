@@ -13,7 +13,7 @@
 .work-data-grid__density-select {
   min-height: 44px;
   padding: 8px 30px 8px 10px;
-  color: var(--dy-color-text, #0f172a);
+  color: var(--dy-text, #0f172a);
   font-size: 0.8125rem;
 }
 .work-data-grid__main { scrollbar-gutter: stable; }
@@ -21,7 +21,7 @@
 .work-data-grid__th {
   min-height: 44px;
   background: var(--dy-color-surface-overlay, #f8fafc);
-  color: var(--dy-color-text-muted, #64748b);
+  color: var(--dy-text-muted, #64748b);
   font-size: 0.75rem;
   font-weight: 750;
   letter-spacing: 0.015em;
@@ -30,7 +30,7 @@
 .work-data-grid__td {
   min-height: 48px;
   border-block-end: 1px solid color-mix(in srgb, var(--dy-color-surface-border, #e2e8f0) 72%, transparent);
-  color: var(--dy-color-text, #0f172a);
+  color: var(--dy-text, #0f172a);
 }
 .work-data-grid__row:hover .work-data-grid__td,
 .work-data-grid__row--selected .work-data-grid__td {
