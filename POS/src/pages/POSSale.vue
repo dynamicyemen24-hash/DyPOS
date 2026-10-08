@@ -62,6 +62,7 @@ import { useOperatorMenu } from "@/composables/useOperatorMenu"
 import { useConnectionWatch } from "@/composables/useConnectionWatch"
 import { gridNextIndex, readDirectionRTL } from "@/utils/gridNavigation"
 import POSHeader from "@/components/pos/POSHeader.vue"
+import POSGlobalToolbar from "@/components/pos/POSGlobalToolbar.vue"
 import OperatorMenu from "@/components/pos/OperatorMenu.vue"
 import OpenInvoiceTabs from "@/components/pos/OpenInvoiceTabs.vue"
 import PosKioskActions from "@/components/pos/PosKioskActions.vue"
@@ -1473,6 +1474,8 @@ function onBarcodeScan(code) {
                 <PosStockActions show-import @open="goToStockManagement" />
                 <PosToolsMenu @action="onHeaderGroupAction" />
             </template>
+
+            <template #toolbar-start><POSGlobalToolbar :can-checkout="canCheckout" :is-online="isOnline" :sync-state="syncState" :sale-status-label="saleStatusLabel" :cart-label="cartLabel" :total-label="formatMoney(total)" @back="router.back" @home="router.push({ name: 'Reports' })" @operations="goToWorkScreens" @stock="goToStockManagement" @payment="openPayment" @scan="openScanner" @shortcuts="showShortcutsPanel = true" @sync="showSyncCenter = true" /></template>
             </POSHeader>
 
             <!-- Object Header - Sale Summary (Fiori Pattern) -->

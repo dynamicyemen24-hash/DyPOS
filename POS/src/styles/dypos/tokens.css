@@ -557,6 +557,10 @@
 	--dy-page-padding: 24px;
 	--dy-page-padding-mobile: 16px;
 
+	--dy-content-padding: var(--dy-page-padding);
+	--dy-overlay: rgb(15 23 42 / 55%);
+	--dy-header-h-mobile: 64px;
+
 	/* =========================================================================
 	   29. DATA / NUMERIC DISPLAY
 	   ========================================================================= */

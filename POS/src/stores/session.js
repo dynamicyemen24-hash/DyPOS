@@ -222,7 +222,7 @@ export const useSessionStore = defineStore("session", () => {
 			}
 		}
 
-\n		if (lastLoginSource === "server") {
+		if (lastLoginSource === "server") {
 			setLinkMode("linked", LINK_REASONS.SERVER_LOGIN)
 
 			// The API login is the explicit network demand. Persist its

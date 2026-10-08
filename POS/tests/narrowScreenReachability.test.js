@@ -28,13 +28,14 @@ const SRC = join(ROOT, "src")
  * Every entry is screen furniture that never carries an action.
  */
 const DECORATIVE = [
+	".work-shell__subtitle", // non-interactive text label; remains readable on narrow screens
 	// A keyboard-shortcut hint (meaningless without a keyboard, and the shortcut
 	// still fires), an inline search-clear (the field clears on a second tap and
 	// on Escape), connection status text (the coloured dot and the offline
 	// banner carry it, louder), and the brand treatment on auth screens (the
 	// monogram and the form remain).
 	"__shortcut",
-	"__technical-toggle",
+	"dypos-header__actions-divider",
 	"__preferences",
 	// The login workspace panel (company identity card) — decorative branding,
 	// not a control. The link inside is supplementary; the primary brand and
@@ -45,7 +46,6 @@ const DECORATIVE = [
 	// status bar — and the cashier chevron, a disclosure hint for a menu that is
 	// still reachable (the name beside it stays visible).
 	"__context-item",
-	"dypos-header__actions-divider",
 	"__brand-mark",
 	"__connection-text",
 	"__cashier > svg",
