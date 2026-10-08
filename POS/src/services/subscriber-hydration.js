@@ -19,14 +19,14 @@ function unwrap(response) {
 	return response?.message ?? response ?? []
 }
 
-async function pullItems({ warehouseId = "W-01" } = {}) {
+async function pullItems({ warehouseId = null } = {}) {
 	let applied = 0
 	for (let page = 0; page < MAX_PAGES; page += 1) {
 		const rows = unwrap(
 			await methodCall("DyPOS.api.items.get_items", {
 				start: page * ITEM_PAGE,
 				limit: ITEM_PAGE,
-				warehouse: warehouseId || "W-01",
+				...(warehouseId ? { warehouse: warehouseId } : {}),
 			}),
 		)
 		if (!Array.isArray(rows) || rows.length === 0) break
@@ -45,7 +45,7 @@ async function pullItems({ warehouseId = "W-01" } = {}) {
 			if (Number.isFinite(Number(row.stock_qty))) {
 				stock.push({
 					item_code: code,
-					warehouse: warehouseId || "W-01",
+					...(warehouseId ? { warehouse: warehouseId } : {}),
 					actual_qty: Number(row.stock_qty) || 0,
 				})
 			}
@@ -92,6 +92,8 @@ async function pullOpeningBalances(tenantId) {
 				row.fiscal_year || "",
 				row.account_type || "",
 				row.account_id || "",
+				row.account_code || "",
+				row.product_id || "",
 			].join(":"),
 			tenant_id: tenantId || row.tenant_id || "",
 			amount_minor: Number(row.amount_minor || 0),
@@ -104,7 +106,7 @@ async function pullOpeningBalances(tenantId) {
 
 export async function hydrateSubscriberLocalData({
 	tenantId = null,
-	warehouseId = "W-01",
+	warehouseId = null,
 	bootstrapData = null,
 } = {}) {
 	if (typeof navigator !== "undefined" && navigator.onLine === false) return null
@@ -132,7 +134,7 @@ export async function hydrateSubscriberLocalData({
 			await db.payment_methods.bulkPut(
 				paymentMethods.map((row) => ({
 					...row,
-					pos_profile: row.pos_profile || bootstrapData?.pos_profile?.name || "POS",
+					pos_profile: row.pos_profile || bootstrapData?.pos_profile?.name || null,
 				})),
 			)
 			result.paymentMethods = paymentMethods.length
@@ -151,7 +153,6 @@ export async function hydrateSubscriberLocalData({
 				/* warehouse discovery is best effort; item master still hydrates */
 			}
 		}
-		warehouse = warehouse || "W-01"
 
 		const [items, customers, balances, paymentMethods] = await Promise.all([
 			pullItems({ warehouseId: warehouse }),
@@ -159,11 +160,12 @@ export async function hydrateSubscriberLocalData({
 			pullOpeningBalances(tenantId),
 			(async () => {
 				try {
-					const rows = unwrap(await methodCall("DyPOS.api.pos_profile.get_payment_methods", {
-						pos_profile: bootstrapData?.pos_profile?.name || bootstrapData?.pos_profile || "default",
-					}))
+					const profile = bootstrapData?.pos_profile?.name || bootstrapData?.pos_profile || null
+					const rows = unwrap(await methodCall("DyPOS.api.pos_profile.get_payment_methods", profile ? {
+						pos_profile: profile,
+					} : {}))
 					if (!Array.isArray(rows)) return []
-					const normalized = rows.map((row) => ({ ...row, pos_profile: row.pos_profile || bootstrapData?.pos_profile?.name || "default" }))
+					const normalized = rows.map((row) => ({ ...row, pos_profile: row.pos_profile || profile || null }))
 					if (normalized.length) await db.payment_methods.bulkPut(normalized)
 					return normalized
 				} catch (error) {
