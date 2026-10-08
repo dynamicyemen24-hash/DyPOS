@@ -61,7 +61,7 @@ import LoginOnboardingGuide from "@/components/common/LoginOnboardingGuide.vue"
  */
 
 import { session } from "@/stores/session"
-import { goToForgotPassword, goToRegister, goToPOS } from "@/router"
+import { goToForgotPassword, goToRegister, goToPOS, goToDashboard } from "@/router"
 import { useBiometric } from "@/composables/useBiometric"
 import { useSessionLock } from "@/composables/useSessionLock"
 import { useSessionTimeout } from "@/composables/useSessionTimeout"
@@ -539,11 +539,14 @@ async function submitLogin() {
 		}
 
 		await bootstrapAuthenticatedSession()
-			// Authentication is complete; the router guard is now satisfied.
-			// If a shift is required, the dialog owns the transition and calls
-			// handleShiftOpened(). Otherwise enter the POS immediately.
+			// Smart entry: cashiers go directly to the transaction workspace;
+			// supervisory/management roles land on the operational dashboard.
+			// If a shift is required, the shift dialog remains the controlling gate.
 			if (!shiftDialogOpen.value) {
-				await goToPOS()
+				const role = String(session?.user?.role || session?.user?.roles?.[0] || "").toLowerCase()
+				const cashier = role.includes("cashier") || role.includes("كاشير") || role.includes("pos user")
+				if (cashier) await goToPOS()
+				else await goToDashboard()
 			}
 	} catch (error) {
 		authenticationCompleted.value = false
