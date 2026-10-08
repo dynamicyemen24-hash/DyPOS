@@ -34,6 +34,8 @@ const ENTITY_TABLES = {
 	settings: "settings",
 	dailyReport: "dailyReports",
 	dailyReports: "dailyReports",
+	openingBalance: "openingBalances",
+	openingBalances: "openingBalances",
 }
 
 const ENTITY_VALIDATION_KEYS = {
@@ -43,6 +45,7 @@ const ENTITY_VALIDATION_KEYS = {
 	payments: "payment",
 	sessions: "session",
 	dailyReports: "dailyReport",
+	openingBalances: "openingBalance",
 }
 
 function tableFor(entityType) {
