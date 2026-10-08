@@ -4,7 +4,8 @@
 			<input
 				:id="fieldId"
 				type="checkbox"
-				:checked="modelValue"
+				 :checked="modelValue"
+				:aria-describedby="description ? descriptionId : undefined"
 				@change="$emit('update:modelValue', $event.target.checked ? 1 : 0)"
 				class="w-5 h-5 text-indigo-600 bg-white border-gray-300 rounded focus:ring-indigo-500 focus:ring-1 cursor-pointer"
 			/>
