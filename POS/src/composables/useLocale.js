@@ -281,7 +281,10 @@ export function useLocale() {
 				localStorage.setItem(PREFARED_LANGUAGE_KEY, newLocale)
 			}
 		} catch (error) {
-			log.warn("Could not persist language preference; keeping it for this session", error)
+			log.warn(
+				"Could not persist language preference; keeping it for this session",
+				error,
+			)
 		}
 
 		// Language preference is local-first. A future sync layer may propagate
