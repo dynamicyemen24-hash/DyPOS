@@ -108,7 +108,13 @@ async function initializeOfflineWorker() {
 export async function detectOfflineMode() {
 	if (!isBrowser) return false
 
-	return !isLinkEnabled()
+	// Consent to sync and actual reachability are independent. A linked
+	// terminal with no network is still a fully operational local terminal.
+	try {
+		return navigator.onLine === false || !isLinkEnabled()
+	} catch {
+		return !isLinkEnabled()
+	}
 }
 
 /**
