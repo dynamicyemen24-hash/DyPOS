@@ -747,7 +747,7 @@ watch(
 
         <!-- Simplified status indicator — only shows offline/online -->
         <div
-            v-if="isOfflineMode || isOnline"
+            v-if="!isOfflineMode && isOnline"
             class="dy-login__status-indicator"
             role="status"
             aria-live="polite"
