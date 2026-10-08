@@ -18,7 +18,7 @@ jobs:
           set -e
           cd POS
           npm ci --no-audit --no-fund
-          npx biome check --write .
+          npx biome format --write .
           cd ../server
           npm ci --no-audit --no-fund
           npx biome check --write .
