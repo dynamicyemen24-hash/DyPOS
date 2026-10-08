@@ -22,6 +22,11 @@ import { BRAND_CARD } from "../src/utils/brand.js"
 
 const { build } = await import("vite")
 
+// Pages is the root-scoped PWA deployment. VitePWA reads this flag while
+// loading vite.config.js; setting only base="/" is not enough because scope,
+// start_url, icon prefixes and navigateFallback are derived separately.
+process.env.DYPOS_PAGES_BUILD = "1"
+
 const here = path.dirname(fileURLToPath(import.meta.url))
 const outDir = path.resolve(here, "..", "dist", "pos")
 
