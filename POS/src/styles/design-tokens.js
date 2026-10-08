@@ -182,12 +182,16 @@ export const tokens = Object.freeze({
 			mode: "light", // "light" | "dark" | "auto"
 			// Theme switch generates CSS vars for the active theme
 			switch: (newTheme) => {
-				const themeMap = {
-					fiori: "fiori",
-					m3: "m3",
-					dypos: "base",
+				const accentMap = {
+					dypos: "royal",
+					fiori: "indigo",
+					m3: "teal",
 				}
-				document.documentElement.dataset.theme = themeMap[newTheme] || "dypos"
+				const accent = accentMap[newTheme] || "royal"
+				if (typeof document !== "undefined") {
+					document.documentElement.dataset.accent = accent
+				}
+				return accent
 			},
 		},
 	}),
