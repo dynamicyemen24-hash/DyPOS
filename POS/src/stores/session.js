@@ -353,11 +353,9 @@ export const useSessionStore = defineStore("session", () => {
 			// Standalone-first: the check is a server call; local logins
 			// read the device shift copy instead of demanding the network.
 			if (isLinkEnabled()) {
-				try {
-					await shiftComposable.checkOpeningShift.submit()
-				} catch (error) {
+				void shiftComposable.checkOpeningShift.submit().catch((error) => {
 					log.warn("Shift check degraded (offline fallback used)", error)
-				}
+				})
 			}
 
 			// 6. Sync manager (poll + connectivity listeners)
