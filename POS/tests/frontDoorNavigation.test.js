@@ -24,7 +24,7 @@ describe("DyPOS front-door navigation", () => {
 
     expect(login).toContain("await bootstrapAuthenticatedSession()")
     expect(login).toContain("await goToDashboard()")
-    expect(login).toMatch(/async function onPasskeyAuthenticated[\\s\\S]*?await goToDashboard\\(\\)/)
+    expect(login).toMatch(/async function onPasskeyAuthenticated[\s\S]*?await goToDashboard\(\)/)
     expect(login).toMatch(/async function onPinAuthenticated[\s\S]*?await goToDashboard\(\)/)
   })
 
