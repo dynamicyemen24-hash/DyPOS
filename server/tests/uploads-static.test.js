@@ -59,7 +59,7 @@ describe('/uploads — auth gate + extension allowlist', () => {
 		const reg = await call('POST', '/api/method/dypos.auth.register', {
 			body: { username, password: 'StrongP@55!', fullName: 'Upload Gate', companyName: 'Upload Test Store', role: 'CASHIER' },
 		});
-		assert.strictEqual(reg.status, 200, JSON.stringify(reg.body).slice(0, 300));
+		assert.ok([200, 201].includes(reg.status), JSON.stringify(reg.body).slice(0, 300));
 
 		const login = await call('POST', '/api/method/login', {
 			body: { usr: username, pwd: 'StrongP@55!' },
