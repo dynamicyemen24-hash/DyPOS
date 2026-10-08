@@ -207,3 +207,13 @@
 - `WorkDataGrid.vue`: keep client-side page count synchronized with filtered results while preserving an explicitly larger server-side total.
 - `POS/tests/workSearchQuickFilters.test.js`: cover quick-filter selection/reset and debounced search/clearable behavior.
 - Server CI lint follow-up: replace expression-returning `forEach` callbacks in the reference migration with void callbacks and use a template literal in the catalog test; no migration data or behavior was intentionally changed.
+
+ 
+## تطبيق تحديث الواجهات المشتركة — أكتوبر 2026
+
+- رُفعت جودة `WorkShell` المشتركة: خلفية هادئة متعددة الطبقات، شريط علوي أوضح، مساحة محتوى متجاوبة، روابط تنقل بحد أدنى 44px، وحالات تركيز ظاهرة.
+- أزيل `role="application"` من القشرة العامة حتى لا تُجبر قارئات الشاشة على نمط تفاعل غير مناسب لصفحة ويب كاملة.
+- اكتمل سلوك لوحة مفاتيح قائمة الهاتف: Escape للإغلاق واستعادة التركيز، وحصر Tab/Shift+Tab داخل القائمة المفتوحة، مع استعادة قيمة قفل التمرير السابقة بدلاً من محوها.
+- رُفعت جودة `WorkDataGrid` بصرياً: تدرج خفيف لشريط الأدوات، رأس جدول واضح، صفوف محددة/ممرر عليها مميزة، تركيز لوحة المفاتيح، وتحسين أدوات الكثافة للمس.
+- أضيف `POS/tests/workSurfaceModernization.test.js` لتثبيت عقود الوصولية وسلوك سطح العمل.
+- لا يُعلن اعتماد الإصدار للإنتاج قبل اجتياز CI على آخر SHA، واختبار الواجهات بصرياً على RTL/LTR والشاشات الصغيرة، والتحقق من الأداء وحجم الحزمة.
