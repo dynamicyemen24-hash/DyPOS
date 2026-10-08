@@ -513,6 +513,35 @@
 }
 
 /* =============================================================================
+   02B. HIGH-CONTRAST OPERATIONAL MODE
+   Uses stronger text/borders/focus without changing semantic meaning.
+   Activated globally with data-contrast="high".
+   ============================================================================= */
+[data-contrast="high"] {
+	--dy-border: var(--dy-ink-400);
+	--dy-border-soft: var(--dy-ink-300);
+	--dy-border-strong: var(--dy-ink-600);
+	--dy-text-secondary: var(--dy-text);
+	--dy-text-muted: var(--dy-text);
+	--dy-ring: var(--dy-accent);
+	--dy-ring-soft: rgb(var(--dy-accent-rgb) / 0.4);
+}
+[data-theme="dark"][data-contrast="high"] {
+	--dy-border: var(--dy-ink-500);
+	--dy-border-soft: var(--dy-ink-600);
+	--dy-border-strong: var(--dy-ink-300);
+	--dy-text-secondary: var(--dy-ink-100);
+	--dy-text-muted: var(--dy-ink-100);
+	--dy-ring: var(--dy-accent-400);
+}
+@media (forced-colors: active) {
+	[data-contrast="high"] {
+		--dy-ring: CanvasText;
+		--dy-border: ButtonText;
+	}
+}
+
+/* =============================================================================
    03. SYSTEM THEME FALLBACK
    إذا استخدم التطبيق data-theme="system"
    ============================================================================= */
