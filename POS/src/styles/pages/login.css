@@ -3682,3 +3682,51 @@
 @media(max-width:760px){
  .dy-login__command-strip{display:none}
 }
+
+/* Final clean enterprise composition: one command row, one status row, one work card. */
+.dy-login__brand{flex-wrap:wrap}
+.dy-login__command-strip{
+  flex:1 0 100%;
+  width:100%;
+  margin:2px 0 0;
+  justify-content:flex-start;
+  border:0;
+  border-top:1px solid var(--dy-border-soft);
+  border-radius:0;
+  background:transparent;
+  padding:5px 0 0;
+}
+.dy-login__command-strip a{
+  min-height:28px;
+  padding-inline:10px;
+}
+.dy-login__command-strip a:first-child{margin-inline-start:0}
+.dy-login__status-indicator{
+  position:static;
+  grid-area:status;
+  width:100%;
+  min-height:32px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:3px 12px;
+  pointer-events:none;
+  background:var(--dy-surface-soft);
+  border-bottom:1px solid var(--dy-border-soft);
+  box-shadow:none;
+}
+.dy-login__status-item{
+  border:0;
+  background:transparent;
+  box-shadow:none;
+  min-height:24px;
+}
+@media(max-width:760px){
+ .dy-login__command-strip{
+   display:flex;
+   overflow-x:auto;
+   scrollbar-width:none;
+   justify-content:flex-start;
+ }
+ .dy-login__command-strip::-webkit-scrollbar{display:none}
+}
