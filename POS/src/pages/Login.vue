@@ -1264,14 +1264,16 @@ watch(
                     </ActionButton>
                 </form>
 
-                <!-- Guided onboarding: progressive disclosure; never competes with the primary login action. -->
+                <!-- One secondary command surface: help, system information and installation stay out of the cashier path. -->
                 <details class="dy-login__secondary">
                     <summary class="dy-login__secondary-summary">
-                        <FeatherIcon name="info" :size="15" aria-hidden="true" />
-                        <span>{{ __('مساعدة وإعدادات متقدمة') }}</span>
+                        <FeatherIcon name="sliders" :size="15" aria-hidden="true" />
+                        <span>{{ __('أدوات النظام') }}</span>
                     </summary>
                     <div class="dy-login__secondary-content">
                         <LoginOnboardingGuide />
+                        <VersionInfo />
+                        <InstallCredentialsCard />
                     </div>
                 </details>
 
@@ -1308,16 +1310,6 @@ watch(
 
                 <!-- Technical diagnostics are rendered once below the main login surface. -->
                 <!-- Version is secondary information; keep it available without polluting the task path. -->
-                <details class="dy-login__secondary dy-login__secondary--meta">
-                    <summary class="dy-login__secondary-summary">
-                        <FeatherIcon name="settings" :size="15" aria-hidden="true" />
-                        <span>{{ __('معلومات النظام') }}</span>
-                    </summary>
-                    <div class="dy-login__secondary-content">
-                        <VersionInfo />
-                    </div>
-                </details>
-
                 <!-- Register -->
                 <p class="dy-login__register">
                     {{ __('ليس لديك حساب؟') }}
@@ -1351,17 +1343,6 @@ watch(
          =============================================================== -->
 
         <LoginSessionLockDialog />
-
-        <!-- بيانات التثبيت اختيارية وثانوية؛ لا تظهر داخل مسار تسجيل الدخول الأساسي. -->
-        <details class="dy-login__install-details">
-            <summary class="dy-login__secondary-summary">
-                <FeatherIcon name="download" :size="15" aria-hidden="true" />
-                <span>{{ __('تثبيت DyPOS على هذا الجهاز') }}</span>
-            </summary>
-            <div class="dy-login__secondary-content">
-                <InstallCredentialsCard />
-            </div>
-        </details>
 
 <NotificationBar />
     </main>
