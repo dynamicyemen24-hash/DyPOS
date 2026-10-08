@@ -181,8 +181,8 @@ router.post('/', validate(invoiceSchema), (req, res) => {
 	if (idemKey) {
 		// Tenant-scoped idempotency prevents cross-business deduplication.
 		const existing = db
-			.prepare('SELECT id FROM invoices WHERE tenant_id IS ? AND idempotency_key=? LIMIT 1')
-			.get(scope.tenantId ?? null, idemKey);
+			.prepare('SELECT id FROM invoices WHERE tenant_id IS ? AND branch_id IS ? AND idempotency_key=? LIMIT 1')
+			.get(scope.tenantId ?? null, scope.branchId ?? null, idemKey);
 		if (existing) return res.json({ deduped: true, invoiceId: existing.id });
 	}
 
@@ -323,8 +323,8 @@ router.post('/', validate(invoiceSchema), (req, res) => {
 		} catch (e) {
 			if (idemKey && /UNIQUE|CONFLICT/i.test(String(e.message))) {
 				const dup = db
-					.prepare('SELECT id FROM invoices WHERE tenant_id IS ? AND idempotency_key=?')
-					.get(scope.tenantId ?? null, idemKey);
+					.prepare('SELECT id FROM invoices WHERE tenant_id IS ? AND branch_id IS ? AND idempotency_key=?')
+					.get(scope.tenantId ?? null, scope.branchId ?? null, idemKey);
 				if (dup) return { deduped: true, invoiceId: dup.id };
 			}
 			throw e;
