@@ -1,7 +1,7 @@
 <!--
   =============================================================================
   DyPOS — Subscriber Registration Page
-  Production Grade / End-to-End SaaS
+  Production Grade / End-to-End POS
   =============================================================================
 
   المسؤوليات:
@@ -265,7 +265,7 @@ async function submitRegistration() {
 			isEnteringSystem.value = true
 			entryError.value = ""
 			await session.bootstrap().catch(() => {})
-			await router.replace({ name: "POSSale" })
+			await router.replace({ name: "Reports" })
 			return
 		}
 
