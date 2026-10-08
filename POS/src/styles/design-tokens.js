@@ -1,3 +1,5 @@
+import { themeManager } from "./theme-manager.js"
+
 /**
  * DyPOS Design Foundation Tokens
  *
@@ -192,7 +194,7 @@ export const tokens = Object.freeze({
 				try {
 					// Legacy callers keep their old names; runtime state is owned by
 					// the central Theme Manager so persistence and subscriptions remain intact.
-					return window.__DYPOS_THEME_MANAGER__?.setAccent?.(accent) || accent
+					return themeManager.setAccent(accent)
 				} catch {
 					return accent
 				}
