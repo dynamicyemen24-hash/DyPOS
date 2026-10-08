@@ -349,6 +349,42 @@ export const clearCachedData = async () => {
 }
 
 /**
+ * Clear tenant-sensitive read caches when the active subscriber changes.
+ *
+ * Offline queues/drafts/settings are intentionally preserved: they contain
+ * pending business work or device configuration and must never be wiped as a
+ * side effect of account switching. Catalog/history caches, however, must not
+ * remain visible to a different tenant because their legacy schemas use
+ * natural keys rather than tenant-prefixed primary keys.
+ */
+export const clearTenantScopedCaches = async () => {
+	const results = {
+		...await clearCachedData(),
+		invoice_history: 0,
+		unpaid_invoices: 0,
+		one_time_redemptions: 0,
+		zatca_audit_trail: 0,
+		invoice_validity: 0,
+		daily_sales_summary: 0,
+		zatca_settings: 0,
+	}
+	try {
+		results.invoice_history = await db.invoice_history.clear()
+		results.unpaid_invoices = await db.unpaid_invoices.clear()
+		results.one_time_redemptions = await db.one_time_redemptions.clear()
+		results.zatca_audit_trail = await db.zatca_audit_trail.clear()
+		results.invoice_validity = await db.invoice_validity.clear()
+		results.daily_sales_summary = await db.daily_sales_summary.clear()
+		results.zatca_settings = await db.zatca_settings.clear()
+		log.info("Tenant-sensitive caches cleared; offline queues preserved", results)
+		return { success: true, cleared: results }
+	} catch (error) {
+		log.error("Error clearing tenant-sensitive caches:", error)
+		return { success: false, error: error.message, cleared: results }
+	}
+}
+
+/**
  * Queued business records are never deletable by the end user (no physical
  * delete anywhere in the product — mistakes are superseded/voided with
  * audit). The former `nukeDatabase` whole-DB wipe was removed for this
