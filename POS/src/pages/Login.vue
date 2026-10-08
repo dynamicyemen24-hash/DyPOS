@@ -61,7 +61,7 @@ import LoginOnboardingGuide from "@/components/common/LoginOnboardingGuide.vue"
  */
 
 import { session } from "@/stores/session"
-import { goToForgotPassword, goToRegister, goToPOS, goToDashboard } from "@/router"
+import { goToForgotPassword, goToRegister, goToDashboard } from "@/router"
 import { useBiometric } from "@/composables/useBiometric"
 import { useSessionLock } from "@/composables/useSessionLock"
 import { useSessionTimeout } from "@/composables/useSessionTimeout"
@@ -226,7 +226,7 @@ const {
 
 async function handleShiftOpened() {
 	onShiftOpened()
-	await goToPOS()
+	await goToDashboard()
 }
 
 const authenticationCompleted = ref(false)
