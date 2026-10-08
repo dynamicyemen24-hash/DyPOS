@@ -51,6 +51,7 @@ import {
 	syncState,
 } from "@/services/sync-manager"
 import OfflineStore from "@/services/offline-store"
+import { hydrateSubscriberLocalData } from "@/services/subscriber-hydration"
 import {
 	reserveStock,
 	releaseReservation,
@@ -287,6 +288,17 @@ export const useSessionStore = defineStore("session", () => {
 			const data = isLinkEnabled()
 				? await bootstrapStore.loadInitialData()
 				: null
+
+			// The server bootstrap is authoritative; once available, mirror the
+			// subscriber's real catalog/customers/payment methods/opening balances
+			// into the canonical offline cache. This is deliberately NOT awaited.
+			if (data && authState.tenantId) {
+				void hydrateSubscriberLocalData({
+					tenantId: authState.tenantId,
+					warehouseId: data?.pos_profile?.warehouse || null,
+					bootstrapData: data,
+				})
+			}
 
 			// 3. POS context (tenant / branch / terminal / profile)
 			// Terminal identity must come from provisioned workspace data or a
