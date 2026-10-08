@@ -17,6 +17,7 @@ import { defineStore } from "pinia"
 
 import { session as localSession, lastLoginSource } from "@/data/session"
 import { userResource, userData } from "@/data/user"
+import { userRepository } from "@/repositories/userRepository"
 import { shiftState, useShift } from "@/composables/useShift"
 import { usePermissions } from "@/composables/usePermissions"
 import { useBootstrapStore } from "@/stores/bootstrap"
@@ -39,6 +40,7 @@ import { logger } from "@/utils/logger"
 
 import {
 	initAuth as initPlatformAuth,
+	saveAuth as savePlatformAuth,
 	revokeAuth,
 	authState,
 } from "@/services/sync-auth"
@@ -170,15 +172,31 @@ export const useSessionStore = defineStore("session", () => {
 
 		await lowSession.login.submit({ email: usr, password: pwd, subscriberCode })
 
-		// The user explicitly demanded the server (typed credentials +
-		// pressed login): grant linkage consent. Local/PIN logins never
-		// pass through here, so they stay fully standalone.
 		if (lastLoginSource === "server") {
 			setLinkMode("linked", LINK_REASONS.SERVER_LOGIN)
-		}
 
-		// Load persisted platform sync auth so the offline engine has tokens.
-		await initPlatformAuth().catch(() => {})
+			// The API login is the explicit network demand. Persist its
+			// authoritative tenant/session token immediately so sync and the
+			// first remote hydration are scoped to the Royal/customer tenant,
+			// rather than waiting for a later bootstrap side effect.
+			try {
+				const serverSession = lowSession.user
+				// data/session keeps only the normalized user. The token is captured
+				// by the auth bridge when available; see bootstrap hydration below.
+				await initPlatformAuth().catch(() => {})
+				if (serverSession?.tenantId) {
+					await savePlatformAuth(
+						authState.token,
+						authState.refreshToken,
+						3600,
+						serverSession.tenantId,
+						serverSession.user_id || serverSession.id || null,
+					)
+				}
+			} catch (error) {
+				log.warn("Platform auth persistence deferred", error)
+			}
+		}
 
 		return lowSession.user
 	}
