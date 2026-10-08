@@ -3,6 +3,7 @@ import { computed, ref } from "vue"
 import { logger } from "@/utils/logger"
 import { db } from "@/utils/offline/db"
 import { offlineState } from "@/utils/offline/offlineState"
+import { resolveTerminalId } from "@/utils/posContext"
 
 const log = logger.create("ShiftClosing")
 
@@ -94,6 +95,9 @@ export function useShift() {
 	const checkOpeningShift = createResource({
 		url: "DyPOS.api.shifts.check_opening_shift",
 		auto: false,
+		makeParams() {
+			return { terminal_id: resolveTerminalId() }
+		},
 		onSuccess(data) {
 			if (data) {
 				// Compute initial elapsed time using server timestamps
@@ -189,8 +193,10 @@ export function useShift() {
 		makeParams({ pos_profile, company, balance_details }) {
 			return {
 				pos_profile,
+				terminal_id: resolveTerminalId(),
 				company,
 				balance_details: JSON.stringify(balance_details),
+				pos_profile,
 			}
 		},
 		onSuccess(data) {
