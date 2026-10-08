@@ -13,6 +13,14 @@ describe("shared work surfaces", () => {
 		expect(shell).toContain('href="#work-main"')
 	})
 
+	it("provides shared menu and status strips to every work shell", () => {
+		expect(shell).toContain('slot name="menu-strip"')
+		expect(shell).toContain('WorkMenuStrip :items="defaultMenuActions"')
+		expect(shell).toContain('slot name="status-strip"')
+		expect(shell).toContain("WorkStatusStrip")
+		expect(shell).toContain("lastLoaded")
+	})
+
 	it("restores focus and the previous scroll lock when dismissing mobile navigation", () => {
 		expect(shell).toContain('event.key === "Escape" && mobileNavOpen.value')
 		expect(shell).toContain('closeMobileNav({ restoreFocus: true })')
