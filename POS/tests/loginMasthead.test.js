@@ -29,8 +29,8 @@ describe("login operating shell", () => {
 		expect(login).toContain('<LoginPasskeyActions')
 	})
 
-	it("uses SPA navigation and one primary authentication action", () => {
-		expect(login).toContain('goToPOS')
+	it("uses SPA navigation and one primary authentication action to the main dashboard", () => {
+		expect(login).toContain('goToDashboard')
 		expect(login).not.toMatch(/window\.location\.href/)
 		const template = login.slice(login.indexOf("<template>"), login.indexOf("</template>"))
 		expect((template.match(/class="dy-login__submit"/g) || []).length).toBeGreaterThan(0)

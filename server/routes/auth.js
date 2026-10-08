@@ -249,7 +249,7 @@ router.post(
 			return res.status(400).json({ error: 'اسم المستخدم غير صالح' });
 		}
 		const cleanFull = String(fullName).trim();
-		const cleanTenant =
+		let cleanTenant =
 			String(tenantId || '')
 				.trim()
 				.slice(0, 64) || null;

@@ -144,7 +144,7 @@ describe("remove and clear", () => {
 	it("removes only the named line", () => {
 		const { cart, lines } = setup()
 		lines.addToCart(product, cart)
-		lines.addToCart({ item_code: "B2", item_name_ar: "دفتر" }, cart)
+		lines.addToCart({ item_code: "B2", item_name_ar: "دفتر", rate: 3 }, cart)
 		lines.removeItem(cart[0], cart)
 		expect(cart.map((l) => l.productId)).toEqual(["B2"])
 	})

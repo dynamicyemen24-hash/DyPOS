@@ -23,6 +23,10 @@ export const posContext = reactive({
 	terminalId: null,
 	posProfile: null,
 	company: null,
+	sector: null,
+	businessType: null,
+	subscriptionLevel: null,
+	queueLevels: null,
 	source: "unknown",
 })
 
@@ -196,6 +200,27 @@ export function refreshPosContext({
 		posContext.company
 
 	const profileValue = pick(bootstrapData, ["pos_profile"])
+	const sector =
+		pick(tenant, ["sector", "industry", "business_sector"]) ||
+		pick(organization, ["sector", "industry", "business_sector"]) ||
+		pick(bootstrapData, ["sector", "industry", "business_sector", "subscriber_sector"]) ||
+		pick(settings, ["sector", "industry", "business_sector"]) ||
+		posContext.sector
+	const businessType =
+		pick(tenant, ["businessType", "business_type", "type"]) ||
+		pick(bootstrapData, ["businessType", "business_type", "subscriber_type"]) ||
+		pick(settings, ["business_type", "subscriber_type"]) ||
+		posContext.businessType
+	const subscriptionLevel =
+		pick(tenant, ["subscriptionLevel", "subscription_level", "planLevel", "plan_level", "level"]) ||
+		pick(bootstrapData, ["subscriptionLevel", "subscription_level", "planLevel", "plan_level", "subscriber_level"]) ||
+		pick(settings, ["subscription_level", "plan_level", "subscriptionLevel"]) ||
+		posContext.subscriptionLevel
+	const queueLevels =
+		pick(tenant, ["queueLevels", "queue_levels"]) ||
+		pick(bootstrapData, ["queueLevels", "queue_levels"]) ||
+		pick(settings, ["queue_levels"]) ||
+		posContext.queueLevels
 	const posProfile =
 		(typeof profileValue === "object" && profileValue !== null
 			? profileValue.name || profileValue.pos_profile
@@ -210,6 +235,10 @@ export function refreshPosContext({
 	posContext.branchName = branchName || null
 	posContext.company = company || null
 	posContext.posProfile = posProfile || null
+	posContext.sector = sector || null
+	posContext.businessType = businessType || null
+	posContext.subscriptionLevel = subscriptionLevel ?? null
+	posContext.queueLevels = queueLevels || null
 	posContext.source = "bootstrap"
 
 	return { ...posContext }
@@ -229,6 +258,10 @@ export function applyPosContext(patch = {}) {
 		"terminalId",
 		"posProfile",
 		"company",
+		"sector",
+		"businessType",
+		"subscriptionLevel",
+		"queueLevels",
 	]) {
 		if (patch[key] !== undefined && patch[key] !== null) {
 			posContext[key] = patch[key]

@@ -359,20 +359,13 @@ export default defineConfig({
 							},
 						},
 					},
+					// API responses are intentionally NOT service-worker cached. They may
+					// contain tenant/auth-scoped state and can outlive a cashier session.
+					// Dexie is the offline source of truth; stale HTTP API data must never
+					// masquerade as fresh local state.
 					{
 						urlPattern: /\/api\/.*/i,
-						handler: "NetworkFirst",
-						options: {
-							cacheName: "api-cache",
-							networkTimeoutSeconds: 10,
-							expiration: {
-								maxEntries: 100,
-								maxAgeSeconds: 60 * 60 * 24, // 24 hours
-							},
-							cacheableResponse: {
-								statuses: [0, 200],
-							},
-						},
+						handler: "NetworkOnly",
 					},
 					{
 						urlPattern: ({ request, url }) =>

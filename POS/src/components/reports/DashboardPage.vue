@@ -39,19 +39,18 @@
           <p>تابع أداء متجرك واتخذ الخطوة التالية من مكان واحد.</p>
         </div>
         <div class="dashboard-welcome__actions">
-          <button type="button" class="dashboard-action dashboard-action--primary" @click="goToPOS">
+          <ActionButton type="button" class="dashboard-action dashboard-action--primary" @click="goToPOS">
             <FeatherIcon name="shopping-cart" :size="17" aria-hidden="true" />
             بدء بيع جديد
-          </button>
-          <button type="button" class="dashboard-action" @click="goToStockManagement">
+          </ActionButton>
+          <ActionButton type="button" class="dashboard-action" @click="goToStockManagement">
             <FeatherIcon name="package" :size="17" aria-hidden="true" />
             فحص المخزون
-          </button>
+          </ActionButton>
         </div>
       </section>
-
       <section class="dashboard-shortcuts" aria-label="اختصارات التشغيل والحالة">
-        <button
+        <ActionButton
           type="button"
           class="dashboard-shortcut dashboard-shortcut--action"
           aria-label="فتح لوحة التنفيذيين ومؤشرات المتجر"
@@ -61,7 +60,7 @@
             <FeatherIcon name="bar-chart-2" :size="17" aria-hidden="true" />
           </span>
           <span><strong>مؤشرات المتجر</strong><small>افتح لوحة التنفيذيين لمراجعة الأداء</small></span>
-        </button>
+        </ActionButton>
         <div class="dashboard-shortcut" aria-label="البيع دون اتصال">
           <span class="dashboard-shortcut__icon dashboard-shortcut__icon--green">
             <FeatherIcon name="wifi-off" :size="17" aria-hidden="true" />
@@ -108,7 +107,7 @@
 <script setup>
 import { ref, computed, reactive, watch, onMounted } from "vue"
 import { useRoute, useRouter } from "vue-router"
-import { FeatherIcon } from "dypos-ui"
+import { ActionButton, FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
 import { DASHBOARD_REGISTRY } from "./dashboards/index"
 import { provideDashboardPeriod } from "./dashboards/core/useDashboardSource"
@@ -120,6 +119,7 @@ import WorkTabs from "@/components/work/WorkTabs.vue"
 import WorkFilters from "@/components/work/WorkFilters.vue"
 import { goToPOS, goToStockManagement } from "@/router"
 import { resolveDashboardId } from "./dashboards/core/dashboardTab"
+import { useQueueCapability } from "@/utils/queueCapability"
 
 const ARABIC_TITLES = {
 	"executive-dashboard": "لوحة التنفيذيين",
@@ -134,6 +134,7 @@ const route = useRoute()
 const router = useRouter()
 
 const period = provideDashboardPeriod()
+const { enabled: queueEnabled } = useQueueCapability()
 
 const filterModel = reactive({
 	from: period.from.value,
@@ -194,52 +195,37 @@ const todayLabel = computed(() =>
 )
 
 const breadcrumbs = computed(() => [
-	{ label: "الرئيسية", to: { name: "POSSale" } },
+	{ label: "الرئيسية", to: { name: "Reports" } },
 	{ label: "التقارير", current: true },
 ])
 
-const navItems = ref([
-	{
-		id: "pos",
-		label: "نقطة البيع",
-		to: { name: "POSSale" },
-		icon: "shopping-cart",
-	},
-	{
-		id: "invoices",
-		label: "الفواتير",
-		to: { name: "WorkScreens", query: { screen: "invoices" } },
-		icon: "file-text",
-	},
-	{
-		id: "stock",
-		label: "المخزون",
-		to: { name: "StockManagement" },
-		icon: "package",
-	},
-	{
-		id: "reports",
-		label: "التقارير",
-		to: { name: "Reports" },
-		icon: "bar-chart-2",
-	},
-])
+const navItems = computed(() => {
+	const items = [
+		{ id: "pos", label: "نقطة البيع", to: { name: "POSSale" }, icon: "shopping-cart" },
+		{ id: "invoices", label: "الفواتير", to: { name: "WorkScreens", query: { screen: "invoices" } }, icon: "file-text" },
+		{ id: "stock", label: "المخزون", to: { name: "StockManagement" }, icon: "package" },
+		{ id: "reports", label: "التقارير", to: { name: "Reports" }, icon: "bar-chart-2" },
+		{ id: "work", label: "شاشات العمل", to: { name: "WorkScreens" }, icon: "layers" },
+		{ id: "settings", label: "الإعدادات", to: { name: "Settings" }, icon: "settings" },
+	]
+	if (queueEnabled.value) {
+		items.push({ id: "queue", label: "الطوابير", to: { name: "Queue" }, icon: "users" })
+	}
+	return items
+})
 
-function broadcastRefresh() {
-	period.apply({ from: filterModel.from, to: filterModel.to })
+const broadcastRefresh = () => {
+  window.dispatchEvent(new CustomEvent("dypos:dashboard-refresh"))
 }
 
-function onFiltersReset() {
-	period.reset()
-	filterModel.from = period.from.value
-	filterModel.to = period.to.value
-	period.refreshKey.value += 1
+const onFiltersReset = () => {
+  filterModel.from = period.from.value
+  filterModel.to = period.to.value
+  broadcastRefresh()
 }
 
 onMounted(() => {
-	if (route.query?.tab !== dashboardId.value) {
-		router.replace({ query: { ...route.query, tab: dashboardId.value } })
-	}
+  broadcastRefresh()
 })
 </script>
 

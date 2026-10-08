@@ -4,6 +4,7 @@ import { logger } from "@/utils/logger"
 import { createRouter, createWebHistory } from "vue-router"
 import { session } from "./data/session"
 import { isLinkEnabled } from "./services/link-consent"
+import { isQueueEnabled } from "@/utils/queueCapability"
 
 const log = logger.create("Router")
 
@@ -332,6 +333,7 @@ const routes = [
 		component: () => import("@/pages/QueuePage.vue"),
 		meta: {
 			[ROUTE_META.requiresAuth]: true,
+			feature: "queue",
 		},
 	},
 
@@ -342,7 +344,7 @@ const routes = [
 		path: "/:pathMatch(.*)*",
 		name: ROUTE_NAMES.NOT_FOUND,
 		redirect: {
-			name: ROUTE_NAMES.POS,
+			name: ROUTE_NAMES.REPORTS,
 		},
 	},
 ]
@@ -483,7 +485,11 @@ function redirectToLogin(to) {
 	}
 }
 
-function redirectToDashboard() {\n\treturn { name: ROUTE_NAMES.REPORTS, replace: true }\n}\n\nfunction redirectToPOS() {
+function redirectToDashboard() {
+	return { name: ROUTE_NAMES.REPORTS, replace: true }
+}
+
+function redirectToPOS() {
 	return {
 		name: ROUTE_NAMES.POS,
 		replace: true,
@@ -651,7 +657,7 @@ router.beforeEach(async (to, from) => {
 	 * Authenticated user attempting to access Login.
 	 */
 	if (guestOnly && authenticated) {
-		return redirectToPOS()
+		return redirectToDashboard()
 	}
 
 	/**
@@ -659,6 +665,11 @@ router.beforeEach(async (to, from) => {
 	 */
 	if (requiresAuth && !authenticated) {
 		return redirectToLogin(to)
+	}
+
+	// Feature routes are capability-gated, not merely hidden in the UI.
+	if (to.meta?.feature === "queue" && authenticated && !isQueueEnabled()) {
+		return { name: ROUTE_NAMES.REPORTS, query: { feature: "queue-unavailable" } }
 	}
 
 	/**
@@ -848,6 +859,10 @@ export function goToRegister() {
  * Navigate to the stock management screen.
  * @returns {Promise}
  */
+export function goToDashboard() {
+	return router.replace({ name: ROUTE_NAMES.REPORTS })
+}
+
 export function goToStockManagement() {
 	return router.push({
 		name: ROUTE_NAMES.STOCK_MANAGEMENT,

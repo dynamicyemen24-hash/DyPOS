@@ -28,7 +28,7 @@ import { isSelfProxy } from "./worker-edge-hosts.mjs";
 // — a literal here is a FIFTH place the version lives, and it went stale
 // (1.44.2 while the release was 1.44.3) precisely because nothing checked it.
 // The edge reports this value on /api/edge-health; customers see it.
-const API_VERSION = "2.0.0";
+const API_VERSION = "2.0.1";
 const DEFAULT_BACKEND_URL = "https://dypos-api.smartportssoft.com";
 const ALLOWED_ORIGIN = "https://dypos.smartportssoft.com";
 const HOP_BY_HOP = new Set([

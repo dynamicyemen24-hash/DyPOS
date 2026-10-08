@@ -199,12 +199,15 @@ export class OfflineStore {
 	 * @param {Object} payload
 	 * @returns {Promise<number>} The queue row id.
 	 */
-	async enqueue(entityType, entityId, operation, payload) {
+	async enqueue(entityType, entityId, operation, payload, tenantId = null) {
+		const resolvedTenantId = tenantId ?? payload?._tenantId ?? payload?.tenantId ?? null
+		if (!resolvedTenantId) throw new Error("هوية المشترك مطلوبة للطابور المحلي")
 		return this.db.syncQueue.add({
 			entityType,
 			entityId,
 			operation,
-			payload,
+			tenantId: String(resolvedTenantId),
+			payload: { ...payload, _tenantId: String(resolvedTenantId) },
 			createdAt: new Date(),
 			attemptCount: 0,
 			status: "pending",

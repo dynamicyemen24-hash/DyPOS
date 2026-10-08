@@ -316,6 +316,14 @@
 				</button>
 			</div>
 		</Transition>
+
+		<div class="dypos-header__toolbar" role="toolbar" aria-label="أدوات وتنقل نقطة البيع">
+			<div class="dypos-header__toolbar-nav"><slot name="toolbar-start" /></div>
+			<div class="dypos-header__toolbar-tools"><slot name="toolbar" /></div>
+		</div>
+		<div v-if="$slots.statusFooter" class="dypos-header__status-footer" role="status" aria-live="polite">
+			<slot name="statusFooter" />
+		</div>
 	</header>
 </template>
 
@@ -627,6 +635,42 @@ const statusIcon = computed(() => {
 </script>
 
 <style scoped>
+
+.dypos-header__toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	min-height: 42px;
+	padding: 5px 20px;
+	border-top: 1px solid rgb(241 245 249);
+	background: rgb(248 250 252 / 92%);
+	overflow-x: auto;
+	scrollbar-width: thin;
+}
+.dypos-header__toolbar-nav,
+.dypos-header__toolbar-tools { display: flex; align-items: center; gap: 5px; flex: 0 0 auto; }
+.dypos-header__toolbar :deep(button),
+.dypos-header__toolbar :deep(a) {
+	display: inline-flex; align-items: center; gap: 6px; min-height: 32px;
+	padding: 0 9px; border: 1px solid transparent; border-radius: 9px;
+	background: transparent; color: rgb(71 85 105); font-size: 11px; font-weight: 700;
+	white-space: nowrap; text-decoration: none; cursor: pointer;
+}
+.dypos-header__toolbar :deep(button:hover),
+.dypos-header__toolbar :deep(a:hover) { border-color: rgb(226 232 240); background: #fff; color: rgb(15 23 42); }
+.dypos-header__toolbar :deep(.is-primary) { background: rgb(4 120 87); color: #fff; }
+.dypos-header__status-footer {
+	display: flex; align-items: center; gap: 10px; min-height: 30px; padding: 4px 20px;
+	border-top: 1px solid rgb(226 232 240); background: #fff; color: rgb(71 85 105);
+	font-size: 11px; font-weight: 600; box-shadow: 0 -2px 10px rgb(15 23 42 / 4%);
+}
+@media (max-width: 760px) {
+	.dypos-header__toolbar { padding-inline: 10px; }
+	.dypos-header__toolbar-nav, .dypos-header__toolbar-tools { gap: 3px; }
+	.dypos-header__toolbar :deep(button), .dypos-header__toolbar :deep(a) { padding-inline: 7px; }
+	.dypos-header__status-footer { padding-inline: 10px; }
+}
 .dypos-header {
 	position: relative;
 	z-index: 30;
