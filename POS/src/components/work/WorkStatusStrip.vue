@@ -1,7 +1,8 @@
 <script setup>
 import { computed } from "vue"
-import { FeatherIcon } from "dypos-ui"
+import { ActionButton, FeatherIcon } from "dypos-ui"
 
+const emit = defineEmits(["dismiss"])
 const props = defineProps({
   state: { type: String, default: "ready", validator: v => ["ready", "loading", "saved", "offline", "warning", "error"].includes(v) },
   message: { type: String, default: "" },
@@ -9,6 +10,8 @@ const props = defineProps({
   updatedAt: { type: [Date, String, Number], default: null },
   items: { type: Array, default: () => [] },
   sticky: { type: Boolean, default: false },
+  dismissible: { type: Boolean, default: false },
+  dismissLabel: { type: String, default: "إخفاء الحالة" },
 })
 const icons = { ready: "check-circle", loading: "loader", saved: "check", offline: "wifi-off", warning: "alert-triangle", error: "alert-circle" }
 const labels = { ready: "جاهز", loading: "جارٍ العمل", saved: "تم الحفظ", offline: "غير متصل", warning: "يتطلب الانتباه", error: "حدث خطأ" }
@@ -37,13 +40,23 @@ const timestamp = computed(() => {
       </span>
       <slot />
     </div>
+    <ActionButton
+      v-if="dismissible"
+      variant="ghost"
+      size="sm"
+      class="work-status-strip__dismiss"
+      :aria-label="dismissLabel"
+      @click="emit('dismiss')"
+    >
+      <FeatherIcon name="x" aria-hidden="true" />
+    </ActionButton>
   </footer>
 </template>
 
 <style scoped>
 .work-status-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;min-height:36px;padding:7px 14px;border-block:1px solid var(--dy-border);background:var(--dy-surface);color:var(--dy-text-secondary);font-size:12px}
 .work-status-strip--sticky{position:sticky;inset-block-end:0;z-index:15;box-shadow:0 -4px 14px rgb(15 23 42 / 4%)}
-.work-status-strip__primary,.work-status-strip__metrics,.work-status-strip__metric{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+.work-status-strip__dismiss{min-width:36px;min-height:36px;flex:0 0 auto}.work-status-strip__primary,.work-status-strip__metrics,.work-status-strip__metric{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
 .work-status-strip__primary strong{color:var(--dy-text);font-weight:650}.work-status-strip__indicator{display:grid;place-items:center;width:20px;height:20px}
 .work-status-strip__details,.work-status-strip__time{color:var(--dy-text-muted)}
 .work-status-strip__metric{padding-inline-start:10px;border-inline-start:1px solid var(--dy-border)}.work-status-strip__metric strong{color:var(--dy-text);font-variant-numeric:tabular-nums}
