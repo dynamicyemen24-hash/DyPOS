@@ -1,0 +1,38 @@
+name: Temporary Biome normalization
+on:
+  push:
+    branches:
+      - main
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Skip generated normalization commits
+        if: ${{ startsWith(github.event.head_commit.message, 'chore: biome normalize') }}
+        run: exit 0
+      - uses: actions/setup-node@v5
+        if: ${{ !startsWith(github.event.head_commit.message, 'chore: biome normalize') }}
+        with:
+          node-version: 22
+      - name: Normalize source
+        if: ${{ !startsWith(github.event.head_commit.message, 'chore: biome normalize') }}
+        run: |
+          set -e
+          cd POS
+          npm ci --no-audit --no-fund
+          npx biome format --write .
+          cd ../server
+          npm ci --no-audit --no-fund
+          npx biome format --write .
+      - name: Commit normalization
+        if: ${{ !startsWith(github.event.head_commit.message, 'chore: biome normalize') }}
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "DyPOS Release Automation"
+          git config user.email "dypOS-release@users.noreply.github.com"
+          git add POS server
+          git commit -m "chore: biome normalize production source"
+          git push
