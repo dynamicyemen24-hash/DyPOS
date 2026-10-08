@@ -736,6 +736,13 @@ watch(
             <CompanyFooter class="dy-login__brand-company" />
             <LoginAppearanceBar :compact="true" class="dy-login__preferences" />
             <TechnicalModeToggle class="dy-login__technical-toggle" />
+            <nav class="dy-login__command-strip" aria-label="قائمة الوصول السريع">
+                <RouterLink :to="{ name: 'Login' }" class="is-current">{{ __('الدخول') }}</RouterLink>
+                <RouterLink :to="{ name: 'Register' }">{{ __('تسجيل المشترك') }}</RouterLink>
+                <RouterLink :to="{ name: 'Terms' }">{{ __('الشروط') }}</RouterLink>
+                <RouterLink :to="{ name: 'Privacy' }">{{ __('الخصوصية') }}</RouterLink>
+                <RouterLink :to="{ name: 'Agreement' }">{{ __('الاتفاقية') }}</RouterLink>
+            </nav>
         </section>
 
         <!-- Simplified status indicator — only shows offline/online -->
