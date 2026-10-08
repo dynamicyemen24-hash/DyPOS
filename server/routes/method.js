@@ -2971,7 +2971,7 @@ def('DyPOS.api.shifts.get_closing_shift_data', (params, req, res) => {
 					name: shift.terminal_id || 'POS',
 					pos_profile: shift.terminal_id || 'POS',
 					company: settings.business_name || 'DyPOS',
-					warehouse: 'W-01',
+					warehouse: (() => { try { return db.prepare('SELECT id FROM warehouses WHERE tenant_id=? AND is_active=1 ORDER BY name LIMIT 1').get(tenantId)?.id || null; } catch { return null; } })(),
 				},
 				company: settings.business_name || 'DyPOS',
 				opening_shift: shift,
