@@ -40,7 +40,7 @@ const canApply = computed(() => Boolean(csv.value.trim()) && Boolean(report.valu
 const progress = computed(() => activeTab.value === "profile" ? 25 : currentStep.value === 1 ? 50 : currentStep.value === 2 ? 75 : 100);
 
 async function call(path, body = {}) {
-  const response = await fetch("/api/method/" + path, {
+  const response = await fetch(`/api/method/${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
@@ -128,7 +128,7 @@ function onFile(e) {
 }
 
 function download(text, filename) {
-  const blob = new Blob(["\uFEFF" + text], { type: "text/csv;charset=utf-8" });
+  const blob = new Blob([`\uFEFF${text}`], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
