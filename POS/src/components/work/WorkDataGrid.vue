@@ -677,7 +677,15 @@ function getVisibleRows(rows) {
 }
 
 // Pagination
-const totalPages = computed(() => Math.ceil(props.totalItems / props.pageSize))
+const totalPages = computed(() => {
+	// When the parent supplies the loaded row count, local search/filters must
+	// shrink pagination too. Preserve an explicitly larger server total.
+	const total =
+		props.totalItems === props.rows.length
+			? filteredRows.value.length
+			: props.totalItems
+	return Math.ceil(total / props.pageSize)
+})
 const paginatedRows = computed(() => {
 	if (!props.pagination) return filteredRows.value
 	const start = (props.currentPage - 1) * props.pageSize
