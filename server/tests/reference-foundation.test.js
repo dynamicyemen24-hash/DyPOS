@@ -18,7 +18,10 @@ test('v41 reference foundation provisions global POS master data idempotently', 
  assert.ok(count('account_template_lines') >= 12);
  assert.ok(count('opening_balance_template_lines') >= 6);
  assert.ok(count('activity_onboarding_templates') >= 20);
- assert.ok(count('onboarding_templates') >= 0, 'legacy saved-template table remains available');
+ const legacyColumns = new Set(db.prepare('PRAGMA table_info(onboarding_templates)').all().map(({ name }) => name));
+ for (const column of ['id', 'tenant_id', 'name', 'data_type', 'content']) {
+  assert.ok(legacyColumns.has(column), `legacy saved-template column ${column} must be preserved`);
+ }
  assert.equal(db.prepare("SELECT COUNT(*) AS c FROM ref_countries WHERE code_alpha2='YE'").get().c,1);
  assert.equal(db.prepare("SELECT COUNT(*) AS c FROM ref_currencies WHERE code='YER'").get().c,1);
  migrate();
