@@ -114,6 +114,27 @@ export const useSessionStore = defineStore("session", () => {
 	const terminalId = computed(() => posContext.terminalId)
 	const posProfile = computed(() => posContext.posProfile)
 
+	const workspaceReadiness = computed(() => ({
+		identity: Boolean(user.value && lowSession.isLoggedIn),
+		tenant: Boolean(posContext.tenantId),
+		branch: Boolean(posContext.branchCode && posContext.branchName),
+		terminal: Boolean(posContext.terminalId),
+		profile: Boolean(posContext.posProfile),
+		permissions: permissionsLoaded.value,
+		settings: Boolean(bootstrapStore.getPreloadedPOSSettings()),
+		shift: Boolean(shiftState.value.isOpen),
+		saleReady: Boolean(
+			user.value &&
+			lowSession.isLoggedIn &&
+			posContext.tenantId &&
+			posContext.branchCode &&
+			posContext.terminalId &&
+			posContext.posProfile,
+		),
+	}))
+
+	const workspaceReady = computed(() => workspaceReadiness.value.saleReady)
+
 	const currentShift = computed(() => shiftState.value.pos_opening_shift)
 	const activeShift = currentShift
 	const shiftIsOpen = computed(() => shiftState.value.isOpen)
@@ -506,6 +527,8 @@ export const useSessionStore = defineStore("session", () => {
 		branchName,
 		terminalId,
 		posProfile,
+		workspaceReady,
+		workspaceReadiness,
 
 		// Runtime lifecycle
 		isReady,
