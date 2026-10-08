@@ -26,6 +26,23 @@ export function useLoginSessionBootstrap({
 			// network dependency after successful local/offline authentication
 			// and can strand the cashier before POS renders.
 
+			const readiness = session?.workspaceReadiness || {}
+			const required = ["identity", "tenant", "branch", "terminal", "profile", "permissions", "settings"]
+			const missing = required.filter((key) => readiness[key] !== true)
+			if (missing.length > 0) {
+				const labels = {
+					tenant: "المشترك",
+					branch: "الفرع",
+					terminal: "الطرفية",
+					profile: "ملف نقطة البيع",
+					permissions: "الصلاحيات",
+					settings: "إعدادات نقطة البيع",
+					identity: "هوية المستخدم",
+				}
+				const missingLabels = missing.map((key) => labels[key] || key).join("، ")
+				throw new Error(__("لا يمكن فتح نقطة البيع قبل اكتمال تهيئة: ") + missingLabels)
+			}
+
 			sessionReady.value = true
 
 			await nextTick()
