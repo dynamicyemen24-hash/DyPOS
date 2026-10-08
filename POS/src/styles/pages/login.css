@@ -1,3749 +1,894 @@
-/* =============================================================================
-   DyPOS — Enterprise SaaS Login Surface
-   RTL-first / Arabic-first / Production Grade
-   ============================================================================= */
+/* ==========================================================================
+   DyPOS Login — Production Operating Shell
+   Single source of truth for the login surface.
+   Layout: masthead → runtime status → authentication work surface → secondary tools.
+   No marketing canvas, no competing cards, no cascade patches.
+   ========================================================================== */
+
 .dy-login {
-	position: relative;
-	display: grid;
+  --login-max: 520px;
+  --login-gutter: clamp(14px, 3vw, 28px);
+  --login-line: color-mix(in srgb, var(--dy-border) 78%, transparent);
+  --login-soft-line: color-mix(in srgb, var(--dy-border-soft) 92%, transparent);
+  --login-focus: color-mix(in srgb, var(--dy-brand) 18%, transparent);
 
-	/*
-	 * ONE vocabulary, declared once. This stylesheet used to declare the page
-	 * layout three times with two different area names (`showcase` in the first
-	 * `@media (min-width: 1101px)` block, `workspace` in a second one), so the
-	 * winner depended on source order: `.dy-login__workspace { grid-area:
-	 * showcase }` sat ABOVE a block that renamed the area to `workspace`, which
-	 * left the element pointing at an area name no `grid-template-areas` string
-	 * declared. An unknown area name is not ignored — it falls back to
-	 * auto-placement, so the workspace column silently stopped being a column
-	 * and the layout looked assembled rather than broken. The panel system
-	 * (`DyPanel`) exists precisely so adding a block never means inventing an
-	 * area name; this keeps the page honest by naming each region once.
-	 *
-	 * Mobile is the base: one column, document order = reading order.
-	 *
-	 * `status` is its OWN area, not a second claimant on `banner`. The status bar
-	 * appears and disappears with runtime state, so while it shared a name with
-	 * the offline banner the two competed for one cell — and CSS grid has no
-	 * error for two items in one area: the later one is simply pushed into the
-	 * implicit rows BELOW it, which is why the bar drifted away from the place
-	 * the layout intended. A named area per region is the whole point.
-	 */
-	grid-template-columns: minmax(0, 1fr);
-	grid-template-areas:
-		"banner"
-		"status"
-		"brand"
-		"panel"
-		"workspace";
-	grid-template-rows: auto auto auto auto minmax(0, auto);
-
-	min-height: 100vh;
-	min-height: 100dvh;
-
-	/*
-	 * The page itself must not clip. A desktop-height lock (`height: 100dvh`
-	 * + `overflow: hidden`) put the register link and the footer BELOW the fold
-	 * on a short window or a phone in landscape, with no way to reach them —
-	 * the form's own "create an account" was unreachable on a real device.
-	 * Scrolling belongs to the page; only the panel keeps its own scroller so
-	 * the card never loses its rounded clipping of the progress bar.
-	 */
-	overflow-x: hidden;
-
-	/* الصفحة بأرضية هادئة، والبطاقة فوقها: تمايزٌ لونيٌّ حقيقي لا ظلٌّ واحد. */
-	background: var(--dy-surface-soft);
-	color: var(--dy-text);
-
-	/*
-	 * السمة اللغوية للخط.
-	 *
-	 * `--dy-font-arabic` يبدأ بـCairo: حروفه اللاتينية (Sign in, Wrong PIN)
-	 * أعرض وأثقل قليلًا، وهو فرق يُرى في حقل PIN المتباعد. عند `dir="ltr"`
-	 * ننتقل إلى `--dy-font-english` — وهو الخط نفسه الذي تستعمله بقية
-	 * شاشات التطبيق، فلا يُرسم نص لاتيني واحد بخط عربي.
-	 */
-	font-family: var(--dy-font-arabic);
-
-	isolation: isolate;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  overflow-x: hidden;
+  background: var(--dy-surface-soft);
+  color: var(--dy-text);
+  font-family: var(--dy-font-arabic);
+  isolation: isolate;
 }
 
 .dy-login[dir="ltr"] {
-	font-family: var(--dy-font-english);
+  font-family: var(--dy-font-english);
 }
 
-/*
- * The two-column layout is DESKTOP ONLY, and it is declared in ONE block (see
- * the "ONE vocabulary" note on `.dy-login`). Two `@media (min-width: 1101px)`
- * blocks used to declare it — the first naming the second column `showcase`,
- * the second naming it `workspace` — so which column the workspace element
- * joined was decided by source order.
- */
-@media (min-width: 1101px) {
-	.dy-login {
-		grid-template-columns: minmax(0, 1fr) minmax(480px, 560px);
-		grid-template-rows: auto auto auto minmax(0, auto);
-		grid-template-areas:
-			"banner banner"
-			"status status"
-			"brand brand"
-			"workspace panel";
-	}
-
-	/*
-	 * In RTL the workspace reads on the right and the form on the left; LTR
-	 * swaps them. Both spellings are declared here rather than by relying on
-	 * the grid auto-mirroring, because `grid-template-areas` does NOT mirror —
-	 * a single set of areas would put the workspace column on the same side in
-	 * both languages.
-	 */
-	.dy-login[dir="ltr"] {
-		grid-template-columns: minmax(480px, 560px) minmax(0, 1fr);
-		grid-template-areas:
-			"banner banner"
-			"status status"
-			"brand brand"
-			"panel workspace";
-	}
-}
-
-/* =============================================================================
-   Next-generation authentication shell
-   -----------------------------------------------------------------------------
-   The login page is an operational gateway, not a marketing splash screen:
-   one clear primary action, strong visual hierarchy, calm status treatment,
-   and a resilient surface that remains readable on POS terminals, laptops,
-   tablets and phones.
-   ========================================================================== */
-
-.dy-login::before,
-.dy-login::after {
-	content: "";
-	position: fixed;
-	z-index: -1;
-	pointer-events: none;
-	border-radius: 999px;
-	filter: blur(2px);
-}
-
-.dy-login::before {
-	inset-inline-end: -14rem;
-	top: 7rem;
-	width: 34rem;
-	height: 34rem;
-	background: radial-gradient(circle, color-mix(in srgb, var(--dy-brand) 12%, transparent) 0%, transparent 68%);
-	opacity: 0.9;
-}
-
-.dy-login::after {
-	inset-inline-start: -18rem;
-	bottom: -16rem;
-	width: 38rem;
-	height: 38rem;
-	background: radial-gradient(circle, color-mix(in srgb, var(--dy-accent) 8%, transparent) 0%, transparent 70%);
-}
+/* ── Masthead ───────────────────────────────────────────────────────────── */
 
 .dy-login__brand {
-	position: relative;
-	isolation: isolate;
-	border-bottom: 1px solid color-mix(in srgb, var(--dy-border) 72%, transparent);
-	background: var(--dy-surface);
-	backdrop-filter: blur(18px) saturate(1.12);
-	-webkit-backdrop-filter: blur(18px) saturate(1.12);
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 30;
+  flex: 0 0 52px;
+  min-height: 52px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-inline: var(--login-gutter);
+  border-block-end: 1px solid var(--login-line);
+  background: color-mix(in srgb, var(--dy-surface) 96%, transparent);
+  backdrop-filter: blur(16px) saturate(1.05);
+  -webkit-backdrop-filter: blur(16px) saturate(1.05);
 }
-
-.dy-login__panel {
-	align-self: start;
-}
-
-.dy-login__panel-inner {
-	position: relative;
-	border: 1px solid color-mix(in srgb, var(--dy-border) 88%, var(--dy-brand));
-	border-radius: clamp(18px, 2vw, 26px);
-	background: color-mix(in srgb, var(--dy-surface) 97%, var(--dy-brand));
-	box-shadow:
-		0 28px 70px -38px rgb(0 0 0 / 0.34),
-		0 10px 30px -20px color-mix(in srgb, var(--dy-brand) 28%, transparent),
-		inset 0 1px 0 rgb(255 255 255 / 0.52);
-}
-
-.dy-login__title {
-	font-weight: 820;
-	letter-spacing: -0.025em;
-}
-
-.dy-login__subtitle {
-	max-width: 48ch;
-	line-height: 1.75;
-}
-
-.dy-login__form {
-	position: relative;
-}
-
-.dy-login__submit {
-	min-height: 54px;
-	font-weight: 800;
-	letter-spacing: -0.01em;
-}
-
-.dy-login__input-wrap {
-	transition:
-		border-color var(--dy-dur-fast) var(--dy-ease-standard),
-		box-shadow var(--dy-dur-fast) var(--dy-ease-standard),
-		transform var(--dy-dur-fast) var(--dy-ease-standard);
-}
-
-.dy-login__input-wrap:focus-within {
-	transform: translateY(-1px);
-}
-
-@media (min-width: 1101px) {
-	.dy-login__panel {
-		padding-block: clamp(22px, 3vw, 42px);
-		padding-inline: clamp(28px, 4vw, 64px);
-	}
-
-	.dy-login__panel-inner {
-		width: min(100%, 560px);
-		margin-inline: auto;
-		padding: clamp(30px, 4vw, 46px);
-	}
-}
-
-@media (max-width: 900px) {
-	.dy-login__panel-inner {
-		box-shadow: 0 20px 50px -34px rgb(0 0 0 / 0.32);
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.dy-login__input-wrap:focus-within {
-		transform: none;
-	}
-}
-
-/* =============================================================================
-   DyPanel — the one surface a login-screen block may live in
-
-   The page used to encode its layout in three places at once: a
-   `grid-template-areas` string on the root, a SECOND one inside the masthead
-   (`logo` / `company` / `preferences` / `ops`), and ad-hoc rules per block.
-   Adding a block meant inventing an area name inside a 1380-line stylesheet —
-   which is why the ops panel arrived wedged into a column, and why
-   `.dy-login__context-item` ended up declared twice with different rules each
-   time.
-
-   So the layout lives here, ONCE, and the page composes panels instead of
-   naming grid areas. `span` is the only structural switch a caller needs.
-
-   Everything is token-driven, so the panels follow light/dark and the five
-   accents at runtime with no extra CSS — the same rule
-   `tests/designTokens.test.js` enforces across the rest of the tree.
-   ========================================================================== */
-
-.dy-panel {
-	display: flex;
-	flex-direction: column;
-	gap: var(--dy-space-3, 12px);
-	min-width: 0;
-	padding: var(--dy-space-4, 16px);
-	border: 1px solid var(--dy-border-soft);
-	border-radius: var(--dy-radius-lg);
-	background: var(--dy-surface);
-	color: var(--dy-text);
-}
-
-/* `half` is what makes the grid useful: two half panels share a row without
-   the page needing a `grid-template-areas` entry per pairing. */
-.dy-panel--half {
-	grid-column: span 1;
-}
-
-.dy-panel--full {
-	grid-column: 1 / -1;
-}
-
-.dy-panel--raised {
-	box-shadow: 0 12px 28px -16px rgb(0 0 0 / 0.16), var(--dy-elevation-2);
-}
-
-.dy-panel--quiet {
-	padding: 0;
-	border-color: transparent;
-	background: transparent;
-	box-shadow: none;
-}
-
-/* Glass is the showcase's register: the gradient behind it is part of the
-   surface, so a solid card would cut a visible rectangle out of it. */
-.dy-panel--glass {
-	border-color: rgb(255 255 255 / 0.16);
-	background: rgb(255 255 255 / 0.06);
-	backdrop-filter: blur(12px) saturate(1.2);
-	-webkit-backdrop-filter: blur(12px) saturate(1.2);
-	box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08);
-	color: rgb(255 255 255 / 0.9);
-}
-
-/* `flush` is for a panel whose body is itself a list or a grid — padding
-   would otherwise double the gap the body already sets. */
-.dy-panel--flush {
-	padding: 0;
-}
-
-.dy-panel__head {
-	display: flex;
-	align-items: flex-start;
-	justify-content: space-between;
-	gap: var(--dy-space-3, 12px);
-}
-
-/* The text column is what makes `actions` work WITHOUT a title: the actions
-   sit on the trailing edge and the empty heading column collapses, instead of
-   the whole header disappearing because no text was supplied. */
-.dy-panel__head-text {
-	min-width: 0;
-}
-
-.dy-panel__title {
-	margin: 0;
-	font-size: 1rem;
-	font-weight: 650;
-	line-height: 1.3;
-	color: var(--dy-text-strong);
-}
-
-.dy-panel--glass .dy-panel__title {
-	color: #ffffff;
-}
-
-.dy-panel__subtitle {
-	margin: 0.25rem 0 0;
-	font-size: 0.85rem;
-	color: var(--dy-text-secondary);
-}
-
-.dy-panel--glass .dy-panel__subtitle {
-	color: rgb(255 255 255 / 0.72);
-}
-
-.dy-panel__actions {
-	display: flex;
-	flex-shrink: 0;
-	align-items: center;
-	gap: 8px;
-}
-
-.dy-panel__body {
-	min-width: 0;
-}
-
-.dy-panel__foot {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 8px;
-	padding-block-start: var(--dy-space-3, 12px);
-	border-block-start: 1px solid var(--dy-border-soft);
-}
-
-/* The responsive container: `half` panels share a row only when there is room
-   for two. `auto-fit` + `minmax` makes that decision in CSS instead of in a
-   media query, so adding a panel never needs a breakpoint edit. */
-.dy-panels {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
-	gap: clamp(12px, 2vw, 20px);
-	align-items: start;
-	min-width: 0;
-}
-
-/* =============================================================================
-   Executive authentication surface
-   ============================================================================= */
-
-.dy-login__panel {
-	position: relative;
-	isolation: isolate;
-}
-
-.dy-login__panel::before {
-	content: "";
-	position: absolute;
-	inset: 0;
-	pointer-events: none;
-	border-radius: inherit;
-	background:
-		radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--dy-brand) 10%, transparent), transparent 34%),
-		linear-gradient(180deg, color-mix(in srgb, var(--dy-surface) 96%, var(--dy-brand)), var(--dy-surface));
-	z-index: -1;
-}
-
-.dy-login__header {
-	padding-block: 4px 14px;
-}
-
-.dy-login__section-label {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-	margin-block-end: 8px;
-	padding: 5px 9px;
-	border: 1px solid color-mix(in srgb, var(--dy-brand) 20%, var(--dy-border-soft));
-	border-radius: 999px;
-	background: color-mix(in srgb, var(--dy-brand) 7%, var(--dy-surface));
-	color: var(--dy-brand);
-	font-size: .72rem;
-	font-weight: 750;
-	letter-spacing: .02em;
-}
-
-.dy-login__title {
-	max-width: 18ch;
-	text-wrap: balance;
-	letter-spacing: -.025em;
-}
-
-.dy-login__subtitle {
-	max-width: 52ch;
-	text-wrap: pretty;
-}
-
-.dy-login__form {
-	gap: 16px;
-}
-
-.dy-login__input-wrap {
-	transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
-}
-
-.dy-login__input-wrap:focus-within {
-	border-color: color-mix(in srgb, var(--dy-brand) 58%, var(--dy-border));
-	box-shadow: 0 0 0 3px color-mix(in srgb, var(--dy-brand) 11%, transparent);
-	background: var(--dy-surface);
-}
-
-.dy-login__submit {
-	min-height: 50px;
-	font-weight: 750;
-	letter-spacing: -.01em;
-}
-
-.dy-login__alternatives {
-	margin-block-start: 2px;
-	border: 1px solid var(--dy-border-soft);
-	border-radius: var(--dy-radius-md);
-	background: color-mix(in srgb, var(--dy-surface) 94%, var(--dy-surface-soft));
-}
-
-.dy-login__alternatives-summary {
-	min-height: 42px;
-	padding: 10px 12px;
-	font-weight: 650;
-}
-
-.dy-login__register {
-	margin-block-start: 16px;
-	text-align: center;
-}
-
-@media (max-width: 640px) {
-	.dy-login__panel {
-		border-radius: 0;
-		box-shadow: none;
-	}
-
-	.dy-login__title {
-		font-size: clamp(1.45rem, 7vw, 2rem);
-	}
-
-	.dy-login__input,
-	.dy-login__submit {
-		min-height: 50px;
-	}
-
-	.dy-login__options {
-		gap: 12px;
-	}
-
-	.dy-login__methods-buttons {
-		grid-template-columns: 1fr 1fr;
-	}
-}
-
-/* =============================================================================
-   Brand
-   ============================================================================= */
-
-.dy-login__brand {
-	grid-area: brand;
-
-	position: relative;
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 12px clamp(12px, 2vw, 32px);
-	min-width: 0;
-
-	/*
-	 * `76px` was a fixed floor that the row had to grow past — so on a phone
-	 * with the keyboard open, or in landscape on a 320px till, the masthead
-	 * pushed the form off the screen. `min-height` keeps the bar from
-	 * collapsing on desktop while `flex-wrap` (set at the phone breakpoint)
-	 * lets it become two rows instead of overflowing.
-	 */
-	min-height: 76px;
-
-	/*
-	 * The safe-area inset belongs HERE, at the top of the page: a notch or a
-	 * status bar otherwise overlaps the logo, and a notch in landscape sits on
-	 * one side, which is why both edges get a max().
-	 */
-	padding-block-start: max(10px, env(safe-area-inset-top));
-	padding-inline: max(clamp(20px, 4vw, 56px), env(safe-area-inset-left))
-		max(clamp(20px, 4vw, 56px), env(safe-area-inset-right));
-	padding-block-end: 10px;
-
-	border-block-end: 1px solid var(--dy-border);
-	background: var(--dy-surface);
-	color: var(--dy-text);
-
-	/* The bar is sticky so the language/theme controls stay reachable when a
-	   long form scrolls — losing the only way to switch the language is a real
-	   trap on a till where the operator's hands are busy. `z-index` is below the
-	   status bar's former layer so nothing can cover the bar's own content. */
-	position: sticky;
-	inset-block-start: 0;
-	z-index: 20;
-}
-
-.dy-login__workspace {
-	grid-area: workspace;
-	justify-self: center;
-
-	/*
-	 * The column is a GRID of panels, not a flex row. A row would have put the
-	 * identity card and the ops panel side by side at every width, which is
-	 * wrong on a till: at 380px two cards means two 170px columns of text that
-	 * wraps into a column of single words. `auto-fit` + `minmax` lets CSS make
-	 * that decision, so adding a third panel never needs a breakpoint.
-	 */
-	display: grid;
-	gap: clamp(12px, 2vw, 20px);
-	align-content: start;
-	width: min(100%, 840px);
-	margin: 0 auto;
-}
-
-/* The showcase column is a column only where there IS a second column. On a
-   single-column layout it is a full-width band under the form, so its width
-   follows the card rather than the old desktop-only 460px. */
-@media (min-width: 1101px) {
-	.dy-login__workspace {
-		min-height: 0;
-		width: min(100%, 460px);
-	}
-}
-
-/* ======================================================================
-   Status bar — the runtime row under the masthead.
-
-   It was `position: fixed; bottom: 0`, which meant it OVERLAID the form: on
-   a phone it sat on top of the register link and the submit button, and
-   because it only appears once the runtime reports something, that overlap
-   arrived exactly when a cashier was trying to read the state. A row in the
-   grid reserves its own space and cannot cover anything.
-   ====================================================================== */
-.dy-login__status-bar {
-	grid-area: status;
-
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	flex-wrap: wrap;
-	gap: 8px;
-
-	/* Clears the home indicator / gesture bar, so the last status row is
-	   never under the phone's own chrome. */
-	padding-block: 8px max(8px, env(safe-area-inset-bottom));
-	padding-inline: clamp(12px, 3vw, 24px);
-
-	background: var(--dy-surface);
-	border-top: 1px solid var(--dy-border-soft);
-	color: var(--dy-text);
-	font-size: 12px;
-}
-
-.dy-login__status-bar .dy-login__status-text {
-	font-size: 12px;
-
-	/* A long state name must wrap rather than force the whole row to scroll
-	   sideways on a 320px till. */
-	min-width: 0;
-	overflow-wrap: anywhere;
-}
-
-.dy-login__status-bar .dy-login__status-details {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-	font-size: 12px;
-}
-
-/*
- * The bar is gated on the page's own fact (`hasRuntimeStatus`), which the
- * `v-if` on the element already enforces. The class below is the SECOND copy
- * of that same rule in CSS — and it is the copy that can drift, because a
- * stylesheet cannot see the computed. Kept as the progressive-enhancement
- * hook only if it carries behaviour; here it carries none, so it is not
- * restated.
- */
-
-/*
- * `.dy-login__logo` was declared TWICE in this file — once at 32px with a
- * `--top`/`--center` modifier pair for containers the template stopped
- * rendering, and again as `display: block; width/height: 100%` inside
- * `.dy-login__logo-shell`, which is the rule the page actually uses. The
- * cascade picked the winner by source order, so the second declaration had to
- * sit below the first to survive — a rule that only works because of where it
- * was written. The dead half is deleted and the live one is declared once.
- */
 
 .dy-login__brand-logo {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	flex: 0 0 auto;
-	border-radius: var(--dy-radius-lg);
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 9px;
 }
 
 .dy-login__logo-shell {
-	display: grid;
-	width: 44px;
-	height: 44px;
-	place-items: center;
-	overflow: hidden;
-	padding: 4px;
-	border: 1px solid var(--dy-border-soft);
-	border-radius: var(--dy-radius-xl);
-	background: white;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 3px;
+  overflow: hidden;
+  border: 1px solid var(--login-soft-line);
+  border-radius: 9px;
+  background: var(--dy-surface);
 }
 
 .dy-login__logo {
-	display: block;
-	width: 100%;
-	height: 100%;
-	object-fit: contain;
-}
-
-.dy-login__brand-logo:focus-visible {
-	outline: var(--dy-focus-width) solid var(--dy-focus-color);
-	outline-offset: var(--dy-focus-offset);
-}
-
-/*
- * `.dy-login__brand-company` was split across two declarations (`grid-area`
- * here, layout there) with the cascade picking the winner. Both are now one
- * block. `grid-area` no longer applies — the masthead is a flex row, not a
- * named grid — so it is gone rather than merged.
- */
-.dy-login__brand-company {
-	display: flex;
-	justify-content: flex-end;
-	flex-wrap: wrap;
-	min-width: 0;
-	gap: 6px;
-	justify-self: end;
-	margin: 0;
-	color: var(--dy-text-muted);
-	font-size: 0.72rem;
-	text-align: end;
-}
-
-/*
- * شارة الحالة، لا سطر نص.
- *
- * كانت «نقطة البيع الذكية» نصًارماديًا يعلو العنوان بلا دور وظيفي؛ صارت كبسولة
- * زجاجية بنقطة نابضة، فصار الشكل وحده يقول شيئًا (نظام يعمل) قبل قراءة أي نص.
- * النقطة `aria-hidden` لأن النابض لا يُنطَق.
- *
- * `.dy-login__context` and its children were ALSO each declared twice — the
- * earlier pair set border/background/colour and the later pair set layout, so
- * which half survived depended on source order. Both halves are merged here.
- */
-.dy-login__context {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-
-	/* No `margin-top: auto`: an auto margin absorbs the column's free space
-	   before `justify-content: space-between` can share it, which collapses the
-	   gaps above the card exactly when the tenant context is present. */
-}
-
-.dy-login__context-item {
-	display: inline-flex;
-	align-items: center;
-	gap: 8px;
-
-	min-height: 38px;
-
-	padding-inline: 12px;
-
-	border: 1px solid rgb(255 255 255 / 0.14);
-
-	border-radius: var(--dy-radius-lg);
-
-	background: rgb(255 255 255 / 0.06);
-
-	/* الزجاج: تمويه + إضاءة علوية رفيعة. الخلفية خلفه صورة، فالحافة وحدها
-	   لا تكفي — الطبقة نصف الشفافة هي ما يبقي النص مقروءًا فوق أي بكسل. */
-	backdrop-filter: blur(10px) saturate(1.2);
-	-webkit-backdrop-filter: blur(10px) saturate(1.2);
-
-	box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.07);
-
-	color: rgb(255 255 255 / 0.86);
-
-	font-size: 0.82rem;
-}
-
-.dy-login__context-item svg {
-	color: var(--dy-text-muted);
-}
-
-.dy-login__context-label {
-	max-width: 180px;
-
-	overflow: hidden;
-
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-/* =============================================================================
-   Authentication Panel
-   ============================================================================= */
-
-.dy-login__panel {
-	grid-area: panel;
-
-	display: flex;
-	align-items: center;
-	justify-content: center;
-
-	min-width: 0;
-	min-height: 0;
-
-	/* الهوامش الآمنة تخصّ الصفحة لا البطاقة: البطاقة تُزاح عن الحواف بيقين
-	   ١٦px، بينما الحافة نفسها يجب أن تبقى ملتصقة بحدّ الشاشة على iOS. */
-	padding: clamp(24px, 4vw, 48px) 16px clamp(24px, 4vw, 48px);
-
-	/*
-	 * `overflow: auto` here was harmless while the page locked itself to
-	 * `100dvh` and clipped; it became a second, competing scroll container once
-	 * the page was allowed to grow. Two nested scrollers on a login form is the
-	 * shape that makes a trackpad fight the wheel and makes an Android fling
-	 * stop dead. The page scrolls; the panel does not.
-	 */
-	overflow: visible;
-
-	/* توهّج عريض في الزاوية العليا من جهة البطاقة: يوجّه العين من الهوية
-	   الداكنة إلى النموذج دون أن يضيف لونًا عابرًا. */
-	background: radial-gradient(
-			70% 45% at 50% 0%,
-			rgb(var(--dy-brand-c-500) / 0.07),
-			transparent 68%
-		), var(--dy-surface-soft);
-}
-
-/*
- * A scrollbar the cashier can actually see.
- *
- * The page scrolls (see the "ONE vocabulary" note on `.dy-login`), so the
- * scrollbar is styled here rather than left to the platform: the default
- * overlay scrollbar is invisible until you scroll, which on a till screen tells
- * a first-time user nothing is below the fold — and the content below the fold
- * is the register link.
- *
- * `scrollbar-width`/`scrollbar-color` are the standard spellings (Firefox and
- * the newest engines); the `::-webkit-scrollbar` block is what Chromium and
- * Safari read. Both are declared because a login screen carrying only one of
- * them looks correct on the developer's browser and unstyled on the till's.
- */
-.dy-login {
-	scrollbar-width: thin;
-	scrollbar-color: rgb(148 163 184 / 0.6) var(--dy-surface-soft);
-}
-
-.dy-login::-webkit-scrollbar {
-	inline-size: 10px;
-	block-size: 10px;
-}
-
-.dy-login::-webkit-scrollbar-track {
-	background: var(--dy-surface-soft);
-}
-
-.dy-login::-webkit-scrollbar-thumb {
-	background: rgb(148 163 184 / 0.6);
-	border: 2px solid var(--dy-surface-soft);
-	border-radius: 999px;
-}
-
-.dy-login::-webkit-scrollbar-thumb:hover {
-	background: rgb(100 116 139 / 0.9);
-}
-
-.dy-login__panel-inner {
-	position: relative;
-
-	/* يقصّ شريط التقدّم على زوايا البطاقة الدائرية بدل أن يفيض فوقها. */
-	overflow: hidden;
-
-	width: min(100%, 480px);
-
-	padding: clamp(28px, 3.2vw, 40px);
-
-	border: 1px solid var(--dy-border);
-
-	border-radius: var(--dy-radius-xl);
-
-	background: var(--dy-surface);
-
-	box-shadow: var(--dy-elevation-2);
-}
-
-/* =============================================================================
-   Progress Rail — the busy state the page declared but never styled
-   =============================================================================
-   `dy-login--busy` was set on the root for the whole life of the page and had
-   no rule anywhere: the only progress signal was the button's own spinner, and
-   the form around it looked idle. This is that state — an indeterminate rail
-   clipped to the card's top edge, which costs one element and reads at a
-   glance from a terminal two metres away.
-   ========================================================================== */
-
-.dy-login__progress {
-	position: absolute;
-	inset-block-start: 0;
-	inset-inline: 0;
-
-	height: 3px;
-
-	overflow: hidden;
-
-	/* الشريط مؤشر، لا هدف: لا يحجب أول حقل. */
-	pointer-events: none;
-}
-
-.dy-login__progress-bar {
-	display: block;
-
-	width: 38%;
-	height: 100%;
-
-	background: linear-gradient(
-		90deg,
-		transparent,
-		var(--dy-accent) 35%,
-		var(--dy-accent) 65%,
-		transparent
-	);
-
-	opacity: 0;
-}
-
-.dy-login--busy .dy-login__progress-bar {
-	opacity: 1;
-
-	animation: dy-login-progress 1.15s var(--dy-ease-standard) infinite;
-}
-
-@keyframes dy-login-progress {
-	from {
-		transform: translateX(-115%);
-	}
-
-	to {
-		transform: translateX(365%);
-	}
-}
-
-/* المسار من اليمين لليسار: نفس الحركة، معكوسة الاتجاه. */
-[dir="rtl"] .dy-login__progress-bar {
-	animation-direction: reverse;
-}
-
-/* القفل طبقة فوق البطاقة: الطمس يوضّح أن هناك ما ينتظر خلفها. */
-.dy-login--locked .dy-login__panel-inner {
-	filter: blur(3px) saturate(0.85);
-}
-
-.dy-login__panel-inner,
-.dy-login--locked .dy-login__panel-inner {
-	transition: filter var(--dy-dur-moderate) var(--dy-ease-standard);
-}
-
-.dy-login--busy .dy-login__panel-inner {
-	box-shadow: var(--dy-elevation-4);
-}
-
-/* أثناء الإرسال: الروابط الثانوية لا تقبل الضغط، وتقول ذلك بلونها لا بتعتيتها
-   (بوابة `compounded dimming`: اللون وحده، ٤٫٧:١ على الأقل). */
-.dy-login--busy .dy-login__register a {
-	pointer-events: none;
-
-	color: var(--dy-text-muted);
-}
-
-.dy-login__header {
-	margin-bottom: var(--dy-space-5);
-}
-.dy-login__section-label {
-	display: block;
-
-	margin-bottom: 8px;
-
-	color: var(--dy-text-link);
-
-	font-size: 0.82rem;
-	font-weight: 800;
-}
-
-.dy-login__title {
-	margin: 0;
-
-	color: var(--dy-text-strong);
-
-	font-size: clamp(2rem, 4vw, 2.7rem);
-
-	font-weight: 800;
-	letter-spacing: var(--dy-tracking-tight);
-	line-height: 1.15;
-}
-
-.dy-login__subtitle {
-	margin: var(--dy-space-3) 0 0;
-
-	color: var(--dy-text-secondary);
-
-	font-size: 0.98rem;
-	line-height: 1.8;
-}
-
-/* =============================================================================
-   Runtime
-   ============================================================================= */
-
-/*
- * One anatomy for the three status surfaces (runtime / error / lockout).
- *
- * They were three adjacent rules with three paddings and three borders, all
- * saying the same thing - "something happened, and here is how bad" - in three
- * different ways. They now share padding, border and a 3px status rail, so the
- * trio moves as one.
- */
-.dy-login__runtime,
-.dy-login__error,
-.dy-login__rate-limit {
-	position: relative;
-
-	padding: 13px 14px 13px 17px;
-
-	border: 1px solid var(--dy-border);
-	border-inline-start-width: 3px;
-
-	border-radius: var(--dy-radius-lg);
-
-	background: var(--dy-surface);
-
-	color: var(--dy-text-secondary);
-
-	overflow: hidden;
-}
-
-/* الحافة الملوّنة هي الدرجة: أخضر/كهرماني/أحمر حسب حالة السطح. */
-.dy-login__runtime::after,
-.dy-login__error::after,
-.dy-login__rate-limit::after {
-	content: "";
-
-	position: absolute;
-	inset-block: 0;
-	inset-inline-start: 0;
-
-	width: 3px;
-
-	background: var(--dy-text-muted);
-}
-
-.dy-login__runtime--info::after {
-	background: var(--dy-accent);
-
-	animation: dy-state-pulse 1.6s var(--dy-ease-standard) infinite;
-}
-
-.dy-login__runtime--success::after {
-	background: var(--dy-mint-600);
-}
-
-.dy-login__runtime--warning::after {
-	background: var(--dy-amber-600);
-}
-
-.dy-login__runtime--error::after,
-.dy-login__error::after {
-	background: var(--dy-crimson-600);
-}
-
-.dy-login__rate-limit::after {
-	background: var(--dy-amber-600);
-}
-
-@keyframes dy-state-pulse {
-	0%,
-	100% {
-		opacity: 0.3;
-	}
-
-	50% {
-		opacity: 1;
-	}
-}
-
-.dy-login__runtime {
-	display: flex;
-	align-items: center;
-	gap: 11px;
-
-	min-height: 52px;
-
-	margin-bottom: var(--dy-space-5);
-}
-
-.dy-login__runtime-icon {
-	display: inline-flex;
-	flex: 0 0 auto;
-
-	color: var(--dy-accent);
-}
-
-.dy-login__runtime-content {
-	display: flex;
-	flex: 1;
-	flex-direction: column;
-	min-width: 0;
-	gap: 1px;
-
-	font-size: 0.78rem;
-}
-
-.dy-login__runtime-content strong {
-	color: var(--dy-text-strong);
-	font-size: 0.8rem;
-}
-
-.dy-login__runtime--success {
-	border-color: rgb(var(--dy-mint-c-500) / 0.24);
-
-	background: rgb(var(--dy-mint-c-500) / 0.06);
-}
-
-.dy-login__runtime--success .dy-login__runtime-icon {
-	color: var(--dy-mint-600);
-}
-
-.dy-login__runtime--warning {
-	border-color: rgb(var(--dy-amber-c-500) / 0.28);
-
-	background: rgb(var(--dy-amber-c-500) / 0.07);
-}
-
-.dy-login__runtime--warning .dy-login__runtime-icon {
-	color: var(--dy-amber-600);
-}
-
-.dy-login__runtime--error {
-	border-color: rgb(var(--dy-crimson-c-500) / 0.28);
-
-	background: rgb(var(--dy-crimson-c-500) / 0.07);
-}
-
-.dy-login__runtime--error .dy-login__runtime-icon {
-	color: var(--dy-crimson-600);
-}
-
-.dy-login__runtime-action {
-	flex: 0 0 auto;
-
-	min-height: 34px;
-
-	padding-inline: 10px;
-
-	border: 0;
-	border-radius: var(--dy-radius-md);
-
-	background: var(--dy-surface-strong);
-
-	color: var(--dy-text-strong);
-
-	font: inherit;
-	font-size: 0.75rem;
-	font-weight: 700;
-
-	cursor: pointer;
-}
-
-.dy-login__runtime-action:focus-visible {
-	outline: var(--dy-focus-width) solid var(--dy-focus-color);
-
-	outline-offset: 2px;
-}
-
-/* =============================================================================
-   Error
-   ============================================================================= */
-
-/* The border/background/box come from the shared anatomy above; only the
-   severity colour and the flex layout are this surface's own. */
-.dy-login__error {
-	display: flex;
-	align-items: flex-start;
-	gap: 10px;
-
-	margin-bottom: var(--dy-space-5);
-
-	border-color: rgb(var(--dy-crimson-c-500) / 0.24);
-
-	background: rgb(var(--dy-crimson-c-500) / 0.07);
-
-	color: var(--dy-crimson-700);
-
-	/* It is a failure, not a layout shift: the card must not resize around it. */
-	animation: dy-pop-in var(--dy-dur-moderate) var(--dy-ease-emphasized);
-}
-
-.dy-login__error-icon {
-	display: inline-flex;
-	flex: 0 0 auto;
-
-	margin-top: 1px;
-}
-
-.dy-login__error-content {
-	display: flex;
-	flex: 1;
-	flex-direction: column;
-	gap: 2px;
-
-	min-width: 0;
-
-	font-size: 0.82rem;
-	line-height: 1.6;
-}
-
-.dy-login__error-content strong {
-	font-weight: 800;
-}
-
-.dy-login__error-close {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-
-	width: 32px;
-	height: 32px;
-
-	flex: 0 0 auto;
-
-	border: 0;
-	border-radius: var(--dy-radius-md);
-
-	background: transparent;
-
-	color: inherit;
-
-	cursor: pointer;
-}
-
-.dy-login__error-close:hover {
-	background: rgb(var(--dy-crimson-c-500) / 0.08);
-}
-
-/* =============================================================================
-   Form
-   ============================================================================= */
-
-.dy-login__form {
-	display: flex;
-	flex-direction: column;
-	gap: var(--dy-space-5);
-}
-
-.dy-login__field {
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-}
-
-.dy-login__label-row {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-}
-
-.dy-login__label {
-	color: var(--dy-text-strong);
-
-	font-size: 0.84rem;
-	font-weight: 750;
-}
-
-.dy-login__input-wrap {
-	position: relative;
-
-	display: flex;
-	align-items: center;
-
-	min-height: var(--dy-control-h-xl);
-
-	border: 1px solid var(--dy-input-border);
-
-	border-radius: var(--dy-radius-lg);
-
-	background: var(--dy-input-bg);
-
-	transition: border-color var(--dy-dur-fast) var(--dy-ease-standard),
-		box-shadow var(--dy-dur-fast) var(--dy-ease-standard), background-color
-		var(--dy-dur-fast) var(--dy-ease-standard);
-}
-
-/* Hover is a separate, weaker state than focus: it lifts the border one step
-   and stops, so the focus ring is never competing with a second signal.
-   Both exclusions are load-bearing, not tidiness: `:focus-within` because
-   `:not(:focus-within)` scores 0,3,0 against `:focus-within`'s 0,2,0, so a
-   hovering field would otherwise paint a neutral border *over* its focus
-   colour; and the error wrap because a neutral hover must never overwrite the
-   severity the field is already showing. */
-.dy-login__input-wrap:hover:not(:focus-within):not(
-		.dy-login__input-wrap--error
-	) {
-	border-color: var(--dy-border-strong);
-}
-
-.dy-login__input-wrap:focus-within {
-	border-color: var(--dy-accent);
-
-	box-shadow: 0 0 0 4px rgb(var(--dy-brand-c-500) / 0.14);
-}
-
-/* The leading icon joins the field's state: the icon is the label the eye
-   lands on first, so it is the first thing that should confirm focus. */
-.dy-login__input-icon {
-	position: absolute;
-	inset-inline-start: 16px;
-
-	/* Explicit, so the icon is sized by this page's intent (18px) rather
-	 * than by whatever the base floor resolves to. */
-	width: 18px;
-	height: 18px;
-
-	color: var(--dy-text-muted);
-
-	pointer-events: none;
-
-	transition: color var(--dy-dur-fast) var(--dy-ease-standard);
-}
-
-.dy-login__input-wrap:focus-within .dy-login__input-icon {
-	color: var(--dy-accent);
-}
-
-.dy-login__input {
-	width: 100%;
-	min-width: 0;
-	min-height: var(--dy-control-h-xl);
-
-	/* 56px on the trailing side clears the 44px show/hide toggle (6px inset
-	   + 44px target) so the two can never overlap. */
-	padding: 0 56px 0 48px;
-
-	border: 0;
-	outline: 0;
-
-	background: transparent;
-
-	color: var(--dy-text);
-
-	font-family: var(--dy-font-english), var(--dy-font-arabic);
-
-	/*
-	 * 1rem = 16px, and 16px is the floor, not a preference.
-	 *
-	 * iOS Safari zooms the *viewport* to any focused field whose computed
-	 * font-size is below 16px, so a cashier typing an email on an iPhone got a
-	 * page zoom that broke the layout, moved the submit button off screen and
-	 * then re-zoomed on blur. The old value was 0.95rem (15.2px) — under the
-	 * floor on exactly the device a cashier is most likely to hold. WCAG 2.2
-	 * SC 1.4.4 asks for scalable text; the platform zoom is the mechanism.
-	 */
-	font-size: 1rem;
-}
-
-.dy-login__input::placeholder {
-	color: var(--dy-text-muted);
-	opacity: 1;
-}
-
-.dy-login__input:disabled {
-	cursor: not-allowed;
-	opacity: var(--dy-disabled-opacity);
-}
-
-.dy-login__password-toggle {
-	position: absolute;
-	inset-inline-end: 6px;
-
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-
-	/*
-	 * 44px, not 40px: this is a touch target on a POS terminal (WCAG 2.2
-	 * SC 2.5.8 asks 24px; the design system's own floor is 44px). It was
-	 * the only interactive element on the page below that floor.
-	 */
-	width: var(--dy-touch-min);
-	height: var(--dy-touch-min);
-
-	border: 0;
-	border-radius: var(--dy-radius-md);
-
-	background: transparent;
-
-	color: var(--dy-text-muted);
-
-	cursor: pointer;
-}
-
-.dy-login__password-toggle:hover {
-	background: var(--dy-surface-soft);
-
-	color: var(--dy-text-strong);
-}
-
-.dy-login__password-toggle:disabled {
-	cursor: not-allowed;
-	opacity: var(--dy-disabled-opacity);
-}
-
-.dy-login__password-toggle:focus-visible,
-.dy-login__error-close:focus-visible {
-	outline: var(--dy-focus-width) solid var(--dy-focus-color);
-
-	outline-offset: 2px;
-}
-
-.dy-login__options {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: var(--dy-space-4);
-
-	margin-top: -2px;
-}
-
-.dy-login__remember {
-	display: inline-flex;
-	align-items: center;
-	gap: 8px;
-
-	/* The visible box is 18px, but the *target* is the whole label: this is
-	   the row a finger has to hit on a terminal, so it carries the floor. */
-	min-height: var(--dy-touch-min);
-
-	color: var(--dy-text-secondary);
-
-	font-size: 0.8rem;
-
-	cursor: pointer;
-
-	transition: color var(--dy-dur-fast) var(--dy-ease-standard);
-}
-
-.dy-login__remember:hover {
-	color: var(--dy-text-strong);
-}
-
-.dy-login__remember input {
-	position: absolute;
-
-	width: 1px;
-	height: 1px;
-
-	opacity: 0;
-}
-
-.dy-login__checkbox {
-	position: relative;
-
-	display: inline-flex;
-
-	width: 18px;
-	height: 18px;
-
-	flex: 0 0 auto;
-
-	border: 1px solid var(--dy-border-strong);
-
-	border-radius: 5px;
-
-	background: var(--dy-surface);
-
-	transition: background-color var(--dy-dur-fast) var(--dy-ease-standard),
-		border-color var(--dy-dur-fast) var(--dy-ease-standard);
-}
-
-.dy-login__remember input:checked + .dy-login__checkbox {
-	border-color: var(--dy-accent);
-	background: var(--dy-accent);
-}
-
-.dy-login__remember input:checked + .dy-login__checkbox::after {
-	content: "";
-
-	position: absolute;
-
-	inset-inline-start: 5px;
-	top: 2px;
-
-	width: 5px;
-	height: 9px;
-
-	border: solid var(--dy-accent-foreground);
-
-	border-width: 0 2px 2px 0;
-
-	transform: rotate(45deg);
-}
-
-.dy-login__remember input:focus-visible + .dy-login__checkbox {
-	outline: var(--dy-focus-width) solid var(--dy-focus-color);
-
-	outline-offset: 2px;
-}
-
-.dy-login__forgot {
-	display: inline-flex;
-	align-items: center;
-
-	min-height: var(--dy-touch-min);
-
-	color: var(--dy-text-link);
-
-	font-size: 0.8rem;
-	font-weight: 750;
-
-	text-decoration: none;
-
-	transition: color var(--dy-dur-fast) var(--dy-ease-standard);
-}
-
-.dy-login__forgot:hover {
-	color: var(--dy-primary-hover);
-
-	text-decoration: underline;
-	text-underline-offset: 3px;
-}
-
-/*
- * The primary action is the only thing on the card that should feel physical.
- *
- * A brand-tinted shadow lifts it off the surface, and the lift grows on hover
- * — but never on a disabled button, where the shadow would advertise a
- * pressability the control does not have (the compounding-dimming lesson).
- */
-.dy-login__submit {
-	width: 100%;
-
-	margin-top: var(--dy-space-2);
-
-	box-shadow: var(--dy-shadow-brand);
-
-	transition: transform var(--dy-dur-fast) var(--dy-ease-standard), box-shadow
-		var(--dy-dur-fast) var(--dy-ease-standard);
-}
-
-.dy-login__submit:not(:disabled):hover {
-	transform: translateY(-1px);
-
-	box-shadow: var(--dy-elevation-4);
-}
-
-.dy-login__submit:not(:disabled):active {
-	transform: translateY(0);
-}
-
-/* =============================================================================
-   Security
-   ============================================================================= */
-
-.dy-login__security {
-	margin-top: var(--dy-space-6);
-
-	overflow: hidden;
-
-	border: 1px solid var(--dy-border);
-
-	border-radius: var(--dy-radius-xl);
-
-	background: var(--dy-surface-soft);
-}
-
-.dy-login__security-main {
-	display: flex;
-	align-items: flex-start;
-	gap: 11px;
-
-	padding: 13px 14px;
-}
-
-.dy-login__security-icon {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-
-	width: 34px;
-	height: 34px;
-
-	flex: 0 0 auto;
-
-	border-radius: var(--dy-radius-md);
-
-	background: rgb(var(--dy-mint-c-500) / 0.1);
-
-	color: var(--dy-mint-600);
-}
-
-.dy-login__security-main div {
-	display: flex;
-	flex: 1;
-	flex-direction: column;
-	gap: 2px;
-
-	min-width: 0;
-}
-
-.dy-login__security-main strong {
-	color: var(--dy-text-strong);
-
-	font-size: 0.8rem;
-}
-
-.dy-login__security-main span {
-	color: var(--dy-text-muted);
-
-	font-size: 0.73rem;
-	line-height: 1.6;
-}
-
-.dy-login__details-toggle {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-
-	width: 100%;
-
-	min-height: var(--dy-touch-min);
-
-	padding: 8px 14px;
-
-	border: 0;
-	border-top: 1px solid var(--dy-border);
-
-	background: transparent;
-
-	color: var(--dy-text-muted);
-
-	font: inherit;
-	font-size: 0.72rem;
-	font-weight: 700;
-
-	cursor: pointer;
-
-	transition: color var(--dy-dur-fast) var(--dy-ease-standard), background-color
-		var(--dy-dur-fast) var(--dy-ease-standard);
-}
-
-.dy-login__details-toggle:hover {
-	color: var(--dy-text-strong);
-	background: var(--dy-surface);
-}
-
-.dy-login__details {
-	display: grid;
-	grid-template-columns: repeat(2, 1fr);
-
-	gap: 1px;
-
-	border-top: 1px solid var(--dy-border);
-
-	background: var(--dy-border);
-}
-
-.dy-login__details > div {
-	display: flex;
-	justify-content: space-between;
-	gap: 10px;
-
-	padding: 9px 12px;
-
-	background: var(--dy-surface);
-
-	font-size: 0.7rem;
-}
-
-.dy-login__details span {
-	color: var(--dy-text-muted);
-}
-
-.dy-login__details strong {
-	color: var(--dy-text-strong);
-}
-
-/* =============================================================================
-   Footer
-   ============================================================================= */
-
-/* =============================================================================
-   Register — the row that used to be an orphan grid item
-   =============================================================================
-   `<div class="dy-login__register-link">` was a direct child of the two-column
-   `.dy-login` grid with no rule of its own: auto-placement put it in row 2,
-   column 1 — under the dark brand panel — rendered in the browser's default
-   link colour on a surface the design system never measured. It now lives
-   inside the card, where it is a quiet secondary action under a hairline.
-   `grid-area: banner` exists for the same class of reason: in a grid, an
-   unplaced child is a layout accident waiting to happen.
-   ========================================================================== */
-
-.dy-login__register {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: var(--dy-space-2);
-
-	margin-top: var(--dy-space-6);
-
-	padding-top: var(--dy-space-5);
-
-	border-top: 1px solid var(--dy-border-soft);
-
-	color: var(--dy-text-secondary);
-
-	font-size: 0.82rem;
-
-	line-height: 1.6;
-}
-
-.dy-login__register a {
-	display: inline-flex;
-	align-items: center;
-
-	min-height: var(--dy-touch-min);
-
-	color: var(--dy-text-link);
-
-	font-weight: 750;
-
-	text-decoration: none;
-
-	transition: color var(--dy-dur-fast) var(--dy-ease-standard);
-}
-
-.dy-login__register a:hover {
-	color: var(--dy-primary-hover);
-
-	text-decoration: underline;
-	text-underline-offset: 3px;
-}
-
+  display: block;
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.dy-login__brand-logo:focus-visible,
+.dy-login__command-strip a:focus-visible,
+.dy-login__legal a:focus-visible,
+.dy-login__forgot:focus-visible,
 .dy-login__register a:focus-visible {
-	outline: var(--dy-focus-width) solid var(--dy-focus-color);
-
-	outline-offset: var(--dy-focus-offset);
-
-	border-radius: var(--dy-radius-xs);
-}
-
-/* Footer + the register row both close the card; the hairline above the
-   register row is what tells the eye "this is the end of the form", not
-   another field. */
-.dy-login__footer {
-	display: flex;
-	justify-content: center;
-	flex-wrap: wrap;
-	gap: 8px;
-
-	margin-top: var(--dy-space-8);
-
-	color: var(--dy-text-muted);
-
-	font-size: 0.68rem;
-}
-
-/* =============================================================================
-   Responsive
-   ============================================================================= */
-
-@media (min-width: 901px) {
-	/*
-	 * `height: 100dvh` + `overflow: hidden` is GONE. It was declared here while
-	 * `.dy-login` had no scroll container of its own, so on any window shorter
-	 * than the content — a laptop with a taskbar, a phone in landscape, a
-	 * split screen — everything below the fold was unreachable: no scrollbar,
-	 * no swipe, and `hidden` clips rather than lets the browser scroll it back.
-	 * The register link and the footer were among the casualties, so a cashier
-	 * who forgot their password had no way to recover it on that screen.
-	 *
-	 * The card keeps its own scroller (`overscroll-behavior` +
-	 * `scrollbar-gutter`) because that one is about the CARD, not the page.
-	 */
-	.dy-login__brand,
-	.dy-login__panel {
-		min-height: 0;
-	}
-
-	.dy-login__panel {
-		overscroll-behavior-y: contain;
-		scrollbar-gutter: stable;
-	}
-}
-
-/*
- * The two-column grid is declared ONCE, next to `.dy-login` (see the "ONE
- * vocabulary" note there). It used to be re-declared here verbatim, a third
- * time, and again at `max-width: 1100px` as a redundant single-column reset
- * for a grid that is already single-column at that width.
- *
- * What remains below is the phone/narrow-till tuning only. The `max-width:
- * 900px` block no longer restates the areas — the base declaration IS the
- * single-column layout, so re-asserting it here was a fourth copy of the same
- * answer, and it is the copy most likely to drift.
- */
-@media (max-width: 900px) {
-	/*
-	 * Narrow screens stack: banner, status, masthead, FORM, then the workspace
-	 * panel. The areas are NOT re-declared here — the base rule on `.dy-login`
-	 * IS the single-column stack, so restating it would be a second copy of the
-	 * same answer, and it is the copy that drifts. What this block carries is
-	 * the narrow-till tuning only.
-	 */
-	.dy-login__brand {
-		padding-inline: 16px;
-	}
-
-	/*
-	 * The masthead is a flex row now (the logo, then the trailing column of
-	 * company + preferences). `grid-template-areas: "logo company"
-	 * "preferences preferences"` used to live here at two breakpoints, naming
-	 * areas no grid declared — dead weight that only survived because nothing
-	 * measured it. What still matters at this width is the masthead wrapping
-	 * and the gap tightening on a narrow till, so the flex behaviour is kept
-	 * directly on the element that renders it.
-	 */
-	.dy-login__brand {
-		min-height: 76px;
-		flex-wrap: wrap;
-		gap: 12px 16px;
-	}
-
-	.dy-login__panel {
-		min-height: 0;
-		overflow: visible;
-	}
-
-	.dy-login__panel-inner {
-		width: min(100%, 520px);
-
-		padding: clamp(24px, 6vw, 34px);
-	}
-
-	.dy-login__brand-company {
-		font-size: 0.66rem;
-	}
-
-	.dy-login__preferences {
-		justify-content: center;
-	}
-
-	.dy-login__workspace {
-		width: min(100%, 520px);
-		padding-inline: 16px;
-	}
-}
-
-@media (max-width: 560px) {
-	.dy-login__brand {
-		padding-inline: 12px;
-	}
-
-	.dy-login__logo-shell {
-		width: 40px;
-		height: 40px;
-	}
-
-	.dy-login__brand-company {
-		font-size: 0.62rem;
-	}
-
-	.dy-login__workspace {
-		padding-inline: 20px;
-	}
-
-	.dy-login__panel {
-		padding-block: 20px;
-	}
-
-	.dy-login__title {
-		font-size: 2rem;
-	}
-
-	.dy-login__subtitle {
-		font-size: 0.9rem;
-	}
-
-	.dy-login__options {
-		align-items: flex-start;
-		flex-direction: column;
-	}
-
-	.dy-login__input-wrap,
-	.dy-login__input {
-		min-height: 52px;
-	}
-
-	.dy-login__methods-buttons {
-		grid-template-columns: 1fr;
-	}
-
-	.dy-login__details {
-		grid-template-columns: 1fr;
-	}
-}
-
-@media (max-width: 380px) {
-	.dy-login__title {
-		font-size: 1.8rem;
-	}
-}
-
-/* =============================================================================
-   Reduced Motion
-   ============================================================================= */
-
-@media (prefers-reduced-motion: reduce) {
-	.dy-login *,
-	.dy-login *::before,
-	.dy-login *::after {
-		scroll-behavior: auto !important;
-
-		animation-duration: 0.01ms !important;
-		animation-iteration-count: 1 !important;
-
-		transition-duration: 0.01ms !important;
-	}
-}
-
-/* =============================================================================
-   Forced Colors
-   ============================================================================= */
-
-@media (forced-colors: active) {
-	.dy-login__input-wrap,
-	.dy-login__runtime,
-	.dy-login__error,
-	.dy-login__security,
-	.dy-login__panel-inner {
-		border-color: CanvasText;
-	}
-
-	/* The focus ring is a border + box-shadow, and forced-colors drops both.
-	   Without this the focused field is indistinguishable from a resting one,
-	   which is exactly the state a cashier cannot afford to misread. */
-	.dy-login__input-wrap:focus-within {
-		outline: 2px solid Highlight;
-		outline-offset: 1px;
-	}
-
-	.dy-login__forgot,
-	.dy-login__section-label,
-	.dy-login__register a {
-		color: LinkText;
-	}
-
-	.dy-login__submit {
-		forced-color-adjust: none;
-	}
-
-	.dy-login__checkbox {
-		border-color: CanvasText;
-	}
-
-	/* The rail is a background, and backgrounds are the first thing a forced
-	   palette removes: the severity would go with it. */
-	.dy-login__runtime::after,
-	.dy-login__error::after,
-	.dy-login__rate-limit::after {
-		background: CanvasText;
-	}
-
-	.dy-login__progress-bar {
-		background: Highlight;
-	}
-}
-
-/* =============================================================================
-   Print
-   ============================================================================= */
-
-@media print {
-	.dy-login__brand,
-	.dy-login__runtime,
-	.dy-login__error,
-	.dy-login__security,
-	.dy-login__footer,
-	.dy-login__register,
-	.dy-login__progress {
-		display: none !important;
-	}
-
-	.dy-login {
-		display: block;
-
-		min-height: auto;
-
-		color: #000;
-		background: #fff;
-	}
-
-	.dy-login__panel {
-		display: block;
-
-		background: none;
-	}
-
-	.dy-login__panel-inner {
-		border: 0;
-		box-shadow: none;
-	}
-}
-
-/* =============================================================================
-   Rate Limit Indicator
-   ============================================================================= */
-
-.dy-login__rate-limit {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-
-	margin-bottom: var(--dy-space-5);
-
-	border-color: rgb(var(--dy-amber-c-500) / 0.28);
-
-	background: rgb(var(--dy-amber-c-500) / 0.07);
-
-	color: var(--dy-amber-700);
-}
-
-.dy-login__rate-limit-icon {
-	display: inline-flex;
-	flex: 0 0 auto;
-	color: var(--dy-amber-600);
-}
-
-.dy-login__rate-limit-content {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-	font-size: 0.78rem;
-	strong {
-		color: var(--dy-text-strong);
-		font-size: 0.8rem;
-	}
-}
-
-/* =============================================================================
-   Backend Unavailable Banner (503) — Offline mode works
-   ============================================================================= */
-
-.dy-login__backend-unavailable {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-
-	margin-bottom: var(--dy-space-5);
-
-	border-color: rgb(var(--dy-cyan-c-500) / 0.28);
-
-	background: rgb(var(--dy-cyan-c-500) / 0.07);
-
-	color: var(--dy-cyan-700);
-}
-
-.dy-login__backend-unavailable-icon {
-	display: inline-flex;
-	flex: 0 0 auto;
-	color: var(--dy-cyan-600);
-}
-
-.dy-login__backend-unavailable-content {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-	font-size: 0.78rem;
-	strong {
-		color: var(--dy-text-strong);
-		font-size: 0.8rem;
-	}
-}
-
-.dy-login__backend-unavailable-action {
-	margin-left: auto;
-	padding: 4px 12px;
-	font-size: 0.75rem;
-	font-weight: 700;
-	border-radius: var(--dy-radius-md);
-	border: 1px solid currentColor;
-	background: transparent;
-	color: var(--dy-cyan-700);
-	cursor: pointer;
-	transition: background-color var(--dy-dur-fast) var(--dy-ease-standard);
-	white-space: nowrap;
-}
-
-.dy-login__backend-unavailable-action:hover {
-	background: rgb(var(--dy-cyan-c-500) / 0.12);
-}
-
-.dy-login__backend-unavailable-action:focus-visible {
-	outline: 2px solid var(--dy-cyan-600);
-	outline-offset: 2px;
-}
-
-/* =============================================================================
-   Offline Indicator
-   ============================================================================= */
-
-.dy-login__offline-banner {
-	/* Declared, not auto-placed: see the `grid-template-areas` note on
-	   `.dy-login`. This banner is the one child that appears and disappears,
-	   and it is the one child that must not move anything when it does. */
-	grid-area: banner;
-
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 8px;
-
-	padding: 10px 16px;
-
-	background: rgb(var(--dy-amber-c-500) / 0.12);
-	border-bottom: 1px solid rgb(var(--dy-amber-c-500) / 0.24);
-
-	color: var(--dy-amber-700);
-
-	font-size: 0.82rem;
-	font-weight: 600;
-
-	animation: dy-slide-down var(--dy-dur-standard) var(--dy-ease-standard);
-}
-
-@keyframes dy-slide-down {
-	from {
-		opacity: 0;
-		transform: translateY(-100%);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
-}
-
-/* =============================================================================
-   Input Error State
-   ============================================================================= */
-
-.dy-login__input--error + .dy-login__password-toggle {
-	color: var(--dy-crimson-600);
-}
-
-.dy-login__input-wrap:has(.dy-login__input--error) {
-	border-color: var(--dy-crimson-500);
-}
-
-.dy-login__input-wrap:has(.dy-login__input--error):focus-within {
-	border-color: var(--dy-crimson-500);
-	box-shadow: 0 0 0 3px rgb(var(--dy-crimson-c-500) / 0.12);
-}
-
-/* =============================================================================
-   Password Strength
-   ============================================================================= */
-
-.dy-login__strength {
-	font-size: 0.78rem;
-	font-weight: 700;
-}
-
-.dy-login__field-error {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-
-	color: var(--dy-crimson-600);
-
-	font-size: 0.78rem;
-	font-weight: 600;
-}
-
-/* =============================================================================
-   Offline Mode Variant
-   ============================================================================= */
-
-.dy-login--offline .dy-login__title::after {
-	content: " (غير متصل)";
-	color: var(--dy-amber-600);
-	font-weight: 600;
-	font-size: 0.9em;
-}
-
-/* =============================================================================
-   Reduced Motion Class
-   ============================================================================= */
-
-.dy-login--reduced-motion *,
-.dy-login--reduced-motion *::before,
-.dy-login--reduced-motion *::after {
-	animation-duration: 0.01ms !important;
-	transition-duration: 0.01ms !important;
-}
-
-/* =============================================================================
-   Dark Mode Enhancements
-   ============================================================================= */
-
-.dy-login--dark .dy-login__offline-banner {
-	background: rgb(var(--dy-amber-c-500) / 0.18);
-	border-bottom-color: rgb(var(--dy-amber-c-500) / 0.3);
-	color: var(--dy-amber-400);
-}
-
-.dy-login--dark .dy-login__backend-unavailable {
-	background: rgb(var(--dy-cyan-c-500) / 0.15);
-	border-color: rgb(var(--dy-cyan-c-500) / 0.3);
-	color: var(--dy-cyan-400);
-}
-
-.dy-login--dark .dy-login__backend-unavailable-icon {
-	color: var(--dy-cyan-500);
-}
-
-.dy-login--dark .dy-login__backend-unavailable-action {
-	color: var(--dy-cyan-400);
-}
-
-.dy-login--dark .dy-login__backend-unavailable-action:hover {
-	background: rgb(var(--dy-cyan-c-500) / 0.18);
-}
-
-/* The field keeps `--dy-input-bg`: overriding it with `--dy-surface` here made
-   the input the same colour as the card it now sits on. Only the ring needed
-   strengthening for a near-black surface. */
-.dy-login--dark .dy-login__input-wrap:focus-within {
-	box-shadow: 0 0 0 3px rgb(var(--dy-brand-c-500) / 0.18);
-}
-
-.dy-login--dark .dy-login__panel-inner {
-	border-color: var(--dy-border);
-
-	box-shadow: var(--dy-elevation-4);
-}
-
-.dy-login--dark .dy-login__error {
-	background: rgb(var(--dy-crimson-c-500) / 0.12);
-	border-color: rgb(var(--dy-crimson-c-500) / 0.3);
-	color: var(--dy-crimson-400);
-}
-
-.dy-login--dark .dy-login__error-close:hover {
-	background: rgb(var(--dy-crimson-c-500) / 0.12);
-}
-
-.dy-login--dark .dy-login__rate-limit {
-	background: rgb(var(--dy-amber-c-500) / 0.12);
-	border-color: rgb(var(--dy-amber-c-500) / 0.3);
-	color: var(--dy-amber-400);
-}
-
-/* =============================================================================
-   Mobile Enhancements
-   ============================================================================= */
-
-@media (max-width: 768px) {
-	.dy-login--mobile .dy-login__panel-inner {
-		padding-inline: 24px;
-	}
-
-	.dy-login--mobile .dy-login__offline-banner {
-		font-size: 0.78rem;
-		padding: 8px 12px;
-	}
-}
-
-@media (max-width: 480px) {
-	.dy-login--mobile .dy-login__panel-inner {
-		padding-inline: 16px;
-	}
-
-	.dy-login--mobile .dy-login__title {
-		font-size: 1.6rem;
-	}
-
-	.dy-login--mobile .dy-login__submit {
-		width: 100%;
-	}
-}
-
-/* =============================================================================
-   Shortcuts Trigger Button
-   ============================================================================= */
-
-.dy-login__shortcuts-trigger {
-	flex-shrink: 0;
-	margin-inline-start: auto;
-}
-
-.dy-login__shortcuts-hint {
-	display: none;
-}
-
-@media (min-width: 769px) {
-	.dy-login__shortcuts-hint {
-		display: inline;
-	}
-}
-
-@media (max-width: 768px) {
-	.dy-login__shortcuts-trigger {
-		margin-inline-start: 0;
-		width: 100%;
-		justify-content: center;
-	}
-}
-
-/* =============================================================================
-   Focus Visible Enhancement
-   ============================================================================= */
-
-.dy-login__input:focus-visible,
-.dy-login__password-toggle:focus-visible,
-.dy-login__forgot:focus-visible,
-.dy-login__remember input:focus-visible + .dy-login__checkbox,
-.dy-login__register a:focus-visible,
-.dy-login__select:focus,
-.dy-login__method-btn:focus-visible,
-.dy-login__shortcuts-trigger:focus-visible {
-	outline: var(--dy-focus-width) solid var(--dy-focus-color);
-	outline-offset: var(--dy-focus-offset);
-}
-
-/* Fix: removed the comment-wedged rule that broke focus styles */
-
-/* =============================================================================
-   Authentication Methods
-   ============================================================================= */
-
-.dy-login__methods {
-	margin: var(--dy-space-3) 0;
-}
-
-.dy-login__methods-label {
-	display: block;
-	margin-bottom: var(--dy-space-3);
-	color: var(--dy-text-secondary);
-	font-size: 0.78rem;
-	font-weight: 700;
-	text-transform: uppercase;
-	letter-spacing: 0.05em;
-}
-
-.dy-login__methods-buttons {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-	gap: var(--dy-space-2);
-	margin-block-start: var(--dy-space-3);
-}
-
-.dy-login__method-btn {
-	display: inline-flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-	gap: var(--dy-space-1);
-
-	min-height: 56px;
-	padding: var(--dy-space-3) var(--dy-space-2);
-
-	border: 1px solid var(--dy-border);
-	border-radius: var(--dy-radius-lg);
-	background: var(--dy-surface);
-	color: var(--dy-text-secondary);
-	font: inherit;
-	font-size: 0.82rem;
-	font-weight: 600;
-	text-align: center;
-	line-height: 1.3;
-	cursor: pointer;
-
-	transition: all var(--dy-dur-fast) var(--dy-ease-standard);
-}
-
-.dy-login__method-btn:hover:not(:disabled) {
-	border-color: var(--dy-accent);
-	background: var(--dy-surface-hover);
-	color: var(--dy-accent);
-	transform: translateY(-2px);
-}
-
-.dy-login__method-btn:focus-visible {
-	outline: var(--dy-focus-width) solid var(--dy-focus-color);
-	outline-offset: 2px;
-}
-
-.dy-login__method-btn:disabled {
-	opacity: 0.5;
-	cursor: not-allowed;
-}
-
-.dy-login__method-btn--active {
-	border-color: var(--dy-accent);
-	background: rgb(var(--dy-brand-c-500) / 0.08);
-	color: var(--dy-accent);
-	box-shadow: 0 0 0 2px rgb(var(--dy-brand-c-500) / 0.12);
-}
-
-.dy-login__method-btn svg {
-	width: 18px;
-	height: 18px;
-	flex-shrink: 0;
-}
-
-.dy-login__alternatives {
-	margin-block-start: var(--dy-space-4);
-	border-block-start: 1px solid var(--dy-border-soft);
-}
-
-.dy-login__alternatives-summary {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	min-height: var(--dy-touch-min);
-	color: var(--dy-text-link);
-	font-size: 0.875rem;
-	font-weight: 600;
-	cursor: pointer;
-}
-
-.dy-login__alternatives-summary:focus-visible {
-	outline: var(--dy-focus-width) solid var(--dy-focus-color);
-	outline-offset: var(--dy-focus-offset);
-	border-radius: var(--dy-radius-sm);
-}
-
-.dy-login__alternatives[open] .dy-login__methods-buttons {
-	padding-block-end: var(--dy-space-2);
-}
-
-/* =============================================================================
-   Branch Selector
-   ============================================================================= */
-
-.dy-login__branch-selector {
-	margin-top: var(--dy-space-5);
-	padding-top: var(--dy-space-5);
-	border-top: 1px solid var(--dy-border-soft);
-}
-
-.dy-login__branch-selector .dy-login__label {
-	margin-bottom: var(--dy-space-2);
-}
-
-.dy-login__select-wrap {
-	position: relative;
-	display: flex;
-	align-items: center;
-}
-
-.dy-login__select-icon {
-	position: absolute;
-	inset-inline-start: 14px;
-	width: 20px;
-	height: 20px;
-	color: var(--dy-text-muted);
-	pointer-events: none;
-}
-
-.dy-login__select {
-	width: 100%;
-	min-height: var(--dy-control-h-xl);
-	padding: 0 44px 0 48px;
-	border: 1px solid var(--dy-input-border);
-	border-radius: var(--dy-radius-lg);
-	background: var(--dy-input-bg);
-	color: var(--dy-text);
-	font: inherit;
-	font-size: 1rem;
-	cursor: pointer;
-	appearance: none;
-	transition: border-color var(--dy-dur-fast) var(--dy-ease-standard),
-		box-shadow var(--dy-dur-fast) var(--dy-ease-standard);
-}
-
-.dy-login__select:focus {
-	outline: 0;
-	border-color: var(--dy-accent);
-	box-shadow: 0 0 0 4px rgb(var(--dy-brand-c-500) / 0.14);
-}
-
-.dy-login__select:disabled {
-	cursor: not-allowed;
-	opacity: var(--dy-disabled-opacity);
-}
-
-/* =============================================================================
-   Subscriber Code Display
-   ============================================================================= */
-
-.dy-login__subscriber-code {
-	display: inline-flex;
-	align-items: center;
-	gap: 8px;
-	margin-top: var(--dy-space-4);
-	padding: 8px 12px;
-	border: 1px solid var(--dy-border-soft);
-	border-radius: var(--dy-radius-md);
-	background: var(--dy-surface-soft);
-	color: var(--dy-text-secondary);
-	font-size: 0.78rem;
-	line-height: 1.5;
-}
-
-.dy-login__subscriber-label {
-	font-weight: 700;
-	color: var(--dy-text-muted);
-}
-
-.dy-login__subscriber-value {
-	font-family: var(--dy-font-mono);
-	font-size: 0.85rem;
-	font-weight: 600;
-	letter-spacing: 0.05em;
-	color: var(--dy-text-strong);
-}
-
-/* =============================================================================
-   Authentication Methods Responsive
-   ============================================================================= */
-
-@media (max-width: 560px) {
-	.dy-login__methods-buttons {
-		grid-template-columns: repeat(3, 1fr);
-		gap: var(--dy-space-2);
-	}
-
-	.dy-login__method-btn {
-		min-height: 72px;
-		padding: var(--dy-space-2) var(--dy-space-1);
-		font-size: 0.68rem;
-		gap: 4px;
-	}
-
-	.dy-login__method-btn svg {
-		width: 18px;
-		height: 18px;
-	}
-}
-
-@media (max-width: 480px) {
-	.dy-login__methods-buttons {
-		grid-template-columns: repeat(2, 1fr);
-	}
-}
-
-/* =============================================================================
-   Branch Selector Responsive
-   ============================================================================= */
-
-@media (max-width: 560px) {
-	.dy-login__branch-selector {
-		margin-top: var(--dy-space-4);
-		padding-top: var(--dy-space-4);
-	}
-
-	.dy-login__select {
-		min-height: 52px;
-		font-size: 1rem;
-	}
-}
-
-/* =============================================================================
-   Subscriber Code Responsive
-   ============================================================================= */
-
-@media (max-width: 560px) {
-	.dy-login__subscriber-code {
-		flex-wrap: wrap;
-		font-size: 0.72rem;
-	}
-
-	.dy-login__subscriber-value {
-		font-size: 0.8rem;
-	}
-}
-
-/* =============================================================================
-   PIN QUICK LOGIN
-   -----------------------------------------------------------------------------
-   The PIN path shipped with a complete, tested API and no markup at all. These
-   are its styles — same vocabulary as the rest of the page (no raw hex, no
-   magic z-index), so the new surface cannot look like a second design language.
-   ========================================================================== */
-
-.dy-login__input--pin {
-	font-family: var(--dy-font-mono);
-	font-size: 1.15rem;
-	letter-spacing: 0.4em;
-
-	/* The tracking also lands *after* the last digit, which pushes a centred
-	   PIN half a step off centre. This puts it back. */
-	text-indent: 0.4em;
-
-	text-align: center;
-}
-
-.dy-login__input-wrap--error {
-	border-color: var(--dy-danger);
-}
-
-.dy-login__input-wrap--error:focus-within {
-	border-color: var(--dy-danger);
-	box-shadow: 0 0 0 3px rgb(var(--dy-crimson-c-500) / 0.12);
-}
-
-/*
- * The setup panel is a dialog in the accessibility tree but is NOT a floating
- * layer: it belongs inline in the form flow, so it must not be trapped or
- * centered over the page. Inline placement is also what makes it survive a
- * phone keyboard opening — a fixed dialog would be clipped by the viewport.
- */
-.dy-login__pin-setup {
-	margin-top: var(--dy-space-5);
-	padding: var(--dy-space-5);
-
-	border: 1px solid var(--dy-border);
-	border-inline-start: 3px solid var(--dy-accent);
-
-	border-radius: var(--dy-radius-lg);
-
-	background: var(--dy-surface-hover);
-
-	animation: dy-pop-in var(--dy-dur-moderate) var(--dy-ease-emphasized);
-}
-
-.dy-login__pin-setup-title {
-	margin: 0 0 var(--dy-space-2);
-
-	color: var(--dy-text-strong);
-	font-size: 0.95rem;
-	font-weight: 800;
-}
-
-.dy-login__hint {
-	margin: 0;
-
-	color: var(--dy-text-muted);
-	font-size: 0.76rem;
-	line-height: 1.6;
-}
-
-/*
- * تلميح Caps Lock.
- *
- * لون `warning` لا لون الخطأ: القفلة ليست فشلًا، والرسالة تختفي بمجرد
- * إطفائها. `margin-block-start` وحده: الحقل يتبعه مباشرة، والهوامش
- * الأفقية (margin) تُفسد المحاذاة في الاتجاه المعاكس.
- */
-.dy-login__caps-hint {
-	display: inline-flex;
-	align-items: center;
-	gap: var(--dy-space-1);
-
-	margin-block-start: var(--dy-space-1);
-
-	color: var(--dy-warning, var(--dy-amber-600));
-	font-size: 0.76rem;
-	line-height: 1.6;
-}
-
-.dy-login__forgot:focus-visible,
-.dy-login__remember input:focus-visible + .dy-login__checkbox {
-	outline: 2px solid var(--dy-accent);
-	outline-offset: 2px;
-}
-
-.dy-login__remember:focus-visible {
-	border-radius: var(--dy-radius-sm);
-}
-
-/* =============================================================================
-   Simplified Status Indicator (replaces detailed status bar)
-   ============================================================================= */
-
-.dy-login__status-indicator {
-	grid-area: status;
-
-	display: flex;
-	align-items: center;
-	justify-content: center;
-
-	padding-block: 6px;
-	padding-inline: clamp(12px, 3vw, 24px);
-
-	background: var(--dy-surface);
-	border-top: 1px solid var(--dy-border-soft);
-	color: var(--dy-text);
-	font-size: 12px;
-}
-
-.dy-login__status-item {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-
-	font-weight: 600;
-}
-
-.dy-login__status-item--offline {
-	color: var(--dy-amber-700);
-}
-
-.dy-login__status-item--online {
-	color: var(--dy-mint-700);
-}
-
-@media (forced-colors: active) {
-	.dy-login__status-indicator {
-		border-color: CanvasText;
-		background: Canvas;
-	}
-
-	.dy-login__status-item--offline,
-	.dy-login__status-item--online {
-		color: CanvasText;
-	}
-}
-
-/* =============================================================================
-   Technical Panel Layout (panels rendered outside form)
-   ============================================================================= */
-
-.dy-login__technical-panel {
-	grid-area: workspace;
-	justify-self: center;
-	width: min(100%, 840px);
-	margin: 0 auto;
-	padding-inline: 16px;
-}
-
-@media (min-width: 1101px) {
-	.dy-login__technical-panel {
-		min-height: 0;
-		width: min(100%, 460px);
-	}
-}
-
-@media (max-width: 900px) {
-	.dy-login__technical-panel {
-		width: min(100%, 520px);
-		padding-inline: 16px;
-	}
-}
-
-/* =============================================================================
-   Technical Mode Toggle (in brand bar)
-   ============================================================================= */
-
-.dy-login__technical-toggle {
-	display: flex;
-	align-items: center;
-}
-
-.dy-login__prefs--compact .dy-login__technical-toggle {
-	margin-inline-start: auto;
-}
-
-
-/* Login information architecture: subscriber binding stays optional and compact. */
-.dy-login__optional { margin-inline-start: 6px; color: var(--dy-text-muted); font-size: .75rem; font-weight: 400; }
-.dy-login__field-help { display: block; margin-top: 5px; color: var(--dy-text-muted); font-size: .75rem; line-height: 1.5; }
-
-
-/* Progressive disclosure for subscriber scope: keep the default login path compact. */
-.dy-login__subscriber-options {
-	margin-block: 0.5rem 0.75rem;
-	border: 1px solid var(--dy-border, rgba(0,0,0,.1));
-	border-radius: 12px;
-	background: var(--dy-surface, #fff);
-}
-
-.dy-login__subscriber-options > summary {
-	cursor: pointer;
-	list-style: none;
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-	min-height: 44px;
-	padding: 0.65rem 0.8rem;
-	font-weight: 600;
-}
-
-.dy-login__subscriber-options > summary::-webkit-details-marker { display: none; }
-.dy-login__subscriber-options[open] > summary { border-bottom: 1px solid var(--dy-border, rgba(0,0,0,.1)); }
-
-
-/* =============================================================================
-   DyPOS Login v2 — compact operational shell
-   الهدف: لا مساحة ميتة، لا لوحة منبثقة، ومسار دخول واحد واضح.
-   ============================================================================= */
-
-.dy-login {
-	grid-template-columns: minmax(0, 1fr);
-	grid-template-rows: auto minmax(0, 1fr);
-	grid-template-areas:
-		"brand"
-		"panel";
-	align-content: start;
-	min-height: 100dvh;
-}
-
-.dy-login__brand {
-	grid-area: brand;
-	min-height: 64px;
-	padding-block: 8px;
-	padding-inline: clamp(14px, 3vw, 32px);
-}
-
-.dy-login__status-indicator {
-	position: absolute;
-	inset-block-start: 72px;
-	inset-inline-end: clamp(14px, 3vw, 32px);
-	z-index: 3;
-	display: inline-flex;
-	width: auto;
-	padding: 0;
-	border: 0;
-	background: transparent;
-	font-size: 11px;
-	pointer-events: none;
-}
-
-.dy-login__panel {
-	grid-area: panel;
-	width: min(100%, 620px);
-	margin-inline: auto;
-	padding-block: clamp(18px, 3vh, 34px) clamp(24px, 5vh, 52px);
-	padding-inline: clamp(14px, 3vw, 28px);
-}
-
-.dy-login__panel-inner {
-	width: 100%;
-	margin: 0;
-	padding: clamp(22px, 3vw, 34px);
-	border-radius: 20px;
-}
-
-.dy-login__header {
-	padding-block-end: 10px;
-}
-
-.dy-login__section-label {
-	margin-block-end: 5px;
-	padding: 4px 8px;
-}
-
-.dy-login__title {
-	margin-block: 0 3px;
-	font-size: clamp(1.55rem, 3vw, 2rem);
-}
-
-.dy-login__subtitle {
-	margin-block: 0 12px;
-	font-size: .86rem;
-	line-height: 1.55;
-}
-
-.dy-login__runtime {
-	margin-block: 8px 12px;
-}
-
-.dy-login__form {
-	display: grid;
-	gap: 10px;
-}
-
-.dy-login__field {
-	margin: 0;
-}
-
-.dy-login__label {
-	margin-block-end: 5px;
-	font-size: .82rem;
-}
-
-.dy-login__input-wrap {
-	min-height: 50px;
-}
-
-.dy-login__options {
-	margin-block: -2px 2px;
-}
-
-.dy-login__alternatives {
-	margin-block: 2px 0;
-}
-
-.dy-login__subscriber-options {
-	margin-block: 2px 0;
-}
-
-.dy-login__submit {
-	width: 100%;
-	min-height: 52px;
-	margin-block-start: 2px;
-}
-
-.dy-login__register {
-	margin-block: 10px 0;
-	font-size: .82rem;
-}
-
-.dy-login__status-item {
-	font-size: 11px;
-	padding: 3px 7px;
-	border: 1px solid var(--dy-border-soft);
-	border-radius: 999px;
-	background: color-mix(in srgb, var(--dy-surface) 92%, transparent);
-}
-
-@media (min-width: 1101px) {
-	.dy-login {
-		grid-template-columns: minmax(0, 1fr);
-		grid-template-rows: auto minmax(0, 1fr);
-		grid-template-areas:
-			"brand"
-			"panel";
-	}
-
-	.dy-login__panel {
-		padding-block: 34px 56px;
-	}
-
-	.dy-login__panel-inner {
-		width: min(100%, 620px);
-		margin-inline: auto;
-		padding: 34px 38px;
-	}
-}
-
-@media (max-width: 640px) {
-	.dy-login__brand {
-		min-height: 58px;
-		padding-block: 6px;
-	}
-
-	.dy-login__status-indicator {
-		inset-block-start: 62px;
-	}
-
-	.dy-login__panel {
-		width: 100%;
-		padding: 10px 10px 28px;
-	}
-
-	.dy-login__panel-inner {
-		padding: 20px 16px 22px;
-		border-radius: 16px;
-		box-shadow: 0 14px 36px -28px rgb(0 0 0 / .28);
-	}
-
-	.dy-login__title {
-		font-size: 1.5rem;
-	}
-
-	.dy-login__subtitle {
-		font-size: .8rem;
-		margin-block-end: 9px;
-	}
-
-	.dy-login__input,
-	.dy-login__submit {
-		min-height: 50px;
-	}
-}
-
-@media (max-height: 700px) and (min-width: 641px) {
-	.dy-login__brand {
-		min-height: 56px;
-		padding-block: 5px;
-	}
-
-	.dy-login__panel {
-		padding-block: 12px 24px;
-	}
-
-	.dy-login__panel-inner {
-		padding-block: 20px;
-	}
-}
-
-
-/* =============================================================================
-   DyPOS Login — cashier-speed interaction layer
-   ============================================================================= */
-
-.dy-login {
-	background:
-		radial-gradient(circle at 85% 8%, color-mix(in srgb, var(--dy-brand) 8%, transparent), transparent 28rem),
-		var(--dy-surface-soft);
-}
-
-.dy-login__brand {
-	border-bottom-color: color-mix(in srgb, var(--dy-brand) 14%, var(--dy-border-soft));
-	box-shadow: 0 1px 0 rgb(255 255 255 / .35);
-}
-
-.dy-login__panel-inner {
-	border-color: color-mix(in srgb, var(--dy-brand) 14%, var(--dy-border));
-	background: var(--dy-surface);
-	box-shadow:
-		0 24px 60px -38px rgb(0 0 0 / .30),
-		0 8px 24px -20px color-mix(in srgb, var(--dy-brand) 20%, transparent);
-}
-
-.dy-login__section-label {
-	background: color-mix(in srgb, var(--dy-brand) 9%, var(--dy-surface));
-	border-color: color-mix(in srgb, var(--dy-brand) 20%, var(--dy-border-soft));
-}
-
-.dy-login__input-wrap {
-	background: color-mix(in srgb, var(--dy-surface-soft) 42%, var(--dy-surface));
-	border-color: var(--dy-border);
-}
-
-.dy-login__input-wrap:focus-within {
-	border-color: var(--dy-brand);
-	box-shadow: 0 0 0 3px color-mix(in srgb, var(--dy-brand) 14%, transparent);
-	background: var(--dy-surface);
-}
-
-.dy-login__input {
-	font-size: 1rem;
-	font-weight: 560;
-}
-
-.dy-login__submit {
-	border-radius: var(--dy-radius-md);
-	box-shadow: 0 8px 18px -12px color-mix(in srgb, var(--dy-brand) 55%, transparent);
-	transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
-}
-
-.dy-login__submit:not(:disabled):hover {
-	transform: translateY(-1px);
-	box-shadow: 0 12px 24px -14px color-mix(in srgb, var(--dy-brand) 65%, transparent);
-	filter: brightness(1.02);
-}
-
-.dy-login__submit:not(:disabled):active {
-	transform: translateY(0);
-}
-
-.dy-login__alternatives,
-.dy-login__subscriber-options {
-	border-color: color-mix(in srgb, var(--dy-border) 90%, var(--dy-brand));
-	background: color-mix(in srgb, var(--dy-surface-soft) 34%, var(--dy-surface));
-}
-
-.dy-login__alternatives-summary {
-	color: var(--dy-text-strong);
-	cursor: pointer;
-	user-select: none;
-}
-
-.dy-login__alternatives-summary:hover {
-	background: color-mix(in srgb, var(--dy-brand) 5%, transparent);
-}
-
-.dy-login__field-help,
-.dy-login__optional,
-.dy-login__register,
-.dy-login__subtitle {
-	color: var(--dy-text-secondary);
-}
-
-.dy-login__shortcuts-trigger {
-	min-width: 38px;
-	min-height: 38px;
-	border-radius: 10px;
-}
-
-.dy-login__status-indicator {
-	inset-inline-end: clamp(12px, 2vw, 24px);
-}
-
-.dy-login__status-item--online {
-	color: var(--dy-success, var(--dy-brand));
-}
-
-.dy-login__status-item--offline {
-	color: var(--dy-warning, #a16207);
-}
-
-@media (max-width: 640px) {
-	.dy-login__panel {
-		padding-inline: 8px;
-	}
-
-	.dy-login__panel-inner {
-		border-inline: 0;
-	}
-
-	.dy-login__brand {
-		background: var(--dy-surface);
-	}
-
-	.dy-login__submit {
-		min-height: 54px;
-		font-size: 1rem;
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.dy-login__submit {
-		transition: none;
-	}
-
-	.dy-login__submit:not(:disabled):hover {
-		transform: none;
-	}
-}
-
-/* =============================================================================
-   DyPOS Login — focused enterprise POS shell
-   One visual decision: work first. Secondary capabilities stay quiet.
-   ============================================================================= */
-.dy-login {
-  min-height: 100dvh;
-  grid-template-columns: minmax(300px, 0.78fr) minmax(500px, 1.22fr);
-  grid-template-rows: 1fr;
-  grid-template-areas: "brand panel";
-  align-items: center;
-  padding: clamp(18px, 3vw, 42px);
-  gap: clamp(22px, 5vw, 72px);
-  background: var(--dy-surface-soft);
-}
-.dy-login__brand {
-  grid-area: brand;
-  min-height: min(680px, calc(100dvh - 84px));
-  padding: clamp(24px, 4vw, 56px);
-  border: 1px solid var(--dy-border-soft);
-  border-radius: 28px;
-  background: var(--dy-surface);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: space-between;
-  box-shadow: 0 24px 70px -52px rgb(0 0 0 / .38);
-}
-.dy-login__brand-logo { display: inline-flex; }
-.dy-login__logo-shell {
-  width: 64px;
-  height: 64px;
-  border-radius: 18px;
-  display: grid;
-  place-items: center;
-  background: var(--dy-surface-soft);
-  border: 1px solid var(--dy-border);
-}
-.dy-login__logo { width: 48px; height: 48px; object-fit: contain; }
-.dy-login__brand-copy { max-width: 430px; margin-block: auto; padding-block: 42px; }
-.dy-login__brand-kicker {
-  display: inline-block;
-  margin-bottom: 12px;
-  color: var(--dy-brand);
-  font-size: .78rem;
-  font-weight: 800;
-}
-.dy-login__brand-copy h2 {
-  margin: 0;
-  color: var(--dy-text-strong);
-  font-size: clamp(2rem, 4vw, 3.5rem);
-  line-height: 1.08;
-  letter-spacing: -.035em;
-}
-.dy-login__brand-copy p {
-  margin: 18px 0 0;
-  color: var(--dy-text-secondary);
-  font-size: clamp(.9rem, 1.3vw, 1.05rem);
-  line-height: 1.8;
-}
-.dy-login__brand-points {
-  display: grid;
-  gap: 10px;
-  margin-top: 26px;
-}
-.dy-login__brand-points span {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  color: var(--dy-text-secondary);
-  font-size: .8rem;
-  font-weight: 650;
-}
-.dy-login__brand-points svg { color: var(--dy-brand); }
-.dy-login__brand-company { margin-top: auto; }
-.dy-login__preferences { align-self: flex-end; }
-.dy-login__technical-toggle { align-self: flex-end; margin-top: 8px; }
-
-.dy-login__panel {
-  grid-area: panel;
-  width: min(100%, 600px);
-  justify-self: start;
-  padding: 0;
-}
-.dy-login__panel-inner {
-  padding: clamp(28px, 4vw, 46px);
-  border-radius: 24px;
-  border: 1px solid var(--dy-border);
-  background: var(--dy-surface);
-  box-shadow: 0 28px 80px -58px rgb(0 0 0 / .42);
-}
-.dy-login__header {
-  padding-block-end: 20px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-.dy-login__section-label { display: none; }
-.dy-login__title {
-  margin: 0;
-  font-size: clamp(1.7rem, 3vw, 2.35rem);
-  letter-spacing: -.025em;
-}
-.dy-login__subtitle { margin: 7px 0 0; max-width: 42ch; }
-.dy-login__runtime { margin-block: 0 14px; }
-.dy-login__form { gap: 13px; }
-.dy-login__input-wrap { min-height: 56px; border-radius: 14px; }
-.dy-login__input { font-size: 1rem; }
-.dy-login__options { margin-block: 0; }
-.dy-login__submit {
-  min-height: 58px;
-  margin-top: 5px;
-  border-radius: 14px;
-  font-size: 1rem;
-  font-weight: 800;
-}
-.dy-login__register {
-  margin: 18px 0 0;
-  padding-top: 16px;
-  border-top: 1px solid var(--dy-border-soft);
-}
-.dy-login__alternatives,
-.dy-login__subscriber-options { border-radius: 14px; }
-.dy-login__brand-company { opacity: .86; }
-
-@media (max-width: 900px) {
-  .dy-login {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto;
-    grid-template-areas: "brand" "panel";
-    align-items: stretch;
-    gap: 12px;
-    padding: 10px;
-  }
-  .dy-login__brand {
-    min-height: 0;
-    padding: 12px 14px;
-    border-radius: 18px;
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: 14px;
-  }
-  .dy-login__brand-copy { margin: 0; padding: 0; max-width: none; }
-  .dy-login__brand-copy h2 { font-size: 1rem; letter-spacing: 0; }
-  .dy-login__brand-copy p,
-  .dy-login__brand-points { display: none; }
-  .dy-login__brand-company { display: none; }
-  .dy-login__preferences, .dy-login__technical-toggle { align-self: center; margin: 0; }
-  .dy-login__panel { width: 100%; justify-self: stretch; }
-  .dy-login__panel-inner { padding: 22px 18px 24px; border-radius: 18px; }
-  .dy-login__status-indicator { inset-block-start: 12px; inset-inline-end: 12px; }
-}
-@media (max-width: 560px) {
-  .dy-login { padding: 0; gap: 0; }
-  .dy-login__brand { border-radius: 0; border-inline: 0; border-top: 0; grid-template-columns: auto 1fr auto; }
-  .dy-login__logo-shell { width: 48px; height: 48px; border-radius: 13px; }
-  .dy-login__logo { width: 38px; height: 38px; }
-  .dy-login__panel { padding: 0; }
-  .dy-login__panel-inner { border-inline: 0; border-radius: 0; box-shadow: none; padding: 22px 16px 28px; }
-  .dy-login__header { padding-bottom: 15px; }
-  .dy-login__shortcuts-hint { display: none; }
-  .dy-login__input-wrap { min-height: 54px; }
-}
-
-
-/* =============================================================================
-   DyPOS Login — operational hierarchy
-   Primary path stays visible; everything non-essential is progressive disclosure.
-   ============================================================================= */
-.dy-login__secondary,
-.dy-login__install-details {
-	margin-block-start: 10px;
-	border: 1px solid var(--dy-border-soft);
-	border-radius: 12px;
-	background: var(--dy-surface-soft);
-	overflow: clip;
-}
-
-.dy-login__secondary-summary {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	min-height: 42px;
-	padding: 8px 12px;
-	cursor: pointer;
-	list-style: none;
-	color: var(--dy-text-secondary);
-	font-size: .78rem;
-	font-weight: 700;
-	user-select: none;
-}
-
-.dy-login__secondary-summary::-webkit-details-marker { display: none; }
-.dy-login__secondary-summary::after {
-	content: "⌄";
-	margin-inline-start: auto;
-	font-size: 1rem;
-	transition: transform 120ms ease;
-}
-.dy-login__secondary[open] > .dy-login__secondary-summary::after,
-.dy-login__install-details[open] > .dy-login__secondary-summary::after {
-	transform: rotate(180deg);
-}
-.dy-login__secondary-summary:hover {
-	background: color-mix(in srgb, var(--dy-brand) 4%, transparent);
-	color: var(--dy-text-strong);
-}
-.dy-login__secondary-summary:focus-visible {
-	outline: 2px solid var(--dy-brand);
-	outline-offset: -2px;
-}
-.dy-login__secondary-content {
-	padding: 0 12px 12px;
-	border-top: 1px solid var(--dy-border-soft);
-}
-.dy-login__secondary-content > * { margin-block-start: 10px; }
-.dy-login__install-details {
-	width: min(100%, 600px);
-	margin-inline: auto;
-	margin-block-end: 12px;
-}
-
-@media (min-width: 901px) {
-	.dy-login__secondary,
-	.dy-login__install-details {
-		font-size: .8rem;
-	}
-}
-
-@media (max-width: 640px) {
-	.dy-login__secondary,
-	.dy-login__install-details {
-		border-radius: 10px;
-	}
-}
-
-
-/* =============================================================================
-   DyPOS Login — familiar task-first final surface
-   الهدف: شاشة دخول مألوفة، هادئة، مباشرة؛ لا تسويق ولا عناصر تنافس المهمة.
-   ============================================================================= */
-.dy-login {
-  grid-template-columns: 1fr;
-  grid-template-rows: auto 1fr;
-  grid-template-areas: "brand" "panel";
-  align-content: start;
-  align-items: start;
-  min-height: 100dvh;
-  padding: 0;
-  gap: 0;
-  background: var(--dy-surface-soft);
-}
-
-.dy-login__brand {
-  width: 100%;
-  min-height: 68px;
-  padding: 10px clamp(18px, 4vw, 48px);
-  border: 0;
-  border-bottom: 1px solid var(--dy-border-soft);
-  border-radius: 0;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  box-shadow: none;
-  background: var(--dy-surface);
+  outline: 2px solid var(--dy-brand);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
-.dy-login__brand-copy {
+.dy-login__command-strip {
+  min-width: 0;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
-  gap: 12px;
-  max-width: none;
-  margin: 0;
-  padding: 0;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
-.dy-login__brand-copy h2,
-.dy-login__brand-copy p,
-.dy-login__brand-points {
+.dy-login__command-strip::-webkit-scrollbar {
   display: none;
 }
 
-.dy-login__brand-kicker {
-  margin: 0;
+.dy-login__command-strip a {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 5px 9px;
+  border-radius: 7px;
   color: var(--dy-text-secondary);
-  font-size: .82rem;
-  font-weight: 650;
+  font-size: .73rem;
+  font-weight: 720;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 140ms ease, color 140ms ease;
 }
 
-.dy-login__logo-shell {
-  width: 46px;
-  height: 46px;
-  padding: 4px;
-  border-radius: 12px;
+.dy-login__command-strip a:hover,
+.dy-login__command-strip a.is-current {
+  color: var(--dy-text-strong);
   background: var(--dy-surface-soft);
 }
 
-.dy-login__logo {
-  width: 36px;
-  height: 36px;
+.dy-login__masthead-tools {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
 }
 
+.dy-login__preferences,
+.dy-login__technical-toggle {
+  flex: 0 0 auto;
+}
+
+/* ── Runtime status: exactly one strip ──────────────────────────────────── */
+
+.dy-login__status-bar {
+  flex: 0 0 28px;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 12px;
+  border-block-end: 1px solid var(--login-soft-line);
+  background: var(--dy-surface);
+  color: var(--dy-text-secondary);
+}
+
+.dy-login__status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  padding-inline: 6px;
+  font-size: .68rem;
+  font-weight: 720;
+  line-height: 1;
+}
+
+.dy-login__status-item--online {
+  color: var(--dy-success, #15803d);
+}
+
+.dy-login__status-item--offline {
+  color: var(--dy-warning, #a16207);
+}
+
+/* ── Authentication work surface ────────────────────────────────────────── */
+
 .dy-login__panel {
-  grid-area: panel;
-  width: min(100%, 500px);
-  justify-self: center;
-  padding: clamp(28px, 6vh, 64px) 18px 40px;
+  width: min(var(--login-max), calc(100% - (var(--login-gutter) * 2)));
+  margin-inline: auto;
+  padding-block: clamp(28px, 6vh, 64px) 34px;
 }
 
 .dy-login__panel-inner {
+  position: relative;
   width: 100%;
-  padding: clamp(26px, 4vw, 38px);
+  padding: clamp(24px, 4vw, 38px);
+  border: 1px solid var(--login-line);
   border-radius: 18px;
-  border: 1px solid var(--dy-border);
   background: var(--dy-surface);
-  box-shadow: 0 18px 50px -38px rgb(0 0 0 / .32);
+  box-shadow: 0 18px 48px -36px rgb(0 0 0 / .28);
 }
 
-.dy-login__header {
-  padding-block-end: 18px;
+.dy-login__progress {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 18px 18px 0 0;
+  background: color-mix(in srgb, var(--dy-brand) 10%, transparent);
+}
+
+.dy-login__progress-bar {
   display: block;
+  width: 42%;
+  height: 100%;
+  background: var(--dy-brand);
+  animation: dy-login-progress 1.15s ease-in-out infinite;
+}
+
+@keyframes dy-login-progress {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(340%); }
+}
+
+/* ── Context / identity ─────────────────────────────────────────────────── */
+
+.dy-login__context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block-end: 20px;
+  padding-block-end: 12px;
+  border-block-end: 1px solid var(--login-soft-line);
+}
+
+.dy-login__context-item {
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 5px 8px;
+  border: 1px solid var(--login-soft-line);
+  border-radius: 7px;
+  background: var(--dy-surface-soft);
+}
+
+.dy-login__context-label {
+  color: var(--dy-text-muted);
+  font-size: .66rem;
+  font-weight: 650;
+}
+
+.dy-login__context-item > :last-child {
+  min-width: 0;
+  color: var(--dy-text-strong);
+  font-size: .72rem;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+.dy-login__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-block-end: 18px;
+}
+
+.dy-login__section-label {
+  display: block;
+  margin-block-end: 6px;
+  color: var(--dy-brand);
+  font-size: .72rem;
+  font-weight: 800;
 }
 
 .dy-login__title {
-  max-width: none;
   margin: 0;
-  font-size: clamp(1.65rem, 3vw, 2rem);
-  line-height: 1.25;
-  letter-spacing: -.02em;
+  color: var(--dy-text-strong);
+  font-size: clamp(1.55rem, 3vw, 2rem);
+  font-weight: 820;
+  line-height: 1.2;
+  letter-spacing: -.025em;
 }
 
 .dy-login__subtitle {
-  margin-block-start: 6px;
-  max-width: none;
-  font-size: .86rem;
-  line-height: 1.6;
+  margin: 6px 0 0;
+  color: var(--dy-text-secondary);
+  font-size: .84rem;
+  line-height: 1.55;
 }
 
-.dy-login__runtime {
-  margin-block: 0 12px;
+.dy-login__shortcuts-trigger {
+  flex: 0 0 auto;
+  min-width: 38px;
+  min-height: 38px;
+  border: 1px solid var(--login-soft-line);
+  border-radius: 9px;
 }
+
+/* ── Runtime / errors ───────────────────────────────────────────────────── */
+
+.dy-login__runtime,
+.dy-login__backend-unavailable,
+.dy-login__rate-limit,
+.dy-login__error {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-block-end: 12px;
+  padding: 10px 11px;
+  border: 1px solid var(--login-soft-line);
+  border-radius: 10px;
+  background: var(--dy-surface-soft);
+  font-size: .76rem;
+}
+
+.dy-login__runtime-content,
+.dy-login__error-content,
+.dy-login__rate-limit-content,
+.dy-login__backend-unavailable-content {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: grid;
+  gap: 2px;
+  line-height: 1.45;
+}
+
+.dy-login__runtime-content strong {
+  color: var(--dy-text-strong);
+  font-weight: 760;
+}
+
+.dy-login__runtime-content span,
+.dy-login__error-content,
+.dy-login__rate-limit-content,
+.dy-login__backend-unavailable-content {
+  color: var(--dy-text-secondary);
+}
+
+.dy-login__runtime-icon,
+.dy-login__error-icon,
+.dy-login__rate-limit-icon,
+.dy-login__backend-unavailable-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--dy-brand);
+}
+
+.dy-login__runtime--success { border-color: color-mix(in srgb, var(--dy-success, #15803d) 20%, var(--dy-border)); }
+.dy-login__runtime--warning { border-color: color-mix(in srgb, var(--dy-warning, #a16207) 24%, var(--dy-border)); }
+.dy-login__runtime--error { border-color: color-mix(in srgb, var(--dy-danger, #b91c1c) 22%, var(--dy-border)); }
+
+.dy-login__runtime-action,
+.dy-login__backend-unavailable-action {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.dy-login__error-close {
+  flex: 0 0 auto;
+}
+
+/* ── Form ───────────────────────────────────────────────────────────────── */
 
 .dy-login__form {
-  gap: 12px;
+  display: grid;
+  gap: 13px;
+}
+
+.dy-login__field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dy-login__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .dy-login__label {
-  font-size: .8rem;
-  font-weight: 700;
+  color: var(--dy-text-strong);
+  font-size: .77rem;
+  font-weight: 740;
+}
+
+.dy-login__optional,
+.dy-login__strength {
+  color: var(--dy-text-muted);
+  font-size: .68rem;
+  font-weight: 650;
 }
 
 .dy-login__input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
   min-height: 52px;
-  border-radius: 12px;
+  border: 1px solid var(--login-line);
+  border-radius: 11px;
+  background: var(--dy-surface);
+  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+.dy-login__input-wrap:focus-within {
+  border-color: color-mix(in srgb, var(--dy-brand) 58%, var(--dy-border));
+  box-shadow: 0 0 0 3px var(--login-focus);
+  background: var(--dy-surface);
+}
+
+.dy-login__input-wrap--error {
+  border-color: var(--dy-danger, #b91c1c);
+}
+
+.dy-login__input-icon,
+.dy-login__select-icon {
+  flex: 0 0 auto;
+  color: var(--dy-text-muted);
+  pointer-events: none;
+}
+
+.dy-login__input-icon {
+  margin-inline: 13px 8px;
 }
 
 .dy-login__input {
-  font-size: 1rem;
+  min-width: 0;
+  width: 100%;
+  height: 50px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--dy-text-strong);
+  font: inherit;
+  font-size: .94rem;
+}
+
+.dy-login__input::placeholder {
+  color: var(--dy-text-muted);
+  opacity: .9;
+}
+
+.dy-login__password-toggle {
+  display: grid;
+  flex: 0 0 42px;
+  height: 42px;
+  place-items: center;
+  margin-inline-end: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dy-text-secondary);
+  cursor: pointer;
+}
+
+.dy-login__password-toggle:hover {
+  background: var(--dy-surface-soft);
+  color: var(--dy-text-strong);
+}
+
+.dy-login__field-error,
+.dy-login__caps-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: .7rem;
+  line-height: 1.35;
+}
+
+.dy-login__field-error {
+  color: var(--dy-danger, #b91c1c);
+}
+
+.dy-login__caps-hint {
+  color: var(--dy-warning, #a16207);
+}
+
+.dy-login__field-help {
+  color: var(--dy-text-muted);
+  font-size: .68rem;
+  line-height: 1.5;
+}
+
+.dy-login__hint {
+  color: var(--dy-text-muted);
+  font-size: .7rem;
 }
 
 .dy-login__options {
-  min-height: 40px;
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 34px;
+}
+
+.dy-login__remember {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--dy-text-secondary);
+  font-size: .74rem;
+  cursor: pointer;
+}
+
+.dy-login__remember input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dy-login__checkbox {
+  inline-size: 17px;
+  block-size: 17px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--login-line);
+  border-radius: 5px;
+  background: var(--dy-surface);
+}
+
+.dy-login__remember input:checked + .dy-login__checkbox {
+  border-color: var(--dy-brand);
+  background: var(--dy-brand);
+  box-shadow: inset 0 0 0 3px var(--dy-surface);
+}
+
+.dy-login__forgot {
+  color: var(--dy-brand);
+  font-size: .73rem;
+  font-weight: 720;
+  text-decoration: none;
 }
 
 .dy-login__submit {
+  width: 100%;
   min-height: 54px;
-  margin-top: 2px;
-  border-radius: 12px;
+  margin-block-start: 2px;
+  border-radius: 11px;
+  font-weight: 800;
   box-shadow: none;
 }
 
 .dy-login__submit:not(:disabled):hover {
   transform: none;
   box-shadow: none;
-  filter: none;
+}
+
+/* ── Progressive disclosure ────────────────────────────────────────────── */
+
+.dy-login__alternatives,
+.dy-login__subscriber-options,
+.dy-login__secondary,
+.dy-login__install-details {
+  margin-block-start: 9px;
+  border: 1px solid var(--login-soft-line);
+  border-radius: 10px;
+  background: var(--dy-surface-soft);
+  overflow: clip;
+}
+
+.dy-login__alternatives-summary,
+.dy-login__secondary-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 7px 11px;
+  color: var(--dy-text-secondary);
+  font-size: .73rem;
+  font-weight: 720;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.dy-login__alternatives-summary::-webkit-details-marker,
+.dy-login__secondary-summary::-webkit-details-marker {
+  display: none;
+}
+
+.dy-login__alternatives-summary::after,
+.dy-login__secondary-summary::after {
+  content: "⌄";
+  margin-inline-start: auto;
+  color: var(--dy-text-muted);
+  transition: transform 120ms ease;
+}
+
+.dy-login__alternatives[open] > .dy-login__alternatives-summary::after,
+.dy-login__subscriber-options[open] > .dy-login__alternatives-summary::after,
+.dy-login__secondary[open] > .dy-login__secondary-summary::after,
+.dy-login__install-details[open] > .dy-login__secondary-summary::after {
+  transform: rotate(180deg);
+}
+
+.dy-login__alternatives-summary:hover,
+.dy-login__secondary-summary:hover {
+  color: var(--dy-text-strong);
+  background: color-mix(in srgb, var(--dy-brand) 4%, transparent);
+}
+
+.dy-login__alternatives-summary:focus-visible,
+.dy-login__secondary-summary:focus-visible {
+  outline: 2px solid var(--dy-brand);
+  outline-offset: -2px;
+}
+
+.dy-login__methods-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  padding: 0 11px 11px;
+}
+
+.dy-login__method-btn {
+  min-height: 38px;
+  border: 1px solid var(--login-soft-line);
+  border-radius: 8px;
+}
+
+.dy-login__method-btn--active {
+  border-color: color-mix(in srgb, var(--dy-brand) 42%, var(--dy-border));
+  background: color-mix(in srgb, var(--dy-brand) 7%, var(--dy-surface));
+}
+
+.dy-login__secondary-content {
+  padding: 0 11px 11px;
+  border-block-start: 1px solid var(--login-soft-line);
+}
+
+.dy-login__secondary-content > * {
+  margin-block-start: 10px;
+}
+
+.dy-login__subscriber-options {
+  margin-block-start: 0;
+}
+
+.dy-login__subscriber-options .dy-login__field {
+  padding: 0 11px 11px;
+}
+
+.dy-login__subscriber-code {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 6px 9px;
+  border: 1px solid var(--login-soft-line);
+  border-radius: 8px;
+  background: var(--dy-surface-soft);
+  color: var(--dy-text-secondary);
+  font-size: .7rem;
+}
+
+.dy-login__subscriber-label {
+  color: var(--dy-text-muted);
+}
+
+.dy-login__subscriber-value {
+  color: var(--dy-text-strong);
+  font-weight: 800;
+  direction: ltr;
+  unicode-bidi: plaintext;
 }
 
 .dy-login__register {
-  margin-block-start: 16px;
+  margin: 16px 0 0;
   padding-block-start: 14px;
+  border-block-start: 1px solid var(--login-soft-line);
+  color: var(--dy-text-secondary);
+  font-size: .76rem;
+  text-align: center;
 }
 
-.dy-login__alternatives,
-.dy-login__subscriber-options {
-  border-radius: 12px;
+.dy-login__register a {
+  color: var(--dy-brand);
+  font-weight: 800;
+  text-decoration: none;
 }
 
-.dy-login__secondary,
-.dy-login__install-details {
+.dy-login__legal {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 14px;
+  margin-block-start: 9px;
+}
+
+.dy-login__legal a {
+  color: var(--dy-text-muted);
+  font-size: .66rem;
+  text-decoration: none;
+}
+
+/* ── Branch selection ──────────────────────────────────────────────────── */
+
+.dy-login__branch-selector {
+  display: grid;
+  gap: 6px;
+  margin-block-start: 1px;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--dy-brand) 20%, var(--dy-border-soft));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--dy-brand) 3%, var(--dy-surface));
+}
+
+.dy-login__select-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  border: 1px solid var(--login-line);
+  border-radius: 9px;
+  background: var(--dy-surface);
+}
+
+.dy-login__select-icon {
+  margin-inline: 12px 8px;
+}
+
+.dy-login__select {
+  min-width: 0;
   width: 100%;
-  max-width: 500px;
-  margin-inline: auto;
+  height: 46px;
+  padding-inline: 0 10px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--dy-text-strong);
+  font: inherit;
+  font-size: .84rem;
+}
+
+/* ── Security / metadata / technical surfaces ──────────────────────────── */
+
+.dy-login__security {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.dy-login__security-icon {
+  flex: 0 0 auto;
+}
+
+.dy-login__security-main {
+  min-width: 0;
+}
+
+.dy-login__technical-panel {
+  width: min(100% - (var(--login-gutter) * 2), 1100px);
+  margin: 0 auto 12px;
+}
+
+.dy-login__install-details {
+  width: min(var(--login-max), calc(100% - (var(--login-gutter) * 2)));
+  margin: 0 auto 28px;
 }
 
 .dy-login__quick-actions {
-  max-width: 500px;
+  width: min(var(--login-max), 100%);
   margin-inline: auto;
 }
 
-@media (max-width: 640px) {
+/* ── Legacy hooks retained only where the template/component contract needs them ─ */
+
+.dy-login__offline-banner,
+.dy-login__status-details {
+  display: none;
+}
+
+.dy-login__workspace,
+.dy-login__footer,
+.dy-login__details,
+.dy-login__details-toggle,
+.dy-login__methods,
+.dy-login__methods-label,
+.dy-login__pin-setup,
+.dy-login__pin-setup-title {
+  min-width: 0;
+}
+
+/* ── Responsive operating modes ────────────────────────────────────────── */
+
+@media (max-width: 760px) {
   .dy-login__brand {
-    min-height: 60px;
-    padding-inline: 12px;
+    flex-basis: 48px;
+    min-height: 48px;
+  }
+
+  .dy-login__command-strip a {
+    padding-inline: 8px;
+    font-size: .7rem;
+  }
+
+  .dy-login__technical-toggle {
+    display: none;
+  }
+
+  .dy-login__panel {
+    width: min(100%, 560px);
+    padding-block: 22px 28px;
+  }
+}
+
+@media (max-width: 560px) {
+  .dy-login {
+    --login-gutter: 10px;
+  }
+
+  .dy-login__brand {
+    flex-basis: 46px;
+    min-height: 46px;
+    padding-inline: 10px;
+    gap: 8px;
+  }
+
+  .dy-login__logo-shell {
+    width: 30px;
+    height: 30px;
+  }
+
+  .dy-login__logo {
+    width: 24px;
+    height: 24px;
+  }
+
+  .dy-login__preferences {
+    display: none;
+  }
+
+  .dy-login__status-bar {
+    min-height: 26px;
+    flex-basis: 26px;
   }
 
   .dy-login__panel {
     width: 100%;
-    padding: 22px 10px 30px;
+    padding-block: 14px 24px;
   }
 
   .dy-login__panel-inner {
-    padding: 22px 16px 24px;
+    padding: 21px 15px 23px;
     border-inline: 0;
-    border-radius: 14px;
+    border-radius: 13px;
     box-shadow: none;
+  }
+
+  .dy-login__header {
+    gap: 10px;
+    margin-block-end: 15px;
   }
 
   .dy-login__title {
     font-size: 1.5rem;
   }
+
+  .dy-login__subtitle {
+    font-size: .8rem;
+  }
+
+  .dy-login__methods-buttons {
+    grid-template-columns: 1fr;
+  }
+
+  .dy-login__options {
+    min-height: 36px;
+  }
 }
 
-@media (max-height: 700px) {
+@media (max-height: 700px) and (min-width: 561px) {
   .dy-login__panel {
-    padding-block: 18px 28px;
+    padding-block: 20px 24px;
   }
 
   .dy-login__panel-inner {
-    padding-block: 20px;
+    padding-block: 22px;
+  }
+
+  .dy-login__header {
+    margin-block-end: 13px;
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .dy-login__command-strip a,
+  .dy-login__input-wrap,
+  .dy-login__alternatives-summary::after,
+  .dy-login__secondary-summary::after {
+    transition: none;
+  }
 
-/* Legal navigation — quiet secondary layer, never competing with sign-in. */
-.dy-login__legal {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px 16px;
-  margin: 12px auto 0;
-  max-width: 500px;
-  font-size: .72rem;
+  .dy-login__progress-bar {
+    animation: none;
+    width: 100%;
+  }
 }
-.dy-login__legal a {
-  color: var(--dy-text-muted);
-  text-decoration: none;
-}
-.dy-login__legal a:hover {
-  color: var(--dy-accent);
-  text-decoration: underline;
-}
-
-/* ============================================================================
-   DyPOS Authentication Shell — Enterprise Command/Status Strip
-   Final hierarchy: Command strip → Status strip → Work surface → Tools.
-   This layer reorganizes existing capabilities; it does not remove them.
-   ============================================================================ */
-.dy-login{
-  --auth-strip-h:56px;
-  display:grid;
-  grid-template-columns:minmax(0,1fr);
-  grid-template-rows:auto auto minmax(0,1fr);
-  grid-template-areas:"brand" "status" "panel";
-  min-height:100dvh;
-  padding:0;
-  gap:0;
-  align-content:start;
-  background:
-    radial-gradient(900px 420px at 50% -180px,color-mix(in srgb,var(--dy-brand) 7%,transparent),transparent 70%),
-    var(--dy-surface-soft);
-}
-.dy-login__offline-banner{
-  grid-area:status;
-  order:0;
-  width:100%;
-  min-height:36px;
-  margin:0;
-  padding:7px 18px;
-  border:0;
-  border-bottom:1px solid color-mix(in srgb,var(--dy-warning,#a16207) 25%,var(--dy-border-soft));
-  border-radius:0;
-  justify-content:center;
-  font-size:.76rem;
-  font-weight:700;
-}
-.dy-login__brand{
-  grid-area:brand;
-  position:sticky;
-  top:0;
-  z-index:20;
-  min-height:58px;
-  width:100%;
-  padding:8px clamp(14px,3vw,34px);
-  border:0;
-  border-bottom:1px solid var(--dy-border);
-  border-radius:0;
-  background:color-mix(in srgb,var(--dy-surface) 94%,transparent);
-  backdrop-filter:blur(16px);
-  box-shadow:0 3px 18px -16px rgb(0 0 0 / .35);
-  display:flex;
-  align-items:center;
-  gap:14px;
-}
-.dy-login__brand-logo{flex:0 0 auto}
-.dy-login__logo-shell{
-  width:40px;height:40px;border-radius:10px;padding:3px;
-  background:var(--dy-surface-soft);border:1px solid var(--dy-border);
-}
-.dy-login__logo{width:32px;height:32px}
-.dy-login__brand-copy{
-  min-width:0;margin:0;padding:0;display:flex;align-items:center;gap:10px;
-}
-.dy-login__brand-copy h2,.dy-login__brand-copy p,.dy-login__brand-points{display:none}
-.dy-login__brand-kicker{
-  margin:0;white-space:nowrap;font-size:.78rem;font-weight:800;color:var(--dy-text-strong);
-}
-.dy-login__brand-company{display:none}
-.dy-login__preferences{margin-inline-start:auto;align-self:center}
-.dy-login__technical-toggle{align-self:center;margin:0}
-.dy-login__status-indicator{
-  position:absolute;
-  top:64px;
-  inset-inline-end:18px;
-  z-index:21;
-  width:auto;
-  padding:0;
-  border:0;
-  background:transparent;
-  pointer-events:none;
-}
-.dy-login__status-item{
-  display:inline-flex;align-items:center;gap:5px;
-  min-height:26px;padding:3px 9px;
-  border-radius:999px;
-  border:1px solid var(--dy-border-soft);
-  background:var(--dy-surface);
-  box-shadow:0 4px 14px -12px rgb(0 0 0 / .4);
-  font-size:.68rem;font-weight:800;
-}
-.dy-login__panel{
-  grid-area:panel;
-  width:min(100%,560px);
-  justify-self:center;
-  padding:clamp(24px,5vh,48px) 16px 44px;
-}
-.dy-login__panel-inner{
-  width:100%;
-  padding:clamp(24px,4vw,38px);
-  border:1px solid color-mix(in srgb,var(--dy-brand) 13%,var(--dy-border));
-  border-radius:18px;
-  background:var(--dy-surface);
-  box-shadow:0 24px 65px -50px rgb(0 0 0 / .42);
-}
-.dy-login__header{
-  display:flex;align-items:flex-start;justify-content:space-between;gap:14px;
-  padding-block-end:16px;
-}
-.dy-login__title{font-size:clamp(1.55rem,3vw,2rem);letter-spacing:-.02em}
-.dy-login__subtitle{margin-top:5px;font-size:.82rem}
-.dy-login__shortcuts-trigger{
-  flex:0 0 auto;
-  min-width:38px;min-height:38px;
-  border:1px solid var(--dy-border-soft);
-  border-radius:10px;
-}
-.dy-login__runtime{
-  margin:0 0 12px;
-  border:1px solid var(--dy-border-soft);
-  border-radius:11px;
-  min-height:42px;
-}
-.dy-login__form{gap:11px}
-.dy-login__input-wrap{min-height:52px;border-radius:11px}
-.dy-login__submit{min-height:54px;border-radius:11px;margin-top:2px;font-weight:800}
-.dy-login__alternatives,.dy-login__subscriber-options,
-.dy-login__secondary,.dy-login__install-details{
-  border-radius:11px;
-  border-color:var(--dy-border-soft);
-  background:color-mix(in srgb,var(--dy-surface-soft) 48%,var(--dy-surface));
-}
-.dy-login__secondary{margin-top:8px}
-.dy-login__secondary-summary{
-  min-height:40px;padding:7px 11px;font-size:.74rem;
-}
-.dy-login__secondary-content{padding:0 11px 11px}
-.dy-login__register{
-  margin:14px 0 0;padding-top:13px;
-  border-top:1px solid var(--dy-border-soft);
-  text-align:center;font-size:.8rem;
-}
-.dy-login__legal{margin-top:10px;font-size:.68rem}
-.dy-login__technical-panel{width:min(100%,1100px);margin:0 auto 12px}
-.dy-login__install-details{width:min(100%,560px);margin:0 auto 28px}
-.dy-login__install-details + .dy-notification-bar{margin-top:0}
-@media (max-width:640px){
-  .dy-login__brand{min-height:54px;padding:7px 10px;gap:9px}
-  .dy-login__brand-kicker{font-size:.7rem}
-  .dy-login__logo-shell{width:36px;height:36px}
-  .dy-login__logo{width:29px;height:29px}
-  .dy-login__panel{width:100%;padding:18px 8px 28px}
-  .dy-login__panel-inner{padding:20px 15px 22px;border-inline:0;border-radius:14px;box-shadow:none}
-  .dy-login__status-indicator{top:59px;inset-inline-end:8px}
-  .dy-login__status-item{min-height:23px;font-size:.62rem}
-  .dy-login__shortcuts-hint{display:none}
-}
-@media (prefers-reduced-motion:reduce){
-  .dy-login__brand{scroll-behavior:auto}
-}
-
-/* Functional command strip */
-.dy-login__command-strip{
-  display:flex;align-items:center;gap:3px;flex:0 1 auto;
-  margin-inline:8px 0;padding:3px;
-  border:1px solid var(--dy-border-soft);border-radius:9px;
-  background:var(--dy-surface-soft);
-  order:5;
-}
-.dy-login__command-strip a{
-  display:inline-flex;align-items:center;min-height:30px;
-  padding:4px 8px;border-radius:7px;
-  color:var(--dy-text-secondary);text-decoration:none;
-  font-size:.68rem;font-weight:750;white-space:nowrap;
-}
-.dy-login__command-strip a:hover,.dy-login__command-strip a.is-current{
-  color:var(--dy-text-strong);background:var(--dy-surface);
-}
-@media(max-width:760px){
- .dy-login__command-strip{display:none}
-}
-
-/* Final clean enterprise composition: one command row, one status row, one work card. */
-.dy-login__brand{flex-wrap:wrap}
-.dy-login__command-strip{
-  flex:1 0 100%;
-  width:100%;
-  margin:2px 0 0;
-  justify-content:flex-start;
-  border:0;
-  border-top:1px solid var(--dy-border-soft);
-  border-radius:0;
-  background:transparent;
-  padding:5px 0 0;
-}
-.dy-login__command-strip a{
-  min-height:28px;
-  padding-inline:10px;
-}
-.dy-login__command-strip a:first-child{margin-inline-start:0}
-.dy-login__status-indicator{
-  position:static;
-  grid-area:status;
-  width:100%;
-  min-height:32px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding:3px 12px;
-  pointer-events:none;
-  background:var(--dy-surface-soft);
-  border-bottom:1px solid var(--dy-border-soft);
-  box-shadow:none;
-}
-.dy-login__status-item{
-  border:0;
-  background:transparent;
-  box-shadow:none;
-  min-height:24px;
-}
-@media(max-width:760px){
- .dy-login__command-strip{
-   display:flex;
-   overflow-x:auto;
-   scrollbar-width:none;
-   justify-content:flex-start;
- }
- .dy-login__command-strip::-webkit-scrollbar{display:none}
-}
-
-/* Final authority: compact operating masthead. 52px desktop, 48px mobile. */
-.dy-login__brand{height:52px;min-height:52px;padding:0 20px;flex-wrap:nowrap;gap:10px}
-.dy-login__brand-copy,.dy-login__brand-company{display:none}
-.dy-login__logo-shell{width:32px;height:32px;border-radius:8px}
-.dy-login__logo{width:28px;height:28px}
-.dy-login__command-strip{order:2;flex:1 1 auto;width:auto;margin:0;padding:0;border:0;background:transparent;display:flex;align-items:center;gap:2px;overflow-x:auto;scrollbar-width:none}
-.dy-login__command-strip::-webkit-scrollbar{display:none}
-.dy-login__command-strip a{min-height:30px;padding:5px 9px;border-radius:7px;font-size:.74rem}
-.dy-login__preferences{margin-inline-start:auto}
-.dy-login__technical-toggle{margin-inline-start:3px}
-.dy-login__status-indicator{position:static;grid-area:status;width:100%;height:28px;min-height:28px;padding:0 10px;display:flex;align-items:center;justify-content:center;border:0;border-bottom:1px solid var(--dy-border-soft);background:var(--dy-surface-soft);box-shadow:none}
-.dy-login__status-item{min-height:22px;padding:0 6px;border:0;background:transparent;box-shadow:none;font-size:.68rem}
-.dy-login__panel{padding-block:20px}
-.dy-login__panel-inner{border-radius:16px;box-shadow:0 12px 34px -24px rgb(0 0 0 / .28)}
-@media(max-width:900px){.dy-login__brand{height:48px;min-height:48px;padding-inline:12px}.dy-login__preferences,.dy-login__technical-toggle{display:none}}
-@media(max-width:560px){.dy-login__brand{height:46px;min-height:46px}.dy-login__logo-shell{width:30px;height:30px}.dy-login__logo{width:26px;height:26px}.dy-login__panel{padding-block:12px}}
