@@ -2006,8 +2006,7 @@ function onBarcodeScan(code) {
 
                 <!-- Loading -->
 
-                <div
-                    <ProductGridSkeleton
+                <ProductGridSkeleton
                     v-if="loadingProducts"
                     :item-count="12"
                     :columns="4"
