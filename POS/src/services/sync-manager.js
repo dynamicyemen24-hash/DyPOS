@@ -9,7 +9,7 @@ import {
 	getLastSyncCheckpoint,
 } from "./sync-core.js"
 import { upsertQueueRow } from "./offline-store.js"
-import { getEffectiveToken } from "./sync-auth.js"
+import { getEffectiveToken, authState } from "./sync-auth.js"
 import db from "./db.js"
 import {
 	isRetryable,
@@ -180,7 +180,12 @@ export async function runSyncCycleSilently() {
 		syncState.isSyncing = false
 		syncState.lastSyncAt = new Date()
 
-		const queue = await db.syncQueue.where("status").equals("pending").count()
+		const queue = authState.tenantId
+			? await db.syncQueue
+					.where("[tenantId+status]")
+					.equals([String(authState.tenantId), "pending"])
+					.count()
+			: 0
 		syncState.pendingCount = queue
 
 		return result
@@ -214,6 +219,14 @@ export async function pushLocalChange(
 	operation,
 	payload,
 ) {
+	const tenantId = authState.tenantId || payload?._tenantId || payload?.tenantId || null
+	if (!tenantId) {
+		throw new Error("لا يمكن إضافة عملية للمزامنة قبل تثبيت هوية المشترك")
+	}
+	const scopedPayload = {
+		...payload,
+		_tenantId: String(tenantId),
+	}
 	// منع التكرار من المصدر عبر القاعدة الوحيدة في offline-store.js:
 	// الضغطة المزدوجة أو إعادة المحاولة بعد نجاح الحفظ المحلي تُحدِّث
 	// الصف المعلق بدل إنشاء فاتورة ثانية.
@@ -221,7 +234,8 @@ export async function pushLocalChange(
 		entityType,
 		entityId: String(entityId),
 		operation,
-		payload,
+		tenantId: String(tenantId),
+		payload: scopedPayload,
 	})
 	if (!updated) {
 		// زيادة عد التغييرات منذ الأخير
