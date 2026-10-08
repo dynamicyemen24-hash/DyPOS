@@ -21,13 +21,31 @@ describe("resilient application update notice", () => {
 
 	it("hydrates the interactive notice from the release feed when linked", async () => {
 		vi.stubGlobal("localStorage", {
-			getItem: vi.fn(() => "linked"),
+			getItem: vi.fn((key) =>
+				key === "DyPOS_link_consent" ? JSON.stringify({ mode: "linked" }) : null,
+			),
 			setItem: vi.fn(),
 			removeItem: vi.fn(),
 		})
-		vi.mock("@/services/link-consent", () => ({ isLinkEnabled: () => true }))
-		// The consent module is imported before the test mock can be applied in
-		// ESM, so this assertion is covered by the signal integration below.
+		fetch.mockResolvedValue({
+			ok: true,
+			json: async () => ({
+				release: {
+					version: "2.0.1",
+					title: "تحسينات الاستقرار",
+					severity: "recommended",
+					highlights: [{ title: "الكاش", benefit: "استرجاع أسرع" }],
+				},
+			}),
+		})
+		const updater = useAppUpdate()
+		const release = await updater.loadReleaseFeed("2.0.1")
+		expect(fetch).toHaveBeenCalledWith("/api/updates/latest", expect.objectContaining({ cache: "no-store" }))
+		expect(release).toMatchObject({
+			version: "2.0.1",
+			title: "تحسينات الاستقرار",
+			highlights: [{ title: "الكاش", benefit: "استرجاع أسرع" }],
+		})
 	})
 
 	it("never reports a concrete remote version as the bundled current version", async () => {
