@@ -28,13 +28,13 @@ jobs:
         with:
           node-version: 22
           check-latest: true
+          cache: npm
+          cache-dependency-path: POS/package-lock.json
 
       # npm ci لا yarn install: لا yarn.lock متتبَّع، فكان yarn يثبّت نسخًا
       # عائمة تختلف عن POS/package-lock.json في كل تشغيل.
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-        env:
-          npm_config_cache: ${{ runner.temp }}/.npm
 
       - name: Security Audit (npm audit)
         run: npm audit --audit-level=high --omit=dev
