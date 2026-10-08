@@ -179,14 +179,16 @@ try {
  */
 function applyEarlyApplicationState() {
 	try {
-		applyThemePreferences()
-	} catch (error) {
-		log.warn("Design preferences initialization failed", error)
-	}
-	try {
 		applyThemeEarly()
 	} catch (error) {
 		log.warn("Early theme initialization failed", error)
+	}
+	try {
+		// Central runtime preferences are applied last so legacy bootstrap
+		// cannot overwrite the user's persisted mode/accent/density/contrast.
+		applyThemePreferences()
+	} catch (error) {
+		log.warn("Design preferences initialization failed", error)
 	}
 
 	try {
