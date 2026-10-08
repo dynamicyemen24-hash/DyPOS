@@ -3504,3 +3504,160 @@
   color: var(--dy-accent);
   text-decoration: underline;
 }
+
+/* ============================================================================
+   DyPOS Authentication Shell — Enterprise Command/Status Strip
+   Final hierarchy: Command strip → Status strip → Work surface → Tools.
+   This layer reorganizes existing capabilities; it does not remove them.
+   ============================================================================ */
+.dy-login{
+  --auth-strip-h:56px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  grid-template-rows:auto auto minmax(0,1fr);
+  grid-template-areas:"brand" "status" "panel";
+  min-height:100dvh;
+  padding:0;
+  gap:0;
+  align-content:start;
+  background:
+    radial-gradient(900px 420px at 50% -180px,color-mix(in srgb,var(--dy-brand) 7%,transparent),transparent 70%),
+    var(--dy-surface-soft);
+}
+.dy-login__offline-banner{
+  grid-area:status;
+  order:0;
+  width:100%;
+  min-height:36px;
+  margin:0;
+  padding:7px 18px;
+  border:0;
+  border-bottom:1px solid color-mix(in srgb,var(--dy-warning,#a16207) 25%,var(--dy-border-soft));
+  border-radius:0;
+  justify-content:center;
+  font-size:.76rem;
+  font-weight:700;
+}
+.dy-login__brand{
+  grid-area:brand;
+  position:sticky;
+  top:0;
+  z-index:20;
+  min-height:58px;
+  width:100%;
+  padding:8px clamp(14px,3vw,34px);
+  border:0;
+  border-bottom:1px solid var(--dy-border);
+  border-radius:0;
+  background:color-mix(in srgb,var(--dy-surface) 94%,transparent);
+  backdrop-filter:blur(16px);
+  box-shadow:0 3px 18px -16px rgb(0 0 0 / .35);
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+.dy-login__brand-logo{flex:0 0 auto}
+.dy-login__logo-shell{
+  width:40px;height:40px;border-radius:10px;padding:3px;
+  background:var(--dy-surface-soft);border:1px solid var(--dy-border);
+}
+.dy-login__logo{width:32px;height:32px}
+.dy-login__brand-copy{
+  min-width:0;margin:0;padding:0;display:flex;align-items:center;gap:10px;
+}
+.dy-login__brand-copy h2,.dy-login__brand-copy p,.dy-login__brand-points{display:none}
+.dy-login__brand-kicker{
+  margin:0;white-space:nowrap;font-size:.78rem;font-weight:800;color:var(--dy-text-strong);
+}
+.dy-login__brand-company{display:none}
+.dy-login__preferences{margin-inline-start:auto;align-self:center}
+.dy-login__technical-toggle{align-self:center;margin:0}
+.dy-login__status-indicator{
+  position:absolute;
+  top:64px;
+  inset-inline-end:18px;
+  z-index:21;
+  width:auto;
+  padding:0;
+  border:0;
+  background:transparent;
+  pointer-events:none;
+}
+.dy-login__status-item{
+  display:inline-flex;align-items:center;gap:5px;
+  min-height:26px;padding:3px 9px;
+  border-radius:999px;
+  border:1px solid var(--dy-border-soft);
+  background:var(--dy-surface);
+  box-shadow:0 4px 14px -12px rgb(0 0 0 / .4);
+  font-size:.68rem;font-weight:800;
+}
+.dy-login__panel{
+  grid-area:panel;
+  width:min(100%,560px);
+  justify-self:center;
+  padding:clamp(24px,5vh,48px) 16px 44px;
+}
+.dy-login__panel-inner{
+  width:100%;
+  padding:clamp(24px,4vw,38px);
+  border:1px solid color-mix(in srgb,var(--dy-brand) 13%,var(--dy-border));
+  border-radius:18px;
+  background:var(--dy-surface);
+  box-shadow:0 24px 65px -50px rgb(0 0 0 / .42);
+}
+.dy-login__header{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:14px;
+  padding-block-end:16px;
+}
+.dy-login__title{font-size:clamp(1.55rem,3vw,2rem);letter-spacing:-.02em}
+.dy-login__subtitle{margin-top:5px;font-size:.82rem}
+.dy-login__shortcuts-trigger{
+  flex:0 0 auto;
+  min-width:38px;min-height:38px;
+  border:1px solid var(--dy-border-soft);
+  border-radius:10px;
+}
+.dy-login__runtime{
+  margin:0 0 12px;
+  border:1px solid var(--dy-border-soft);
+  border-radius:11px;
+  min-height:42px;
+}
+.dy-login__form{gap:11px}
+.dy-login__input-wrap{min-height:52px;border-radius:11px}
+.dy-login__submit{min-height:54px;border-radius:11px;margin-top:2px;font-weight:800}
+.dy-login__alternatives,.dy-login__subscriber-options,
+.dy-login__secondary,.dy-login__install-details{
+  border-radius:11px;
+  border-color:var(--dy-border-soft);
+  background:color-mix(in srgb,var(--dy-surface-soft) 48%,var(--dy-surface));
+}
+.dy-login__secondary{margin-top:8px}
+.dy-login__secondary-summary{
+  min-height:40px;padding:7px 11px;font-size:.74rem;
+}
+.dy-login__secondary-content{padding:0 11px 11px}
+.dy-login__register{
+  margin:14px 0 0;padding-top:13px;
+  border-top:1px solid var(--dy-border-soft);
+  text-align:center;font-size:.8rem;
+}
+.dy-login__legal{margin-top:10px;font-size:.68rem}
+.dy-login__technical-panel{width:min(100%,1100px);margin:0 auto 12px}
+.dy-login__install-details{width:min(100%,560px);margin:0 auto 28px}
+.dy-login__install-details + .dy-notification-bar{margin-top:0}
+@media (max-width:640px){
+  .dy-login__brand{min-height:54px;padding:7px 10px;gap:9px}
+  .dy-login__brand-kicker{font-size:.7rem}
+  .dy-login__logo-shell{width:36px;height:36px}
+  .dy-login__logo{width:29px;height:29px}
+  .dy-login__panel{width:100%;padding:18px 8px 28px}
+  .dy-login__panel-inner{padding:20px 15px 22px;border-inline:0;border-radius:14px;box-shadow:none}
+  .dy-login__status-indicator{top:59px;inset-inline-end:8px}
+  .dy-login__status-item{min-height:23px;font-size:.62rem}
+  .dy-login__shortcuts-hint{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  .dy-login__brand{scroll-behavior:auto}
+}
