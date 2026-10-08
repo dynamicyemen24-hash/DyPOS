@@ -21,6 +21,17 @@
   color: var(--dy-text);
   font-family: var(--dy-font-arabic);
   isolation: isolate;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dy-border) transparent;
+}
+
+.dy-login::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dy-login::-webkit-scrollbar-thumb {
+  background: var(--dy-border);
+  border-radius: 999px;
 }
 
 .dy-login[dir="ltr"] {
@@ -412,6 +423,8 @@
 }
 
 .dy-login__input-icon {
+  width: 20px;
+  height: 20px;
   margin-inline: 13px 8px;
 }
 
@@ -425,7 +438,7 @@
   background: transparent;
   color: var(--dy-text-strong);
   font: inherit;
-  font-size: .94rem;
+  font-size: 1rem;
 }
 
 .dy-login__input::placeholder {
