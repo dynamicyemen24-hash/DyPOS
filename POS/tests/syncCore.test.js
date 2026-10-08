@@ -128,6 +128,7 @@ describe("runSyncCycle", () => {
 		store.pendingOperations.mockResolvedValue([
 			{
 				id: 7,
+				tenantId: "t_1",
 				entityType: "invoice",
 				entityId: "INV-1",
 				operation: "create",
@@ -176,6 +177,7 @@ describe("runSyncCycle", () => {
 		store.pendingOperations.mockResolvedValue([
 			{
 				id: 9,
+				tenantId: "t_1",
 				entityType: "invoice",
 				entityId: "INV-9",
 				operation: "create",
