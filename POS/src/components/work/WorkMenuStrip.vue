@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, onMounted, onUnmounted, useId } from "vue"
-import { FeatherIcon } from "dypos-ui"
+import { ActionButton, FeatherIcon } from "dypos-ui"
 
 const props = defineProps({
   items: { type: Array, default: () => [] },
@@ -74,7 +74,7 @@ onUnmounted(() => window.removeEventListener("keydown", onGlobalShortcut))
     <div class="work-menu-strip__items" role="toolbar" :aria-label="label">
       <template v-for="item in visibleItems" :key="item.id">
         <span v-if="item.separator" class="work-menu-strip__separator" aria-hidden="true"></span>
-        <button v-else :id="`${idBase}-${item.id}`" data-menu-item="true" type="button"
+        <ActionButton v-else variant="ghost" :id="`${idBase}-${item.id}`" data-menu-item="true" type="button"
           class="work-menu-strip__item" :class="{ 'is-active': item.active }"
           :disabled="item.disabled" :aria-pressed="item.toggle ? !!item.active : undefined"
           :title="item.shortcut ? `${item.label} (${item.shortcut})` : item.label"
@@ -82,7 +82,7 @@ onUnmounted(() => window.removeEventListener("keydown", onGlobalShortcut))
           <FeatherIcon v-if="item.icon" :name="item.icon" class="work-menu-strip__icon" aria-hidden="true" />
           <span>{{ item.label }}</span>
           <kbd v-if="item.shortcut" class="work-menu-strip__shortcut">{{ item.shortcut }}</kbd>
-        </button>
+        </ActionButton>
       </template>
       <slot name="end" />
     </div>
