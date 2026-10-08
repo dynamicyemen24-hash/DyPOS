@@ -48,7 +48,6 @@ import printConfigsRoutes from './routes/printConfigs.js';
 import hardwareRoutes from './routes/hardware.js';
 import advancedRoutes from './routes/advanced.js';
 import integrationsRoutes from './routes/integrations.js';
-import enterpriseRoutes from './routes/enterprise.js';
 import updatesRoutes from './routes/updates.js';
 import expensesRoutes from './routes/expenses.js';
 import { resolveTechnicalDebtAndOptimize } from './lib/productionRelease.js';
@@ -506,7 +505,6 @@ app.use('/api/print-configs', printConfigsRoutes);
 app.use('/api/hardware', hardwareRoutes);
 app.use('/api/advanced', advancedRoutes);
 app.use('/api/integrations', authMiddleware, integrationsRoutes);
-app.use('/api/enterprise', enterpriseRoutes);
 app.use('/api/updates', updatesRoutes);
 app.use('/api/expenses', expensesRoutes);
 
