@@ -244,12 +244,15 @@ export class OfflineStore {
 		entityType,
 		entityId,
 		operation = "create",
+		tenantId = null,
 		queuePayload,
 		invoice,
 		payments = [],
 		commitItems = [],
 	}) {
 		const invoiceNo = String(invoice?.invoiceNo || entityId || "").trim()
+		const resolvedTenantId = tenantId ?? queuePayload?._tenantId ?? queuePayload?.tenantId ?? null
+		if (!resolvedTenantId) throw new Error("هوية المشترك مطلوبة للحفظ المحلي")
 		if (!invoiceNo) throw new Error("رقم الفاتورة مطلوب للحفظ المحلي")
 		const lines = Array.isArray(invoice?.items) ? invoice.items : []
 		if (lines.length === 0) throw new Error("لا يمكن حفظ بيع بلا أصناف")
@@ -277,15 +280,19 @@ export class OfflineStore {
 					(fn) => fn()
 		return runAtomic(async () => {
 			// الفوز الأول: فاتورة بهذا الرقم تعني إعادة تشغيل مكررة.
-			const existing = await database.invoices
+			const invoiceCandidates = await database.invoices
 				.where("invoiceNo")
 				.equals(invoiceNo)
-				.first()
+				.toArray()
+			const existing = invoiceCandidates.find(
+				(row) => String(row?.tenantId || "") === String(resolvedTenantId),
+			)
 			if (existing) {
 				const queued = await upsertQueueRow(database, {
 					entityType,
 					entityId: invoiceNo,
 					operation,
+					tenantId: resolvedTenantId,
 					payload: queuePayload,
 				})
 				return {
@@ -302,6 +309,7 @@ export class OfflineStore {
 			const balance = Number(invoice.balance ?? Math.max(0, total - paid))
 			const invoiceId = await database.invoices.add({
 				invoiceNo,
+				tenantId: String(resolvedTenantId),
 				customerId: invoice.customerId ?? null,
 				status: balance <= 0 ? "COMPLETED" : "OPEN",
 				items: lines.map((line) => ({
@@ -339,6 +347,7 @@ export class OfflineStore {
 				if (prior) continue
 				await database.payments.add({
 					invoiceId,
+					tenantId: String(resolvedTenantId),
 					method: String(payment?.method || "cash").slice(0, 20),
 					amount,
 					date: payment?.date || nowIso,
