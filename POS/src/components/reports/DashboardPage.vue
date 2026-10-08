@@ -13,7 +13,7 @@
         <template #center>
           <div class="home-toolbar">
             <div class="home-toolbar__brand" aria-label="DyPOS">
-              <div class="home-toolbar__logo"><img src="/assets/DyPOSLogo.png" alt="" /></div>
+              <div class="home-toolbar__logo"><img  :src="DyPOSLogo" alt="" /></div>
               <div>
                 <strong>DyPOS</strong>
                 <span>نظام نقاط البيع الذكي</span>
@@ -132,6 +132,7 @@
 
 <script setup>
 import { ref, computed, reactive, watch, onMounted } from "vue"
+import DyPOSLogo from "@/assets/DyPOSLogo.png"
 import { useRoute, useRouter } from "vue-router"
 import { ActionButton, FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
