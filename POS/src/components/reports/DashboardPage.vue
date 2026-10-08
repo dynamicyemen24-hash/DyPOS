@@ -101,9 +101,9 @@
             <div><span class="home-panel__eyebrow">المتابعة</span><h2>الوصول السريع</h2></div>
           </div>
           <div class="home-quick">
-            <button class="home-quick__item" type="button" @click="dashboardId = 'executive-dashboard'">
+            <ActionButton class="home-quick__item" type="button" @click="dashboardId = 'executive-dashboard'">
               <span><FeatherIcon name="bar-chart-2" :size="18" /></span><b>مؤشرات المتجر</b><small>الأداء اليومي</small>
-            </button>
+            </ActionButton>
             <router-link class="home-quick__item" :to="{ name: 'StockManagement' }">
               <span><FeatherIcon name="alert-triangle" :size="18" /></span><b>حالة المخزون</b><small>فحص الأصناف</small>
             </router-link>
