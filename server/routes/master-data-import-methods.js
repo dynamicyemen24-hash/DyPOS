@@ -97,16 +97,19 @@ function tenant(req,res) {
 }
 
 function validateRows(type, rows, tenantId) {
-  const errors=[], valid=[];
+  const errors=[];
+  const valid=[];
   const seen=new Set();
   for (const r of rows) {
     const line=r.__row;
     const key=type==='products' ? String(r.code||'').trim() : String(r.id||r.name||'').trim();
     if (!key) { errors.push({row:line,message:type==='products'?'كود الصنف مطلوب':'المعرّف أو الاسم مطلوب'}); continue; }
-    if (seen.has(key)) { errors.push({row:line,message:'تكرار داخل الملف: '+key}); continue; }
+    if (seen.has(key)) { errors.push({row:line,message:`تكرار داخل الملف: ${key}`}); continue; }
     seen.add(key);
     if (type==='products') {
-      const price=Number(r.unit_price||0), cost=Number(r.cost||0), tax=Number(r.tax_rate||0);
+      const price=Number(r.unit_price||0);
+      const cost=Number(r.cost||0);
+      const tax=Number(r.tax_rate||0);
       if (!Number.isFinite(price)||price<0) { errors.push({row:line,message:'سعر البيع غير صالح'}); continue; }
       if (!Number.isFinite(cost)||cost<0) { errors.push({row:line,message:'التكلفة غير صالحة'}); continue; }
       if (!Number.isFinite(tax)||tax<0||tax>100) { errors.push({row:line,message:'الضريبة يجب أن تكون بين 0 و100'}); continue; }
