@@ -153,6 +153,7 @@ function signInAs(role, email = "cashier@shop.test") {
 const SALE_DOC = () => ({
 	entityType: "invoice",
 	entityId: "POS-BR-T1-20260101-00001",
+	tenantId: "tenant-1",
 	operation: "create",
 	queuePayload: {
 		invoice_id: "POS-BR-T1-20260101-00001",
