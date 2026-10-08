@@ -61,6 +61,7 @@ import {
 } from "./services/runtime-endpoints"
 
 import { applyThemeEarly } from "./composables/useAppTheme"
+import { applyThemePreferences } from "@/styles/theme-manager"
 import { enforceDefaultArabic } from "./composables/useLocale"
 import { initDeviceAdaptation } from "./composables/useDevice"
 
@@ -177,6 +178,11 @@ try {
  * - Arabic is the default UI language
  */
 function applyEarlyApplicationState() {
+	try {
+		applyThemePreferences()
+	} catch (error) {
+		log.warn("Design preferences initialization failed", error)
+	}
 	try {
 		applyThemeEarly()
 	} catch (error) {
