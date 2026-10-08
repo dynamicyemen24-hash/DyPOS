@@ -71,12 +71,16 @@ function validationKeyFor(entityType) {
  */
 export async function upsertQueueRow(
 	dbLike,
-	{ entityType, entityId, operation, payload },
+	{ entityType, entityId, operation, payload, tenantId = null },
 ) {
+	const resolvedTenantId =
+		tenantId ?? payload?._tenantId ?? payload?.tenantId ?? null
 	const freshPayload = {
+
 		...payload,
 		_localRev: Date.now().toString(),
 		_localUpdatedAt: new Date().toISOString(),
+		...(resolvedTenantId ? { _tenantId: String(resolvedTenantId) } : {}),
 	}
 	const existing = await dbLike.syncQueue
 		.where("entityId")
@@ -100,6 +104,7 @@ export async function upsertQueueRow(
 		return { id: dup.id, updated: true }
 	}
 	const id = await dbLike.syncQueue.add({
+		tenantId: resolvedTenantId ? String(resolvedTenantId) : null,
 		entityType,
 		entityId: String(entityId),
 		operation,
@@ -346,6 +351,7 @@ export class OfflineStore {
 				entityType,
 				entityId: invoiceNo,
 				operation,
+				tenantId,
 				payload: queuePayload,
 			})
 
@@ -417,23 +423,26 @@ export class OfflineStore {
 	 * @param {string|null} [entityType] - Filter by entity type when provided.
 	 * @returns {Promise<Array<Object>>} Pending operations, insertion order.
 	 */
-	async pendingOperations(entityType = null) {
-		if (entityType) {
-			const rows = await this.db.syncQueue
-				.where("entityType")
-				.equals(entityType)
-				.toArray()
-			return rows.filter((row) => row.status === "pending")
-		}
-		return this.db.syncQueue.where("status").equals("pending").toArray()
+	async pendingOperations(entityType = null, tenantId = null) {
+		const rows = entityType
+			? await this.db.syncQueue.where("entityType").equals(entityType).toArray()
+			: await this.db.syncQueue.where("status").equals("pending").toArray()
+		const activeTenant = tenantId == null ? null : String(tenantId)
+		return rows.filter(
+			(row) =>
+				row.status === "pending" &&
+				activeTenant !== null &&
+				row.tenantId != null &&
+				String(row.tenantId) === activeTenant,
+		)
 	}
 
 	/**
 	 * @param {string|null} [entityType]
 	 * @returns {Promise<number>}
 	 */
-	async getQueueCount(entityType = null) {
-		const rows = await this.pendingOperations(entityType)
+	async getQueueCount(entityType = null, tenantId = null) {
+		const rows = await this.pendingOperations(entityType, tenantId)
 		return rows.length
 	}
 
