@@ -36,11 +36,12 @@ const DECORATIVE = [
 	"__shortcut",
 	"__search-clear",
 	"__connection-text",
+	"__technical-toggle",
+	"__preferences",
 	"__brand",
 	// The login workspace panel (company identity card) — decorative branding,
 	// not a control. The link inside is supplementary; the primary brand and
 	// form remain accessible.
-	"__workspace",
 	// Hairlines and connectors: the gap between icon buttons, the line between
 	// wizard step markers. Spacing, not controls.
 	"-divider",
