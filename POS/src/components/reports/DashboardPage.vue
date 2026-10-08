@@ -50,6 +50,10 @@
         </div>
       </section>
 
+      <router-link class="dashboard-shortcut dashboard-shortcut--action" :to="{ name: 'EnterpriseControlCenter' }" aria-label="فتح مركز القيادة المؤسسية">
+        <span class="dashboard-shortcut__icon dashboard-shortcut__icon--blue"><FeatherIcon name="activity" :size="17" aria-hidden="true" /></span>
+        <span><strong>مركز القيادة</strong><small>تشغيل حي، تكاملات، ذكاء وتحكم مؤسسي</small></span>
+      </router-link>
       <section class="dashboard-shortcuts" aria-label="اختصارات التشغيل والحالة">
         <button
           type="button"
@@ -216,6 +220,12 @@ const navItems = ref([
 		label: "المخزون",
 		to: { name: "StockManagement" },
 		icon: "package",
+	},
+	{
+		id: "enterprise",
+		label: "مركز القيادة",
+		to: { name: "EnterpriseControlCenter" },
+		icon: "activity",
 	},
 	{
 		id: "reports",
