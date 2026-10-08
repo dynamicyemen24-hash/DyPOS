@@ -105,21 +105,21 @@ describe("sync queue", () => {
 		const id = await store.enqueue("invoice", "INV-1", "create", { total: 10, _tenantId: "tenant-test" })
 		expect(id).toBeTruthy()
 
-		const pending = await store.pendingOperations()
+		const pending = await store.pendingOperations(null, "tenant-test")
 		expect(pending).toHaveLength(1)
 		expect(pending[0]).toMatchObject({
 			entityType: "invoice",
 			status: "pending",
 		})
-		expect(await store.getQueueCount()).toBe(1)
+		expect(await store.getQueueCount(null, "tenant-test")).toBe(1)
 	})
 
 	it("filters pending operations by entity type", async () => {
 		await store.enqueue("invoice", "INV-1", "create", { _tenantId: "tenant-test" })
 		await store.enqueue("customer", "C-1", "create", { _tenantId: "tenant-test" })
-		expect(await store.pendingOperations("invoice")).toHaveLength(1)
-		expect(await store.pendingOperations("customer")).toHaveLength(1)
-		expect(await store.getQueueCount("invoice")).toBe(1)
+		expect(await store.pendingOperations("invoice", "tenant-test")).toHaveLength(1)
+		expect(await store.pendingOperations("customer", "tenant-test")).toHaveLength(1)
+		expect(await store.getQueueCount("invoice", "tenant-test")).toBe(1)
 	})
 
 	it("marks rows synced / failed out of the pending set", async () => {
