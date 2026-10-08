@@ -1,8 +1,5 @@
 <template>
-	<div class="p-2 rounded hover:bg-gray-50 transition-colors">
-		<label :for="fieldId" class="block text-sm font-medium text-gray-900 mb-1">
-			{{ label }}
-		</label>
+	<FormField :label="label" :description="description" v-slot="{ fieldId, describedBy }">
 		<input
 			:id="fieldId"
 			type="number"
@@ -10,48 +7,24 @@
 			:min="min"
 			:max="max"
 			:step="step"
+			:aria-describedby="describedBy"
 			@input="$emit('update:modelValue', parseFloat($event.target.value) || 0)"
-			class="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 focus:border-transparent bg-white"
+			class="w-full min-h-11 px-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 focus:border-transparent bg-white"
 		/>
-		<p v-if="description" class="text-xs text-gray-500 mt-0.5 leading-tight">
-			{{ description }}
-		</p>
-	</div>
+	</FormField>
 </template>
 
 <script setup>
-import { computed } from "vue"
+import FormField from "@/components/ui/FormField.vue"
 
-const props = defineProps({
-	modelValue: {
-		type: Number,
-		default: 0,
-	},
-	label: {
-		type: String,
-		required: true,
-	},
-	description: {
-		type: String,
-		default: "",
-	},
-	min: {
-		type: Number,
-		default: undefined,
-	},
-	max: {
-		type: Number,
-		default: undefined,
-	},
-	step: {
-		type: Number,
-		default: 1,
-	},
+defineProps({
+	modelValue: { type: Number, default: 0 },
+	label: { type: String, required: true },
+	description: { type: String, default: "" },
+	min: { type: Number, default: undefined },
+	max: { type: Number, default: undefined },
+	step: { type: Number, default: 1 },
 })
 
 defineEmits(["update:modelValue"])
-
-const fieldId = computed(
-	() => `number-${Math.random().toString(36).substr(2, 9)}`,
-)
 </script>
