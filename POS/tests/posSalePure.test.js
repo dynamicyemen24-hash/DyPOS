@@ -60,7 +60,16 @@ describe("normalizeProduct", () => {
 			normalizeProduct({ item_code: "A1", item_name_ar: "قلم", rate: "5.5" }),
 		).toMatchObject({ id: "A1", code: "A1", name: "قلم", price: 5.5 })
 		expect(normalizeProduct({ name: "x", price: "nan" })).toMatchObject({
+			price: null,
+			priceMissing: true,
+		})
+		expect(normalizeProduct({ name: "x" })).toMatchObject({
+			price: null,
+			priceMissing: true,
+		})
+		expect(normalizeProduct({ name: "x", price: 0 })).toMatchObject({
 			price: 0,
+			priceMissing: false,
 		})
 	})
 	it("marks disabled strictly and defaults unit/stock", () => {
