@@ -26,6 +26,7 @@ import { migrateCatalogBaseUnits } from './migrations-catalog-base-units.js';
 import { migrateInvoiceTenantUniqueness } from './migrations-invoice-tenant-uniqueness.js';
 import { migrateOperationalOnboarding } from './migrations-operational-onboarding.js';
 import { migrateShiftTenantScope } from './migrations-shift-tenant-scope.js';
+import { migrateSyncIdempotencyScope } from './migrations-sync-idempotency-scope.js';
 
 /**
  * Ordered by version; `migrate()` applies every row above the recorded version
@@ -53,6 +54,7 @@ export const LATE_MIGRATIONS = Object.freeze([
 	},
 	{ version: 37, run: migrateOperationalOnboarding, note: 'POS operational onboarding profile + saved import templates' },
 	{ version: 38, run: migrateShiftTenantScope, note: 'POS shifts tenant isolation' },
+	{ version: 39, run: migrateSyncIdempotencyScope, note: 'sync idempotency tenant and branch isolation' },
 ]);
 
 export default LATE_MIGRATIONS;
