@@ -261,6 +261,16 @@ CREATE INDEX IF NOT EXISTS idx_sync_tenant ON sync_log(tenant_id, status, id);
 -- Rows written before v29 keep branch_id NULL and stay visible to every
 -- scope of their tenant (legacy passthrough, same rule as tenant_id).
 ALTER TABLE sync_log ADD COLUMN IF NOT EXISTS branch_id TEXT;
+
+-- v39: sync idempotency must be unique per tenant/branch and preserve legacy null scope.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_tenant_branch_idem
+  ON sync_log(tenant_id, branch_id, idempotency_key)
+  WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_null_scope_idem
+  ON sync_log(idempotency_key)
+  WHERE tenant_id IS NULL AND branch_id IS NULL
+    AND idempotency_key IS NOT NULL AND idempotency_key <> '';
+
 CREATE INDEX IF NOT EXISTS idx_sync_tenant_branch ON sync_log(tenant_id, branch_id, status, id);
 CREATE INDEX IF NOT EXISTS idx_sync_pull ON sync_log(status, id, entity_type);
 INSERT INTO schema_version (version, description) VALUES (29, 'sync_log branch scope (multi-branch pull + cursor)') ON CONFLICT DO NOTHING;
@@ -522,6 +532,37 @@ ALTER TABLE invoices ADD COLUMN IF NOT EXISTS tenant_id UUID;
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS branch_id UUID;
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS created_by TEXT;
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS updated_by TEXT;
+
+-- v40: branch-aware invoice uniqueness; match the SQLite partial unique indexes.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_branch_number
+  ON invoices(tenant_id, branch_id, number)
+  WHERE tenant_id IS NOT NULL AND branch_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_std_number
+  ON invoices(tenant_id, number)
+  WHERE tenant_id IS NOT NULL AND branch_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_null_branch_number
+  ON invoices(branch_id, number)
+  WHERE tenant_id IS NULL AND branch_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_null_scope_number
+  ON invoices(number)
+  WHERE tenant_id IS NULL AND branch_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_branch_idem
+  ON invoices(tenant_id, branch_id, idempotency_key)
+  WHERE tenant_id IS NOT NULL AND branch_id IS NOT NULL
+    AND idempotency_key IS NOT NULL AND idempotency_key <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_std_idem
+  ON invoices(tenant_id, idempotency_key)
+  WHERE tenant_id IS NOT NULL AND branch_id IS NULL
+    AND idempotency_key IS NOT NULL AND idempotency_key <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_null_branch_idem
+  ON invoices(branch_id, idempotency_key)
+  WHERE tenant_id IS NULL AND branch_id IS NOT NULL
+    AND idempotency_key IS NOT NULL AND idempotency_key <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_null_scope_idem
+  ON invoices(idempotency_key)
+  WHERE tenant_id IS NULL AND branch_id IS NULL
+    AND idempotency_key IS NOT NULL AND idempotency_key <> '';
+
 ALTER TABLE shifts ADD COLUMN IF NOT EXISTS tenant_id UUID;
 ALTER TABLE shifts ADD COLUMN IF NOT EXISTS branch_id UUID;
 ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS tenant_id UUID;
