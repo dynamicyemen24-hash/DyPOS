@@ -19,6 +19,7 @@ export { default as WorkDataGrid } from "./WorkDataGrid.vue"
 export { default as WorkPagination } from "./WorkPagination.vue"
 export { default as WorkChart } from "./WorkChart.vue"
 export { default as WorkFilters } from "./WorkFilters.vue"
+export { default as WorkQuickFilters } from "./WorkQuickFilters.vue"
 export { default as WorkFilterField } from "./WorkFilterField.vue"
 export { default as WorkSearch } from "./WorkSearch.vue"
 
