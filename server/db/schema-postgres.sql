@@ -134,7 +134,6 @@ CREATE TABLE IF NOT EXISTS invoices (
 -- which also numbers from 1 — fail with a constraint error.
 -- Idempotency key likewise: a cross-tenant collision could return one tenant's
 -- invoice to another's retry.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_idem ON invoices(tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
 CREATE INDEX IF NOT EXISTS idx_invoices_shift ON invoices(shift_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
 CREATE INDEX IF NOT EXISTS idx_invoices_created ON invoices(created_at);
@@ -4048,7 +4047,6 @@ COMMIT;
 --    tables by tenant/date. Do this only after measuring actual workload and
 --    query plans.
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_null_tenant_idem ON invoices(idempotency_key) WHERE tenant_id IS NULL AND idempotency_key IS NOT NULL AND idempotency_key <> '';
 
 -- ============================================================================
 -- v33 — QUEUE MANAGEMENT (نظام الطوابير)
