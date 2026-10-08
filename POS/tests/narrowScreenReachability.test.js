@@ -47,6 +47,9 @@ const DECORATIVE = [
 	// still reachable (the name beside it stays visible).
 	"__context-item",
 	"__brand-mark",
+	"__connection-text",
+	"__cashier > svg",
+	"work-data-grid__frozen",
 	"__forgot__brand",
 	"__reset__brand",
 	// The breadcrumb's compact modifier changes font size and padding rather
