@@ -240,6 +240,7 @@ const LOCALLY_BOUND = [
 	/^--sale-sidebar-width$/,
 	/^--scrollbar-thumb(-hover)?$/,
 	/^--table-columns$/,
+	/^--login-(gutter|line|soft-line|max|focus)$/,
 ]
 
 const isLocallyBound = (name) => LOCALLY_BOUND.some((re) => re.test(name))
