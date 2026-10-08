@@ -141,6 +141,22 @@ export const useSessionStore = defineStore("session", () => {
 
 	const workspaceReady = computed(() => workspaceReadiness.value.saleReady)
 
+	// Operational guidance is derived from authoritative readiness state.
+	// It gives the UI one deterministic next action instead of exposing a
+	// collection of competing setup prompts.
+	const nextOperationalStep = computed(() => {
+		const readiness = workspaceReadiness.value
+		if (!readiness.identity) return { code: "AUTHENTICATE", label: "تسجيل الدخول", priority: "critical" }
+		if (!readiness.tenant) return { code: "TENANT", label: "تأكيد المشترك", priority: "critical" }
+		if (!readiness.branch) return { code: "BRANCH", label: "اختيار أو تهيئة الفرع", priority: "high" }
+		if (!readiness.terminal) return { code: "TERMINAL", label: "تهيئة الطرفية", priority: "high" }
+		if (!readiness.profile) return { code: "POS_PROFILE", label: "تهيئة ملف نقطة البيع", priority: "high" }
+		if (!readiness.settings) return { code: "SETTINGS", label: "إكمال إعدادات نقطة البيع", priority: "high" }
+		if (!readiness.permissions) return { code: "PERMISSIONS", label: "تحميل الصلاحيات", priority: "high" }
+		if (!readiness.shift) return { code: "SHIFT", label: "فتح الوردية", priority: "required" }
+		return { code: "SELL", label: "بدء البيع", priority: "ready" }
+	})
+
 	const currentShift = computed(() => shiftState.value.pos_opening_shift)
 	const activeShift = currentShift
 	const shiftIsOpen = computed(() => shiftState.value.isOpen)
@@ -645,6 +661,7 @@ export const useSessionStore = defineStore("session", () => {
 		posProfile,
 		workspaceReady,
 		workspaceReadiness,
+		nextOperationalStep,
 
 		// Runtime lifecycle
 		isReady,
