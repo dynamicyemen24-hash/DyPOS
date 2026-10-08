@@ -50,7 +50,7 @@
         </div>
       </section>
       <section class="dashboard-shortcuts" aria-label="اختصارات التشغيل والحالة">
-        <button
+        <ActionButton
           type="button"
           class="dashboard-shortcut dashboard-shortcut--action"
           aria-label="فتح لوحة التنفيذيين ومؤشرات المتجر"
@@ -60,7 +60,7 @@
             <FeatherIcon name="bar-chart-2" :size="17" aria-hidden="true" />
           </span>
           <span><strong>مؤشرات المتجر</strong><small>افتح لوحة التنفيذيين لمراجعة الأداء</small></span>
-        </button>
+        </ActionButton>
         <div class="dashboard-shortcut" aria-label="البيع دون اتصال">
           <span class="dashboard-shortcut__icon dashboard-shortcut__icon--green">
             <FeatherIcon name="wifi-off" :size="17" aria-hidden="true" />
@@ -212,114 +212,22 @@ const navItems = computed(() => {
 		items.push({ id: "queue", label: "الطوابير", to: { name: "Queue" }, icon: "users" })
 	}
 	return items
-})emplate>
-  <WorkShell
-    :title="pageTitle"
-    :subtitle="pageSubtitle"
-    :nav-items="navItems"
-    :breadcrumbs="breadcrumbs"
-    :has-data="true"
-    @refresh="broadcastRefresh"
-  >
-    <template #toolbar>
-      <WorkToolbar>
-        <template #center>
-          <WorkTabs
-            v-model="dashboardId"
-            :tabs="dashboardTabs"
-            variant="pills"
-            :aria-label="'التقارير'"
-          />
-        </template>
-      </WorkToolbar>
+})
 
-      <WorkFilters
-        v-model="filterModel"
-        :fields="filterFields"
-        :auto-apply="true"
-        @apply="broadcastRefresh"
-        @reset="onFiltersReset"
-      />
-    </template>
+const broadcastRefresh = () => {
+  window.dispatchEvent(new CustomEvent("dypos:dashboard-refresh"))
+}
 
-    <div>
-      <section class="dashboard-welcome" aria-labelledby="dashboard-welcome-title">
-        <div class="dashboard-welcome__content">
-          <span class="dashboard-welcome__eyebrow">
-            <FeatherIcon name="sunrise" :size="15" aria-hidden="true" />
-            {{ todayLabel }}
-          </span>
-          <h2 id="dashboard-welcome-title">مرحبًا بك في مركز التشغيل</h2>
-          <p>تابع أداء متجرك واتخذ الخطوة التالية من مكان واحد.</p>
-        </div>
-        <div class="dashboard-welcome__actions">
-          <button type="button" class="dashboard-action dashboard-action--primary" @click="goToPOS">
-            <FeatherIcon name="shopping-cart" :size="17" aria-hidden="true" />
-            بدء بيع جديد
-          </button>
-          <button type="button" class="dashboard-action" @click="goToStockManagement">
-            <FeatherIcon name="package" :size="17" aria-hidden="true" />
-            فحص المخزون
-          </button>
-        </div>
-      </section>
-      <section class="dashboard-shortcuts" aria-label="اختصارات التشغيل والحالة">
-        <button
-          type="button"
-          class="dashboard-shortcut dashboard-shortcut--action"
-          aria-label="فتح لوحة التنفيذيين ومؤشرات المتجر"
-          @click="dashboardId = 'executive-dashboard'"
-        >
-          <span class="dashboard-shortcut__icon dashboard-shortcut__icon--blue">
-            <FeatherIcon name="bar-chart-2" :size="17" aria-hidden="true" />
-          </span>
-          <span><strong>مؤشرات المتجر</strong><small>افتح لوحة التنفيذيين لمراجعة الأداء</small></span>
-        </button>
-        <div class="dashboard-shortcut" aria-label="البيع دون اتصال">
-          <span class="dashboard-shortcut__icon dashboard-shortcut__icon--green">
-            <FeatherIcon name="wifi-off" :size="17" aria-hidden="true" />
-          </span>
-          <span><strong>البيع دون اتصال</strong><small>تُحفظ المبيعات محليًا؛ وتبدأ المزامنة عند الطلب</small></span>
-        </div>
-        <router-link
-          class="dashboard-shortcut dashboard-shortcut--action"
-          :to="{ name: 'WorkScreens', query: { screen: 'invoices' } }"
-          aria-label="فتح شاشة الفواتير"
-        >
-          <span class="dashboard-shortcut__icon dashboard-shortcut__icon--amber">
-            <FeatherIcon name="file-text" :size="17" aria-hidden="true" />
-          </span>
-          <span><strong>الفواتير</strong><small>راجع عمليات البيع وسجل الفواتير</small></span>
-        </router-link>
-      </section>
+const onFiltersReset = () => {
+  filterModel.from = period.from.value
+  filterModel.to = period.to.value
+  broadcastRefresh()
+}
 
-      <RecentInvoicesWidget :key="`recent-${period.refreshKey}`" />
-      <div
-        v-for="tab in dashboardTabs"
-        :key="tab.id"
-        v-show="visitedTabs.includes(tab.id)"
-      >
-        <Suspense>
-          <template #default>
-            <component
-              :is="tab.id === dashboardId ? tab.component : null"
-              :key="`${tab.id}-${period.refreshKey}`"
-            />
-          </template>
-          <template #fallback>
-            <div class="flex items-center justify-center py-20" role="status">
-              <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500" aria-hidden="true" />
-              <span class="sr-only">{{ t('loadingDashboard') }}</span>
-            </div>
-          </template>
-        </Suspense>
-      </div>
-    </div>
-  </WorkShell>
-</template>
-
+onMounted(() => {
+  broadcastRefresh()
+})
 </script>
-
 
 <style scoped>
 .dashboard-welcome {
