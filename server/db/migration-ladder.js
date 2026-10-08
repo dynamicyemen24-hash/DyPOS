@@ -28,6 +28,7 @@ import { migrateOperationalOnboarding } from './migrations-operational-onboardin
 import { migrateShiftTenantScope } from './migrations-shift-tenant-scope.js';
 import { migrateSyncIdempotencyScope } from './migrations-sync-idempotency-scope.js';
 import { migrateInvoiceBranchUniqueness } from './migrations-invoice-branch-uniqueness.js';
+import { migrateReferenceFoundation } from './migrations-reference-foundation.js';
 
 /**
  * Ordered by version; `migrate()` applies every row above the recorded version
@@ -57,6 +58,7 @@ export const LATE_MIGRATIONS = Object.freeze([
 	{ version: 38, run: migrateShiftTenantScope, note: 'POS shifts tenant isolation' },
 	{ version: 39, run: migrateSyncIdempotencyScope, note: 'sync idempotency tenant and branch isolation' },
 	{ version: 40, run: migrateInvoiceBranchUniqueness, note: 'invoice uniqueness aligned with branch-scoped numbering and idempotency' },
+	{ version: 41, run: migrateReferenceFoundation, note: 'comprehensive reference/master data foundation' },
 ]);
 
 export default LATE_MIGRATIONS;
