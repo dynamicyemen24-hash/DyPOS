@@ -21,6 +21,7 @@ describe("WorkQuickFilters", () => {
 		expect(wrapper.text()).toContain("5")
 		await buttons[1].trigger("click")
 		expect(wrapper.emitted("update:modelValue")?.[0]).toEqual(["Paid"])
+		await wrapper.setProps({ modelValue: "Paid" })
 		await buttons[1].trigger("click")
 		expect(wrapper.emitted("update:modelValue")?.[1]).toEqual([""])
 	})
