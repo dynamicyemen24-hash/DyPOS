@@ -176,6 +176,7 @@ describe("push priority — أولويات الدفع", () => {
 				return [
 					{
 						id: 1,
+					tenantId: "tenant-test",
 						entityType: "settings",
 						entityId: "theme",
 						operation: "update",
@@ -184,6 +185,7 @@ describe("push priority — أولويات الدفع", () => {
 					},
 					{
 						id: 2,
+					tenantId: "tenant-test",
 						entityType: "invoice",
 						entityId: "INV-2",
 						operation: "create",
@@ -192,6 +194,7 @@ describe("push priority — أولويات الدفع", () => {
 					},
 					{
 						id: 3,
+					tenantId: "tenant-test",
 						entityType: "invoice",
 						entityId: "INV-1",
 						operation: "create",
@@ -206,8 +209,8 @@ describe("push priority — أولويات الدفع", () => {
 		}
 
 		authState.tenantId = "tenant-test"
-	const result = await pushPendingChanges(protocol, store)
-	authState.tenantId = null
+		const result = await pushPendingChanges(protocol, store)
+		authState.tenantId = null
 
 		expect(result.pushed).toBe(3)
 		expect(pushedOrder).toEqual([
