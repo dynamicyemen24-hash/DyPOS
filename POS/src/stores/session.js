@@ -523,9 +523,16 @@ export const useSessionStore = defineStore("session", () => {
 			}
 		}
 
+		const activeTenantId =
+			posContext.tenantId || authState.tenantId || lowSession.user?.tenantId || null
+		if (!activeTenantId) {
+			throw new Error("لا يمكن حفظ البيع قبل تثبيت هوية المشترك")
+		}
+
 		const normalized = normalizeInvoiceForSync({
 			...payload,
 			invoice_id: invoiceId,
+			_tenantId: String(activeTenantId),
 		})
 
 		// حجز المخزون محليًا (يمنع البيع الزائد بين الطرفيات).
@@ -600,6 +607,7 @@ export const useSessionStore = defineStore("session", () => {
 				entityType: "invoice",
 				entityId: String(invoiceId),
 				operation: "create",
+				tenantId: activeTenantId,
 				queuePayload: normalized,
 				invoice: {
 					invoiceNo: String(invoiceId),
