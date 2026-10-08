@@ -15,6 +15,8 @@ describe("shared work surfaces", () => {
 		expect(shell).toContain('event.key === "Escape" && mobileNavOpen.value')
 		expect(shell).toContain('closeMobileNav({ restoreFocus: true })')
 		expect(shell).toContain('mobileToggleRef.value?.focus')
+		expect(shell).toContain('nav?.querySelectorAll')
+		expect(shell).toContain('event.shiftKey && document.activeElement === first')
 		expect(shell).toContain('document.body.style.overflow = previousBodyOverflow')
 	})
 
@@ -27,6 +29,8 @@ describe("shared work surfaces", () => {
 	it("provides restrained enterprise table hierarchy and visible keyboard focus", () => {
 		expect(grid).toContain('border-radius: 16px')
 		expect(grid).toContain('.work-data-grid__table thead')
+		expect(grid).toContain('.work-data-grid__row:hover .work-data-grid__td')
+		expect(grid).toContain('.work-data-grid__row--selected .work-data-grid__td')
 		expect(grid).toContain('focus-visible')
 		expect(grid).toContain('prefers-reduced-motion: reduce')
 	})
