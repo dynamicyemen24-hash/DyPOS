@@ -118,6 +118,7 @@ export async function create({
 	branchCode = "",
 	branchName = "",
 	posProfile = "",
+	allowUsername = false,
 } = {}) {
 	const cleanEmail = normalizeEmail(email)
 	const name = String(fullName || "").trim()
@@ -245,6 +246,7 @@ export async function upsertAuthenticatedUser(user, password) {
 		branchCode: patch.branchCode,
 		branchName: patch.branchName,
 		posProfile: patch.posProfile,
+		allowUsername: true,
 	})
 }
 
