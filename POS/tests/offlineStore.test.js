@@ -123,7 +123,7 @@ describe("sync queue", () => {
 	})
 
 	it("marks rows synced / failed out of the pending set", async () => {
-		const id = await store.enqueue("invoice", "INV-1", "create", {})
+		const id = await store.enqueue("invoice", "INV-1", "create", { _tenantId: "tenant-test" })
 		await store.markSynced(id, "REM-1")
 		expect(await store.pendingOperations()).toHaveLength(0)
 
