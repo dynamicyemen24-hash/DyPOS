@@ -127,17 +127,17 @@ export async function hydrateSubscriberLocalData({
 	}
 
 	try {
-		const paymentMethods = Array.isArray(bootstrapData?.payment_methods)
+		const bootstrapPaymentMethods = Array.isArray(bootstrapData?.payment_methods)
 			? bootstrapData.payment_methods
 			: []
-		if (paymentMethods.length) {
+		if (bootstrapPaymentMethods.length) {
 			await db.payment_methods.bulkPut(
-				paymentMethods.map((row) => ({
+				bootstrapPaymentMethods.map((row) => ({
 					...row,
 					pos_profile: row.pos_profile || bootstrapData?.pos_profile?.name || null,
 				})),
 			)
-			result.paymentMethods = paymentMethods.length
+			result.paymentMethods = bootstrapPaymentMethods.length
 		}
 
 		let warehouse =
