@@ -111,17 +111,17 @@ function validateRows(type, rows, tenantId) {
       if (!Number.isFinite(cost)||cost<0) { errors.push({row:line,message:'التكلفة غير صالحة'}); continue; }
       if (!Number.isFinite(tax)||tax<0||tax>100) { errors.push({row:line,message:'الضريبة يجب أن تكون بين 0 و100'}); continue; }
       const exists=db.prepare('SELECT id FROM products WHERE code=? AND tenant_id=?').get(key,tenantId);
-      if (exists) { errors.push({row:line,message:'كود الصنف موجود مسبقًا: '+key}); continue; }
+      if (exists) { errors.push({row:line,message:`كود الصنف موجود مسبقًا: ${key}`}); continue; }
     } else if (type==='customers') {
       if (String(r.name||'').trim().length<2) { errors.push({row:line,message:'اسم العميل مطلوب'}); continue; }
       if (r.credit_limit!=='' && (!Number.isFinite(Number(r.credit_limit)) || Number(r.credit_limit)<0)) { errors.push({row:line,message:'حد الائتمان غير صالح'}); continue; }
       if (r.id) {
         const exists=db.prepare('SELECT id FROM customers WHERE id=? AND tenant_id=?').get(String(r.id).trim(),tenantId);
-        if (exists) { errors.push({row:line,message:'معرّف العميل موجود مسبقًا: '+r.id}); continue; }
+        if (exists) { errors.push({row:line,message:`معرّف العميل موجود مسبقًا: ${r.id}`}); continue; }
       }
     } else {
       if (String(r.name||'').trim().length<2) { errors.push({row:line,message:'اسم المخزن مطلوب'}); continue; }
-      if (r.id && db.prepare('SELECT id FROM warehouses WHERE id=? AND tenant_id=?').get(String(r.id).trim(),tenantId)) { errors.push({row:line,message:'معرّف المخزن موجود مسبقًا: '+r.id}); continue; }
+      if (r.id && db.prepare('SELECT id FROM warehouses WHERE id=? AND tenant_id=?').get(String(r.id).trim(),tenantId)) { errors.push({row:line,message:`معرّف المخزن موجود مسبقًا: ${r.id}`}); continue; }
     }
     valid.push(r);
   }
@@ -222,8 +222,8 @@ export function registerMasterDataImportVerbs(def, requireUser) {
     const type=String(params.type||'products');
     const spec=TYPES[type];
     if(!spec) return res.status(400).json({message:'نوع البيانات غير مدعوم'});
-    const csv='\uFEFF'+spec.template+'\n';
-    return res.json({message:{type,filename:'dypos-'+type+'-template.csv',csv,columns:spec.columns}});
+    const csv=`\uFEFF${spec.template}\n`;
+    return res.json({message:{type,filename:`dypos-${type}-template.csv`,csv,columns:spec.columns}});
   });
 
   def('DyPOS.api.onboarding.import_master_data', (params, req, res) => {
