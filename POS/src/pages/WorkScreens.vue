@@ -230,14 +230,14 @@ onMounted(load)
 
 	font-size: 0.8rem;
 
-	color: var(--dy-text-muted, #64748b);
-	background: rgb(15 23 42 / 4%);
+	color: var(--dy-text-muted);
+	background: var(--dy-bg-sunken);
 
 	border-radius: 0.5rem;
 }
 
 .work-screens__source[data-source="unavailable"] {
-	color: #b45309;
-	background: rgb(217 119 6 / 10%);
+	color: var(--dy-warning);
+	background: var(--dy-warning-soft);
 }
 </style>
