@@ -924,6 +924,16 @@ async function confirmPayment() {
 	syncState.value = "syncing"
 
 	try {
+		const invalidPriceItem = cart.value.find((item) => {
+			const price = Number(item?.unitPrice)
+			return !Number.isFinite(price) || price < 0
+		})
+		if (invalidPriceItem) {
+			paymentError.value = "يوجد صنف بلا سعر بيع صالح. صحح بيانات الصنف قبل إتمام البيع."
+			showNotification(paymentError.value, "warning")
+			return
+		}
+
 		const payload = {
 			...buildSalePayload(),
 
