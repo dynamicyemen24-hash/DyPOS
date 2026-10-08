@@ -650,7 +650,6 @@
 .dy-register__checkbox-label:focus-visible {
 	border-radius: var(--dy-radius-sm);
 }
-`.dy-register__subscriber-code { display:grid; gap:6px; margin:0 0 16px; padding:12px; border:1px solid var(--dy-border); border-radius:10px; background:var(--dy-bg-elevated); } .dy-register__subscriber-code code { font-size:1.1rem; font-weight:800; letter-spacing:.08em; } .dy-register__subscriber-code small { color:var(--dy-text-muted); }\n
 /* ============================================================================
    DyPOS Subscriber Registration — Enterprise Wizard Shell
    Command strip → status strip → 3-stage work surface → legal/commit actions.
