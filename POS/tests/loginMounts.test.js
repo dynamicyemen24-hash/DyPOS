@@ -48,6 +48,9 @@ async function mountLogin() {
 			{ path: "/account/login", name: "Login", component: { template: "<div />" } },
 			{ path: "/account/register", name: "Register", component: { template: "<div />" } },
 			{ path: "/forgot-password", name: "ForgotPassword", component: { template: "<div />" } },
+			{ path: "/terms", name: "Terms", component: { template: "<div />" } },
+			{ path: "/privacy", name: "Privacy", component: { template: "<div />" } },
+			{ path: "/subscriber-agreement", name: "Agreement", component: { template: "<div />" } },
 		],
 	})
 
