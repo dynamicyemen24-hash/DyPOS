@@ -55,9 +55,12 @@ const TYPES = Object.freeze({
 function parseCsv(input) {
   const text = String(input || '').replace(/^\uFEFF/, '');
   const rows = [];
-  let row = [], cell = '', quoted = false;
-  for (let i=0; i<text.length; i++) {
-    const ch=text[i], next=text[i+1];
+  let row = [];
+  let cell = '';
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
     if (ch === '"') {
       if (quoted && next === '"') { cell += '"'; i++; }
       else quoted = !quoted;
@@ -75,16 +78,11 @@ function parseCsv(input) {
   if (!rows.length) return [];
   const headers = rows.shift().map(h=>String(h).trim().toLowerCase());
   return rows.map((values, idx) => {
-    const out={};
-    headers.forEach((h,i)=>{ if(h) out[h]=values[i] ?? ''; });
-    out.__row=idx+2;
+    const out = {};
+    headers.forEach((h, i) => { if (h) out[h] = values[i] ?? ''; });
+    out.__row = idx + 2;
     return out;
   });
-}
-
-function csvEscape(v) {
-  const s=String(v ?? '');
-  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
 }
 
 function ensureAdmin(req, res) {
@@ -144,7 +142,8 @@ function applyRows(type, rows, tenantId, userId) {
   return rows.length;
 }
 
-  def('DyPOS.api.onboarding.profile', (params, req, res) => {
+export function registerMasterDataImportVerbs(def, requireUser) {
+  def('DyPOS.api.onboarding.profile', (_params, req, res) => {
     if (!requireUser(req,res)) return;
     if (!ensureAdmin(req,res)) return;
     const tenantId=tenant(req,res); if(tenantId===null) return;
@@ -184,7 +183,7 @@ function applyRows(type, rows, tenantId, userId) {
     return res.json({message:{saved:true,country,establishmentType:type}});
   });
 
-  def('DyPOS.api.onboarding.templates', (params, req, res) => {
+  def('DyPOS.api.onboarding.templates', (_params, req, res) => {
     if (!requireUser(req,res)) return;
     if (!ensureAdmin(req,res)) return;
     const tenantId=tenant(req,res); if(tenantId===null) return;
@@ -217,7 +216,6 @@ function applyRows(type, rows, tenantId, userId) {
     return res.json({message:{deleted:true}});
   });
 
-export function registerMasterDataImportVerbs(def, requireUser) {
   def('DyPOS.api.onboarding.master_data_template', (params, req, res) => {
     if (!requireUser(req,res)) return;
     if (!['ADMIN','MANAGER'].includes(String(req.user.role||''))) return res.status(403).json({message:'صلاحية غير كافية'});
