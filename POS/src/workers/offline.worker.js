@@ -16,16 +16,12 @@
  *
  * @module workers/offline.worker
  */
-
 import { logger } from "../utils/logger"
 import { generateOfflineId } from "../utils/offline/uuid"
-
 const log = logger.create("OfflineWorker")
-
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
-
 const CONFIG = {
 	DB_NAME: "DyPOS_offline",
 	BATCH_SIZE: 500, // Optimal for IndexedDB performance
