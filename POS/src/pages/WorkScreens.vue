@@ -23,15 +23,18 @@
 				</template>
 			</WorkToolbar>
 
-			<!-- مصدر البيانات: قائمة فارغة ليست قياسًا (AGENTS.md invariant 9) -->
-			<p
+			<WorkScreenStatus
+				:count="rows.length"
+				:source="source"
+				:loading="loading"
+				:updated-at="lastLoaded"
+			/>
+			<InlineAlert
 				v-if="sourceNote"
-				class="work-screens__source"
-				role="status"
-				:data-source="source"
-			>
-				{{ sourceNote }}
-			</p>
+				:variant="source === 'unavailable' ? 'error' : 'warning'"
+				:title="source === 'unavailable' ? 'مصدر البيانات غير متاح' : 'عرض من النسخة المحلية'"
+				:message="sourceNote"
+			/>
 		</template>
 
 		<WorkDataGrid
@@ -72,12 +75,14 @@ import {
 	WorkShell,
 	WorkTabs,
 	WorkToolbar,
+	WorkScreenStatus,
 } from "@/components/work"
 import { flatWorkNav } from "@/components/work/workNav"
 import { WORK_SCREENS, workScreenById } from "@/data/workScreens"
 import { useIndustryProfileStore } from "@/stores/industryProfile"
 import { logger } from "@/utils/logger"
 import { sessionRole } from "@/data/session"
+import InlineAlert from "@/components/common/InlineAlert.vue"
 
 const log = logger.create("WorkScreens")
 const route = useRoute()
@@ -89,6 +94,7 @@ const rows = ref([])
 const loading = ref(false)
 const errorState = ref("")
 const source = ref("")
+const lastLoaded = ref(null)
 
 const screenId = computed(() => String(route.query.screen ?? "invoices"))
 const screen = computed(() => workScreenById(screenId.value))
@@ -195,12 +201,14 @@ async function load() {
 		const result = await screen.value.load(ROW_LIMIT)
 		rows.value = Array.isArray(result?.rows) ? result.rows : []
 		source.value = String(result?.source ?? "")
+		lastLoaded.value = new Date()
 		if (result?.error)
 			log.warn("work screen served from fallback", result.error)
 	} catch (error) {
 		// An empty grid would read as "no invoices exist" — say it failed instead.
 		rows.value = []
 		source.value = "unavailable"
+		lastLoaded.value = null
 		errorState.value =
 			error?.message || "تعذّر تحميل البيانات — تحقّق من الاتصال ثم أعد المحاولة"
 		log.error("work screen load failed", error)
@@ -227,15 +235,11 @@ onMounted(load)
 <style scoped>
 .work-screens__source {
 	padding: 0.5rem 0.75rem;
-
 	font-size: 0.8rem;
-
 	color: var(--dy-text-muted);
 	background: var(--dy-bg-sunken);
-
 	border-radius: 0.5rem;
 }
-
 .work-screens__source[data-source="unavailable"] {
 	color: var(--dy-warning);
 	background: var(--dy-warning-soft);
