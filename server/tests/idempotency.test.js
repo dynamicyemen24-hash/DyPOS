@@ -5,9 +5,9 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { extractKey, storedResponse, idempotency, resetIdempotencyForTests, newKey } from '../lib/idempotency.js';
 
-function mockReq(key, tenant = null) {
+function mockReq(key, tenant = null, branch = null) {
 	return {
-		headers: key ? { 'x-idempotency-key': key, ...(tenant ? { 'x-tenant-id': tenant } : {}) } : {},
+		headers: key ? { 'x-idempotency-key': key, ...(tenant ? { 'x-tenant-id': tenant } : {}), ...(branch ? { 'x-branch-id': branch } : {}) } : {},
 		body: {},
 	};
 }
@@ -72,6 +72,20 @@ describe('idempotency lib', () => {
 		const b = mockRes();
 		await idempotency(mockReq(key, 'tenant-a'), a, 'invoice:create', fn);
 		await idempotency(mockReq(key, 'tenant-b'), b, 'invoice:create', fn);
+		assert.equal(calls, 2);
+		assert.equal(a.sent.call, 1);
+		assert.equal(b.sent.call, 2);
+	});
+
+	it('same tenant key is isolated between branches', async () => {
+		resetIdempotencyForTests();
+		let calls = 0;
+		const fn = async () => ({ call: ++calls });
+		const key = newKey();
+		const a = mockRes();
+		const b = mockRes();
+		await idempotency(mockReq(key, 'tenant-a', 'branch-1'), a, 'invoice:create', fn);
+		await idempotency(mockReq(key, 'tenant-a', 'branch-2'), b, 'invoice:create', fn);
 		assert.equal(calls, 2);
 		assert.equal(a.sent.call, 1);
 		assert.equal(b.sent.call, 2);
