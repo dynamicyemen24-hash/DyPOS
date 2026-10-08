@@ -418,6 +418,7 @@ import {
 	onUnmounted,
 	shallowRef,
 	inject,
+	useId,
 } from "vue"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
@@ -525,7 +526,7 @@ const dragGhostY = ref(0)
 const draggingColumn = ref(null)
 const density = ref("comfortable")
 const densityOptions = ["compact", "comfortable", "spacious"]
-const densityId = `density-${Math.random().toString(36).slice(2)}`
+const densityId = `density-${useId()}`
 
 // Virtual scroll
 const viewportRef = ref(null)
