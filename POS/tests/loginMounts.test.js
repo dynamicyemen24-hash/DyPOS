@@ -75,7 +75,7 @@ describe("the login screen mounts", () => {
 		const wrapper = await mountLogin()
 		expect(wrapper.exists()).toBe(true)
 		expect(wrapper.find('input[type="password"]').exists()).toBe(true)
-		expect(wrapper.find('input[type="email"]').exists()).toBe(true)
+		expect(wrapper.find('input[name="username"]').exists()).toBe(true)
 		expect(wrapper.find(".dy-login__alternatives").exists()).toBe(true)
 		expect(
 			wrapper.find(".dy-login__alternatives").attributes("open"),
