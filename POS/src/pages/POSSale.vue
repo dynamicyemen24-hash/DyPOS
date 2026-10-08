@@ -2101,9 +2101,7 @@ function onBarcodeScan(code) {
                         :disabled="
                             product.disabled || product.priceMissing
                         "
-                        :aria-label="
-                            `${product.name}، ${product.priceMissing ? "السعر غير محدد" : formatMoney(product.price)}`
-                        "
+                        :aria-label='`${product.name}، ${product.priceMissing ? "السعر غير محدد" : formatMoney(product.price)}`'
                         @mouseenter="
                             activeProductIndex =
                                 index
