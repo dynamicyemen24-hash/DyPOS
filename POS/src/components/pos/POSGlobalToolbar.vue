@@ -32,7 +32,7 @@ defineProps({
   cartLabel: { type: String, default: "" },
   totalLabel: { type: String, default: "" },
 })
-defineEmits(["back", "home", "operations", "stock", "enterprise", "payment", "scan", "shortcuts", "sync"])
+defineEmits(["back", "home", "operations", "stock", "payment", "scan", "shortcuts", "sync"])
 </script>
 
 <style scoped>
