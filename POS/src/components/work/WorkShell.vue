@@ -322,7 +322,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted, watch } from "vue"
+import { ref, computed, nextTick as vueNextTick, onMounted, onUnmounted, watch } from "vue"
 import { useRouter, useRoute } from "vue-router"
 import { FeatherIcon } from "dypos-ui"
 import { useLocale } from "@/composables/useLocale"
@@ -424,7 +424,7 @@ function openMobileNav() {
 	mobileNavOpen.value = true
 	document.body.style.overflow = "hidden"
 	announce(t("navigationOpened"))
-	nextTick(() => {
+	vueNextTick(() => {
 		const firstLink = document.querySelector(".work-shell__nav-link")
 		firstLink?.focus()
 	})
@@ -470,7 +470,7 @@ watch(
 	() => route.fullPath,
 	() => {
 		closeMobileNav()
-		nextTick(() => mainRef.value?.focus({ preventScroll: true }))
+		vueNextTick(() => mainRef.value?.focus({ preventScroll: true }))
 	},
 )
 
