@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { authState } from "@/services/sync-auth"
 
 vi.mock("@/utils/logger", () => ({
 	logger: {
