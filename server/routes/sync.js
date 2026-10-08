@@ -121,8 +121,10 @@ router.post('/push', (req, res) => {
 				idemKey = ch.idempotencyKey != null ? String(ch.idempotencyKey).trim().slice(0, 128) : '';
 				if (idemKey) {
 					const prior = db
-						.prepare("SELECT id FROM sync_log WHERE idempotency_key=? AND status='SYNCED' LIMIT 1")
-						.get(idemKey);
+						.prepare(
+							"SELECT id FROM sync_log WHERE idempotency_key=? AND status='SYNCED' AND tenant_id IS ? AND branch_id IS ? LIMIT 1",
+						)
+						.get(idemKey, pushTenant ?? null, pushBranch ?? null);
 					if (prior) {
 						results.push({ id: ch.id, status: 'SYNCED', deduped: true });
 						try {
@@ -192,7 +194,7 @@ router.post('/push', (req, res) => {
 				// A lost ACK racing a retry can hit the UNIQUE key on UPDATE even
 				// though the pre-check passed — that is a successful dedupe, not a
 				// failure. Never report FAILED for an idempotent replay.
-				if (idemKey && /idempotency_key|idx_sync_idem/i.test(msg)) {
+				if (idemKey && /idempotency_key|idx_sync_(idem|tenant_branch_idem)/i.test(msg)) {
 					results.push({ id: ch.id, status: 'SYNCED', deduped: true });
 					try {
 						syncCounter.labels('in', 'ok').inc();
