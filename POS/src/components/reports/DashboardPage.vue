@@ -42,11 +42,11 @@
           <ActionButton type="button" class="dashboard-action dashboard-action--primary" @click="goToPOS">
             <FeatherIcon name="shopping-cart" :size="17" aria-hidden="true" />
             بدء بيع جديد
-          </button>
+          </ActionButton>
           <ActionButton type="button" class="dashboard-action" @click="goToStockManagement">
             <FeatherIcon name="package" :size="17" aria-hidden="true" />
             فحص المخزون
-          </button>
+          </ActionButton>
         </div>
       </section>
       <section class="dashboard-shortcuts" aria-label="اختصارات التشغيل والحالة">
