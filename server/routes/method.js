@@ -1007,11 +1007,11 @@ def('DyPOS.api.bootstrap.get_initial_data', (params, req, res) => {
 	let shift = null;
 	try {
 		const shiftSql = terminalId
-			? 'SELECT * FROM shifts WHERE terminal_id=? AND status=\'OPEN\' ORDER BY opened_at DESC LIMIT 1'
-			: 'SELECT * FROM shifts WHERE opened_by=? AND status=\'OPEN\' ORDER BY opened_at DESC LIMIT 1';
+			? 'SELECT * FROM shifts WHERE tenant_id=? AND terminal_id=? AND status=\'OPEN\' ORDER BY opened_at DESC LIMIT 1'
+			: 'SELECT * FROM shifts WHERE tenant_id=? AND opened_by=? AND status=\'OPEN\' ORDER BY opened_at DESC LIMIT 1';
 		shift = terminalId
-			? db.prepare(shiftSql).get(terminalId) || null
-			: db.prepare(shiftSql).get(req.user.fullName || req.user.username) || null;
+			? db.prepare(shiftSql).get(tenantId, terminalId) || null
+			: db.prepare(shiftSql).get(tenantId, req.user.fullName || req.user.username) || null;
 	} catch {
 		shift = null;
 	}
@@ -1519,7 +1519,7 @@ def('DyPOS.api.pos_profile.get_pos_profile_data', (_p, req, res) => {
 	const settings = allSettings();
 	let warehouses = [];
 	try {
-		warehouses = db.prepare('SELECT * FROM warehouses').all();
+		warehouses = db.prepare('SELECT * FROM warehouses WHERE tenant_id=? AND is_active=1 ORDER BY name').all(resolveTenantFilter(req).tenantId);
 	} catch {
 		/* ignore */
 	}
@@ -1609,20 +1609,24 @@ def('DyPOS.api.shifts.get_opening_dialog_data', (_p, req, res) => {
 			warehouses,
 			payment_methods: paymentMethods,
 			currencies: [{ code: getSetting('currency', 'SAR') }],
-			open_shifts: db.prepare(`SELECT * FROM shifts WHERE status='OPEN'`).all(),
+			open_shifts: db.prepare(`SELECT * FROM shifts WHERE tenant_id=? AND status='OPEN' ORDER BY opened_at DESC`).all(resolveTenantFilter(req).tenantId),
 		},
 	});
 });
 
 def('DyPOS.api.shifts.create_opening_shift', (params, req, res) => {
 	if (!requireUser(req, res)) return;
-	const terminalId = String(params.terminal_id || params.terminalId || 'POS-01').slice(0, 32);
+	const tenantId = resolveTenantFilter(req).tenantId;
+	if (!tenantId) return methodError(res, 403, 'PermissionError', 'لا يوجد مشترك مرتبط بالمستخدم');
+		const terminalId = String(params.terminal_id || params.terminalId || params.pos_profile || '').trim().slice(0, 64);
+		if (!terminalId) return methodError(res, 422, 'ValidationError', 'معرّف الطرفية مطلوب');
 	const openingCash = Number(params.opening_cash || params.openingCash) || 0;
-	const existing = db.prepare('SELECT id FROM shifts WHERE terminal_id=? AND status=?').get(terminalId, 'OPEN');
+	const existing = db.prepare('SELECT id FROM shifts WHERE tenant_id=? AND terminal_id=? AND status=?').get(tenantId, terminalId, 'OPEN');
 	if (existing) return methodError(res, 409, 'ValidationError', 'يوجد وردية مفتوحة بالفعل');
 	const id = crypto.randomUUID();
-	db.prepare('INSERT INTO shifts (id,terminal_id,opened_by,opening_cash,status) VALUES (?,?,?,?,?)').run(
+	db.prepare('INSERT INTO shifts (id,tenant_id,terminal_id,opened_by,opening_cash,status) VALUES (?,?,?,?,?,?)').run(
 		id,
+		tenantId,
 		terminalId,
 		req.user.fullName || req.user.username,
 		openingCash,
@@ -2884,21 +2888,21 @@ def('DyPOS.api.partial_payments.add_payment_to_partial_invoice', (params, req, r
 def('DyPOS.api.shifts.check_opening_shift', (params, req, res) => {
 	if (!requireUser(req, res)) return;
 	try {
+		const tenantId = resolveTenantFilter(req).tenantId;
+		if (!tenantId) return methodError(res, 403, 'PermissionError', 'لا يوجد مشترك مرتبط بالمستخدم');
 		const terminal = String(params.terminal_id || params.terminalId || params.pos_profile || '')
 			.trim()
-			.slice(0, 32);
-		const row = terminal
-			? db.prepare("SELECT * FROM shifts WHERE terminal_id=? AND status='OPEN' LIMIT 1").get(terminal) ||
-				db.prepare("SELECT * FROM shifts WHERE status='OPEN' ORDER BY opened_at DESC LIMIT 1").get()
-			: db.prepare("SELECT * FROM shifts WHERE status='OPEN' ORDER BY opened_at DESC LIMIT 1").get();
+			.slice(0, 64);
+		if (!terminal) return res.json({ message: null });
+		const row = db.prepare("SELECT * FROM shifts WHERE tenant_id=? AND terminal_id=? AND status='OPEN' LIMIT 1").get(tenantId, terminal);
 		if (!row) return res.json({ message: null });
 		const settings = allSettings();
 		const posProfile = {
 			name: row.terminal_id || 'POS',
 			pos_profile: row.terminal_id || 'POS',
 			company: settings.business_name || 'DyPOS',
-			warehouse: 'W-01',
-			currency: settings.currency || 'SAR',
+			warehouse: (() => { try { return db.prepare('SELECT id FROM warehouses WHERE tenant_id=? AND is_active=1 ORDER BY name LIMIT 1').get(resolveTenantFilter(req).tenantId)?.id || null; } catch { return null; } })(),
+			currency: settings.currency || null,
 		};
 		const message = {
 			server_now: new Date().toISOString(),
@@ -3101,8 +3105,8 @@ if (_origCreateOpening) {
 					name: terminalId,
 					pos_profile: terminalId,
 					company,
-					warehouse: 'W-01',
-					currency: settings.currency || 'SAR',
+					warehouse: (() => { try { return db.prepare('SELECT id FROM warehouses WHERE tenant_id=? AND is_active=1 ORDER BY name LIMIT 1').get(tenantId)?.id || null; } catch { return null; } })(),
+					currency: settings.currency || null,
 				},
 				company,
 			};
