@@ -135,7 +135,7 @@ const routes = [
 		name: "landing",
 		redirect: (to) => {
 			if (isAuthenticated()) {
-				return { name: ROUTE_NAMES.POS }
+				return { name: ROUTE_NAMES.REPORTS }
 			}
 			return { name: ROUTE_NAMES.LOGIN, query: { redirect: to.fullPath } }
 		},
