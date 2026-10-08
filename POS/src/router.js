@@ -4,6 +4,7 @@ import { logger } from "@/utils/logger"
 import { createRouter, createWebHistory } from "vue-router"
 import { session } from "./data/session"
 import { isLinkEnabled } from "./services/link-consent"
+import { isQueueEnabled } from "@/utils/queueCapability"
 
 const log = logger.create("Router")
 
