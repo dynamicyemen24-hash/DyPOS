@@ -312,6 +312,8 @@ function startBuildVersionWatchdog() {
 	}
 
 	let notifiedVersion = null
+	let initialTimer = null
+	let pollTimer = null
 
 	const check = async () => {
 		// Standalone-first: the build stamp is compile-time truth. Polling it
@@ -354,14 +356,28 @@ function startBuildVersionWatchdog() {
 	}
 
 	// First check shortly after mount, then every 15 minutes.
-	window.setTimeout(check, 30_000)
-	window.setInterval(check, 15 * 60 * 1000)
+	initialTimer = window.setTimeout(check, 30_000)
+	pollTimer = window.setInterval(check, 15 * 60 * 1000)
 
 	// Reconnect check: a terminal offline for hours must learn about a
 	// deployment within seconds of coming back — not at the next 15-minute
 	// tick. Fail-soft: check() never throws (all errors caught inside).
-	window.addEventListener("online", () => {
+	const handleOnline = () => {
 		window.setTimeout(check, 5_000)
+	}
+
+	window.addEventListener("online", handleOnline)
+
+	bootstrapState.cleanup.push(() => {
+		if (initialTimer) {
+			window.clearTimeout(initialTimer)
+			initialTimer = null
+		}
+		if (pollTimer) {
+			window.clearInterval(pollTimer)
+			pollTimer = null
+		}
+		window.removeEventListener("online", handleOnline)
 	})
 }
 
