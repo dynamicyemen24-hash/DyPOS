@@ -1134,7 +1134,7 @@ describe("the identity image is framed, never stretched behind live text", () =>
 		expect(code).not.toContain("dy-register__eyebrow")
 
 		// …and no rules pretending to style one.
-		const style = stripComments(vue.slice(vue.indexOf("<style scoped>")))
+		const style = stripComments(read(SRC, "styles", "pages", "register.css"))
 		for (const selector of [
 			"__brand",
 			"__brand-card",
