@@ -60,6 +60,7 @@ import { recordTrail } from '../lib/trail.js';
 import { expireStaleDrafts } from '../lib/invoice-expiry.js';
 import { authAttempts } from '../middleware/metrics.js';
 import { logger } from '../lib/logger.js';
+import { checkPermission } from '../lib/pos-permissions.js';
 import { VERSION } from '../lib/version.js';
 import { sendCsrfToken } from '../lib/csrf.js';
 import { registerOpeningBalanceVerbs } from './opening-balance-methods.js';
@@ -667,86 +668,6 @@ def('DyPOS.api.auth.reset_password', (params, _req, res) => {
 });
 
 // ── dypos.client.has_permission ─────────────────────────────────────────
-const ROLE_PERMS = {
-	ADMIN: { allow: true },
-	MANAGER: {
-		allow: true,
-		denyWrite: new Set(['User', 'DyPOS Settings']),
-	},
-	CASHIER: {
-		allowDoctypes: new Set([
-			'Customer',
-			'Item',
-			'Sales Invoice',
-			'POS Invoice',
-			'POS Opening Shift',
-			'POS Closing Shift',
-			'POS Profile',
-			'POS Settings',
-			'POS Coupon',
-			'Promotional Scheme',
-			'Campaign',
-			'UOM',
-			'Bin',
-			'Serial No',
-		]),
-		allowCreate: new Set([
-			'Customer',
-			'Sales Invoice',
-			'POS Invoice',
-			'POS Opening Shift',
-			'POS Closing Shift',
-			'POS Coupon',
-		]),
-		allowWrite: new Set([
-			'Customer',
-			'Sales Invoice',
-			'POS Invoice',
-			'POS Opening Shift',
-			'POS Closing Shift',
-			'POS Coupon',
-			'POS Profile',
-		]),
-		allowSubmit: new Set(['Sales Invoice', 'POS Invoice', 'POS Closing Shift']),
-		allowDelete: new Set(),
-	},
-	AUDITOR: {
-		allowDoctypes: new Set(['Customer', 'Item', 'Sales Invoice', 'POS Invoice', 'UOM', 'User']),
-		allowCreate: new Set(),
-		allowWrite: new Set(),
-		allowSubmit: new Set(),
-		allowDelete: new Set(),
-	},
-};
-
-function checkPermission(role, doctype, permType) {
-	const r = ROLE_PERMS[role];
-	if (!r) return false;
-	if (r.allow === true && !r.denyWrite) {
-		if (permType === 'write' || permType === 'delete' || permType === 'create') {
-			if (r.denyWrite?.has(doctype)) return false;
-		}
-		return true;
-	}
-	if (r.allow === true) {
-		if (r.denyWrite?.has(doctype) && (permType === 'write' || permType === 'delete')) return false;
-		return true;
-	}
-	const dt = String(doctype);
-	if (r.allowDoctypes && !r.allowDoctypes.has(dt)) return false;
-	const map = {
-		read: r.allowDoctypes?.has(dt),
-		create: r.allowCreate?.has(dt),
-		write: r.allowWrite?.has(dt),
-		submit: r.allowSubmit?.has(dt),
-		cancel: r.allowSubmit?.has(dt),
-		delete: r.allowDelete?.has(dt),
-	};
-	if (permType in map) return Boolean(map[permType]);
-	// Unknown perm type on a visible doctype → allow read-only fallback
-	return r.allowDoctypes?.has(dt) ?? false;
-}
-
 def('dypos.client.has_permission', (params, req, res) => {
 	if (!requireUser(req, res)) return;
 	const doctype = String(params.doctype || '');
