@@ -572,15 +572,13 @@ export const tokens = Object.freeze({
 // Freeze nested groups as well as the root so consumers cannot silently
 // mutate shared design decisions at runtime.
 function deepFreeze(value) {
-	if (!value || typeof value !== "object" || Object.isFrozen(value)) {
-		return value
-	}
+	if (!value || typeof value !== "object") return value
 
 	for (const nestedValue of Object.values(value)) {
 		deepFreeze(nestedValue)
 	}
 
-	return Object.freeze(value)
+	return Object.isFrozen(value) ? value : Object.freeze(value)
 }
 
 deepFreeze(tokens)
