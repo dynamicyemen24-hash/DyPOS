@@ -232,8 +232,10 @@
       </div>
 
       <!-- Optional standardized menu strip for screen-level actions -->
-      <div v-if="$slots['menu-strip']" class="work-shell__menu-strip">
-        <slot name="menu-strip" />
+      <div class="work-shell__menu-strip">
+        <slot name="menu-strip">
+          <WorkMenuStrip :items="defaultMenuActions" @action="handleDefaultMenuAction" />
+        </slot>
       </div>
 
       <!-- Status Bar (Connection, Sync, Alerts) -->
@@ -319,6 +321,21 @@
       >
         <slot />
       </div>
+
+      <!-- Standard status strip shared by every WorkShell screen. -->
+      <div v-if="$slots['status-strip']" class="work-shell__status-strip">
+        <slot name="status-strip" />
+      </div>
+      <div v-else-if="!statusMessage" class="work-shell__status-strip">
+        <WorkStatusStrip
+          :state="defaultStatusState"
+          :message="defaultStatusMessage"
+          :details="error"
+          :updated-at="lastLoaded"
+          :dismissible="dismissibleStatus"
+          @dismiss="dismissStatus"
+        />
+      </div>
     </main>
   </div>
 </template>
@@ -327,6 +344,8 @@
 import { ref, computed, nextTick as vueNextTick, onMounted, onUnmounted, watch } from "vue"
 import { useRouter, useRoute } from "vue-router"
 import { FeatherIcon } from "dypos-ui"
+import WorkMenuStrip from "./WorkMenuStrip.vue"
+import WorkStatusStrip from "./WorkStatusStrip.vue"
 import { useLocale } from "@/composables/useLocale"
 import { t } from "@/utils/translation"
 import WorkLoadingSkeleton from "./WorkLoadingSkeleton.vue"
@@ -352,6 +371,7 @@ const props = defineProps({
 	permissionDenied: { type: [String, Boolean], default: false },
 	hasData: { type: Boolean, default: false },
 	statusMessage: { type: String, default: "" },
+	lastLoaded: { type: [Date, String, Number], default: null },
 	statusType: {
 		type: String,
 		default: "info",
@@ -362,6 +382,24 @@ const props = defineProps({
 })
 
 const emit = defineEmits(["refresh", "go-home", "status-dismissed"])
+
+const defaultMenuActions = computed(() => [
+  { id: "refresh", label: "تحديث", icon: "refresh-cw", shortcut: "Alt+R", disabled: props.loading },
+])
+const defaultStatusState = computed(() => {
+  if (props.error || props.statusType === "error") return "error"
+  if (props.loading) return "loading"
+  if (props.statusType === "warning") return "warning"
+  if (props.statusType === "success") return "saved"
+  return "ready"
+})
+const defaultStatusMessage = computed(() =>
+  props.statusMessage || (props.error ? t("errorLoadingContent") : props.loading ? t("loadingContent") : props.hasData ? "البيانات جاهزة" : "جاهز"),
+)
+const handleDefaultMenuAction = (action) => {
+  if (action === "refresh" && !props.loading) emit("refresh")
+}
+const dismissStatus = () => emit("status-dismissed")
 
 const router = useRouter()
 const route = useRoute()
@@ -749,6 +787,7 @@ defineOptions({ inheritAttrs: false })
 .work-shell__content > * { min-width: 0; }
 .work-shell__content--no-padding { padding: 0; }
 .work-shell__menu-strip { min-width: 0; position: relative; z-index: 25; }
+.work-shell__status-strip { min-width: 0; position: relative; z-index: 10; }
 .work-shell__menu-strip :deep(.work-menu-strip) { border-block-start: 0; }
 .work-shell__content { scrollbar-width: thin; scrollbar-color: var(--dy-border-strong, var(--dy-border)) transparent; }
 .work-shell__content::-webkit-scrollbar, .work-shell__nav::-webkit-scrollbar { width: 8px; height: 8px; }
