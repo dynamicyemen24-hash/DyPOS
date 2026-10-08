@@ -124,7 +124,7 @@ export async function create({
 	const name = String(fullName || "").trim()
 
 	if (name.length < 2) throw new Error("الاسم يجب أن يكون حرفين على الأقل")
-	if (!/^[^\s@]{3,}@[^\s@]+\.[^\s@]+$/.test(cleanEmail) && !/^[A-Za-z0-9._-]{3,64}$/.test(cleanEmail)) {
+	if (!/^[^\s@]{3,}@[^\s@]+\.[^\s@]+$/.test(cleanEmail) && !(allowUsername && /^[A-Za-z0-9._-]{3,64}$/.test(cleanEmail))) {
 		throw new Error("اسم المستخدم أو البريد الإلكتروني غير صالح")
 	}
 	if (!password || String(password).length < 6) {
