@@ -29,6 +29,7 @@ import CompanyFooter from "@/components/common/CompanyFooter.vue"
 import PasswordStrengthBar from "@/components/reports/dashboards/core/PasswordStrengthBar.vue"
 
 import router, { goToLogin } from "@/router"
+import { APP_NAME } from "@/utils/brand"
 import { session } from "@/stores/session"
 import { normalizeArabic } from "@/utils/arabic"
 import { logger } from "@/utils/logger"
@@ -394,7 +395,7 @@ onUnmounted(() => {
 		dir="rtl"
 	>
 		<nav class="dy-register__command-strip" aria-label="قائمة الوصول السريع">
-            <strong>DyPOS</strong>
+            <strong>{{ APP_NAME }}</strong>
             <RouterLink :to="{ name: 'Login' }">{{ __('الدخول') }}</RouterLink>
             <RouterLink :to="{ name: 'Register' }" class="is-current">{{ __('تسجيل المشترك') }}</RouterLink>
             <RouterLink :to="{ name: 'Terms' }">{{ __('الشروط') }}</RouterLink>
