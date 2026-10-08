@@ -2091,7 +2091,7 @@ function onBarcodeScan(code) {
                             product.disabled
                         "
                         :aria-label="
-                            `${product.name}، ${formatMoney(product.price)}`
+                            `${product.name}، ${product.priceMissing ? "السعر غير محدد" : formatMoney(product.price)}`
                         "
                         @mouseenter="
                             activeProductIndex =
@@ -2152,9 +2152,9 @@ function onBarcodeScan(code) {
                             class="dy-pos-sale__product-price"
                         >
                             {{
-                                formatMoney(
-                                    product.price
-                                )
+                                product.priceMissing
+                                    ? "السعر غير محدد"
+                                    : formatMoney(product.price)
                             }}
                         </span>
                     </button>
