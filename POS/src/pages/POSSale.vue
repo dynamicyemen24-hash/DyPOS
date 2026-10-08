@@ -107,7 +107,7 @@ import { useBarcodeScanner } from "@/composables/useBarcodeScanner"
 import { handleScan } from "@/utils/barcode-service.js"
 import { usePOSSettingsStore } from "@/stores/posSettings"
 import { logger } from "@/utils/logger"
-import db from "@/services/db"
+import { searchCachedItems } from "@/utils/offline/cache"
 import { __ } from "@/utils/translation"
 import {
 	buildProductIndex,
@@ -1301,7 +1301,7 @@ onMounted(async () => {
 	// props or a live API. Synchronization can refresh the same source later.
 	try {
 		loadingProducts.value = true
-		const localItems = await db.items.toArray()
+		const localItems = await searchCachedItems("", 50000)
 		if (Array.isArray(localItems) && localItems.length > 0) {
 			products.value = localItems
 		}
