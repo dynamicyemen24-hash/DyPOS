@@ -393,7 +393,16 @@ onUnmounted(() => {
 		}"
 		dir="rtl"
 	>
-		<!-- Offline Indicator -->
+		<nav class="dy-register__command-strip" aria-label="قائمة الوصول السريع">
+            <strong>DyPOS</strong>
+            <RouterLink :to="{ name: 'Login' }">{{ __('الدخول') }}</RouterLink>
+            <RouterLink :to="{ name: 'Register' }" class="is-current">{{ __('تسجيل المشترك') }}</RouterLink>
+            <RouterLink :to="{ name: 'Terms' }">{{ __('الشروط') }}</RouterLink>
+            <RouterLink :to="{ name: 'Privacy' }">{{ __('الخصوصية') }}</RouterLink>
+            <RouterLink :to="{ name: 'Agreement' }">{{ __('الاتفاقية') }}</RouterLink>
+        </nav>
+
+        <!-- Offline Indicator -->
 		<div
 			v-if="showOfflineIndicator && offlineDetected"
 			class="dy-register__offline-banner"
