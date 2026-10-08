@@ -139,7 +139,7 @@ describe('/api/method — auth (login / get_logged_user / has_permission)', () =
 
 	before(async () => {
 		const reg = await call('POST', '/api/method/dypos.auth.register', {
-			body: { ...user, role: 'CASHIER' },
+			body: { ...user, companyName: 'Test Store', role: 'CASHIER' },
 		});
 		assert.strictEqual(reg.status, 200);
 		assert.ok(reg.body.message?.id || reg.body.id);
@@ -276,7 +276,7 @@ describe('/api/method — dypos.client get_list / get_value', () => {
 
 	before(async () => {
 		await call('POST', '/api/method/dypos.auth.register', {
-			body: { ...user, role: 'CASHIER' },
+			body: { ...user, companyName: 'Test Store', role: 'CASHIER' },
 		});
 		const login = await call('POST', '/api/method/login', {
 			body: { usr: user.username, pwd: user.password },
@@ -347,7 +347,7 @@ describe('/api/method — items / customers / bootstrap (authed)', () => {
 
 	before(async () => {
 		await call('POST', '/api/method/dypos.auth.register', {
-			body: { ...user, role: 'CASHIER' },
+			body: { ...user, companyName: 'Test Store', role: 'CASHIER' },
 		});
 		const login = await call('POST', '/api/method/login', {
 			body: { usr: user.username, pwd: user.password },
@@ -451,7 +451,7 @@ describe('/api/method — invoices / shifts / customers / partials / offers / au
 		// Earlier suite consumed bootstrap as CASHIER — register CASHIER here and
 		// seed the product via REST only if we can (need ADMIN/MANAGER).
 		await call('POST', '/api/method/dypos.auth.register', {
-			body: { ...user, role: 'CASHIER' },
+			body: { ...user, companyName: 'Test Store', role: 'CASHIER' },
 		});
 		const login = await call('POST', '/api/method/login', {
 			body: { usr: user.username, pwd: user.password },
