@@ -439,10 +439,12 @@ let activeSyncCycle = null
 export function runSyncCycle(options = {}) {
 	if (activeSyncCycle) return activeSyncCycle
 	const cycle = runSyncCycleInternal(options)
-	activeSyncCycle = cycle.finally(() => {
-		if (activeSyncCycle === cycle) activeSyncCycle = null
+	let sharedCycle
+	sharedCycle = cycle.finally(() => {
+		if (activeSyncCycle === sharedCycle) activeSyncCycle = null
 	})
-	return activeSyncCycle
+	activeSyncCycle = sharedCycle
+	return sharedCycle
 }
 
 export default {
