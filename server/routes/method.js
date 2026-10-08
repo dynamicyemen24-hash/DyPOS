@@ -563,7 +563,6 @@ def('dypos.auth.get_logged_user', (_p, req, res) => {
 //     deployed client loses a verb.
 def('DyPOS.api.auth.register', registerSubscriber)
 def('dypos.auth.register', registerSubscriber)
-def('dypos.auth.register', doRegister);
 
 // ── Password reset (maps to /api/auth/forgot + /reset) ──────────────────
 def('DyPOS.api.auth.send_password_reset', (params, _req, res) => {
