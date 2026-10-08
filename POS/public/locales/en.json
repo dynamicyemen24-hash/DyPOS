@@ -202,5 +202,17 @@
   "شروط الاستخدام": "Terms of use",
   "الخصوصية": "Privacy",
   "اتفاقية المشترك": "Subscriber agreement",
-  "الدخول": "Sign in"
+  "الدخول": "Sign in",
+  "تسجيل المشترك": "Subscriber registration",
+  "الشروط": "Terms",
+  "الاتفاقية": "Agreement",
+  "وضع العمل المحلي — لا يتطلب اتصالاً": "Local mode — no connection required",
+  "متصل — جاهز لتسجيل الدخول": "Online — ready to sign in",
+  "جاري التحقق من الاتصال": "Checking connection",
+  "البريد الإلكتروني أو اسم المستخدم": "Email or username",
+  "البريد الإلكتروني أو اسم المستخدم مطلوب": "Email or username is required",
+  "خيارات المشترك والمؤسسة": "Subscriber and organization options",
+  "اختياري": "Optional",
+  "اتركه فارغًا في الدخول المعتاد. استخدم الرمز المعتمد فقط عند الحاجة لتحديد نطاق المشترك.": "Leave blank for normal sign-in. Use the approved code only when subscriber scope must be specified.",
+  "أدوات النظام": "System tools"
 }
