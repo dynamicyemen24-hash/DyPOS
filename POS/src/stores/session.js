@@ -15,7 +15,7 @@
 import { computed, ref } from "vue"
 import { defineStore } from "pinia"
 
-import { session as localSession, lastLoginSource, lastServerAuth } from "@/data/session"
+import { session as localSession, lastLoginSource, lastServerAuth, refreshOnlineSession } from "@/data/session"
 import { userResource, userData } from "@/data/user"
 import { userRepository } from "@/repositories/userRepository"
 import { shiftState, useShift } from "@/composables/useShift"
