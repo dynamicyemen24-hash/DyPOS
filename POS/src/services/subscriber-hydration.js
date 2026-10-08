@@ -39,7 +39,12 @@ async function pullItems({ warehouseId = null } = {}) {
 				...row,
 				item_code: code,
 				item_name: row.item_name || row.name || code,
-				price: Number(row.price ?? row.standard_rate ?? row.unit_price ?? 0),
+				price:
+					row.price ?? row.standard_rate ?? row.unit_price ?? null,
+				price_missing:
+					row.price == null &&
+					row.standard_rate == null &&
+					row.unit_price == null,
 				stock: Number(row.stock_qty ?? row.stock ?? 0),
 			})
 			if (Number.isFinite(Number(row.stock_qty))) {
