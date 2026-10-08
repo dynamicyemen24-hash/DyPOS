@@ -147,7 +147,11 @@ export async function pushPendingChanges(protocol, store, opts = {}) {
 	} catch {
 		/* best-effort — a mock store may not implement it */
 	}
-	const pending = await store.pendingOperations(opts.entityType || null)
+	const activeTenantId = authState.tenantId ? String(authState.tenantId) : null
+	const pending = await store.pendingOperations(
+		opts.entityType || null,
+		activeTenantId,
+	)
 
 	// ترتيب الأولوية: الفواتير أولًا ثم الدفعات ... ثم الإعدادات —
 	// وداخل نفس الأولوية حسب وقت الإنشاء (FIFO).
@@ -164,6 +168,13 @@ export async function pushPendingChanges(protocol, store, opts = {}) {
 
 	for (const op of pending) {
 		const payload = op.payload || {}
+
+		// Never replay a durable operation under a different subscriber.
+		// Legacy rows without tenant provenance are intentionally skipped by
+		// OfflineStore.pendingOperations and can never be guessed safely.
+		if (!activeTenantId || String(op.tenantId || "") !== activeTenantId) {
+			continue
+		}
 
 		// Backoff gate: a row that failed recently waits its turn instead of
 		// hammering a dead backend. Dead-lettered rows (failed) never arrive
