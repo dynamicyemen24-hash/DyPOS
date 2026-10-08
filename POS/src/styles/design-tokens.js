@@ -569,6 +569,22 @@ export const tokens = Object.freeze({
 	}),
 })
 
+// Freeze nested groups as well as the root so consumers cannot silently
+// mutate shared design decisions at runtime.
+function deepFreeze(value) {
+	if (!value || typeof value !== "object" || Object.isFrozen(value)) {
+		return value
+	}
+
+	for (const nestedValue of Object.values(value)) {
+		deepFreeze(nestedValue)
+	}
+
+	return Object.freeze(value)
+}
+
+deepFreeze(tokens)
+
 /**
  * Generate CSS Custom Properties for runtime theming.
  * Call once at app bootstrap (main.js).
@@ -596,8 +612,9 @@ function flattenTokens(obj, prefix = "") {
 		const newKey = prefix ? `${prefix}-${key}` : key
 		if (value && typeof value === "object" && !Array.isArray(value)) {
 			Object.assign(result, flattenTokens(value, newKey))
-		} else {
-			result[newKey] = value
+		} else if (typeof value === "string" || typeof value === "number") {
+			// Theme actions and other runtime values are not CSS design tokens.
+			result[newKey] = String(value)
 		}
 	}
 	return result
