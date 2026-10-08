@@ -37,6 +37,7 @@
     <!-- Overflow menu for small screens -->
     <div v-if="overflowActions.length" class="work-toolbar__overflow">
       <button
+        ref="overflowTrigger"
         type="button"
         class="work-toolbar__overflow-btn"
         @click="toggleOverflow"
@@ -53,6 +54,7 @@
           class="work-toolbar__overflow-menu"
           role="menu"
           :aria-label="t('moreActions')"
+          @keydown="handleMenuKeydown"
         >
           <button
             v-for="action in overflowActions"
@@ -74,7 +76,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from "vue"
+import { ref, computed, onMounted, onUnmounted, useId } from "vue"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
 
@@ -94,24 +96,43 @@ const props = defineProps({
 })
 
 const overflowOpen = ref(false)
-const overflowId = `work-toolbar-overflow-${Math.random().toString(36).slice(2)}`
+const generatedId = useId()
+const overflowId = `work-toolbar-overflow-${generatedId}`
+const overflowTrigger = ref(null)
 
 const overflowActions = computed(() => props.overflowActions)
 
 function toggleOverflow() {
-	overflowOpen.value = !overflowOpen.value
+	if (overflowOpen.value) {
+		closeOverflow({ restoreFocus: true })
+		return
+	}
+	overflowOpen.value = true
+}
+
+function closeOverflow({ restoreFocus = false } = {}) {
+	overflowOpen.value = false
+	if (restoreFocus) overflowTrigger.value?.focus()
+}
+
+function handleMenuKeydown(event) {
+	if (event.key === "Escape") {
+		event.preventDefault()
+		event.stopPropagation()
+		closeOverflow({ restoreFocus: true })
+	}
 }
 
 function executeOverflow(action) {
 	if (action.disabled) return
 	action.handler?.()
-	overflowOpen.value = false
+	closeOverflow()
 }
 
 // Close on outside click
 function handleClickOutside(e) {
-	if (overflowOpen.value && !e.target.closest(".work-toolbar__overflow")) {
-		overflowOpen.value = false
+	if (overflowOpen.value && e.target instanceof Element && !e.target.closest(".work-toolbar__overflow")) {
+		closeOverflow()
 	}
 }
 
@@ -151,8 +172,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
   border: 0;
   border-radius: 10px;
   background: transparent;
@@ -179,6 +201,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 10px;
   width: 100%;
+  min-height: 44px;
   padding: 10px 12px;
   border: 0;
   border-radius: 8px;
