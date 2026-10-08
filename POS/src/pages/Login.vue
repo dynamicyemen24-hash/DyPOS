@@ -487,6 +487,10 @@ function onPasskeyAuthenticated() {
  */
 async function submitLogin() {
 	if (isSubmitting.value || !validateRequiredFields()) return
+	if (branches.value.length > 0 && !selectedBranchId.value) {
+		loginError.value = __("اختر الفرع قبل تسجيل الدخول")
+		return
+	}
 
 	if (isRateLimited.value) {
 		loginError.value = rateLimitMessage(rateLimitState.value.retryAfterMs)
@@ -1160,7 +1164,7 @@ watch(
 
                     <!-- Branch Selector -->
 
-                    <div class="dy-login__branch-selector" v-if="branches.length > 1">
+                    <div class="dy-login__branch-selector" v-if="branches.length > 0">
                         <label for="dypos-login-branch" class="dy-login__label">
                             {{ __('الفرع') }}
                         </label>
