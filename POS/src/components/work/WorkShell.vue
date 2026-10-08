@@ -439,9 +439,24 @@ function closeMobileNav({ restoreFocus = false } = {}) {
 }
 
 function handleShellKeydown(event) {
-	if (event.key === "Escape" && mobileNavOpen.value) {
+	if (!mobileNavOpen.value) return
+	if (event.key === "Escape") {
 		event.preventDefault()
 		closeMobileNav({ restoreFocus: true })
+		return
+	}
+	if (event.key !== "Tab" || typeof document === "undefined") return
+	const nav = document.getElementById("work-shell-nav")
+	const focusable = nav?.querySelectorAll('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])')
+	if (!focusable?.length) return
+	const first = focusable[0]
+	const last = focusable[focusable.length - 1]
+	if (event.shiftKey && document.activeElement === first) {
+		event.preventDefault()
+		last.focus()
+	} else if (!event.shiftKey && document.activeElement === last) {
+		event.preventDefault()
+		first.focus()
 	}
 }
 
@@ -458,7 +473,10 @@ function updateMotionPreference(e) {
 }
 
 onMounted(() => {
-	if (typeof document !== "undefined") document.addEventListener("keydown", handleShellKeydown)
+	if (typeof document !== "undefined") {
+		previousBodyOverflow = document.body.style.overflow
+		document.addEventListener("keydown", handleShellKeydown)
+	}
 	if (typeof window !== "undefined") {
 		mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)")
 		updateMotionPreference()
