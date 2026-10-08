@@ -98,6 +98,7 @@ const route = useRoute()
 const router = useRouter()
 
 const ROW_LIMIT = 200
+let loadSequence = 0
 
 const rows = ref([])
 const loading = ref(false)
@@ -178,7 +179,7 @@ const quickFilterField = computed(() => {
 })
 
 const quickFilterOptions = computed(() => {
-	if (!quickFilterField.value) return []
+	if (loading.value || !quickFilterField.value) return []
 	const counts = new Map()
 	for (const row of rows.value) {
 		const value = row?.[quickFilterField.value.key]
@@ -231,16 +232,19 @@ const emptyDescription = computed(() =>
 )
 
 async function load() {
+	const requestId = ++loadSequence
 	loading.value = true
 	errorState.value = ""
 	try {
 		const result = await screen.value.load(ROW_LIMIT)
+		if (requestId !== loadSequence) return
 		rows.value = Array.isArray(result?.rows) ? result.rows : []
 		source.value = String(result?.source ?? "")
 		lastLoaded.value = result?.source === "unavailable" ? null : new Date()
 		if (result?.error)
 			log.warn("work screen served from fallback", result.error)
 	} catch (error) {
+		if (requestId !== loadSequence) return
 		// An empty grid would read as "no invoices exist" — say it failed instead.
 		rows.value = []
 		source.value = "unavailable"
@@ -249,7 +253,7 @@ async function load() {
 			error?.message || "تعذّر تحميل البيانات — تحقّق من الاتصال ثم أعد المحاولة"
 		log.error("work screen load failed", error)
 	} finally {
-		loading.value = false
+		if (requestId === loadSequence) loading.value = false
 	}
 }
 
