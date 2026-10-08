@@ -202,5 +202,17 @@
   "شروط الاستخدام": "Termos de uso",
   "الخصوصية": "Privacidade",
   "اتفاقية المشترك": "Acordo do assinante",
-  "الدخول": "Entrar"
+  "الدخول": "Entrar",
+  "تسجيل المشترك": "Cadastro do assinante",
+  "الشروط": "Termos",
+  "الاتفاقية": "Acordo",
+  "وضع العمل المحلي — لا يتطلب اتصالاً": "Modo local — sem conexão necessária",
+  "متصل — جاهز لتسجيل الدخول": "Online — pronto para entrar",
+  "جاري التحقق من الاتصال": "Verificando conexão",
+  "البريد الإلكتروني أو اسم المستخدم": "E-mail ou nome de usuário",
+  "البريد الإلكتروني أو اسم المستخدم مطلوب": "E-mail ou nome de usuário é obrigatório",
+  "خيارات المشترك والمؤسسة": "Opções do assinante e da organização",
+  "اختياري": "Opcional",
+  "اتركه فارغًا في الدخول المعتاد. استخدم الرمز المعتمد فقط عند الحاجة لتحديد نطاق المشترك.": "Deixe em branco para o acesso normal. Use o código aprovado somente quando for necessário definir o escopo do assinante.",
+  "أدوات النظام": "Ferramentas do sistema"
 }
