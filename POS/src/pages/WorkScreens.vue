@@ -10,6 +10,14 @@
 		:permission-denied="deniedReason"
 		@refresh="load"
 	>
+		<template #menu-strip>
+			<WorkMenuStrip :items="menuActions" @action="onMenuAction">
+				<template #end>
+					<span class="work-screens__selection-count" aria-live="polite">{{ visibleRows.length }} / {{ rows.length }} سجل</span>
+				</template>
+			</WorkMenuStrip>
+		</template>
+
 		<template #toolbar>
 			<WorkToolbar>
 				<template #center>
@@ -45,6 +53,7 @@
 			/>
 		</template>
 
+		<WorkPanel flush class="work-screens__grid-panel">
 		<WorkDataGrid
 			:columns="screen.columns"
 			:rows="visibleRows"
@@ -57,6 +66,15 @@
 			striped
 			selectable
 			@row-click="onRowClick"
+		/>
+		</WorkPanel>
+		<WorkStatusStrip
+			:state="loading ? 'loading' : errorState || source === 'unavailable' ? 'error' : source === 'local' ? 'offline' : lastLoaded ? 'ready' : 'warning'"
+			:message="loading ? 'جارٍ تحميل البيانات' : errorState ? 'فشل تحميل البيانات' : source === 'unavailable' ? 'مصدر البيانات غير متاح' : source === 'local' ? 'عرض من النسخة المحلية' : lastLoaded ? 'الشاشة جاهزة' : 'لم يتم تحميل البيانات بعد'"
+			:details="errorState || sourceNote"
+			:updated-at="lastLoaded"
+			:items="[{ id: 'total', label: 'السجلات', value: rows.length }, { id: 'visible', label: 'المعروضة', value: visibleRows.length }]"
+			sticky
 		/>
 	</WorkShell>
 </template>
@@ -85,6 +103,9 @@ import {
 	WorkToolbar,
 	WorkScreenStatus,
 	WorkQuickFilters,
+	WorkMenuStrip,
+	WorkPanel,
+	WorkStatusStrip,
 } from "@/components/work"
 import { flatWorkNav } from "@/components/work/workNav"
 import { WORK_SCREENS, workScreenById } from "@/data/workScreens"
@@ -199,6 +220,16 @@ const visibleRows = computed(() => {
 	)
 })
 
+const menuActions = computed(() => [
+	{ id: "refresh", label: "تحديث البيانات", icon: "refresh-cw", shortcut: "Alt+R", disabled: loading.value },
+	{ id: "clear-filter", label: "مسح التصفية", icon: "filter", shortcut: "Alt+C", disabled: !quickFilterValue.value },
+])
+
+function onMenuAction(action) {
+	if (action === "refresh") load()
+	if (action === "clear-filter") quickFilterValue.value = ""
+}
+
 const sourceNote = computed(() => {
 	if (source.value === "local")
 		return "معروضة من النسخة المحلية (السيرفر غير متاح)"
@@ -274,3 +305,9 @@ watch(screenId, (next, previous) => {
 })
 onMounted(load)
 </script>
+
+<style scoped>
+.work-screens__grid-panel { min-width: 0; margin-block-start: 12px; }
+.work-screens__selection-count { flex: 0 0 auto; padding-inline: 10px; color: var(--dy-text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .work-screens__selection-count { display: none; } }
+</style>
