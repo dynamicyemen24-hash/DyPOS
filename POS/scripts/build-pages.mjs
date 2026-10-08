@@ -49,6 +49,15 @@ await build({
 	logLevel: "info",
 })
 
+const manifestPath = path.join(outDir, "manifest.webmanifest")
+const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+if (manifest.scope !== "/" || manifest.start_url !== "/") {
+	throw new Error(
+		`Pages PWA manifest must be root-scoped; got scope=${manifest.scope} start_url=${manifest.start_url}`,
+	)
+}
+console.log("[build-pages] verified root-scoped manifest.webmanifest")
+
 const indexPath = path.join(outDir, "index.html")
 let html = await readFile(indexPath, "utf8")
 let rewrote = false
