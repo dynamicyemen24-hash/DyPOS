@@ -769,7 +769,7 @@ defineOptions({ inheritAttrs: false })
   .work-shell__header-right { grid-column: 2; grid-row: 1; }
   .work-shell__title { font-size: var(--dy-text-lg); white-space: normal; }
   .work-shell__subtitle { display: none; }
-  .work-shell__breadcrumbs { display: none; }
+  .work-shell__breadcrumbs { min-width: 0; max-width: 45vw; overflow: hidden; }
   .work-shell__toolbar { padding-inline: var(--dy-space-3); }
   .work-shell__content { padding: 14px; }
 }
