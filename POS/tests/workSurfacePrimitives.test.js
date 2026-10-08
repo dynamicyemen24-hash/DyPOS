@@ -24,7 +24,7 @@ describe("standard work-surface primitives", () => {
     const input = document.createElement("input")
     document.body.append(input)
     input.focus()
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "r", altKey: true, bubbles: true }))
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "r", altKey: true, bubbles: true }))
     expect(refresh).toHaveBeenCalledOnce()
     wrapper.unmount()
   })
