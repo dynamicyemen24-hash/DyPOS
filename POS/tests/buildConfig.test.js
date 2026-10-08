@@ -138,13 +138,18 @@ describe("build config integrity", () => {
 		expect(pagesBuild).toContain('base: "/"')
 	})
 
-	it("service-worker update notices do not call retired remote release feeds", () => {
+	it("service-worker update notices use the live release feed when linkage is enabled", () => {
 		const updater = readFileSync(
 			join(POS, "src/composables/useAppUpdate.js"),
 			"utf8",
 		)
-		expect(updater).not.toContain("/api/updates/latest")
+		expect(updater).toContain("/api/updates/latest")
 		expect(updater).not.toContain("/assets/DyPOS/pos/release.json")
-		expect(updater).toContain("currentVersion.value")
+		expect(updater).toContain("isLinkEnabled")
+	})
+
+	it("does not cache tenant-scoped API responses in the service worker", () => {
+		expect(viteConfig).toMatch(/urlPattern:\s*\/\\\/api\\\/\.\*\/i,\s*handler:\s*"NetworkOnly"/)
+		expect(viteConfig).not.toContain('cacheName: "api-cache"')
 	})
 })
