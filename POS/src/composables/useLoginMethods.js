@@ -48,9 +48,9 @@ export function useLoginMethods({
 			})
 			if (Array.isArray(response.message)) {
 				branches.value = response.message
-				if (!selectedBranchId.value && response.message.length > 0) {
-					selectedBranchId.value = response.message[0].id
-				}
+				const persisted = localStorage.getItem("dypos.lastBranchId") || ""
+				const persistedBranch = response.message.find((branch) => String(branch.id) === String(persisted))
+				selectedBranchId.value = persistedBranch ? String(persistedBranch.id) : ""
 			}
 		} catch (e) {
 			log.warn("Failed to load branches", e)
@@ -68,10 +68,15 @@ export function useLoginMethods({
 	}
 
 	function onBranchChange() {
-		if (selectedBranchId.value) {
-			localStorage.setItem("dypos.lastBranchId", selectedBranchId.value)
-			log.info("Branch selected", { branchId: selectedBranchId.value })
+		const branchId = String(selectedBranchId.value || "").trim()
+		if (!branchId) return
+		const branch = branches.value.find((item) => String(item.id) === branchId)
+		if (!branch) {
+			selectedBranchId.value = ""
+			return
 		}
+		localStorage.setItem("dypos.lastBranchId", branchId)
+		log.info("Branch explicitly selected", { branchId })
 	}
 
 	/**
