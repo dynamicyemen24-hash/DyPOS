@@ -191,6 +191,22 @@ export const useSessionStore = defineStore("session", () => {
 						serverSession?.user_id || serverSession?.id || lastServerAuth.user?.id || null,
 					)
 				}
+
+				// Cache the authenticated user locally with a fresh PBKDF2 hash so
+				// this exact subscriber user can unlock the same terminal offline.
+				try {
+					await userRepository.upsertAuthenticatedUser(
+						{
+							email: usr,
+							full_name: serverSession?.full_name || serverSession?.fullName || usr,
+							role: serverSession?.role || "POS User",
+							tenantId: serverSession?.tenantId || lastServerAuth?.user?.tenantId || null,
+						},
+						pwd,
+					)
+				} catch (error) {
+					log.warn("Local credential cache deferred", error)
+				}
 			} catch (error) {
 				log.warn("Platform auth persistence deferred", error)
 			}
