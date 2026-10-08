@@ -539,15 +539,12 @@ async function submitLogin() {
 		}
 
 		await bootstrapAuthenticatedSession()
-			// Smart entry: cashiers go directly to the transaction workspace;
-			// supervisory/management roles land on the operational dashboard.
-			// If a shift is required, the shift dialog remains the controlling gate.
-			if (!shiftDialogOpen.value) {
-				const role = String(session?.user?.role || session?.user?.roles?.[0] || "").toLowerCase()
-				const cashier = role.includes("cashier") || role.includes("كاشير") || role.includes("pos user")
-				if (cashier) await goToPOS()
-				else await goToDashboard()
-			}
+		// The login screen is the single front door. All authenticated roles
+		// enter the same main operating dashboard, which owns navigation to
+		// POS, invoices, stock, work screens, and settings.
+		if (!shiftDialogOpen.value) {
+			await goToDashboard()
+		}
 	} catch (error) {
 		authenticationCompleted.value = false
 
@@ -591,6 +588,9 @@ async function onPinAuthenticated(how) {
 	showPinSetup.value = false
 	completeAuthentication(how === "pin_setup" ? "pin_setup" : "pin_login")
 	await bootstrapAuthenticatedSession()
+	if (!shiftDialogOpen.value) {
+		await goToDashboard()
+	}
 }
 
 
