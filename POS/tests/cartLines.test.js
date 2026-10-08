@@ -62,9 +62,21 @@ describe("addToCart", () => {
 	it("gives two lines distinct ids even within the same millisecond", () => {
 		const { cart, lines } = setup()
 		lines.addToCart(product, cart)
-		lines.addToCart({ item_code: "B2", item_name_ar: "دفتر" }, cart)
+		lines.addToCart({ item_code: "B2", item_name_ar: "دفتر", rate: 3 }, cart)
 		// A duplicate id would make `removeItem` delete the WRONG line.
 		expect(cart[0].id).not.toBe(cart[1].id)
+	})
+
+	it("refuses a product without a real selling price", () => {
+		const notify = vi.fn()
+		const { cart, lines, onProductAdded } = setup({ notify })
+		lines.addToCart({ item_code: "NP", item_name_ar: "بدون سعر" }, cart)
+		expect(cart).toHaveLength(0)
+		expect(onProductAdded).not.toHaveBeenCalled()
+		expect(notify).toHaveBeenCalledWith(
+			"لا يمكن بيع الصنف قبل تحديد سعر بيع صالح.",
+			"warning",
+		)
 	})
 
 	it("refuses a disabled product and does not learn from it", () => {
