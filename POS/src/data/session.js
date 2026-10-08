@@ -18,6 +18,8 @@ const SESSION_STORAGE_KEY = "dypos_user_session"
  */
 export const LOCAL_SESSION_TTL_MS = 8 * 60 * 60 * 1000
 
+export let lastLoginSource = "none"
+
 function readStoredSession() {
 	try {
 		const raw = localStorage.getItem(SESSION_STORAGE_KEY)
@@ -162,6 +164,7 @@ export const session = reactive({
 			if (localResult.success) {
 				persistSession(localResult.user)
 				session.login.reset()
+				lastLoginSource = "local"
 				log.info("Local login successful", cleanEmail)
 				return session.user
 			}
@@ -178,6 +181,7 @@ export const session = reactive({
 					role: onlineUser.role || "POS User",
 					tenantId: onlineUser.tenantId || onlineUser.tenant_id || null,
 				})
+				lastLoginSource = "server"
 				session.login.reset()
 				return session.user
 			}
