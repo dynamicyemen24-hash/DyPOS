@@ -628,6 +628,7 @@ const doRegister = async (params, req, res) => {
 	}
 	req.audit?.('auth.register', { newUser: username, role: finalRole, tenantId, publicOnboarding: isPublicOnboarding, organizationId, branchId, warehouseId });
 	return res.status(201).json({ message: { id, username, fullName, role: finalRole, tenantId, subscriberCode: tenantCode, organizationId, branchId, warehouseId, branchName, currency } });
+};
 def('DyPOS.api.auth.register', doRegister);
 def('dypos.auth.register', doRegister);
 
