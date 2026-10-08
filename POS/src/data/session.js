@@ -146,6 +146,21 @@ async function tryOnlineLogin(email, password, subscriberCode = "") {
 	}
 }
 
+export async function refreshOnlineSession(email, password, subscriberCode = "") {
+	const onlineAuth = await tryOnlineLogin(email, password, subscriberCode)
+	const onlineUser = onlineAuth?.user || null
+	if (!(onlineUser?.username || onlineUser?.email)) return null
+	lastServerAuth = onlineAuth?.token
+		? {
+				token: onlineAuth.token,
+				refreshToken: onlineAuth.refreshToken || onlineAuth.refresh_token || null,
+				expiresIn: Number(onlineAuth.expiresIn || onlineAuth.expires_in || 86400),
+				user: onlineUser,
+			}
+		: null
+	return { ...onlineAuth, user: onlineUser }
+}
+
 export const session = reactive({
 	user: sessionUser(),
 
