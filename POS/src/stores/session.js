@@ -347,7 +347,7 @@ export const useSessionStore = defineStore("session", () => {
 			}
 
 			// 4. Permission preload (non-blocking, optimistic defaults served meanwhile)
-			await loadPermissions()
+			void loadPermissions()
 
 			// 5. Shift state (offline-safe — cached copy used on failure).
 			// Standalone-first: the check is a server call; local logins
