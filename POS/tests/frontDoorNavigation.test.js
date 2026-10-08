@@ -26,6 +26,9 @@ describe("DyPOS front-door navigation", () => {
     expect(login).toContain("await goToDashboard()")
     expect(login).toMatch(/async function onPasskeyAuthenticated[\s\S]*?await goToDashboard\(\)/)
     expect(login).toMatch(/async function onPinAuthenticated[\s\S]*?await goToDashboard\(\)/)
+
+    const register = await source("src/pages/Register.vue")
+    expect(register).toContain('router.replace({ name: "Reports" })')
   })
 
   it("keeps the dashboard as the hub for core POS screens", async () => {
@@ -40,6 +43,9 @@ describe("DyPOS front-door navigation", () => {
       expect(dashboard).toContain(`name: "${routeName}"`)
     }
 
+    expect(dashboard).toContain("نظام نقاط البيع الذكي")
+    expect(dashboard).toContain("بدء بيع جديد")
+    expect(dashboard).toContain("آخر المبيعات")
     expect(dashboard).not.toContain("EnterpriseControlCenter")
 
     const toolbar = await source("src/components/pos/POSGlobalToolbar.vue")
