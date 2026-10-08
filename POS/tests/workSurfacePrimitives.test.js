@@ -37,9 +37,7 @@ describe("standard work-surface primitives", () => {
       ] },
       global: { stubs },
     })
-    await wrapper.get("#work-menu-" + wrapper.vm.$.uid + "-refresh").trigger("click").catch(async () => {
-      await wrapper.findAll("button").find(button => button.text().includes("تحديث")).trigger("click")
-    })
+    await wrapper.findAll("button").find(button => button.text().includes("تحديث")).trigger("click")
     expect(wrapper.emitted("action")?.[0]).toEqual(["refresh"])
     expect(wrapper.findAll("button").find(button => button.text().includes("غير متاح")).attributes("disabled")).toBeDefined()
     wrapper.unmount()
