@@ -394,18 +394,29 @@ const statusIcon = computed(() => {
 	}
 })
 
-const isMobile = computed(() => {
-	if (typeof window === "undefined") return false
-	return window.innerWidth < 1024
-})
+const viewportWidth = ref(
+	typeof window !== "undefined" ? window.innerWidth : 1024,
+)
+
+const isMobile = computed(() => viewportWidth.value < 1024)
+
+function handleResize() {
+	if (typeof window === "undefined") return
+	viewportWidth.value = window.innerWidth
+	if (!isMobile.value && mobileNavOpen.value) closeMobileNav()
+}
 
 const shellAnnouncement = ref("")
+
+let announcementTimer = null
 
 function announce(message) {
 	if (!message) return
 	shellAnnouncement.value = message
-	setTimeout(() => {
+	if (announcementTimer) clearTimeout(announcementTimer)
+	announcementTimer = setTimeout(() => {
 		shellAnnouncement.value = ""
+		announcementTimer = null
 	}, 1000)
 }
 
@@ -442,15 +453,16 @@ onMounted(() => {
 		mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)")
 		updateMotionPreference()
 		mediaQuery.addEventListener?.("change", updateMotionPreference)
-		window.addEventListener("resize", () => {
-			if (!isMobile.value && mobileNavOpen.value) closeMobileNav()
-		})
+		window.addEventListener("resize", handleResize, { passive: true })
 	}
 })
 
 onUnmounted(() => {
 	if (mediaQuery)
 		mediaQuery.removeEventListener?.("change", updateMotionPreference)
+	if (typeof window !== "undefined")
+		window.removeEventListener("resize", handleResize)
+	if (announcementTimer) clearTimeout(announcementTimer)
 	document.body.style.overflow = ""
 })
 
@@ -509,7 +521,7 @@ defineOptions({ inheritAttrs: false })
   top: 0;
   height: 100dvh;
   border-inline-end: 1px solid var(--dy-border, #e2e8f0);
-  background: #fff;
+  background: var(--dy-surface, #fff);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -619,9 +631,9 @@ defineOptions({ inheritAttrs: false })
   z-index: 50;
   width: 44px;
   height: 44px;
-  border: 0;
+  border: 1px solid var(--dy-border, #e2e8f0);
   border-radius: 12px;
-  background: #fff;
+  background: var(--dy-surface, #fff);
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   color: var(--dy-text, #0f172a);
 }
@@ -643,9 +655,15 @@ defineOptions({ inheritAttrs: false })
   max-width: 85vw;
   height: 100dvh;
   z-index: 50;
-  box-shadow: 0 0 0 1px var(--dy-border, #e2e8f0), 0 20px 40px rgba(0,0,0,0.1);
+  background: var(--dy-surface, #fff);
+  box-shadow: 0 0 0 1px var(--dy-border, #e2e8f0), 0 20px 40px rgb(15 23 42 / 12%);
   transform: translateX(-100%);
-  transition: transform 0.3s ease;
+  transition: transform 0.2s var(--dy-ease-standard, ease);
+}
+.work-shell[dir="rtl"] .work-shell__nav--mobile {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+  transform: translateX(100%);
 }
 .work-shell--mobile-open .work-shell__nav--mobile {
   transform: translateX(0);
@@ -659,9 +677,10 @@ defineOptions({ inheritAttrs: false })
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px 24px;
+  padding: 12px 20px;
+  min-height: 64px;
   border-bottom: 1px solid var(--dy-border, #e2e8f0);
-  background: #fff;
+  background: var(--dy-surface, #fff);
   position: sticky;
   top: 0;
   z-index: 30;
@@ -731,10 +750,10 @@ defineOptions({ inheritAttrs: false })
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  padding: 16px 24px;
+  gap: 10px;
+  padding: 10px 20px;
   border-bottom: 1px solid var(--dy-border, #e2e8f0);
-  background: #fff;
+  background: var(--dy-surface, #fff);
 }
 
 /* Status Bar */
@@ -748,10 +767,10 @@ defineOptions({ inheritAttrs: false })
   font-weight: 500;
 }
 .work-shell__status-content { display: flex; align-items: center; gap: 8px; }
-.work-shell__status-bar--info { background: #eff6ff; color: #1e40af; }
-.work-shell__status-bar--success { background: #f0fdf4; color: #166534; }
-.work-shell__status-bar--warning { background: #fffbeb; color: #92400e; }
-.work-shell__status-bar--error { background: #fef2f2; color: #991b1b; }
+.work-shell__status-bar--info { background: var(--dy-info-soft, #eff6ff); color: var(--dy-info, #1e40af); }
+.work-shell__status-bar--success { background: var(--dy-success-soft, #f0fdf4); color: var(--dy-success, #166534); }
+.work-shell__status-bar--warning { background: var(--dy-warning-soft, #fffbeb); color: var(--dy-warning, #92400e); }
+.work-shell__status-bar--error { background: var(--dy-danger-soft, #fef2f2); color: var(--dy-danger, #991b1b); }
 .work-shell__status-close {
   display: flex;
   align-items: center;
