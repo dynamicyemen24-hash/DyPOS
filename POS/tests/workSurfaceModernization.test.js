@@ -36,3 +36,22 @@ describe("shared work surfaces", () => {
 		expect(gridVisual).toContain('prefers-reduced-motion: reduce')
 	})
 })
+
+const onboarding = readFileSync("src/pages/MasterDataImportPage.vue", "utf8")
+
+describe("master data onboarding workbench", () => {
+	it("preserves preview-before-apply safeguards", () => {
+		expect(onboarding).toContain("lastValidatedCsv.value === csv.value")
+		expect(onboarding).toContain("lastValidatedType.value === type.value")
+		expect(onboarding).toContain("② اعتماد الاستيراد الذري")
+		expect(onboarding).toContain("① تحقق ومعاينة بلا كتابة")
+	})
+
+	it("keeps responsive touch targets and reduced-motion support", () => {
+		expect(onboarding).toContain("Focused enterprise workbench polish")
+		expect(onboarding).toContain("min-height:48px")
+		expect(onboarding).toContain("min-height:44px")
+		expect(onboarding).toContain("prefers-reduced-motion:reduce")
+		expect(onboarding).toContain("focus-visible")
+	})
+})
