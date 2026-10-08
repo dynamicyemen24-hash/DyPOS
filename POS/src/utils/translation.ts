@@ -109,7 +109,7 @@ export function translate(
 	replace?: Record<string, string>,
 	ctx?: string | null,
 ): string {
-	const messages = window.translatedMessages || {}
+	const messages = typeof window === "undefined" ? {} : window.translatedMessages || {}
 	const key = ctx ? `${msg}:${ctx}` : msg
 	let translated = messages[key] || messages[msg] || msg
 
