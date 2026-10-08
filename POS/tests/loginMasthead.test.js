@@ -32,7 +32,8 @@ describe("login operating shell", () => {
 	it("uses SPA navigation and one primary authentication action", () => {
 		expect(login).toContain('goToPOS')
 		expect(login).not.toMatch(/window\.location\.href/)
-		expect((login.match(/class="dy-login__submit"/g) || []).length).toBe(1)
+		const template = login.slice(login.indexOf("<template>"), login.indexOf("</template>"))
+		expect((template.match(/class="dy-login__submit"/g) || []).length).toBe(1)
 		expect((login.match(/<h1\b/g) || []).length).toBe(1)
 	})
 })
