@@ -1,7 +1,7 @@
 <!--
   =============================================================================
-  DyPOS — Enterprise SaaS Authentication Surface
-  Production Grade / End-to-End SaaS
+  DyPOS — Smart POS Authentication Surface
+  Production Grade / End-to-End POS
   =============================================================================
   المسؤوليات:
   - Authentication UI
