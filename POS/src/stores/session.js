@@ -282,23 +282,34 @@ export const useSessionStore = defineStore("session", () => {
 			// 1. Platform sync auth (local read; no network by itself)
 			await initPlatformAuth().catch(() => {})
 
-			// 2. Initial data (idempotent — reuses the bootstrap store cache).
-			// Standalone-first: one server call the user never demanded is
-			// still one too many — local logins bootstrap from device state.
-			const data = isLinkEnabled()
-				? await bootstrapStore.loadInitialData()
-				: null
+			// 2. Start authoritative remote bootstrap, but NEVER make the cashier
+			// wait for it. The terminal already has identity + local workspace data;
+			// server context is an enhancement that converges in the background.
+			const remoteBootstrap = isLinkEnabled()
+				? bootstrapStore.loadInitialData()
+				: Promise.resolve(null)
 
-			// The server bootstrap is authoritative; once available, mirror the
-			// subscriber's real catalog/customers/payment methods/opening balances
-			// into the canonical offline cache. This is deliberately NOT awaited.
-			if (data && authState.tenantId) {
-				void hydrateSubscriberLocalData({
-					tenantId: authState.tenantId,
-					warehouseId: data?.pos_profile?.warehouse || null,
-					bootstrapData: data,
-				})
-			}
+			const data = null
+
+			void remoteBootstrap.then((remoteData) => {
+				if (!remoteData) return
+				try {
+					refreshPosContext({
+						bootstrapData: remoteData,
+						settings: bootstrapStore.getPreloadedPOSSettings(),
+						auth: authState,
+					})
+				} catch (error) {
+					log.warn("Remote POS context convergence deferred", error)
+				}
+				if (authState.tenantId) {
+					void hydrateSubscriberLocalData({
+						tenantId: authState.tenantId,
+						warehouseId: remoteData?.pos_profile?.warehouse || null,
+						bootstrapData: remoteData,
+					})
+				}
+			})
 
 			// 3. POS context (tenant / branch / terminal / profile)
 			// Terminal identity must come from provisioned workspace data or a
