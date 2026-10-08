@@ -342,7 +342,7 @@ const routes = [
 		path: "/:pathMatch(.*)*",
 		name: ROUTE_NAMES.NOT_FOUND,
 		redirect: {
-			name: ROUTE_NAMES.POS,
+			name: ROUTE_NAMES.REPORTS,
 		},
 	},
 ]
