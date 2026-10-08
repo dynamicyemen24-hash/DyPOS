@@ -115,6 +115,13 @@ class DyPOSDb extends Dexie {
 				"++id, tenantId, fiscalYear, accountType, accountId, accountCode, productId, amountMinor, quantity, status, updatedAt, syncedAt, syncStatus, [tenantId+fiscalYear], [accountType+accountId]",
 		})
 
+		// v8: tenant provenance for durable offline work. A queue row must never
+		// be pushed under whichever subscriber happens to be logged in later.
+		this.version(8).stores({
+			syncQueue:
+				"++id, tenantId, entityType, entityId, operation, payload, createdAt, attemptCount, lastAttempt, status, [tenantId+status]",
+		})
+
 	}
 }
 
