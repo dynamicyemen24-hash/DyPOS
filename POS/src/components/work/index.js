@@ -8,6 +8,7 @@
 // Layout & Shell
 export { default as WorkShell } from "./WorkShell.vue"
 export { default as WorkToolbar } from "./WorkToolbar.vue"
+export { default as WorkScreenStatus } from "./WorkScreenStatus.vue"
 
 // Navigation
 export { default as WorkTabs } from "./WorkTabs.vue"
