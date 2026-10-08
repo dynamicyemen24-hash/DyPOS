@@ -478,8 +478,12 @@ const { completeAuthentication } = useCompleteAuthentication({
  * المرور — لا مسار ثانٍ يفتح جلسة، ولا عدّاد يُصعَّد مرتين، ولا
  * تنقّل مكرّر. البصمة **طريقة تحقق**، لا نظام دخول موازٍ.
  */
-function onPasskeyAuthenticated() {
+async function onPasskeyAuthenticated() {
 	completeAuthentication("passkey")
+	await bootstrapAuthenticatedSession()
+	if (!shiftDialogOpen.value) {
+		await goToDashboard()
+	}
 }
 
 /**
