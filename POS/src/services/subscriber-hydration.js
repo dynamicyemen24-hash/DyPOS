@@ -153,14 +153,29 @@ export async function hydrateSubscriberLocalData({
 		}
 		warehouse = warehouse || "W-01"
 
-		const [items, customers, balances] = await Promise.all([
+		const [items, customers, balances, paymentMethods] = await Promise.all([
 			pullItems({ warehouseId: warehouse }),
 			pullCustomers(),
 			pullOpeningBalances(tenantId),
+			(async () => {
+				try {
+					const rows = unwrap(await methodCall("DyPOS.api.pos_profile.get_payment_methods", {
+						pos_profile: bootstrapData?.pos_profile?.name || bootstrapData?.pos_profile || "default",
+					}))
+					if (!Array.isArray(rows)) return []
+					const normalized = rows.map((row) => ({ ...row, pos_profile: row.pos_profile || bootstrapData?.pos_profile?.name || "default" }))
+					if (normalized.length) await db.payment_methods.bulkPut(normalized)
+					return normalized
+				} catch (error) {
+					log.warn("Payment method hydration deferred", error)
+					return []
+				}
+			})(),
 		])
 		result.items = items
 		result.customers = customers
 		result.openingBalances = balances.rows.length
+		result.paymentMethods = Math.max(result.paymentMethods, paymentMethods.length)
 
 		await setSetting("subscriber_hydration_at", Date.now())
 		await setSetting("subscriber_hydration_tenant", tenantId || "")
