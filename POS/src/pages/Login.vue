@@ -709,7 +709,7 @@ watch(
 			<a class="dy-login__brand-logo" :href="COMPANY_WEBSITE" target="_blank" rel="noopener noreferrer" :aria-label="COMPANY_WEBSITE_LABEL">
 				<span class="dy-login__logo-shell"><img :src="DyPOSLogo" alt="DyPOS" class="dy-login__logo" width="32" height="32" decoding="async" /></span>
 			</a>
-			<nav class="dy-login__command-strip" aria-label="قائمة الوصول السريع">
+			<nav class="dy-login__command-strip" :aria-label="__('قائمة الوصول السريع')">
 				<RouterLink :to="{ name: 'Login' }" class="is-current">{{ __('الدخول') }}</RouterLink>
 				<RouterLink :to="{ name: 'Register' }">{{ __('تسجيل المشترك') }}</RouterLink>
 				<RouterLink :to="{ name: 'Terms' }">{{ __('الشروط') }}</RouterLink>
@@ -1216,7 +1216,7 @@ watch(
                                 autocomplete="organization"
                                 dir="ltr"
                                 maxlength="32"
-                                placeholder="مثال: DYPOS-ABC123"
+                                :placeholder="__('مثال: DYPOS-ABC123')"
                                 :disabled="isSubmitting"
                                 autocapitalize="characters"
                                 autocorrect="off"
@@ -1318,10 +1318,10 @@ watch(
                     </RouterLink>
                 </p>
 
-                <nav class="dy-login__legal" aria-label="الوثائق القانونية">
-                    <RouterLink :to="{ name: 'Terms' }">شروط الاستخدام</RouterLink>
-                    <RouterLink :to="{ name: 'Privacy' }">الخصوصية</RouterLink>
-                    <RouterLink :to="{ name: 'Agreement' }">اتفاقية المشترك</RouterLink>
+                <nav class="dy-login__legal" :aria-label="__('الوثائق القانونية')">
+                    <RouterLink :to="{ name: 'Terms' }">{{ __('شروط الاستخدام') }}</RouterLink>
+                    <RouterLink :to="{ name: 'Privacy' }">{{ __('الخصوصية') }}</RouterLink>
+                    <RouterLink :to="{ name: 'Agreement' }">{{ __('اتفاقية المشترك') }}</RouterLink>
                 </nav>
 
             </div>
