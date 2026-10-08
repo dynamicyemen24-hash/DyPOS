@@ -48,12 +48,21 @@ export function extractKey(req) {
 	return raw || null;
 }
 
-function namespaced(scope, key) {
-	return `${scope}:${key}`;
+function requestScope(req, scope) {
+\tconst h = req.headers || {};
+\tconst b = req.body && typeof req.body === 'object' ? req.body : {};
+\tconst tenant = String(req.user?.tenantId || h['x-tenant-id'] || b.tenantId || '').trim();
+\tconst org = String(h['x-org-id'] || b.orgId || '').trim();
+\tconst branch = String(h['x-branch-id'] || b.branchId || '').trim();
+\treturn [scope, tenant || 'legacy', org || '-', branch || '-'].join(':');
+}
+
+function namespaced(req, scope, key) {
+\treturn [requestScope(req, scope), key].join(':');
 }
 
 export function storedResponse(scope, key) {
-	const nk = namespaced(scope, key);
+	const nk = namespaced(req, scope, key);
 	if (memFallback.has(nk)) return memFallback.get(nk);
 	if (!tableAvailable()) return null;
 	try {
@@ -66,7 +75,7 @@ export function storedResponse(scope, key) {
 }
 
 function storeResponse(scope, key, status, body) {
-	const nk = namespaced(scope, key);
+	const nk = namespaced(req, scope, key);
 	const entry = { status, body };
 	memFallback.set(nk, entry);
 	if (memFallback.size > 5000) {
@@ -104,7 +113,7 @@ export async function idempotency(req, res, scope, fn) {
 		const body = await fn();
 		return res.json(body);
 	}
-	const nk = namespaced(scope, key);
+	const nk = namespaced(req, scope, key);
 	const hit = storedResponse(scope, key);
 	if (hit) {
 		res.set('X-Idempotent-Replayed', 'true');
