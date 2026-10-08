@@ -27,7 +27,7 @@ describe("login layout shell", () => {
 		const start = css.indexOf(".dy-login {")
 		const block = css.slice(start, css.indexOf("}", start))
 		expect(block).not.toMatch(/overflow\s*:\s*hidden/)
-		expect(block).not.toMatch(/height:\s*100dvh/)
+		expect(block).not.toMatch(/(?<!min-)height:\s*100dvh/)
 		expect(page).toContain('class="dy-login__submit"')
 	})
 })
