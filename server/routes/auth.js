@@ -23,6 +23,20 @@ const router = Router();
 
 const ALLOWED_ROLES = new Set(['ADMIN', 'MANAGER', 'CASHIER', 'AUDITOR']);
 
+/**
+ * Tenant administration is scoped by the authenticated admin's tenant.
+ * The only intentionally global administrator is the bootstrap/platform
+ * administrator whose token has no tenantId. This prevents a tenant ADMIN
+ * from reading or creating users belonging to another subscriber.
+ */
+function assertAdminTenantScope(req, tenantId) {
+	const actorTenant = req.user?.tenantId ? String(req.user.tenantId) : null;
+	const requestedTenant = tenantId ? String(tenantId) : null;
+
+	if (!actorTenant) return true;
+	return requestedTenant === actorTenant;
+}
+
 // Brute-force guard (shared via cache: memory single-node, Redis when
 // DYPOS_REDIS_URL is set so N cluster workers enforce ONE lockout).
 // 5 fails/15min → 429 for 15min. Fail-open to local Map when cache errors.
@@ -269,11 +283,27 @@ router.post(
 					return res.status(401).json({ error: 'رمز غير صالح أو منتهي الصلاحية' });
 				}
 				if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'فقط المدير يمكنه إنشاء حسابات' });
+				if (!assertAdminTenantScope(req, cleanTenant || req.user.tenantId)) {
+					return res.status(403).json({ error: 'لا يمكن إنشاء مستخدم خارج مساحة المشترك الحالية' });
+				}
 				finalRole = ALLOWED_ROLES.has(String(role)) ? String(role) : 'CASHIER';
+				if (req.user.tenantId && !cleanTenant) {
+					// A tenant admin can never create an unscoped/global user.
+					cleanTenant = String(req.user.tenantId);
+				}
 			} else {
 				finalRole = ALLOWED_ROLES.has(String(role)) ? String(role) : 'CASHIER';
 				if (finalRole === 'ADMIN' || finalRole === 'MANAGER') finalRole = 'CASHIER';
 			}
+		}
+
+		// If registration was authorized by a tenant admin, bind the account
+		// before the write even when the caller omitted tenantId.
+		if (req.user?.tenantId) {
+			if (!assertAdminTenantScope(req, cleanTenant || req.user.tenantId)) {
+				return res.status(403).json({ error: 'لا يمكن إنشاء مستخدم خارج مساحة المشترك الحالية' });
+			}
+			cleanTenant = String(req.user.tenantId);
 		}
 
 		const id = uuid();
@@ -451,18 +481,32 @@ router.get('/me', authMiddleware, (req, res) => {
 router.get('/users', authMiddleware, requireRole('ADMIN'), (req, res) => {
 	const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 50, 1), 200);
 	const offset = Math.max(Number.parseInt(req.query.offset, 10) || 0, 0);
-	const totalRow = db.prepare('SELECT COUNT(*) as c FROM users').get();
-	const rows = db
-		.prepare(
-			'SELECT id,username,full_name,role,is_active,tenant_id,created_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?',
-		)
-		.all(limit, offset);
+	const tenantId = req.user?.tenantId ? String(req.user.tenantId) : null;
+
+	// Platform/bootstrap ADMIN (tenantId=null) is deliberately global.
+	// Every tenant-scoped ADMIN receives only its own subscriber's users.
+	const totalRow = tenantId
+		? db.prepare('SELECT COUNT(*) as c FROM users WHERE tenant_id=?').get(tenantId)
+		: db.prepare('SELECT COUNT(*) as c FROM users').get();
+	const rows = tenantId
+		? db
+				.prepare(
+					'SELECT id,username,full_name,role,is_active,tenant_id,created_at FROM users WHERE tenant_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+				)
+				.all(tenantId, limit, offset)
+		: db
+				.prepare(
+					'SELECT id,username,full_name,role,is_active,tenant_id,created_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?',
+				)
+				.all(limit, offset);
+
+	const total = Number(totalRow?.c || 0);
 	return res.json({
 		users: rows,
-		total: totalRow?.c || 0,
+		total,
 		limit,
 		offset,
-		hasMore: offset + rows.length < (totalRow?.c || 0),
+		hasMore: offset + rows.length < total,
 	});
 });
 
