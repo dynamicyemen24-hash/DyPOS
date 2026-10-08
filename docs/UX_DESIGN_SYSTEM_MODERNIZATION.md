@@ -201,3 +201,9 @@
 6. **P3 — Browser/device gates:** أضف اختبارات حقيقية أو E2E للمقاسات وRTL/LTR والطباعة والماسح والعمل دون اتصال؛ اختبار jsdom وحده لا يثبت التوافق مع Safari أو أجهزة نقاط البيع.
 
 كل مكوّن جديد يجب أن يكون له مستهلك فعلي واختبار مناسب؛ لا تصدّره من barrel إن لم يكن مستخدماً. لا يُعتبر التغيير مُتحققاً منه حتى تمر اختبارات POS وBiome وtypecheck والبناء وفحص حجم الحزمة.
+
+- `WorkQuickFilters.vue`: accessible count-aware quick-filter chips, integrated on work screens whose schema exposes a `status` column; options/counts are derived from loaded rows, not hard-coded.
+- `WorkSearch.vue`: connect the input to its existing debounce pipeline, honor the `clearable` prop, and use stable Vue `useId()` IDs in search, grid density, filter panel, and pagination controls.
+- `WorkDataGrid.vue`: keep client-side page count synchronized with filtered results while preserving an explicitly larger server-side total.
+- `POS/tests/workSearchQuickFilters.test.js`: cover quick-filter selection/reset and debounced search/clearable behavior.
+- Server CI lint follow-up: replace expression-returning `forEach` callbacks in the reference migration with void callbacks and use a template literal in the catalog test; no migration data or behavior was intentionally changed.
