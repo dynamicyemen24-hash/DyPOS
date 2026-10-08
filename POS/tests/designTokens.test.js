@@ -1010,7 +1010,7 @@ describe("the identity image is framed, never stretched behind live text", () =>
 	it("the brand backdrop is a pure gradient owned by the stylesheet", () => {
 		const body = stripComments(ruleBody(LOGIN_CSS_FILE, ".dy-login__brand {"))
 		expect(body, "the rule still exists").not.toBe("")
-		expect(body).toMatch(/background:\s*var\(--dy-surface\)/)
+		expect(body).toMatch(/background:\s*(?:var\(--dy-surface\)|color-mix\([^;]+var\(--dy-surface\))/)
 		expect(body).not.toMatch(/url\(/)
 		expect(body).not.toMatch(/background-size:\s*cover/)
 
@@ -1053,38 +1053,12 @@ describe("the identity image is framed, never stretched behind live text", () =>
 		expect(panel).toMatch(/object-fit:\s*contain/)
 		expect(panel).not.toMatch(/object-fit:\s*cover/)
 	})
-	it("keeps the masthead compact and links the full company artwork in its showcase", () => {
+	it("keeps the masthead compact and uses the live DyPOS logo", () => {
 		const login = read(SRC, "pages", "Login.vue")
-		/*
-		 * `indexOf('<section class="dy-login__brand"')` returned -1 the moment the
-		 * tag grew a `:class` binding and started spanning lines — and `slice(a,
-		 * -1)` silently produced an EMPTY string. The assertions below then
-		 * failed on a card that is on screen, reporting the wrong thing
-		 * entirely. `slice(a, a - 1)` is the quietest failure mode in this file,
-		 * so the marker is asserted before it is used.
-		 */
-		const mastheadAt = login.search(/<section\s+class="dy-login__brand"/)
-		expect(
-			mastheadAt,
-			"masthead section not found in Login.vue",
-		).toBeGreaterThan(-1)
-		const masthead = login.slice(
-			mastheadAt,
-			login.indexOf("</section>", mastheadAt),
-		)
-		expect(masthead).toContain("<CompanyFooter")
-		expect(masthead).not.toContain("dy-login__brand-card")
-
-		const workspace = read(
-			SRC,
-			"components",
-			"common",
-			"LoginWorkspacePanel.vue",
-		)
-		expect(workspace).toMatch(/<aside class="dy-login__workspace"/)
-		expect(workspace).toMatch(/APP_NAME/)
-		expect(workspace).toMatch(/target="_blank"/)
-		expect(workspace).toMatch(/rel="noopener noreferrer"/)
+		expect(login).toMatch(/<section\s+class="dy-login__brand"/)
+		expect(login).toContain("DyPOSLogo")
+		expect(login).toContain("dy-login__command-strip")
+		expect(login).not.toContain("<LoginWorkspacePanel")
 	})
 
 	/*
@@ -1228,17 +1202,13 @@ describe("the identity image is framed, never stretched behind live text", () =>
 	 * four readiness states). Pin the binding so the next sweep cannot repeat
 	 * that mistake.
 	 */
-	it("the runtime banner keeps its dynamic modifier binding", () => {
+	it("the runtime status is represented by one accessible status strip", () => {
 		const login = read(SRC, "pages", "Login.vue")
-		expect(login).toMatch(/`dy-login__runtime--\$\{[^}]+\}`/)
-
 		const css = read(SRC, "styles", "pages", "login.css")
-		for (const tone of ["info", "success", "warning", "error"]) {
-			expect(
-				css,
-				`runtime tone "${tone}" is produced by RUNTIME_STATUS_BY_STATE and must be styled`,
-			).toContain(`dy-login__runtime--${tone}`)
-		}
+		expect(login).toContain('class="dy-login__status-bar"')
+		expect(css).toContain(".dy-login__status-item")
+		expect(css).toContain(".dy-login__status-item--online")
+		expect(css).toContain(".dy-login__status-item--offline")
 	})
 })
 
