@@ -50,12 +50,12 @@ describe("resolveTerminalId", () => {
 		posContext.terminalId = null
 	})
 
-	it("generates and persists a new id on first use", () => {
+	it("does not manufacture an unprovisioned terminal", () => {
 		const storage = createStorage()
 		const id = resolveTerminalId(storage)
-		expect(id).toMatch(/^TERM-/)
-		expect(storage.getItem(TERMINAL_STORAGE_KEY)).toBe(id)
-		expect(posContext.terminalId).toBe(id)
+		expect(id).toBeNull()
+		expect(storage.getItem(TERMINAL_STORAGE_KEY)).toBeNull()
+		expect(posContext.terminalId).toBeNull()
 	})
 
 	it("reuses a persisted id instead of regenerating", () => {
@@ -65,9 +65,8 @@ describe("resolveTerminalId", () => {
 		expect(id).toBe(persisted)
 	})
 
-	it("still works when storage is unavailable", () => {
-		const id = resolveTerminalId(null)
-		expect(id).toMatch(/^TERM-/)
+	it("remains empty when no provisioned terminal exists", () => {
+		expect(resolveTerminalId(null)).toBeNull()
 	})
 })
 
