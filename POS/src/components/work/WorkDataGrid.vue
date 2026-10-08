@@ -1186,7 +1186,11 @@ onUnmounted(() => {
   border-block-end: 1px solid color-mix(in srgb, var(--dy-color-surface-border, #e2e8f0) 72%, transparent);
   color: var(--dy-color-text, #0f172a);
 }
-.work-data-grid__tr:hover .work-data-grid__td,
+.work-data-grid__row:hover .work-data-grid__td,
+.work-data-grid__row--selected .work-data-grid__td {
+  background: color-mix(in srgb, var(--dy-color-brand-500, #10b981) 8%, var(--dy-color-surface-base, #fff));
+}
+.work-data-grid__row:focus-visible { outline: 2px solid var(--dy-color-brand-600, #059669); outline-offset: -2px; }
 .work-data-grid__td:focus-within {
   background: color-mix(in srgb, var(--dy-color-brand-500, #10b981) 5%, var(--dy-color-surface-base, #fff));
 }
