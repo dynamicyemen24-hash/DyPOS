@@ -263,22 +263,29 @@ export function useLocale() {
 		currentLocale.value = newLocale
 		currentDir.value = config.dir
 
-		// Update document attributes
-		document.documentElement.setAttribute("dir", config.dir)
-		document.documentElement.setAttribute("lang", newLocale)
+		// Update document attributes when running in a browser. Locale state
+		// must remain usable in SSR, tests and embedded/non-DOM environments.
+		if (typeof document !== "undefined") {
+			const root = document.documentElement
+			root.setAttribute("dir", config.dir)
+			root.setAttribute("lang", newLocale)
 
-		// Toggle RTL class for CSS
-		if (config.dir === "rtl") {
-			document.documentElement.classList.add("rtl")
-		} else {
-			document.documentElement.classList.remove("rtl")
+			if (config.dir === "rtl") root.classList.add("rtl")
+			else root.classList.remove("rtl")
 		}
 
-		// Store preference in localStorage
-		localStorage.setItem(PREFARED_LANGUAGE_KEY, newLocale)
+		// Persistence is best-effort: private browsing, storage policies or a
+		// quota error must not abort the language switch or translation refresh.
+		try {
+			if (typeof localStorage !== "undefined") {
+				localStorage.setItem(PREFARED_LANGUAGE_KEY, newLocale)
+			}
+		} catch (error) {
+			log.warn("Could not persist language preference; keeping it for this session", error)
+		}
 
-		// Language preference is local-first (localStorage). A future sync
-		// layer may propagate it; it must never block the switch.
+		// Language preference is local-first. A future sync layer may propagate
+		// it; network availability must never block the direction/locale switch.
 
 		// Fetch new translations dynamically (no page reload needed)
 		// The API returns translations based on the user's current language setting
