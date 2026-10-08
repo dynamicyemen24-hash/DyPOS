@@ -15,7 +15,7 @@
 import { computed, ref } from "vue"
 import { defineStore } from "pinia"
 
-import { session as localSession, lastLoginSource } from "@/data/session"
+import { session as localSession, lastLoginSource, lastServerAuth } from "@/data/session"
 import { userResource, userData } from "@/data/user"
 import { userRepository } from "@/repositories/userRepository"
 import { shiftState, useShift } from "@/composables/useShift"
@@ -181,16 +181,14 @@ export const useSessionStore = defineStore("session", () => {
 			// rather than waiting for a later bootstrap side effect.
 			try {
 				const serverSession = lowSession.user
-				// data/session keeps only the normalized user. The token is captured
-				// by the auth bridge when available; see bootstrap hydration below.
 				await initPlatformAuth().catch(() => {})
-				if (serverSession?.tenantId) {
+				if (lastServerAuth?.token) {
 					await savePlatformAuth(
-						authState.token,
-						authState.refreshToken,
-						3600,
-						serverSession.tenantId,
-						serverSession.user_id || serverSession.id || null,
+						lastServerAuth.token,
+						lastServerAuth.refreshToken,
+						lastServerAuth.expiresIn || 3600,
+						serverSession?.tenantId || lastServerAuth.user?.tenantId || null,
+						serverSession?.user_id || serverSession?.id || lastServerAuth.user?.id || null,
 					)
 				}
 			} catch (error) {
