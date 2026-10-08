@@ -978,6 +978,7 @@ onUnmounted(() => {
 
 <style scoped>
 @import "./workDataGrid.responsive.css";
+@import "./workDataGrid.visual.css";
 /* ============================================================================
    WorkDataGrid — Enterprise Data Grid (Odoo/SAP parity)
    ============================================================================ */
@@ -1150,63 +1151,6 @@ onUnmounted(() => {
   .work-data-grid__th { border-color: CanvasText; color: CanvasText; }
   .work-data-grid__td { border-color: CanvasText; color: CanvasText; }
   .work-data-grid__frozen { border-color: CanvasText; }
-}
-
-/* DyPOS work-surface refinement: hierarchy first, ornament second. */
-.work-data-grid {
-  border-color: color-mix(in srgb, var(--dy-color-surface-border, #dbe3ec) 82%, var(--dy-color-brand-500, #10b981));
-  border-radius: 16px;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 0.035), 0 10px 30px rgb(15 23 42 / 0.035);
-}
-.work-data-grid__toolbar {
-  gap: 12px;
-  padding: 14px 16px;
-  background: linear-gradient(180deg, var(--dy-color-surface-base, #fff), var(--dy-color-surface-overlay, #f8fafc));
-}
-.work-data-grid__global-search { min-width: min(280px, 100%); }
-.work-data-grid__density-select {
-  min-height: 44px;
-  padding: 8px 30px 8px 10px;
-  color: var(--dy-color-text, #0f172a);
-  font-size: 0.8125rem;
-}
-.work-data-grid__main { scrollbar-gutter: stable; }
-.work-data-grid__table thead { position: sticky; top: 0; z-index: 12; }
-.work-data-grid__th {
-  min-height: 44px;
-  background: var(--dy-color-surface-overlay, #f8fafc);
-  color: var(--dy-color-text-muted, #64748b);
-  font-size: 0.75rem;
-  font-weight: 750;
-  letter-spacing: 0.015em;
-  border-block-end: 1px solid var(--dy-color-surface-border, #e2e8f0);
-}
-.work-data-grid__td {
-  min-height: 48px;
-  border-block-end: 1px solid color-mix(in srgb, var(--dy-color-surface-border, #e2e8f0) 72%, transparent);
-  color: var(--dy-color-text, #0f172a);
-}
-.work-data-grid__row:hover .work-data-grid__td,
-.work-data-grid__row--selected .work-data-grid__td {
-  background: color-mix(in srgb, var(--dy-color-brand-500, #10b981) 8%, var(--dy-color-surface-base, #fff));
-}
-.work-data-grid__row:focus-visible { outline: 2px solid var(--dy-color-brand-600, #059669); outline-offset: -2px; }
-.work-data-grid__td:focus-within {
-  background: color-mix(in srgb, var(--dy-color-brand-500, #10b981) 5%, var(--dy-color-surface-base, #fff));
-}
-.work-data-grid :is(button, input, select, textarea):focus-visible {
-  outline: 2px solid var(--dy-color-brand-600, #059669);
-  outline-offset: 2px;
-}
-@media (max-width: 640px) {
-  .work-data-grid { border-radius: 12px; }
-  .work-data-grid__toolbar { padding: 12px; }
-  .work-data-grid__global-search { min-width: 0; width: 100%; }
-  .work-data-grid__density-selector { align-self: flex-end; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .work-data-grid,
-  .work-data-grid * { scroll-behavior: auto !important; }
 }
 
 </style>
