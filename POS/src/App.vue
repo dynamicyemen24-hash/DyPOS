@@ -35,15 +35,11 @@
 				mode="out-in"
 				:css="motionEnabled"
 			>
-				<KeepAlive
-					:include="keepAliveRoutes"
-					:max="keepAliveMax"
-				>
-					<Component
-						:is="Component"
-						:key="getRouteKey(route)"
-					/>
-				</KeepAlive>
+				<component
+					v-if="Component"
+					:is="Component"
+					:key="getRouteKey(route)"
+				/>
 			</Transition>
 		</RouterView>
 		</main>
@@ -203,21 +199,14 @@ const translationRevision = computed(() => {
  */
 
 /**
- * Routes that are safe to keep alive.
+ * Route components are intentionally not kept alive at the global shell level.
  *
- * IMPORTANT:
- * POSSale should generally NOT be placed here until its state model is
- * explicitly designed for keep-alive semantics.
- *
- * A POS transaction must never survive invisibly because of an accidental
- * cached component instance.
+ * KeepAlive + RouterView + out-in transitions can race during rapid navigation
+ * and leave Vue with a null component instance during unmount. That manifests
+ * in production as Vue internals attempting to destructure lifecycle hooks from
+ * a null instance (e.g. "Cannot destructure property 'bum' ... of 'd' as it is null").
+ * Transactional state belongs in Pinia/offline stores, not hidden component caches.
  */
-const keepAliveRoutes = Object.freeze([
-	// Add explicitly approved read-only / lightweight routes here.
-])
-
-const keepAliveMax = 5
-
 /**
  * Generate a stable route key.
  *
