@@ -25,6 +25,9 @@ import {
 	posContext,
 	refreshPosContext,
 	resolveTerminalId,
+	generateTerminalId,
+	importTerminalCode,
+	applyPosContext,
 } from "@/utils/posContext"
 import {
 	DEFAULT_POS_PERMISSIONS,
@@ -256,12 +259,37 @@ export const useSessionStore = defineStore("session", () => {
 			// 3. POS context (tenant / branch / terminal / profile)
 			// Terminal identity must come from provisioned workspace data or a
 			// previously persisted provisioned terminal; never manufacture one.
-			resolveTerminalId()
-			refreshPosContext({
-				bootstrapData: data,
-				settings: bootstrapStore.getPreloadedPOSSettings(),
-				auth: authState,
-			})
+			let terminalId = resolveTerminalId()
+			const localUser = lowSession.user
+
+			// A new standalone subscriber has no server-provisioned workspace yet.
+			// Provision only device/workspace metadata locally so the cashier can
+			// reach POS immediately; real catalog/master data remains user/imported
+			// data and is never fabricated.
+			if (!data && localUser) {
+				if (!terminalId) {
+					try {
+						terminalId = importTerminalCode(generateTerminalId())
+					} catch {
+						terminalId = null
+					}
+				}
+				applyPosContext({
+					tenantId: localUser.tenantId || localUser.tenant_id || `local-${localUser.id}`,
+					tenantName: localUser.company || localUser.full_name || "مساحة العمل المحلية",
+					company: localUser.company || "",
+					branchCode: "MAIN",
+					branchName: "المركز الرئيسي",
+					terminalId,
+					posProfile: "default",
+				})
+			} else {
+				refreshPosContext({
+					bootstrapData: data,
+					settings: bootstrapStore.getPreloadedPOSSettings(),
+					auth: authState,
+				})
+			}
 
 			// 4. Permission preload (non-blocking, optimistic defaults served meanwhile)
 			await loadPermissions()
