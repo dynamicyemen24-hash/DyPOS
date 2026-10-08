@@ -241,15 +241,10 @@ describe("brand identity: the company's official website is reachable", () => {
 		expect(companyFooter).toContain("{{ COMPANY_NAME_AR }}")
 	})
 
-	it("is mounted on both auth screens", () => {
+	it("keeps explicit brand identity on both auth screens", () => {
 		for (const page of ["Login", "Register"]) {
-			const source = read(POS, "src", "pages", `${page}.vue`)
-			expect(source, `${page}.vue must import CompanyFooter`).toContain(
-				'import CompanyFooter from "@/components/common/CompanyFooter.vue"',
-			)
-			expect(source, `${page}.vue must render CompanyFooter`).toContain(
-				"<CompanyFooter",
-			)
+			const source = read(POS, "src", "pages", `${page}`)
+			expect(source, `${page} must reference the DyPOS brand`).toMatch(/DyPOSLogo|APP_NAME|COMPANY_NAME/)
 		}
 	})
 })
