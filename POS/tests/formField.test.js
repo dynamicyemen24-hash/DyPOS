@@ -1,3 +1,4 @@
+import { h } from "vue"
 import { describe, expect, it } from "vitest"
 import { mount } from "@vue/test-utils"
 import FormField from "@/components/ui/FormField.vue"
@@ -8,7 +9,7 @@ describe("FormField", () => {
 			props: { label: "اسم الصنف", description: "اسم ظاهر في الفاتورة" },
 			slots: {
 				default: ({ fieldId, describedBy }) =>
-					`<input id="${fieldId}" aria-describedby="${describedBy}" />`,
+					h("input", { id: fieldId, "aria-describedby": describedBy }),
 			},
 		})
 		const input = wrapper.find("input")
@@ -22,7 +23,12 @@ describe("FormField", () => {
 			props: { label: "السعر", error: "القيمة غير صالحة" },
 			slots: {
 				default: ({ fieldId, describedBy, invalid, errorId }) =>
-					`<input id="${fieldId}" aria-describedby="${describedBy}" aria-invalid="${invalid}" data-error-id="${errorId}" />`,
+					h("input", {
+						id: fieldId,
+						"aria-describedby": describedBy,
+						"aria-invalid": invalid ? "true" : "false",
+						"data-error-id": errorId,
+					}),
 			},
 		})
 		const input = wrapper.find("input")
@@ -34,7 +40,7 @@ describe("FormField", () => {
 	it("supports a caller-provided id without generating a conflicting label target", () => {
 		const wrapper = mount(FormField, {
 			props: { id: "custom-product-name", label: "اسم المنتج" },
-			slots: { default: ({ fieldId }) => `<input id="${fieldId}" />` },
+			slots: { default: ({ fieldId }) => h("input", { id: fieldId }) },
 		})
 		expect(wrapper.find("label").attributes("for")).toBe("custom-product-name")
 		expect(wrapper.find("input").attributes("id")).toBe("custom-product-name")
