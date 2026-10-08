@@ -619,7 +619,7 @@ const doRegister = async (params, req, res) => {
 			}
 			db.prepare('INSERT INTO users (id,username,password_hash,full_name,role,tenant_id) VALUES (?,?,?,?,?,?)').run(id, username, hash, fullName, finalRole, tenantId);
 			try {
-				db.prepare('INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)').run('tenant.' + tenantId + '.currency', currency);
+				db.prepare('INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)').run(`tenant.${tenantId}.currency`, currency);
 			} catch { /* legacy settings schema may differ; onboarding core remains atomic */ }
 		})();
 	} catch (e) {
