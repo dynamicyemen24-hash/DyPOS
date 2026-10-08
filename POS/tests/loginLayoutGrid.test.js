@@ -11,7 +11,7 @@ describe("login layout shell", () => {
 		expect(css).toContain(".dy-login {")
 		expect(css).toContain(".dy-login__brand {")
 		expect(css).toContain(".dy-login__status-bar {")
-		expect(css).toContain(".dy-login__secondary {")
+		expect(css).toMatch(/\.dy-login__secondary(?:\s*,|\s*\{)/)
 		expect(css).not.toContain("grid-template-areas")
 		expect(css).not.toContain("grid-area: workspace")
 	})
