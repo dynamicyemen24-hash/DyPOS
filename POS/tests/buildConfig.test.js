@@ -149,7 +149,8 @@ describe("build config integrity", () => {
 	})
 
 	it("does not cache tenant-scoped API responses in the service worker", () => {
-		expect(viteConfig).toMatch(/urlPattern:\s*\/\\\/api\\\/\.\*\/i,\s*handler:\s*"NetworkOnly"/)
+		expect(viteConfig).toContain('urlPattern: /\\/api\\/.*/i')
+		expect(viteConfig).toContain('handler: "NetworkOnly"')
 		expect(viteConfig).not.toContain('cacheName: "api-cache"')
 	})
 })
