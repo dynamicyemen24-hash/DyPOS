@@ -60,6 +60,10 @@ const CURRENT_SCHEMA = {
 	// Payment methods cache
 	payment_methods: "&mode_of_payment, pos_profile",
 
+	// Authoritative opening positions per subscriber/fiscal year.
+	// Natural key prevents duplicate imports and keeps the baseline available offline.
+	opening_balances: "&key, tenant_id, fiscal_year, account_type, account_id, account_code, product_id, amount_minor, quantity, updated_at",
+
 	// Sales persons cache
 	sales_persons: "&name, pos_profile",
 
