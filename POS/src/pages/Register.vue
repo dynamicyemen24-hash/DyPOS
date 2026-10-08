@@ -1802,4 +1802,35 @@ onUnmounted(() => {
   .dy-register__progress-item small{display:none}
 }
 
+
+/* Functional registration command strip */
+.dy-register__command-strip{
+  position:sticky;top:0;z-index:31;
+  width:100%;min-height:44px;
+  display:flex;align-items:center;justify-content:center;gap:3px;
+  padding:6px 10px;
+  border-bottom:1px solid var(--dy-border);
+  background:color-mix(in srgb,var(--dy-surface) 96%,transparent);
+  backdrop-filter:blur(16px);
+}
+.dy-register__command-strip strong{
+  margin-inline-end:auto;
+  color:var(--dy-text-strong);font-size:.78rem;font-weight:900;
+}
+.dy-register__command-strip a{
+  display:inline-flex;align-items:center;min-height:30px;
+  padding:4px 9px;border-radius:7px;
+  color:var(--dy-text-secondary);text-decoration:none;
+  font-size:.66rem;font-weight:750;
+}
+.dy-register__command-strip a:hover,.dy-register__command-strip a.is-current{
+  color:var(--dy-text-strong);background:var(--dy-surface-soft);
+}
+@media(max-width:520px){
+ .dy-register__command-strip{justify-content:flex-start;overflow-x:auto;scrollbar-width:none}
+ .dy-register__command-strip::-webkit-scrollbar{display:none}
+ .dy-register__command-strip strong{display:none}
+ .dy-register__command-strip a{flex:0 0 auto}
+}
+
 </style>
