@@ -231,17 +231,3 @@ function onRowClick(row) {
 watch(screenId, load)
 onMounted(load)
 </script>
-
-<style scoped>
-.work-screens__source {
-	padding: 0.5rem 0.75rem;
-	font-size: 0.8rem;
-	color: var(--dy-text-muted);
-	background: var(--dy-bg-sunken);
-	border-radius: 0.5rem;
-}
-.work-screens__source[data-source="unavailable"] {
-	color: var(--dy-warning);
-	background: var(--dy-warning-soft);
-}
-</style>
