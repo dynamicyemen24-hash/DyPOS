@@ -186,8 +186,8 @@ export function refreshPosContext({
 		pick(settings, ["branch_code"]) ||
 		posContext.branchCode
 
-	const branchName = resolvedBranchName || (tenantId ? "المركز الرئيسي" : null)
-	const branchCode = resolvedBranchCode || (tenantId ? "MAIN" : null)
+	const branchName = resolvedBranchName || null
+	const branchCode = resolvedBranchCode || null
 
 	const company =
 		pick(bootstrapData, ["company", "company_name"]) ||
