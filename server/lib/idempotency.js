@@ -66,7 +66,7 @@ export function storedResponse(scope, key) {
 	if (memFallback.has(nk)) return memFallback.get(nk);
 	if (!tableAvailable()) return null;
 	try {
-		const row = db.prepare('SELECT status, body FROM idempotency_keys WHERE key=?').get(nk);
+		const row = db.prepare('SELECT status, body FROM idempotency_keys WHERE key=? AND expires_at > datetime('now')').get(nk);
 		if (!row) return null;
 		return { status: Number(row.status) || 200, body: JSON.parse(row.body) };
 	} catch {
@@ -87,7 +87,13 @@ function storeResponse(scope, key, status, body) {
 		db.prepare(
 			`INSERT INTO idempotency_keys (key, scope, status, body, created_at, expires_at)
        VALUES (?,?,?,?,datetime('now'),datetime('now', ?))
-       ON CONFLICT(key) DO NOTHING`,
+       ON CONFLICT(key) DO UPDATE SET
+         scope=excluded.scope,
+         status=excluded.status,
+         body=excluded.body,
+         created_at=excluded.created_at,
+         expires_at=excluded.expires_at
+       WHERE idempotency_keys.expires_at <= datetime('now')`,
 		).run(nk, scope, status, JSON.stringify(body), `+${Math.max(1, TTL_HOURS)} hours`);
 	} catch {
 		/* memory remains authoritative */
