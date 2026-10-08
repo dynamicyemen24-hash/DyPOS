@@ -43,7 +43,12 @@ async function mountLogin() {
 	const Login = (await import("@/pages/Login.vue")).default
 	const router = createRouter({
 		history: createMemoryHistory(),
-		routes: [{ path: "/", component: { template: "<div />" } }],
+		routes: [
+			{ path: "/", component: { template: "<div />" } },
+			{ path: "/account/login", name: "Login", component: { template: "<div />" } },
+			{ path: "/account/register", name: "Register", component: { template: "<div />" } },
+			{ path: "/forgot-password", name: "ForgotPassword", component: { template: "<div />" } },
+		],
 	})
 
 	const wrapper = mount(Login, {
@@ -73,7 +78,7 @@ describe("the login screen mounts", () => {
 			wrapper.find(".dy-login__alternatives").attributes("open"),
 		).toBeUndefined()
 		expect(wrapper.text()).toContain("تسجيل الدخول")
-		expect(wrapper.text()).toContain("أدوات تقنية")
+		expect(wrapper.text()).toContain("أدوات النظام")
 		expect(
 			wrapper
 				.findAll("button")
