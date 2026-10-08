@@ -104,9 +104,15 @@ export function useLoginSessionBootstrap({
 	}
 
 	function emitReady() {
+		const guidance = session?.nextOperationalStep || {
+			code: "SELL",
+			label: "بدء البيع",
+			priority: "ready",
+		}
 		emit("ready", {
 			authenticated: true,
 			runtimeReady: isRuntimeReady.value,
+			guidance,
 		})
 	}
 
