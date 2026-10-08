@@ -3069,16 +3069,20 @@ if (_origCreateOpening) {
 					: Array.isArray(balance)
 						? toNum(balance[0]?.opening_amount ?? balance[0]?.amount)
 						: toNum(params.openingCash);
-		const terminalId = String(params.pos_profile || params.terminal_id || params.terminalId || 'POS-01').slice(0, 32);
-		const company = String(params.company || allSettings().business_name || 'DyPOS').slice(0, 200);
+		const terminalId = String(params.pos_profile || params.terminal_id || params.terminalId || '').trim().slice(0, 64);
+		const company = String(params.company || allSettings().business_name || '').slice(0, 200);
 
 		if (!requireUser(req, res)) return;
+		const tenantId = resolveTenantFilter(req).tenantId;
+		if (!tenantId) return methodError(res, 403, 'PermissionError', 'لا يوجد مشترك مرتبط بالمستخدم');
+		if (!terminalId) return methodError(res, 422, 'ValidationError', 'معرّف الطرفية مطلوب');
 		try {
-			const existing = db.prepare('SELECT id FROM shifts WHERE terminal_id=? AND status=?').get(terminalId, 'OPEN');
+			const existing = db.prepare('SELECT id FROM shifts WHERE tenant_id=? AND terminal_id=? AND status=?').get(tenantId, terminalId, 'OPEN');
 			if (existing) return methodError(res, 409, 'ValidationError', 'يوجد وردية مفتوحة بالفعل');
 			const id = crypto.randomUUID();
-			db.prepare('INSERT INTO shifts (id,terminal_id,opened_by,opening_cash,status) VALUES (?,?,?,?,?)').run(
+			db.prepare('INSERT INTO shifts (id,tenant_id,terminal_id,opened_by,opening_cash,status) VALUES (?,?,?,?,?,?)').run(
 				id,
+				tenantId,
 				terminalId,
 				req.user.fullName || req.user.username,
 				openingCash,
