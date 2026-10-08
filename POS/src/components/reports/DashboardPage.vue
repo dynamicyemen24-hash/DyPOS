@@ -13,7 +13,7 @@
         <template #center>
           <div class="home-toolbar">
             <div class="home-toolbar__brand" aria-label="DyPOS">
-              <div class="home-toolbar__logo"><img  src="/assets/DyPOSLogo.png" alt="" /></div>
+              <div class="home-toolbar__logo"><img   :src="publicLogoUrl" alt="" /></div>
               <div>
                 <strong>DyPOS</strong>
                 <span>نظام نقاط البيع الذكي</span>
@@ -48,7 +48,7 @@
           </div>
         </div>
         <div class="home-hero__identity">
-          <div class="home-hero__mark"><img src="/assets/DyPOSLogo.png" alt="DyPOS" /></div>
+          <div class="home-hero__mark"><img  :src="publicLogoUrl" alt="DyPOS" /></div>
           <strong>تشغيل ذكي. بيع أسرع.</strong>
           <span>واجهة عربية RTL مصممة للعمل اليومي.</span>
         </div>
@@ -155,6 +155,8 @@ const ARABIC_TITLES = {
 	"customer-intelligence": "لوحة العملاء",
 	"operations-overview": "لوحة العمليات",
 }
+
+const publicLogoUrl = "/assets/DyPOSLogo.png"
 
 const route = useRoute()
 const router = useRouter()
