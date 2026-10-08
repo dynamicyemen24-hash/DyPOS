@@ -4152,3 +4152,72 @@ CREATE INDEX IF NOT EXISTS idx_queue_events_tenant
   ON queue_events(tenant_id, version);
 CREATE INDEX IF NOT EXISTS idx_queue_events_session
   ON queue_events(session_id, version);
+
+
+-- v41: comprehensive reference/master data foundation
+CREATE TABLE IF NOT EXISTS ref_countries (
+  code_alpha2 TEXT PRIMARY KEY, name TEXT NOT NULL, name_ar TEXT NOT NULL DEFAULT '', is_active BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE TABLE IF NOT EXISTS ref_currencies (
+  code TEXT PRIMARY KEY, name TEXT NOT NULL, name_ar TEXT NOT NULL DEFAULT '', symbol TEXT NOT NULL DEFAULT '',
+  decimals INTEGER NOT NULL DEFAULT 2, is_active BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE TABLE IF NOT EXISTS business_sectors (
+  code TEXT PRIMARY KEY, name TEXT NOT NULL, name_ar TEXT NOT NULL DEFAULT '', is_active BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE TABLE IF NOT EXISTS business_activities (
+  code TEXT PRIMARY KEY, sector_code TEXT NOT NULL REFERENCES business_sectors(code), name TEXT NOT NULL,
+  name_ar TEXT NOT NULL DEFAULT '', is_active BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE TABLE IF NOT EXISTS activity_product_classes (
+  activity_code TEXT NOT NULL REFERENCES business_activities(code), class_code TEXT NOT NULL,
+  name TEXT NOT NULL, name_ar TEXT NOT NULL DEFAULT '', is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  PRIMARY KEY(activity_code,class_code)
+);
+CREATE TABLE IF NOT EXISTS activity_services (
+  activity_code TEXT NOT NULL REFERENCES business_activities(code), service_code TEXT NOT NULL,
+  name TEXT NOT NULL, name_ar TEXT NOT NULL DEFAULT '', is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  PRIMARY KEY(activity_code,service_code)
+);
+CREATE TABLE IF NOT EXISTS ref_enum_values (
+  enum_name TEXT NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, name_ar TEXT NOT NULL DEFAULT '',
+  sort_order INTEGER NOT NULL DEFAULT 100, is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  PRIMARY KEY(enum_name,code)
+);
+CREATE TABLE IF NOT EXISTS settings_definitions (
+  key TEXT PRIMARY KEY, data_type TEXT NOT NULL, default_value TEXT NOT NULL DEFAULT '',
+  scope TEXT NOT NULL DEFAULT 'ORGANIZATION', category TEXT NOT NULL DEFAULT 'GENERAL',
+  description TEXT NOT NULL DEFAULT '', is_user_editable BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE TABLE IF NOT EXISTS account_templates (
+  code TEXT PRIMARY KEY, name TEXT NOT NULL, name_ar TEXT NOT NULL DEFAULT '', activity_code TEXT,
+  is_default BOOLEAN NOT NULL DEFAULT FALSE, is_active BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE TABLE IF NOT EXISTS account_template_lines (
+  template_code TEXT NOT NULL REFERENCES account_templates(code), account_code TEXT NOT NULL, parent_code TEXT,
+  name TEXT NOT NULL, name_ar TEXT NOT NULL DEFAULT '', account_type TEXT NOT NULL, normal_balance TEXT NOT NULL,
+  is_control BOOLEAN NOT NULL DEFAULT FALSE, sort_order INTEGER NOT NULL DEFAULT 100,
+  PRIMARY KEY(template_code,account_code)
+);
+CREATE TABLE IF NOT EXISTS opening_balance_templates (
+  code TEXT PRIMARY KEY, name TEXT NOT NULL, name_ar TEXT NOT NULL DEFAULT '', activity_code TEXT,
+  description TEXT NOT NULL DEFAULT '', is_active BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE TABLE IF NOT EXISTS opening_balance_template_lines (
+  template_code TEXT NOT NULL REFERENCES opening_balance_templates(code), account_code TEXT NOT NULL,
+  direction TEXT NOT NULL, default_amount TEXT NOT NULL DEFAULT '0', name TEXT NOT NULL, name_ar TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY(template_code,account_code)
+);
+CREATE TABLE IF NOT EXISTS onboarding_templates (
+  activity_code TEXT NOT NULL REFERENCES business_activities(code), country_code TEXT NOT NULL DEFAULT '',
+  template_version INTEGER NOT NULL DEFAULT 1, config_json TEXT NOT NULL DEFAULT '{}',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE, PRIMARY KEY(activity_code,country_code)
+);
+CREATE TABLE IF NOT EXISTS price_rule_types (
+  code TEXT PRIMARY KEY, name TEXT NOT NULL, name_ar TEXT NOT NULL DEFAULT '', is_active BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE INDEX IF NOT EXISTS idx_business_activities_sector ON business_activities(sector_code,is_active);
+CREATE INDEX IF NOT EXISTS idx_activity_classes_activity ON activity_product_classes(activity_code,is_active);
+CREATE INDEX IF NOT EXISTS idx_activity_services_activity ON activity_services(activity_code,is_active);
+CREATE INDEX IF NOT EXISTS idx_ref_enum_name ON ref_enum_values(enum_name,is_active,sort_order);
+CREATE INDEX IF NOT EXISTS idx_onboarding_country ON onboarding_templates(country_code,is_active);
