@@ -54,7 +54,6 @@ const ROUTE_NAMES = Object.freeze({
 	THIRD_PARTY_SALES: "ThirdPartySales",
 	SELF_CHECKOUT: "SelfCheckout",
 	QUEUE: "Queue",
-	ENTERPRISE_CONTROL: "EnterpriseControlCenter",
 })
 
 const ROUTE_TITLES = Object.freeze({
@@ -75,7 +74,6 @@ const ROUTE_TITLES = Object.freeze({
 	[ROUTE_NAMES.THIRD_PARTY_SALES]: "البيع بالنيابة",
 	[ROUTE_NAMES.SELF_CHECKOUT]: "الكاشير الذاتي",
 	[ROUTE_NAMES.QUEUE]: "الطوابير",
-	[ROUTE_NAMES.ENTERPRISE_CONTROL]: "مركز القيادة المؤسسية",
 	landing: "DyPOS",
 	[ROUTE_NAMES.NOT_FOUND]: "صفحة غير موجودة",
 })
@@ -328,13 +326,6 @@ const routes = [
 	 * الكشك الذي لا يفتح وردية: التذكرة مسار مستقل عن الفوترة،
 	 * والربط بالوردية كان سيمنعه من العمل أصلًا.
 	 */
-	{
-		path: "/enterprise",
-		name: ROUTE_NAMES.ENTERPRISE_CONTROL,
-		component: () => import("@/pages/EnterpriseControlCenter.vue"),
-		meta: { [ROUTE_META.requiresAuth]: true },
-	},
-
 	{
 		path: "/queue",
 		name: ROUTE_NAMES.QUEUE,
@@ -664,7 +655,7 @@ router.beforeEach(async (to, from) => {
 	 * Authenticated user attempting to access Login.
 	 */
 	if (guestOnly && authenticated) {
-		return redirectToPOS()
+		return redirectToDashboard()
 	}
 
 	/**
