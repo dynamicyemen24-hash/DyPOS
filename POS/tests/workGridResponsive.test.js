@@ -7,6 +7,7 @@ const read = (rel) => readFileSync(join(ROOT, rel), "utf8")
 
 const baseCss = read("src/styles/dypos/base.css")
 const grid = read("src/components/work/WorkDataGrid.vue")
+const gridBase = read("src/components/work/workDataGrid.base.css")
 const responsive = read("src/components/work/workDataGrid.responsive.css")
 
 /**
@@ -27,7 +28,7 @@ describe("work data grid on narrow screens", () => {
 	})
 
 	it("is imported by the grid so the contract cannot drift from the markup", () => {
-		expect(grid).toMatch(/@import ["']\.\/workDataGrid\.responsive\.css["']/)
+		expect(gridBase).toMatch(/@import ["']\.\/workDataGrid\.responsive\.css["']/)
 	})
 
 	it("scrolls horizontally instead of cropping the columns", () => {
@@ -63,10 +64,10 @@ describe("work data grid on narrow screens", () => {
 
 	it("keeps the desktop frozen-pane model intact above the breakpoint", () => {
 		// The fix must be scoped: a desktop POS screen is dense on purpose.
-		const viewportStart = grid.indexOf(".work-data-grid__viewport {")
-		const viewportRule = grid.slice(
+		const viewportStart = gridBase.indexOf(".work-data-grid__viewport {")
+		const viewportRule = gridBase.slice(
 			viewportStart,
-			grid.indexOf("}", viewportStart),
+			gridBase.indexOf("}", viewportStart),
 		)
 		expect(viewportRule).toMatch(
 			/grid-template-columns:\s*var\(--frozen-left-width/,
@@ -75,6 +76,6 @@ describe("work data grid on narrow screens", () => {
 	})
 
 	it("keeps momentum scrolling on iOS for the scrollable grid", () => {
-		expect(grid).toMatch(/-webkit-overflow-scrolling:\s*touch/)
+		expect(gridBase).toMatch(/-webkit-overflow-scrolling:\s*touch/)
 	})
 })
