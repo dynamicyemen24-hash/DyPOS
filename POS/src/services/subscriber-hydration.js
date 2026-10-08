@@ -124,7 +124,15 @@ export async function hydrateSubscriberLocalData({
 		// subscriber's catalog/history to another. Pending queues remain intact.
 		const previousTenant = await getSetting("subscriber_hydration_tenant", "")
 		if (previousTenant && tenantId && String(previousTenant) !== String(tenantId)) {
-			await clearTenantScopedCaches()
+			const cleared = await clearTenantScopedCaches()
+			if (!cleared?.success) {
+				log.warn("Tenant cache transition blocked for safety", {
+					previousTenant,
+					tenantId,
+					error: cleared?.error || "unknown",
+				})
+				return null
+			}
 		}
 	} catch (error) {
 		log.warn("Offline cache open deferred", error)
