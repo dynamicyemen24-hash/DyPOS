@@ -2,9 +2,10 @@ import { shiftState } from "@/composables/useShift"
 import { userResource } from "@/data/user"
 import { logger } from "@/utils/logger"
 import { createRouter, createWebHistory } from "vue-router"
-import { session as localSession } from "./data/session"
+import { session as localSession, sessionRole } from "./data/session"
 import { isLinkEnabled } from "./services/link-consent"
 import { isQueueEnabled } from "@/utils/queueCapability"
+import { canSeeAdmin } from "./utils/accessPolicy"
 
 const log = logger.create("Router")
 
@@ -97,6 +98,7 @@ const ROUTE_META = Object.freeze({
 	requiresAuth: "requiresAuth",
 	guestOnly: "guestOnly",
 	requiresOpenShift: "requiresOpenShift",
+	adminOnly: "adminOnly",
 })
 
 const SESSION_KEYS = Object.freeze({
@@ -263,6 +265,7 @@ const routes = [
 		component: () => import("@/pages/SettingsPage.vue"),
 		meta: {
 			[ROUTE_META.requiresAuth]: true,
+			[ROUTE_META.adminOnly]: true,
 		},
 	},
 
@@ -278,6 +281,7 @@ const routes = [
 		component: () => import("@/pages/OpeningBalancesPage.vue"),
 		meta: {
 			[ROUTE_META.requiresAuth]: true,
+			[ROUTE_META.adminOnly]: true,
 		},
 	},
 
@@ -287,6 +291,7 @@ const routes = [
 		component: () => import("@/pages/MasterDataImportPage.vue"),
 		meta: {
 			[ROUTE_META.requiresAuth]: true,
+			[ROUTE_META.adminOnly]: true,
 		},
 	},
 
@@ -296,6 +301,7 @@ const routes = [
 		component: () => import("@/pages/ReferenceDataPage.vue"),
 		meta: {
 			[ROUTE_META.requiresAuth]: true,
+			[ROUTE_META.adminOnly]: true,
 		},
 	},
 
@@ -676,6 +682,20 @@ router.beforeEach(async (to, from) => {
 	 */
 	if (requiresAuth && !authenticated) {
 		return redirectToLogin(to)
+	}
+
+	/**
+	 * Admin surfaces (settings / opening balances / reference data / import)
+	 * are hidden for operator and audit roles in every nav — a deep link must
+	 * not bypass that shaping. The server stays fail-closed; this only routes
+	 * the UI to the operations home.
+	 */
+	if (
+		to.meta?.[ROUTE_META.adminOnly] === true &&
+		authenticated &&
+		!canSeeAdmin(sessionRole())
+	) {
+		return redirectToDashboard()
 	}
 
 	// Feature routes are capability-gated, not merely hidden in the UI.

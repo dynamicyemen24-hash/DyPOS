@@ -63,52 +63,34 @@
       </section>
 
       <section class="home-modules" aria-label="أدوات النظام">
-        <router-link class="home-module home-module--primary" :to="{ name: 'POSSale' }">
-          <span class="home-module__icon"><FeatherIcon name="shopping-cart" :size="21" aria-hidden="true" /></span>
-          <span><strong>نقطة البيع</strong><small>بيع، دفع، خصومات وفواتير</small></span>
-          <FeatherIcon class="home-module__arrow" name="arrow-left" :size="17" aria-hidden="true" />
-        </router-link>
-        <router-link class="home-module" :to="{ name: 'WorkScreens', query: { screen: 'invoices' } }">
-          <span class="home-module__icon"><FeatherIcon name="file-text" :size="21" aria-hidden="true" /></span>
-          <span><strong>الفواتير</strong><small>مراجعة العمليات والمرتجعات</small></span>
-          <FeatherIcon class="home-module__arrow" name="arrow-left" :size="17" aria-hidden="true" />
-        </router-link>
-        <router-link class="home-module" :to="{ name: 'StockManagement' }">
-          <span class="home-module__icon"><FeatherIcon name="package" :size="21" aria-hidden="true" /></span>
-          <span><strong>المخزون</strong><small>الأصناف والكميات والتنبيهات</small></span>
-          <FeatherIcon class="home-module__arrow" name="arrow-left" :size="17" aria-hidden="true" />
-        </router-link>
-        <router-link class="home-module" :to="{ name: 'WorkScreens' }">
-          <span class="home-module__icon"><FeatherIcon name="layers" :size="21" aria-hidden="true" /></span>
-          <span><strong>شاشات العمل</strong><small>عمليات المتجر اليومية</small></span>
-          <FeatherIcon class="home-module__arrow" name="arrow-left" :size="17" aria-hidden="true" />
-        </router-link>
-        <router-link class="home-module" :to="{ name: 'WorkScreens', query: { screen: 'customers' } }">
-          <span class="home-module__icon"><FeatherIcon name="users" :size="21" aria-hidden="true" /></span>
-          <span><strong>العملاء</strong><small>بيانات العملاء وسجلاتهم</small></span>
-          <FeatherIcon class="home-module__arrow" name="arrow-left" :size="17" aria-hidden="true" />
-        </router-link>
-        <router-link class="home-module" :to="{ name: 'WorkScreens', query: { screen: 'settlements' } }">
-          <span class="home-module__icon"><FeatherIcon name="clipboard" :size="21" aria-hidden="true" /></span>
-          <span><strong>الورديات والتسويات</strong><small>الأرصدة والفروقات والإغلاق</small></span>
-          <FeatherIcon class="home-module__arrow" name="arrow-left" :size="17" aria-hidden="true" />
-        </router-link>
-        <router-link class="home-module" :to="{ name: 'WorkScreens', query: { screen: 'items' } }">
-          <span class="home-module__icon"><FeatherIcon name="box" :size="21" aria-hidden="true" /></span>
-          <span><strong>دليل الأصناف</strong><small>الأكواد والوحدات وحالة الصنف</small></span>
-          <FeatherIcon class="home-module__arrow" name="arrow-left" :size="17" aria-hidden="true" />
-        </router-link>
-        <router-link class="home-module" :to="{ name: 'Settings' }">
-          <span class="home-module__icon"><FeatherIcon name="settings" :size="21" aria-hidden="true" /></span>
-          <span><strong>الإعدادات</strong><small>تهيئة النظام والفرع</small></span>
-          <FeatherIcon class="home-module__arrow" name="arrow-left" :size="17" aria-hidden="true" />
-        </router-link>
-        <router-link v-if="queueEnabled" class="home-module" :to="{ name: 'Queue' }">
-          <span class="home-module__icon"><FeatherIcon name="users" :size="21" aria-hidden="true" /></span>
-          <span><strong>الطوابير</strong><small>إدارة خدمة العملاء</small></span>
+        <router-link
+          v-for="module in modules"
+          :key="module.id"
+          class="home-module"
+          :class="{ 'home-module--primary': module.primary }"
+          :to="module.to ?? { name: 'WorkScreens', query: { screen: module.screen } }"
+        >
+          <span class="home-module__icon"><FeatherIcon :name="module.icon" :size="21" aria-hidden="true" /></span>
+          <span><strong>{{ module.title }}</strong><small>{{ module.sub }}</small></span>
           <FeatherIcon class="home-module__arrow" name="arrow-left" :size="17" aria-hidden="true" />
         </router-link>
       </section>
+
+      <div
+        v-if="contextItems.length"
+        class="home-context"
+        role="status"
+        aria-label="سياق التشغيل"
+      >
+        <span
+          v-for="item in contextItems"
+          :key="`${item.icon}-${item.label}`"
+          class="home-context__chip"
+        >
+          <FeatherIcon :name="item.icon" :size="14" aria-hidden="true" />
+          {{ item.label }}
+        </span>
+      </div>
 
       <section class="home-grid">
         <div class="home-panel home-panel--wide">
@@ -170,6 +152,14 @@ import WorkFilters from "@/components/work/WorkFilters.vue"
 import { goToPOS, goToStockManagement } from "@/router"
 import { resolveDashboardId } from "./dashboards/core/dashboardTab"
 import { useQueueCapability } from "@/utils/queueCapability"
+import {
+	filterDashNav,
+	filterHomeModules,
+	opsContextItems,
+} from "@/utils/accessPolicy"
+import { sessionRole, sessionUser } from "@/data/session"
+import { posContext } from "@/utils/posContext"
+import { shiftState } from "@/composables/useShift"
 
 const ARABIC_TITLES = {
 	"executive-dashboard": "لوحة التنفيذيين",
@@ -249,20 +239,25 @@ const breadcrumbs = computed(() => [
 	{ label: "التقارير", current: true },
 ])
 
-const navItems = computed(() => {
-	const items = [
-		{ id: "pos", label: "نقطة البيع", to: { name: "POSSale" }, icon: "shopping-cart" },
-		{ id: "invoices", label: "الفواتير", to: { name: "WorkScreens", query: { screen: "invoices" } }, icon: "file-text" },
-		{ id: "stock", label: "المخزون", to: { name: "StockManagement" }, icon: "package" },
-		{ id: "reports", label: "التقارير", to: { name: "Reports" }, icon: "bar-chart-2" },
-		{ id: "work", label: "شاشات العمل", to: { name: "WorkScreens" }, icon: "layers" },
-		{ id: "settings", label: "الإعدادات", to: { name: "Settings" }, icon: "settings" },
-	]
-	if (queueEnabled.value) {
-		items.push({ id: "queue", label: "الطوابير", to: { name: "Queue" }, icon: "users" })
-	}
-	return items
-})
+const navItems = computed(() =>
+	filterDashNav({ role: sessionRole(), queueEnabled: queueEnabled.value }),
+)
+
+/** البلاطات من جدول السياسة — العرض مربوط بالدور والقدرات فعلًا. */
+const modules = computed(() =>
+	filterHomeModules({ role: sessionRole(), queueEnabled: queueEnabled.value }),
+)
+
+/** شريط سياق التشغيل: من يعمل وأين — من الجلسة والسياق الفعليين. */
+const contextItems = computed(() =>
+	opsContextItems({
+		user: sessionUser(),
+		role: sessionRole(),
+		tenantName: posContext.tenantName,
+		branchName: posContext.branchName,
+		shiftOpen: shiftState.value?.isOpen,
+	}),
+)
 
 const broadcastRefresh = () => {
   window.dispatchEvent(new CustomEvent("dypos:dashboard-refresh"))
@@ -335,6 +330,9 @@ onMounted(() => {
 .home-module--primary small { color:rgb(255 255 255 / .76); }
 .home-module__arrow { color:var(--dy-text-muted); }
 .home-module--primary .home-module__arrow { color:inherit; }
+/* شريط سياق التشغيل: من يعمل وأين — شرائح حالة لا أزرار. */
+.home-context { display:flex; flex-wrap:wrap; gap:8px; }
+.home-context__chip { display:inline-flex; align-items:center; gap:6px; padding:7px 11px; border:1px solid var(--dy-border); border-radius:999px; background:var(--dy-surface); color:var(--dy-text-muted); font-size:12px; font-weight:700; }
 .home-grid { display:grid; grid-template-columns:minmax(0,2fr) minmax(280px,1fr); gap:14px; }
 .home-panel { min-width:0; border:1px solid var(--dy-border); border-radius:18px; background:var(--dy-surface); box-shadow:var(--dy-shadow-card); padding:18px; }
 .home-panel__head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }

@@ -34,13 +34,19 @@ describe("DyPOS front-door navigation", () => {
   it("keeps the dashboard as the hub for core POS screens", async () => {
     const dashboard = await source("src/components/reports/DashboardPage.vue")
 
+    // Hub links live in the single access-policy table and render via v-for —
+    // the dashboard binds modules by role/capability instead of hardcoding tiles.
+    expect(dashboard).toContain("filterHomeModules")
+    expect(dashboard).toContain('v-for="module in modules"')
+
+    const policy = await source("src/utils/accessPolicy.js")
     for (const routeName of [
       "POSSale",
       "WorkScreens",
       "StockManagement",
       "Reports",
     ]) {
-      expect(dashboard).toContain(`name: "${routeName}"`)
+      expect(policy).toContain(`"${routeName}"`)
     }
 
     expect(dashboard).toContain("نظام نقاط البيع الذكي")

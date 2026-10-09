@@ -125,6 +125,12 @@ import { useIndustryProfileStore } from "@/stores/industryProfile"
 import { logger } from "@/utils/logger"
 import { t } from "@/utils/translation"
 import { sessionRole } from "@/data/session"
+import {
+	canSeeAdmin,
+	canSeeScreen,
+	isAdminRoute,
+	isReadOnlyRole,
+} from "@/utils/accessPolicy"
 
 const log = logger.create("WorkScreens")
 const route = useRoute()
@@ -154,20 +160,17 @@ const industry = getActivePinia() ? useIndustryProfileStore() : null
 /**
  * Role → UI permission map (default deny).
  *
- * The kit's `usePermissions` denies anything absent from the map, so an unknown
- * role sees no work screen at all. Cashiers get read-only; everything else
- * full — except the audit ledger, which cashiers neither see nor load (the
- * loader in data/workScreens.js refuses them too, so a deep link cannot
- * bypass the tab). The server remains the authority (fail-closed) — this
- * only shapes UI.
+ * مشتق من سياسة الوصول الوحيدة (`@/utils/accessPolicy`): الكاشير قراءة فقط
+ * بلا تدقيق، والمراجع قراءة فقط مع التدقيق، والإدارة محجوبة عنهما. الخادم
+ * يبقى المرجع fail-closed — هذا يشكّل الواجهة فقط.
  */
-const isCashier = String(sessionRole() ?? "").toLowerCase() === "cashier"
-const readonly = isCashier
+const role = sessionRole()
+const readonly = isReadOnlyRole(role)
 providePermissions(
 	Object.fromEntries(
 		WORK_SCREENS.map((entry) => [
 			entry.permission,
-			entry.id === "audit" && isCashier ? false : readonly ? "readonly" : true,
+			canSeeScreen(entry.id, role) ? (readonly ? "readonly" : true) : false,
 		]),
 	),
 )
@@ -175,12 +178,11 @@ providePermissions(
 const navItems = computed(() =>
 	flatWorkNav().filter(
 		(item) =>
-			!item.capability || !industry || industry.hasCapability(item.capability),
+			(!item.capability || !industry || industry.hasCapability(item.capability)) &&
+			(!isAdminRoute(item.to?.name) || canSeeAdmin(role)),
 	),
 )
-const tabs = WORK_SCREENS.filter(
-	(entry) => entry.id !== "audit" || !isCashier,
-).map((entry) => ({
+const tabs = WORK_SCREENS.filter((entry) => canSeeScreen(entry.id, role)).map((entry) => ({
 	id: entry.id,
 	label: entry.label,
 	icon: entry.icon,

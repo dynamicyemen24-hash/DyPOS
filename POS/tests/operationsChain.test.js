@@ -6,13 +6,18 @@
  * سجل اللوحات. رابط ميت هنا ليس عيبًا تجميليًا: `workScreenById` يسقط
  * بصمت على الفواتير، فشاشة خاطئة تبدو وكأنها تعمل.
  *
- * ما تثبته البوابة:
- *  1. كل `screen: '…'` في الرئيسية ∈ معرّفات WORK_SCREENS.
- *  2. كل `name: '…'` في الرئيسية ∈ أسماء مسارات router.js.
- *  3. كل شاشة عمل: معرّف + عنوان + عنوان-فراغ + أيقونة + صلاحية + أعمدة + دالة تحميل.
- *  4. كل لوحة في DASHBOARD_REGISTRY: معرّف + اسم + مكوّن + أيقونة + عنوان عربي في الرئيسية.
+ * ربط العرض بالصلاحيات الفعلية (`@/utils/accessPolicy` — المصدر الوحيد):
+ * البلاطات تُبنى من جدول `HOME_MODULES` بالدور والقدرات، لا من روابط ثابتة؛
+ * والمسارات الإدارية محروسة في الموجّه. هذه البوابة تثبت الطبقتين:
+ *  1. كل شاشة في جدول البلاطات ∈ معرّفات WORK_SCREENS.
+ *  2. كل مسار في الجدول وتنقل اللوحة ∈ مسارات router.js.
+ *  3. كل شاشة عمل مكتملة العقد (عنوان + أعمدة + صلاحية + تحميل).
+ *  4. كل لوحة تحليلات مسجّلة ولها عنوان عربي في الرئيسية.
  *  5. هدف ما بعد الدخول (`goToDashboard` ← REPORTS) مسار موجود فعلًا.
- *  6. الاستخراج نفسه مُثبت: صفر رموز مستخرجة = فشل، لا نجاح فارغ.
+ *  6. الأدوار: المشغّل بلا إدارة وبلا تدقيق + قراءة فقط؛ المراجع قراءة فقط
+ *     مع التدقيق وبلا إدارة؛ الافتراضي/المجهول كامل (مالك المحل لا يُقفل).
+ *  7. المشترك: الطوابير لا تظهر بلا قدرة المشترك، وتظهر بها.
+ *  8. شرائح السياق تسقط المجهول ولا تخترع حقائق.
  */
 import { readFileSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
@@ -22,6 +27,19 @@ import { describe, expect, it } from "vitest"
 
 import { WORK_SCREENS } from "@/data/workScreens"
 import { DASHBOARD_REGISTRY } from "@/components/reports/dashboards/index"
+import {
+	DASH_NAV,
+	HOME_MODULES,
+	canSeeAdmin,
+	canSeeScreen,
+	filterDashNav,
+	filterHomeModules,
+	isAdminRoute,
+	isReadOnlyRole,
+	normalizeRole,
+	opsContextItems,
+	roleLabel,
+} from "@/utils/accessPolicy"
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const POS = resolve(HERE, "..")
@@ -30,33 +48,37 @@ const read = (rel) => readFileSync(join(POS, rel), "utf8")
 const HOME = read("src/components/reports/DashboardPage.vue")
 const ROUTER = read("src/router.js")
 
-const homeScreens = [
-	...HOME.matchAll(/screen:\s*"([A-Za-z-]+)"/g),
-].map((m) => m[1])
-const homeRoutes = [...HOME.matchAll(/name:\s*"([A-Za-z]+)"/g)].map(
-	(m) => m[1],
-)
 const routeNames = new Set(
 	[...ROUTER.matchAll(/^\s*[A-Z_]+:\s*"([^"]+)"/gm)].map((m) => m[1]),
 )
+const moduleRoute = (m) => m.to?.name ?? null
+const moduleScreen = (m) => m.screen ?? null
 
 describe("سلسلة التشغيل (الدخول ← الرئيسية ← الشاشات)", () => {
-	it("الاستخراج يجد رموزًا حقيقية (لا نجاح فارغ)", () => {
-		expect(homeScreens.length).toBeGreaterThan(0)
-		expect(homeRoutes.length).toBeGreaterThan(0)
+	it("جدول البلاطات والتنقل غير فارغ (لا نجاح فارغ)", () => {
+		expect(HOME_MODULES.length).toBeGreaterThan(0)
+		expect(DASH_NAV.length).toBeGreaterThan(0)
 		expect(routeNames.size).toBeGreaterThan(0)
 	})
 
-	it("كل شاشة مذكورة في الرئيسية موجودة في سجل الشاشات", () => {
+	it("الرئيسية تُبنى من جدول السياسة لا من روابط ثابتة", () => {
+		expect(HOME.includes("filterHomeModules")).toBe(true)
+		expect(HOME.includes("v-for=\"module in modules\"")).toBe(true)
+		expect(HOME.match(/screen:\s*"[A-Za-z-]+"/g) ?? []).toEqual([])
+	})
+
+	it("كل شاشة في الجدول موجودة في سجل الشاشات", () => {
 		const ids = new Set(WORK_SCREENS.map((s) => s.id))
-		for (const screen of homeScreens) {
-			expect(ids.has(screen), `بلاطة تشير إلى شاشة غير موجودة: ${screen}`).toBe(true)
+		for (const m of HOME_MODULES) {
+			if (!moduleScreen(m)) continue
+			expect(ids.has(moduleScreen(m)), `بلاطة تشير إلى شاشة غير موجودة: ${m.id}`).toBe(true)
 		}
 	})
 
-	it("كل مسار مذكور في الرئيسية مسجّل في router.js", () => {
-		for (const name of homeRoutes) {
-			expect(routeNames.has(name), `بلاطة تشير إلى مسار غير مسجّل: ${name}`).toBe(true)
+	it("كل مسار في الجدول والتنقل مسجّل في router.js", () => {
+		for (const m of [...HOME_MODULES, ...DASH_NAV]) {
+			if (!moduleRoute(m)) continue
+			expect(routeNames.has(moduleRoute(m)), `وجهة غير مسجّلة: ${m.id}`).toBe(true)
 		}
 	})
 
@@ -88,5 +110,99 @@ describe("سلسلة التشغيل (الدخول ← الرئيسية ← ال�
 		expect(routeNames.has("Reports"), "مسار لوحة التشغيل").toBe(true)
 		expect(routeNames.has("Login"), "مسار الدخول").toBe(true)
 		expect(ROUTER.includes("goToDashboard"), "مُساعِد التحويل للوحة").toBe(true)
+	})
+
+	it("المسارات الإدارية الأربعة محروسة بـ adminOnly في الموجّه", () => {
+		for (const name of ["Settings", "OpeningBalances", "ReferenceData", "MasterDataImport"]) {
+			expect(isAdminRoute(name), `${name} سطح إداري`).toBe(true)
+			expect(ROUTER.includes("[ROUTE_META.adminOnly]: true"), "حارس adminOnly").toBe(true)
+		}
+		expect(isAdminRoute("POSSale")).toBe(false)
+		expect(isAdminRoute("WorkScreens")).toBe(false)
+	})
+})
+
+describe("ربط العرض بالدور الفعلي", () => {
+	const full = (modules) => modules.map((m) => m.id)
+
+	it("المشغّل (كاشير): بلا إعدادات وبلا تدقيق، وقراءة فقط", () => {
+		expect(normalizeRole("  Cashier ")).toBe("cashier")
+		const ids = full(filterHomeModules({ role: "cashier", queueEnabled: true }))
+		expect(ids).toContain("pos")
+		expect(ids).toContain("invoices")
+		expect(ids).not.toContain("settings")
+		expect(canSeeScreen("audit", "cashier")).toBe(false)
+		expect(canSeeScreen("invoices", "cashier")).toBe(true)
+		expect(isReadOnlyRole("cashier")).toBe(true)
+		expect(canSeeAdmin("cashier")).toBe(false)
+	})
+
+	it("المراجع: قراءة فقط مع التدقيق وبلا إدارة", () => {
+		expect(isReadOnlyRole("auditor")).toBe(true)
+		expect(canSeeScreen("audit", "auditor")).toBe(true)
+		expect(canSeeAdmin("auditor")).toBe(false)
+		const ids = full(filterHomeModules({ role: "accountant", queueEnabled: true }))
+		expect(ids).not.toContain("settings")
+		expect(ids).toContain("invoices")
+	})
+
+	it("الدور الافتراضي/المجهول/الإداري: كامل كما اليوم (لا قفل لمالك المحل)", () => {
+		for (const role of ["POS User", "", null, undefined, "admin", "manager", "owner"]) {
+			const ids = full(filterHomeModules({ role, queueEnabled: true }))
+			expect(ids).toContain("settings")
+			expect(canSeeScreen("audit", role)).toBe(true)
+			expect(isReadOnlyRole(role)).toBe(false)
+			expect(canSeeAdmin(role)).toBe(true)
+		}
+	})
+
+	it("تنقل اللوحة يخضع لنفس القاعدة", () => {
+		const cashier = full(filterDashNav({ role: "cashier", queueEnabled: true }))
+		expect(cashier).not.toContain("settings")
+		expect(cashier).toContain("reports")
+		const owner = full(filterDashNav({ role: "POS User", queueEnabled: false }))
+		expect(owner).toContain("settings")
+		expect(owner).not.toContain("queue")
+	})
+})
+
+describe("ربط العرض بقدرات المشترك", () => {
+	it("الطوابير لا تظهر بلا قدرة المشترك وتظهر بها", () => {
+		const off = filterHomeModules({ role: "POS User", queueEnabled: false }).map((m) => m.id)
+		const on = filterHomeModules({ role: "POS User", queueEnabled: true }).map((m) => m.id)
+		expect(off).not.toContain("queue")
+		expect(on).toContain("queue")
+	})
+
+	it("القدرة لا تمنح المشغّل ما مُنع عنه بالدور", () => {
+		const ids = filterHomeModules({ role: "cashier", queueEnabled: true }).map((m) => m.id)
+		expect(ids).toContain("queue")
+		expect(ids).not.toContain("settings")
+	})
+})
+
+describe("شرائح سياق التشغيل", () => {
+	it("تُظهر المعروف وتُسقط المجهول ولا تخترع", () => {
+		const items = opsContextItems({
+			user: "ahmed@royal",
+			role: "cashier",
+			tenantName: "Royal",
+			branchName: "مأرب",
+			shiftOpen: true,
+		})
+		const labels = items.map((i) => i.label)
+		expect(labels).toContain("ahmed@royal")
+		expect(labels).toContain("كاشير")
+		expect(labels).toContain("Royal")
+		expect(labels).toContain("مأرب")
+		expect(labels).toContain("وردية مفتوحة")
+		expect(opsContextItems({})).toEqual([])
+		expect(opsContextItems({ shiftOpen: false }).map((i) => i.label)).toContain("لا وردية مفتوحة")
+	})
+
+	it("الدور المجهول يمر خامًا والفارغ يُسقط", () => {
+		expect(roleLabel("cashier")).toBe("كاشير")
+		expect(roleLabel("  ")).toBe("")
+		expect(roleLabel("StrangeRole")).toBe("StrangeRole")
 	})
 })
