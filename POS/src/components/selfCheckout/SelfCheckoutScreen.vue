@@ -6,13 +6,13 @@
 		طاولة نادٍ، مدخل متجر)، لا شاشة موظف داخل سطح العمل.导航 العام
 		(other work nav) ما معنى لها على جهاز لا Pian فيه كاشير.
 	-->
-	<div class="self-checkout" dir="rtl">
+	<div class="self-checkout" dir="rtl" :data-touch-density="preferences.touchDensity" :data-reduce-motion="preferences.reduceMotion ? 'true' : 'false'">
 		<header class="self-checkout__header">
 			<div class="self-checkout__brand">
 				<FeatherIcon name="zap" :stroke-width="2" aria-hidden="true" />
 				<div>
-					<h1 class="self-checkout__title">{{ title }}</h1>
-					<p class="self-checkout__subtitle">{{ subtitle }}</p>
+					<h1 class="self-checkout__title">{{ displayTitle }}</h1>
+					<p class="self-checkout__subtitle">{{ displaySubtitle }}</p>
 				</div>
 			</div>
 
@@ -47,7 +47,7 @@
 				</p>
 
 				<div class="self-checkout__discovery">
-					<label class="self-checkout__search">
+					<label v-if="preferences.searchEnabled" class="self-checkout__search">
 						<FeatherIcon name="search" aria-hidden="true" />
 						<input
 							v-model="searchQuery"
@@ -61,7 +61,7 @@
 							<FeatherIcon name="x" aria-hidden="true" />
 						</button>
 					</label>
-					<div class="self-checkout__smart-hint" role="status" aria-live="polite">
+					<div v-if="preferences.smartGuidance" class="self-checkout__smart-hint" role="status" aria-live="polite">
 						<FeatherIcon name="sparkles" aria-hidden="true" />
 						<span>{{ smartHint }}</span>
 					</div>
@@ -84,7 +84,7 @@
 						@click="onPick(product)"
 					>
 						<span class="self-checkout__product-name">{{ product.name }}</span>
-						<span class="self-checkout__product-price">
+						<span v-if="preferences.showPrices" class="self-checkout__product-price">
 							{{ money(product.price) }}
 						</span>
 					</button>
@@ -165,13 +165,14 @@
 				<div class="self-checkout__actions">
 					<ActionButton
 						v-if="!isOpen"
+						:disabled="!preferences.enabled"
 						variant="solid"
 						size="lg"
 						block
 						icon="play"
 						@click="startSession"
 					>
-						ابدأ الجلسة
+						{{ preferences.enabled ? "ابدأ الجلسة" : "الخدمة الذاتية متوقفة" }}
 					</ActionButton>
 
 					<template v-else>
@@ -325,7 +326,7 @@
 				<h2 id="self-checkout-receipt-title" class="self-checkout__receipt-title">
 					تمت العملية
 				</h2>
-				<div class="self-checkout__receipt-rows">
+				<div v-if="preferences.showReceiptSummary" class="self-checkout__receipt-rows">
 					<div class="self-checkout__receipt-row">
 						<span>رقم العملية</span>
 						<strong>{{ receipt.invoiceNo }}</strong>
@@ -415,7 +416,24 @@ const {
 	dismissReceipt,
 } = useSelfCheckoutSession({ branch: props.branch, terminal: props.terminal })
 
-const paymentMethods = PAYMENT_METHODS
+const SETTINGS_KEY = "dypos:self-checkout:settings:v1"
+const defaultPreferences = Object.freeze({
+	enabled: true,
+	title: "الكاشير الذاتي",
+	subtitle: "امسح الأصناف أو المسها، ثم ادفع بنفسك",
+	showPrices: true,
+	searchEnabled: true,
+	smartGuidance: true,
+	idleTimeoutSeconds: 120,
+	cashEnabled: true,
+	showReceiptSummary: true,
+	touchDensity: "comfortable",
+	reduceMotion: false,
+})
+const preferences = ref({ ...defaultPreferences })
+const displayTitle = computed(() => props.title !== "الكاشير الذاتي" ? props.title : preferences.value.title || props.title)
+const displaySubtitle = computed(() => props.subtitle !== "امسح الأصناف أو المسها، ثم ادفع بنفسك" ? props.subtitle : preferences.value.subtitle || props.subtitle)
+const paymentMethods = computed(() => PAYMENT_METHODS.filter((option) => option.id !== "cash" || preferences.value.cashEnabled))
 
 // بحث فوري محلي: لا طلبات شبكة ولا إرسال لعبارات العميل إلى أي خدمة.
 const searchQuery = ref("")
@@ -522,7 +540,13 @@ function pressKey(key) {
  * جزءًا من التركيب لا خطوة اختيارية.
  */
 onMounted(async () => {
-	startSession()
+	try {
+		const saved = localStorage.getItem(SETTINGS_KEY)
+		if (saved) preferences.value = { ...defaultPreferences, ...JSON.parse(saved) }
+	} catch {
+		preferences.value = { ...defaultPreferences }
+	}
+	if (preferences.value.enabled) startSession()
 	await loadCatalog()
 })
 </script>
