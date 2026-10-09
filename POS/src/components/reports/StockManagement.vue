@@ -6,7 +6,7 @@
     :breadcrumbs="breadcrumbs"
     :loading="loading"
     :error="error"
-    :empty="!isLoaded && !loading"
+    :empty="isLoaded && totalProducts === 0 && !loading"
     :empty-title="'لا توجد منتجات'"
     :empty-description="'لم يتم العثور على منتجات مطابقة للفلاتر'"
     :has-data="isLoaded"
