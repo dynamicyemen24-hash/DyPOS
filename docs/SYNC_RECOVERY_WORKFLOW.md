@@ -23,6 +23,33 @@ The sync API must help an operator repair a failed record instead of treating
 7. After a retry, replace that record's status and recovery details with the
    latest response. Do not block successful sibling records in the batch.
 
+## Safe host orchestration helper
+
+Use `useSyncRecovery` from `@/composables/useSyncRecovery` to connect the
+panel to the application's existing outbox and API without embedding storage
+assumptions in the shared component. The host supplies these callbacks:
+
+- `pushRecord(item)`: send exactly one record and resolve only with the server's result.
+- `persistRecord(record)`: persist the updated record to the real local outbox.
+- `openRepair(item, recovery)`: show the host's editor and resolve with corrected
+  record fields, or a falsy value if the operator cancels.
+- `openResource(item, recovery)` / `openReview(item, recovery)`: navigate to
+  the relevant workflow or record details.
+
+Wire the returned `busyIds` and `errors` into `SyncRecoveryPanel` as
+`busyIds` and `actionErrors`, and wire its `retry`, `repair`,
+`open-resource`, and `review` events to the returned handlers. A retry is
+refused unless `recovery.retryable` is true. Transport or persistence failures
+leave the queue record unchanged and expose an actionable error. A repaired
+record is saved as `PENDING`; the host still controls when to send it again.
+The helper preserves the record ID and idempotency key and does not invent a
+local database schema.
+
+This helper is orchestration, not a substitute for connecting it to the actual
+outbox and routes in a host screen. The integration must use the app's existing
+persistence/API adapters and be exercised in an isolated offline/online E2E test
+before being treated as release-ready.
+
 ## Recovery response contract
 
 - `code`: stable machine-readable classification.
