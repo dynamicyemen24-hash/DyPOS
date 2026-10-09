@@ -8,7 +8,7 @@ const props = defineProps({
   title: { type: String, default: "عمليات تحتاج إلى معالجة" },
   emptyMessage: { type: String, default: "لا توجد عمليات معلّقة للمعالجة" },
 })
-const emit = defineEmits(["retry", "repair", "open-resource", "dismiss"])
+const emit = defineEmits(["retry", "repair", "review", "open-resource", "dismiss"])
 const busy = id => props.busyIds.includes(String(id))
 const failures = computed(() => props.items.filter(item => item?.status === "FAILED" || item?.recovery))
 const actionLabel = recovery => ({
@@ -69,12 +69,19 @@ const actionPayload = item => ({ id: item.id, item, recovery: item.recovery || {
             @click="emit('repair', actionPayload(item))"
           >استكمال ثم إعادة الإرسال</ActionButton>
           <ActionButton
-            v-else
+            v-else-if="item.recovery?.retryable"
             variant="secondary"
             size="sm"
             :disabled="busy(item.id)"
             @click="emit('retry', actionPayload(item))"
-          >{{ busy(item.id) ? "جارٍ التنفيذ…" : item.recovery?.retryable ? "إعادة المحاولة" : "مراجعة العملية" }}</ActionButton>
+          >{{ busy(item.id) ? "جارٍ التنفيذ…" : "إعادة المحاولة" }}</ActionButton>
+          <ActionButton
+            v-else
+            variant="secondary"
+            size="sm"
+            :disabled="busy(item.id)"
+            @click="emit('review', actionPayload(item))"
+          >مراجعة العملية</ActionButton>
         </div>
       </li>
     </ol>
