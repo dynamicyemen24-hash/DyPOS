@@ -3,6 +3,7 @@ import { mount } from "@vue/test-utils"
 import WorkMenuStrip from "@/components/work/WorkMenuStrip.vue"
 import WorkStatusStrip from "@/components/work/WorkStatusStrip.vue"
 import WorkPanel from "@/components/work/WorkPanel.vue"
+import WorkToolbar from "@/components/work/WorkToolbar.vue"
 
 const stubs = { FeatherIcon: true }
 
@@ -52,6 +53,29 @@ describe("standard work-surface primitives", () => {
     expect(wrapper.text()).toContain("السجلات")
     expect(wrapper.text()).toContain("12")
     expect(wrapper.find("footer").attributes("aria-live")).toBe("polite")
+  })
+
+
+  it("uses a responsive Fiori-inspired toolbar and restores focus on Escape", async () => {
+    const runExport = vi.fn()
+    const wrapper = mount(WorkToolbar, {
+      props: {
+        ariaLabel: "إجراءات السجلات",
+        overflowActions: [{ id: "export", label: "تصدير", handler: runExport }],
+      },
+      attachTo: document.body,
+      global: { stubs },
+    })
+    const trigger = wrapper.find(".work-toolbar__overflow-btn")
+    expect(wrapper.attributes("role")).toBe("toolbar")
+    expect(wrapper.attributes("aria-label")).toBe("إجراءات السجلات")
+    expect(wrapper.html()).toContain("work-toolbar__row--center")
+    await trigger.trigger("click")
+    expect(trigger.attributes("aria-expanded")).toBe("true")
+    await wrapper.find(".work-toolbar__overflow-menu").trigger("keydown", { key: "Escape" })
+    expect(trigger.attributes("aria-expanded")).toBe("false")
+    expect(document.activeElement).toBe(trigger.element)
+    wrapper.unmount()
   })
 
   it("provides semantic panel regions and flush layout", () => {
