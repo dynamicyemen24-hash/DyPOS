@@ -10,6 +10,7 @@ export { default as WorkToolbar } from "./WorkToolbar.vue"
 export { default as WorkMenuStrip } from "./WorkMenuStrip.vue"
 export { default as WorkStatusStrip } from "./WorkStatusStrip.vue"
 export { default as WorkPanel } from "./WorkPanel.vue"
+export { default as SyncRecoveryPanel } from "./SyncRecoveryPanel.vue"
 export { default as WorkScreenStatus } from "./WorkScreenStatus.vue"
 
 // Navigation
