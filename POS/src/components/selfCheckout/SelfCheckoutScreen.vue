@@ -58,7 +58,7 @@
 							type="search"
 							autocomplete="off"
 							:disabled="!canBrowse"
-							placeholder="ابحث عن صنف بالاسم أو الرمز…"
+							placeholder="ابحث بالاسم أو امسح الباركود ثم اضغط Enter…"
 							aria-label="البحث عن المنتجات"
 						/>
 						<button v-if="searchQuery" type="button" class="self-checkout__search-clear" aria-label="مسح البحث" @click="searchQuery = ''">
