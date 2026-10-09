@@ -1,0 +1,45 @@
+/*
+ * IBM Plex Sans Arabic faces with an explicit unicode-range.
+ *
+ * `@fontsource/ibm-plex-sans-arabic/arabic-*.css` ships @font-face blocks with
+ * NO `unicode-range` — verified by reading the files in node_modules (same
+ * defect class `cairo-arabic.css` exists for). Without a range Plex competes
+ * for Latin and digits too, so prices stop aligning and Inter — the mandated
+ * Latin/numeric face — never gets the runs it was chosen for.
+ *
+ * Same contract as the Cairo module: the package CSS in `index.css` owns the
+ * payload and the legacy `.woff` fallback; this only re-states family, weight
+ * and src (woff2) and adds the missing descriptor. Separate module because
+ * every `@import` must precede every other at-rule in `index.css`.
+ */
+
+@font-face {
+	font-family: "IBM Plex Sans Arabic";
+	font-style: normal;
+	font-display: swap;
+	font-weight: 400;
+	src: url("@fontsource/ibm-plex-sans-arabic/files/ibm-plex-sans-arabic-arabic-400-normal.woff2")
+		format("woff2");
+	/* Arabic, Arabic Supplement, Arabic Extended-A/B, Presentation Forms-A/B. */
+	unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF;
+}
+
+@font-face {
+	font-family: "IBM Plex Sans Arabic";
+	font-style: normal;
+	font-display: swap;
+	font-weight: 600;
+	src: url("@fontsource/ibm-plex-sans-arabic/files/ibm-plex-sans-arabic-arabic-600-normal.woff2")
+		format("woff2");
+	unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF;
+}
+
+@font-face {
+	font-family: "IBM Plex Sans Arabic";
+	font-style: normal;
+	font-display: swap;
+	font-weight: 700;
+	src: url("@fontsource/ibm-plex-sans-arabic/files/ibm-plex-sans-arabic-arabic-700-normal.woff2")
+		format("woff2");
+	unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF;
+}

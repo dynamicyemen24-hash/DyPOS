@@ -206,18 +206,19 @@
 
 	/* =========================================================================
 	   07. TYPOGRAPHY
-	   خط حديث — Arabic-first
+	   المعيار الإلزامي: IBM Plex Sans Arabic للعربية وInter للإنجليزية —
+	   Cairo احتياطي فقط. الأوزان: 400 نصوص · 600 أسعار وأزرار · 700 إجمالي.
 	   ========================================================================= */
 
-	--dy-font-sans: "Cairo", "Inter", "Noto Sans Arabic", "Segoe UI", "Tahoma",
+	--dy-font-sans: "IBM Plex Sans Arabic", "Cairo", "Inter", "Noto Sans Arabic", "Segoe UI", "Tahoma",
 		"Arial", sans-serif;
 
-	--dy-font-arabic: "Cairo", "Noto Sans Arabic", "Segoe UI", "Tahoma", Arial,
+	--dy-font-arabic: "IBM Plex Sans Arabic", "Cairo", "Noto Sans Arabic", "Segoe UI", "Tahoma", Arial,
 		sans-serif;
 
 	--dy-font-english: "Inter", "Segoe UI", Arial, sans-serif;
 
-	--dy-font-money: "Inter", "Cairo", "Segoe UI", Arial, sans-serif;
+	--dy-font-money: "Inter", "IBM Plex Sans Arabic", "Cairo", "Segoe UI", Arial, sans-serif;
 
 	/*
 	 * JetBrains Mono was listed first here but was NEVER installed — not in
@@ -251,6 +252,13 @@
 	--dy-text-5xl: 3rem;
 
 	--dy-text-display: clamp(2.25rem, 4vw + 1rem, 4.75rem);
+
+	/* أحجام الكاشير الإلزامية (نقاط، لا مدى): أصناف 17 · أسعار 20 ·
+	   إجمالي 28 · ثانوي 14 — بأوزان 400/600/700 أعلاه. */
+	--dy-type-product: 17px;
+	--dy-type-price: 20px;
+	--dy-type-total: 28px;
+	--dy-type-secondary: 14px;
 
 	/* =========================================================================
 	   09. FONT WEIGHTS

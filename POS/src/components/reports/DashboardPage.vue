@@ -103,7 +103,30 @@
           <FeatherIcon :name="item.icon" :size="14" aria-hidden="true" />
           {{ item.label }}
         </span>
+        <SyncStatusIndicator passive />
       </div>
+
+      <section class="home-alerts" aria-label="تنبيهات التشغيل" aria-live="polite">
+        <div v-if="alertsLoading" class="home-alerts__loading" role="status">
+          <div class="home-spinner" aria-hidden="true"></div><span>جارٍ قراءة التنبيهات…</span>
+        </div>
+        <p v-else-if="alertsError" class="home-alerts__error" role="alert">{{ alertsError }}</p>
+        <ul v-else-if="alerts.length" class="home-alerts__list">
+          <li
+            v-for="alert in alerts"
+            :key="alert.id"
+            class="home-alerts__item"
+            :data-severity="alert.severity"
+          >
+            <FeatherIcon :name="alert.icon" :size="17" aria-hidden="true" />
+            <span class="home-alerts__text"><strong>{{ alert.label }}</strong><small>{{ alert.detail }}</small></span>
+            <router-link v-if="alert.to" class="home-alerts__go" :to="alert.to" :aria-label="`متابعة: ${alert.label}`">
+              <FeatherIcon name="arrow-left" :size="15" aria-hidden="true" />
+            </router-link>
+          </li>
+        </ul>
+        <p v-else class="home-alerts__quiet" role="status">لا تنبيهات — العمليات طبيعية</p>
+      </section>
 
       <section class="home-grid">
         <div class="home-panel home-panel--wide">
@@ -158,7 +181,7 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, watch, onMounted } from "vue"
+import { ref, computed, reactive, watch, onMounted, onUnmounted } from "vue"
 import DyPOSLogo from "@/assets/DyPOSLogo.png"
 import { useRoute, useRouter } from "vue-router"
 import { ActionButton, FeatherIcon } from "dypos-ui"
@@ -186,6 +209,11 @@ import { useOperatorMenu } from "@/composables/useOperatorMenu"
 import OperatorMenu from "@/components/pos/OperatorMenu.vue"
 import { shareSystem } from "@/utils/shareApp"
 import { useToast } from "@/composables/useToast"
+import SyncStatusIndicator from "@/components/pos/SyncStatusIndicator.vue"
+import { loadOpsAlerts } from "@/utils/opsAlerts"
+import { lowStock } from "@/repositories/productRepository"
+import { getSyncStatus } from "@/services/sync-manager"
+import { hasDraft } from "@/utils/useCrashResume"
 
 const ARABIC_TITLES = {
 	"executive-dashboard": "لوحة التنفيذيين",
@@ -309,6 +337,18 @@ const broadcastRefresh = () => {
   window.dispatchEvent(new CustomEvent("dypos:dashboard-refresh"))
 }
 
+/** مركز التنبيهات: حقائق محلية تحتاج تدخلًا — لا أصفار مطمئنة ولا صمت. */
+const alertsLoading = ref(true)
+const alertsError = ref("")
+const alerts = ref([])
+async function loadAlerts() {
+  alertsLoading.value = true
+  const result = await loadOpsAlerts({ lowStockFn: lowStock, syncFn: getSyncStatus, draftFn: hasDraft })
+  alerts.value = result.alerts
+  alertsError.value = result.error
+  alertsLoading.value = false
+}
+
 const updateFilterModel = (values = {}) => {
   Object.assign(filterModel, values)
 }
@@ -335,6 +375,12 @@ const onFiltersReset = () => {
 
 onMounted(() => {
   broadcastRefresh()
+  loadAlerts()
+  window.addEventListener("dypos:dashboard-refresh", loadAlerts)
+})
+
+onUnmounted(() => {
+  window.removeEventListener("dypos:dashboard-refresh", loadAlerts)
 })
 </script><style scoped>
 .dy-home-shell :deep(.work-shell__content) { padding: 0; }
@@ -382,6 +428,19 @@ onMounted(() => {
 /* شريط سياق التشغيل: من يعمل وأين — شرائح حالة لا أزرار. */
 .home-context { display:flex; flex-wrap:wrap; gap:8px; }
 .home-context__chip { display:inline-flex; align-items:center; gap:6px; padding:7px 11px; border:1px solid var(--dy-border); border-radius:999px; background:var(--dy-surface); color:var(--dy-text-muted); font-size:12px; font-weight:700; }
+/* مركز التنبيهات: صفوف حقيقية بمصدر وسبيل متابعة — لا أصفار مطمئنة. */
+.home-alerts { border:1px solid var(--dy-border); border-radius:14px; background:var(--dy-surface); padding:6px 14px; }
+.home-alerts__list { list-style:none; margin:0; padding:0; }
+.home-alerts__item { display:flex; align-items:center; gap:10px; padding:10px 0; border-block-end:1px solid var(--dy-border); min-height:44px; }
+.home-alerts__item:last-child { border-block-end:0; }
+.home-alerts__item[data-severity="critical"] { color:var(--dy-danger); }
+.home-alerts__item[data-severity="warning"] > svg { color:var(--dy-warning); }
+.home-alerts__text { display:flex; flex-direction:column; gap:2px; flex:1; min-width:0; }
+.home-alerts__text strong { font-size:var(--dy-type-secondary); color:var(--dy-text); }
+.home-alerts__text small { font-size:12px; color:var(--dy-text-muted); }
+.home-alerts__go { display:grid; place-items:center; width:44px; height:44px; min-height:44px; border-radius:12px; color:var(--dy-primary); }
+.home-alerts__loading,.home-alerts__quiet { display:flex; align-items:center; gap:8px; padding:10px 0; color:var(--dy-text-muted); font-size:var(--dy-type-secondary); }
+.home-alerts__error { padding:10px 0; color:var(--dy-danger, #b91c1c); font-size:var(--dy-type-secondary); font-weight:700; }
 .home-grid { display:grid; grid-template-columns:minmax(0,2fr) minmax(280px,1fr); gap:14px; }
 .home-panel { min-width:0; border:1px solid var(--dy-border); border-radius:18px; background:var(--dy-surface); box-shadow:var(--dy-shadow-card); padding:18px; }
 .home-panel__head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }

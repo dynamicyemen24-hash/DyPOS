@@ -126,6 +126,12 @@ describe("سلسلة التشغيل (الدخول ← الرئيسية ← ال�
 		expect(HOME).toContain("مشاركة النظام")
 	})
 
+	it("الرئيسية تحمل مركز التنبيهات ومؤشر المزامنة", () => {
+		expect(HOME).toContain("loadOpsAlerts")
+		expect(HOME).toContain("home-alerts")
+		expect(HOME).toContain("SyncStatusIndicator")
+	})
+
 	it("المسارات الإدارية الأربعة محروسة بـ adminOnly في الموجّه", () => {
 		for (const name of ["Settings", "OpeningBalances", "ReferenceData", "MasterDataImport"]) {
 			expect(isAdminRoute(name), `${name} سطح إداري`).toBe(true)

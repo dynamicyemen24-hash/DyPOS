@@ -3849,7 +3849,7 @@ function onBarcodeScan(code) {
 
     color: var(--dy-text);
 
-    font-size: 12px;
+    font-size: var(--dy-type-secondary);
 
     cursor: pointer;
 }

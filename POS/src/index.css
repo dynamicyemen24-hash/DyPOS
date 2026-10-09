@@ -3,6 +3,11 @@
 @import "@fontsource/cairo/arabic-600.css";
 @import "@fontsource/cairo/arabic-700.css";
 @import "@fontsource/cairo/arabic-800.css";
+/* IBM Plex Sans Arabic — الخط العربي المعتمد (400 للنصوص، 600 للأسعار
+   والأزرار، 700 للإجمالي النهائي). ملفات محلية تُحزم مع التطبيق. */
+@import "@fontsource/ibm-plex-sans-arabic/arabic-400.css";
+@import "@fontsource/ibm-plex-sans-arabic/arabic-600.css";
+@import "@fontsource/ibm-plex-sans-arabic/arabic-700.css";
 
 /*
  * Re-declares the same five Cairo weights WITH an explicit `unicode-range`,
@@ -16,6 +21,7 @@
  * further down this file.
  */
 @import "./styles/fonts/cairo-arabic.css";
+@import "./styles/fonts/plex-arabic.css";
 
 @import "@abdulrysr/saudi-riyal-new-symbol-font/style.css";
 @import "dypos-ui/style.css";
@@ -51,13 +57,16 @@
 @import "./styles/dypos/index.css";
 
 /* =============================================================================
-   02. Application Typography Contract
+   02. Application Typography Contract (المعيار الإلزامي الموحد)
    =============================================================================
-   Cairo:
-     Arabic UI and Arabic content
+   IBM Plex Sans Arabic:
+     Arabic UI and Arabic content (400 text · 600 prices/buttons · 700 totals)
 
    Inter:
      Latin / English / technical values / numeric-heavy content
+
+   Cairo:
+     fallback only — never primary (kept for offline resilience)
 
    SaudiRiyalSymbol:
      Saudi Riyal currency glyph only
@@ -66,15 +75,15 @@
    ============================================================================= */
 
 :root {
-	--dy-font-ar: "Cairo", "Noto Sans Arabic", "Segoe UI", Tahoma, Arial,
+	--dy-font-ar: "IBM Plex Sans Arabic", "Cairo", "Noto Sans Arabic", "Segoe UI", Tahoma, Arial,
 		sans-serif;
 
 	--dy-font-latin: "Inter", "Segoe UI", Arial, sans-serif;
 
-	--dy-font-ui: "Cairo", "Inter", "Noto Sans Arabic", "Segoe UI", Tahoma, Arial,
+	--dy-font-ui: "IBM Plex Sans Arabic", "Cairo", "Inter", "Noto Sans Arabic", "Segoe UI", Tahoma, Arial,
 		sans-serif;
 
-	--dy-font-currency: "SaudiRiyalSymbol", "Cairo", "Inter", "Noto Sans Arabic",
+	--dy-font-currency: "SaudiRiyalSymbol", "Inter", "IBM Plex Sans Arabic", "Cairo",
 		"Segoe UI", Tahoma, Arial, sans-serif;
 
 	-webkit-font-smoothing: antialiased;

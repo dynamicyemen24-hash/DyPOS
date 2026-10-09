@@ -73,10 +73,11 @@ describe("Arabic typography", () => {
 		const declared = [
 			...tokens().matchAll(/--dy-font-[\w-]+:\s*([^;]+);/g),
 		].flatMap((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((f) => f[1]))
-		// Shipped here: Inter (src/assets/Inter), Cairo (@fontsource/cairo), the
+		// Shipped here: Inter (src/assets/Inter), Cairo (@fontsource/cairo),
+		// IBM Plex Sans Arabic (@fontsource/ibm-plex-sans-arabic), the
 		// riyal glyph font. Everything else must be a platform stack the device
 		// actually resolves — never a family name that resolves to nothing.
-		const shipped = new Set(["Inter", "Cairo", "SaudiRiyalSymbol"])
+		const shipped = new Set(["Inter", "Cairo", "IBM Plex Sans Arabic", "SaudiRiyalSymbol"])
 		const platform = new Set([
 			"Segoe UI",
 			"Arial",
