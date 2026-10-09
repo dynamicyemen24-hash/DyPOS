@@ -60,6 +60,21 @@ describe("useSyncRecovery", () => {
     expect(state.errors.value.p3).toBe("network down")
   })
 
+  it("keeps the original queue record when persistence fails after server response", async () => {
+    const original = { id: "p5", status: "FAILED", payload: { code: "A-5" }, idempotencyKey: "k5" }
+    const items = ref([original])
+    const state = useSyncRecovery({
+      items,
+      pushRecord: vi.fn().mockResolvedValue({ status: "SYNCED", serverId: 25 }),
+      persistRecord: vi.fn().mockRejectedValue(new Error("disk unavailable")),
+    })
+
+    expect(await state.retry({ id: "p5", item: original, recovery: { retryable: true } })).toBe(false)
+    expect(items.value[0]).toEqual(original)
+    expect(state.errors.value.p5).toBe("disk unavailable")
+    expect(state.busyIds.value).toEqual([])
+  })
+
   it("saves a repaired payload as pending while retaining the queue id and idempotency key", async () => {
     const original = { id: "p4", status: "FAILED", payload: { code: "" }, idempotencyKey: "k4" }
     const items = ref([original])
