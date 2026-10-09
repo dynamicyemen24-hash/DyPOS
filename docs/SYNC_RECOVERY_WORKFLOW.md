@@ -53,8 +53,11 @@ It emits intent rather than silently mutating local data:
 - `repair({ id, item, recovery })`: open an editor for that record, preserve
   the payload, and resubmit only after the operator confirms the corrected
   values.
-- `retry({ id, item, recovery })`: retry the selected record; use the same
-  idempotency key for transport retries.
+- `retry({ id, item, recovery })`: retry the selected record only when the
+  response marks it retryable; use the same idempotency key for transport retries.
+- `review({ id, item, recovery })`: open a review/details path for a non-retryable
+  or unsupported operation. This is deliberately distinct from retry so a
+  review action cannot accidentally resubmit unchanged invalid data.
 - `open-resource({ id, item, recovery })`: route to the required catalog or
   invoice workflow. Preserve the pending operation until the caller confirms
   it has been resolved.
