@@ -105,6 +105,11 @@ describe('Sync lifecycle (HTTP E2E)', () => {
     assert.equal(pushed.body.synced, 1);
     assert.equal(pushed.body.results[0].status, 'FAILED');
     assert.equal(pushed.body.results[1].status, 'SYNCED');
+    assert.equal(pushed.body.results[0].recovery.code, 'REQUIRED_FIELDS');
+    assert.equal(pushed.body.results[0].recovery.title, 'أكمل بيانات الصنف');
+    assert.deepEqual(pushed.body.results[0].recovery.missingFields.map((field) => field.field), ['code']);
+    assert.equal(pushed.body.results[0].recovery.nextAction, 'EDIT_PAYLOAD_AND_RETRY');
+    assert.equal(pushed.body.results[0].recovery.retryable, false);
 
     const product = db.prepare('SELECT id, code, name, unit_price FROM products WHERE id=?').get(productId);
     assert.ok(product);
@@ -127,6 +132,11 @@ describe('Sync lifecycle (HTTP E2E)', () => {
     assert.equal(pushed.body.synced, 0);
     assert.equal(pushed.body.results[0].status, 'FAILED');
     assert.match(pushed.body.results[0].error, /مزامنة الفواتير غير مدعومة/);
+    assert.equal(pushed.body.results[0].recovery.code, 'INVOICE_SYNC_UNSUPPORTED');
+    assert.equal(pushed.body.results[0].recovery.nextAction, 'OPEN_ONLINE_INVOICE_FLOW');
+    assert.equal(pushed.body.results[0].recovery.endpoint, '/api/invoices');
+    assert.equal(pushed.body.results[0].recovery.preserveDraft, true);
+    assert.equal(pushed.body.results[0].recovery.retryable, false);
   });
 
   it('denies sync push to unauthenticated callers', async () => {
