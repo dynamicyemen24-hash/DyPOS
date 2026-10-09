@@ -26,20 +26,6 @@ const AUDIT_ROLES = new Set([
 	"محاسب",
 	"مدقق",
 ])
-const FULL_ROLES = new Set([
-	"admin",
-	"administrator",
-	"superadmin",
-	"super_admin",
-	"manager",
-	"supervisor",
-	"owner",
-	"مدير",
-	"مشرف",
-	"مالك",
-	"مسؤول",
-	"مدير النظام",
-])
 
 export function isOperatorRole(role) {
 	return OPERATOR_ROLES.has(normalizeRole(role))
