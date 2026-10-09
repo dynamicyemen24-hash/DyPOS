@@ -17,6 +17,10 @@
 			</div>
 
 			<div class="self-checkout__header-actions">
+				<RouterLink class="self-checkout__login-link" :to="{ name: 'Login' }">
+					<FeatherIcon name="arrow-right" aria-hidden="true" />
+					العودة إلى شاشة الدخول
+				</RouterLink>
 				<!--
 					العمل دون اتصال ليس حالة يظهرها مؤشر، بل الوضع الافتراضي:
 					لا مؤشر «متصل» ولا «غير متصل» يوحي بأن الشاشة تحتاج سيرفرًا.
