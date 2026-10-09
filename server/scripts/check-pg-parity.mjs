@@ -7,12 +7,17 @@
  * EXPECTED (TEXT→UUID, REAL→NUMERIC, INTEGER→BOOLEAN) and normalized away —
  * only missing tables/columns/indexes fail the gate.
  *
+ * The DDL reader is scripts/lib/parity-sql.mjs — shared with the generator
+ * (scripts/gen-pg-parity.mjs), so `npm run parity:sync` can only ever produce
+ * something this gate reads the same way.
+ *
  * Run: npm run parity
  * Exit: 0 parity · 1 drift detected · 2 infra failure
  */
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parsePgObjects } from './lib/parity-sql.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const norm = (s) =>
@@ -50,60 +55,7 @@ function sqliteObjects() {
 
 function pgObjects() {
 	const sql = readFileSync(join(__dirname, '..', 'db', 'schema-postgres.sql'), 'utf8');
-	const tables = {};
-	const indexes = new Set();
-	// CREATE TABLE [IF NOT EXISTS] name ( ... ); — capture balanced parens naively
-	const tableRe = /CREATE TABLE IF NOT EXISTS\s+([a-z_][a-z0-9_]*)\s*\(/gi;
-	for (const m of sql.matchAll(tableRe)) {
-		const name = norm(m[1]);
-		// Find matching close paren from m.index
-		let depth = 0;
-		const start = sql.indexOf('(', m.index);
-		let end = start;
-		for (let i = start; i < sql.length; i++) {
-			if (sql[i] === '(') depth++;
-			else if (sql[i] === ')') {
-				depth--;
-				if (depth === 0) {
-					end = i;
-					break;
-				}
-			}
-		}
-		const body = sql.slice(start + 1, end);
-		const cols = new Set();
-		// Top-level comma split (ignore nested parens like NUMERIC(12,2))
-		let cur = '';
-		let d = 0;
-		const parts = [];
-		for (const ch of body) {
-			if (ch === '(') d++;
-			if (ch === ')') d--;
-			if (ch === ',' && d === 0) {
-				parts.push(cur);
-				cur = '';
-			} else cur += ch;
-		}
-		if (cur.trim()) parts.push(cur);
-		for (const p of parts) {
-			const t = p.trim();
-			if (/^(PRIMARY|FOREIGN|UNIQUE|CHECK|CONSTRAINT)\b/i.test(t)) continue;
-			const col = norm(t.split(/\s+/)[0]);
-			if (col) cols.add(col);
-		}
-		if (!tables[name]) tables[name] = new Set();
-		for (const c of cols) tables[name].add(c);
-	}
-	// ALTER TABLE x ADD COLUMN [IF NOT EXISTS] col
-	const alterRe = /ALTER TABLE\s+([a-z_][a-z0-9_]*)\s+ADD COLUMN IF NOT EXISTS\s+([a-z_][a-z0-9_]*)/gi;
-	for (const m of sql.matchAll(alterRe)) {
-		const t = norm(m[1]);
-		if (!tables[t]) tables[t] = new Set();
-		tables[t].add(norm(m[2]));
-	}
-	const idxRe = /CREATE (?:UNIQUE )?INDEX IF NOT EXISTS\s+([a-z_][a-z0-9_]*)/gi;
-	for (const m of sql.matchAll(idxRe)) indexes.add(norm(m[1]));
-	return { tables, indexes };
+	return parsePgObjects(sql);
 }
 
 const IGNORED_TABLES = new Set(['schema_version']); // version bookkeeping differs by design
@@ -118,22 +70,23 @@ try {
 	const missingColumns = [];
 	for (const [t, cols] of Object.entries(lite.tables)) {
 		if (IGNORED_TABLES.has(t) || isFtsTable(t)) continue;
-		if (!pg.tables[t]) {
+		if (!pg.tables.has(t)) {
 			missingTables.push(t);
 			continue;
 		}
+		const pgCols = pg.tables.get(t);
 		for (const c of cols) {
 			// No SQLite-only skip-list: every SQLite column must also exist in
 			// Postgres. (The previous `&& false` guard was dead code.)
-			if (!pg.tables[t].has(c)) missingColumns.push(`${t}.${c}`);
+			if (!pgCols.has(c)) missingColumns.push(`${t}.${c}`);
 		}
 	}
-	const extraTables = Object.keys(pg.tables).filter((t) => !lite.tables[t] && !IGNORED_TABLES.has(t));
+	const extraTables = [...pg.tables.keys()].filter((t) => !lite.tables[t] && !IGNORED_TABLES.has(t));
 	const missingIndexes = [...lite.indexes].filter((i) => !pg.indexes.has(i) && !i.startsWith('sqlite_'));
 	const report = {
 		ok: missingTables.length === 0 && missingColumns.length === 0 && missingIndexes.length === 0,
 		sqlite_tables: Object.keys(lite.tables).length,
-		pg_tables: Object.keys(pg.tables).length,
+		pg_tables: pg.tables.size,
 		missingTables,
 		missingColumns,
 		missingIndexes,

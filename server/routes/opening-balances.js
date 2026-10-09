@@ -241,7 +241,7 @@ router.post('/import', (req, res) => {
 		  (id, tenant_id, fiscal_year, account_type, account_id, account_code,
 		   account_name, product_id, amount_minor, quantity, notes, created_by, updated_at)
 		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
-		ON CONFLICT(fiscal_year, account_type, account_id, tenant_id) DO UPDATE SET
+		ON CONFLICT(fiscal_year, account_type, account_id, account_code, tenant_id) DO UPDATE SET
 		  account_code=excluded.account_code,
 		  account_name=excluded.account_name,
 		  product_id=excluded.product_id,
@@ -342,7 +342,7 @@ router.put('/', (req, res) => {
 		  (id, tenant_id, fiscal_year, account_type, account_id, account_code,
 		   account_name, product_id, amount_minor, quantity, notes, created_by, updated_at)
 		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
-		ON CONFLICT(fiscal_year, account_type, account_id, tenant_id) DO UPDATE SET
+		ON CONFLICT(fiscal_year, account_type, account_id, account_code, tenant_id) DO UPDATE SET
 		  account_code=excluded.account_code,
 		  account_name=excluded.account_name,
 		  product_id=excluded.product_id,

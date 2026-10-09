@@ -200,7 +200,13 @@ import { ActionButton, Badge, Button, FeatherIcon } from "dypos-ui"
 import { useToast } from "@/composables/useToast"
 import { apiPost, apiPostRaw, apiDownload } from "@/utils/restApi"
 import { logger } from "@/utils/logger"
-import { formatMoney, formatQty, downloadBlob } from "@/utils/uom"
+import {
+	CURRENCY_DEFINITIONS,
+	UOM_DEFINITIONS,
+	formatMoney,
+	formatQty,
+	downloadBlob,
+} from "@/utils/uom"
 
 import InstructionsPage from "./StockCountInstructionsPage.vue"
 import ItemsTablePage from "./StockCountItemsTablePage.vue"
@@ -239,6 +245,10 @@ const pages = [
 // Multi-currency & UoM support.
 // The base currency is the CONFIGURED one (posSettings), not a hardcoded SAR:
 // a shop configured for EGP must not import against a SAR base row.
+// The option lists themselves come from the guarded catalogs in utils/uom.js
+// (S3: one implementation per rule) — this dialog used to carry its own copy,
+// where the CTN row was keyed `header` instead of `code` (never matched) and
+// four FX rates sat duplicated beside the catalog's.
 const configuredCurrency = usePOSSettingsStore().currency || "SAR"
 const currencies = ref([
 	{
@@ -248,80 +258,12 @@ const currencies = ref([
 		rate: 1,
 		isBase: true,
 	},
-	{ code: "SAR", symbol: "ر.س", name: "ريال سعودي", rate: 1 },
-	{ code: "USD", symbol: "$", name: "دولار أمريكي", rate: 3.75 },
-	{ code: "EUR", symbol: "€", name: "يورو", rate: 4.05 },
-	{ code: "EGP", symbol: "ج.م", name: "جنيه مصري", rate: 0.077 },
+	...Object.values(CURRENCY_DEFINITIONS).filter(
+		(c) => c.code !== configuredCurrency,
+	),
 ])
 
-const uoms = ref([
-	{
-		code: "PCS",
-		name: "قطعة",
-		nameAr: "قطعة",
-		factor: 1,
-		isBase: true,
-		type: "count",
-	},
-	{
-		code: "BOX",
-		name: "صندوق",
-		nameAr: "صندوق",
-		factor: 12,
-		type: "count",
-	},
-	{
-		header: "CTN",
-		name: "كرتون",
-		nameAr: "كرتون",
-		factor: 24,
-		type: "count",
-	},
-	{
-		code: "KG",
-		name: "كيلوغرام",
-		nameAr: "كجم",
-		factor: 1,
-		type: "weight",
-	},
-	{
-		code: "G",
-		name: "جرام",
-		nameAr: "جم",
-		factor: 0.001,
-		type: "weight",
-	},
-	{ code: "M", name: "متر", nameAr: "متر", factor: 1, type: "length" },
-	{
-		code: "CM",
-		name: "سنتيمتر",
-		nameAr: "سم",
-		factor: 0.01,
-		type: "length",
-	},
-	{ code: "L", name: "لتر", nameAr: "لتر", factor: 1, type: "volume" },
-	{
-		code: "ML",
-		name: "مليلتر",
-		nameAr: "مل",
-		factor: 0.001,
-		type: "volume",
-	},
-	{
-		code: "M2",
-		name: "متر مربع",
-		nameAr: "م²",
-		factor: 1,
-		type: "area",
-	},
-	{
-		code: "M3",
-		name: "متر مكعب",
-		nameAr: "م³",
-		factor: 1,
-		type: "volume",
-	},
-])
+const uoms = ref(Object.values(UOM_DEFINITIONS))
 
 const selectedCurrency = ref(configuredCurrency)
 const selectedUom = ref("PCS")
@@ -354,7 +296,7 @@ const invalidCount = computed(
  * `formatQty`/`formatMoney` from `@/utils/uom` take the lookup tables as a
  * THIRD argument and throw without them; binding them straight into the
  * template (arity 1/2) is a crash on every previewed row. These wrappers supply
- * the dialog's own UoM/currency lists.
+ * the catalog lists (utils/uom.js) the dialog now renders from.
  */
 function qtyText(qty, uomCode) {
 	return formatQty(qty, uomCode, uoms.value)

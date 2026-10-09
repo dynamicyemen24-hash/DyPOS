@@ -2,7 +2,7 @@ import { shiftState } from "@/composables/useShift"
 import { userResource } from "@/data/user"
 import { logger } from "@/utils/logger"
 import { createRouter, createWebHistory } from "vue-router"
-import { session } from "./data/session"
+import { session as localSession } from "./data/session"
 
 const log = logger.create("Router")
 
@@ -50,6 +50,7 @@ const ROUTE_NAMES = Object.freeze({
 	SETTINGS: "Settings",
 	OPENING_BALANCES: "OpeningBalances",
 	MASTER_DATA_IMPORT: "MasterDataImport",
+	REFERENCE_DATA: "ReferenceData",
 	THIRD_PARTY_SALES: "ThirdPartySales",
 	SELF_CHECKOUT: "SelfCheckout",
 	QUEUE: "Queue",
@@ -70,6 +71,7 @@ const ROUTE_TITLES = Object.freeze({
 	[ROUTE_NAMES.SETTINGS]: "الإعدادات العامة",
 	[ROUTE_NAMES.OPENING_BALANCES]: "الأرصدة الافتتاحية",
 	[ROUTE_NAMES.MASTER_DATA_IMPORT]: "استيراد البيانات الأساسية",
+	[ROUTE_NAMES.REFERENCE_DATA]: "البيانات المرجعية",
 	[ROUTE_NAMES.THIRD_PARTY_SALES]: "البيع بالنيابة",
 	[ROUTE_NAMES.SELF_CHECKOUT]: "الكاشير الذاتي",
 	[ROUTE_NAMES.QUEUE]: "الطوابير",
@@ -287,6 +289,15 @@ const routes = [
 	},
 
 	{
+		path: "/reference-data",
+		name: ROUTE_NAMES.REFERENCE_DATA,
+		component: () => import("@/pages/ReferenceDataPage.vue"),
+		meta: {
+			[ROUTE_META.requiresAuth]: true,
+		},
+	},
+
+	{
 		path: "/third-party-sales",
 		name: ROUTE_NAMES.THIRD_PARTY_SALES,
 		component: () => import("@/pages/ThirdPartySalesPage.vue"),
@@ -367,7 +378,7 @@ function isDev() {
 
 function isAuthenticated() {
 	try {
-		return Boolean(session?.isLoggedIn)
+		return Boolean(localSession?.isLoggedIn)
 	} catch (error) {
 		log.warn?.("Failed to read authentication state", error)
 		return false

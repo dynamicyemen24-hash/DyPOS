@@ -15,7 +15,7 @@ import { call } from "@/utils/apiWrapper"
 import { logger } from "@/utils/logger"
 import { defineStore } from "pinia"
 import { ref } from "vue"
-import { resolveTerminalId } from "@/utils/posContext"
+import { resolveTerminalId } from "@/utils/terminalId"
 
 const log = logger.create("Bootstrap")
 

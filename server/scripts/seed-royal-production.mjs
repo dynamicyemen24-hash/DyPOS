@@ -29,6 +29,7 @@ import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
+import { toMinor } from '../lib/money.js';
 import { assertSafeRoyalDemoSeed } from './seed-safety.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -36,8 +37,9 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 // (DYPOS_DB_PATH=… ) instead of the live one.
 const DB_PATH = process.env.DYPOS_DB_PATH || join(HERE, '..', 'data', 'dypos.db');
 const db = new DatabaseSync(DB_PATH);
+let safety;
 try {
-	assertSafeRoyalDemoSeed(db);
+	safety = assertSafeRoyalDemoSeed(db);
 } catch (error) {
 	db.close();
 	throw error;
@@ -79,6 +81,16 @@ const WH_MARIB = 'W-01';
 
 const BUSINESS_NAME = 'رويال العالمية لتجارة أدوات التجميل والعطور';
 const BUSINESS_NAME_EN = 'Royal Global Cosmetics & Perfumes Trading';
+
+/**
+ * Subscriber #1's home currency. The seed used to hard-code SAR here because
+ * the fixture is a SAMPLE, and a sample can pick any currency. The subscriber
+ * is not a sample: he operates in Yemen and bills in Yemeni Rial. Shipping
+ * the seed with SAR while the subscriber profile declares YER meant every
+ * invoice the shop issued was priced in the wrong unit, and the POS currency
+ * selector showed a currency the till never used. One constant, one source.
+ */
+const SUBSCRIBER_CURRENCY = 'YER';
 
 // username → [fullName, role, mustChange]
 // Passwords are NOT here on purpose — see passwordFor().
@@ -212,7 +224,7 @@ try {
 		['business_name', BUSINESS_NAME],
 		['business_name_en', BUSINESS_NAME_EN],
 		['country_code', 'YE'],
-		['currency', 'SAR'],
+		['currency', SUBSCRIBER_CURRENCY],
 		['tax_rate_default', '15'],
 		['invoice_prefix', 'RGT'],
 		['timezone', 'Asia/Aden'],
@@ -561,6 +573,56 @@ try {
 		phase: 'simulation',
 		updated_at: now(),
 	});
+
+	// 9b. Opening position — the baseline every report measures against.
+	//
+	// A stock import alone does NOT create an opening balance row: the two tables
+	// serve different questions (`stock_levels` answers "how many are here NOW",
+	// `opening_balances` answers "what did this business carry INTO the year").
+	// Shipping the seed with stock and no opening balances meant the stock-
+	// valuation report read a confident 0.00 for the period before the first
+	// invoice — a zero that meant "unknown", not "nothing". The seed now writes
+	// one `stock` row per (product, warehouse) pair, so the position is real.
+	//
+	// Amounts are INTEGER MINOR UNITS of the subscriber's currency (YER), never
+	// floats: `lib/money.js` exists because float drift across many rows becomes
+	// millions, and an opening balance is the baseline every later figure is
+	// measured against. cost = unit_price × 60%, which is the same margin rule the
+	// catalog uses, so cost-of-goods and opening stock agree.
+	console.log('  → Opening balances...');
+	const obYear = String(year);
+	const insertOb = db.prepare(
+		`INSERT INTO opening_balances (id, tenant_id, fiscal_year, account_type, account_id, account_code, account_name, amount_minor, quantity, notes, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, 'stock', ?, ?, ?, ?, ?, ?, 'seed:royal', ?, ?)
+       ON CONFLICT(fiscal_year, account_type, account_id, account_code, tenant_id) DO UPDATE SET amount_minor=excluded.amount_minor, quantity=excluded.quantity, notes=excluded.notes, updated_at=excluded.updated_at`,
+	);
+	let obCount = 0;
+	for (const { id, price } of productIds) {
+		const [sanaa, aden, marib] = stockTier(price);
+		const cost = Math.round(price * 0.6 * 100) / 100;
+		const costMinor = toMinor(cost);
+		for (const [wh, qty] of [
+			[WH_SANAA, sanaa],
+			[WH_ADEN, aden],
+			[WH_MARIB, marib],
+		]) {
+			insertOb.run(
+				uuid(),
+				TENANT_ID,
+				obYear,
+				id,
+				`STOCK-${wh}`,
+				`Opening stock ${wh}`,
+				costMinor,
+				qty,
+				`بذرة افتتاحية — تكلفة (${costMinor} halala × ${qty})`,
+				now(),
+				now(),
+			);
+			obCount += 1;
+		}
+	}
+	console.log(`    opening balance rows: ${obCount}`);
 
 	db.exec('COMMIT');
 	console.log('Sample fixture data seeded (atomic). Do not use as subscriber data.');

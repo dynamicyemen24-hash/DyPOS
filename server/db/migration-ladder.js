@@ -26,6 +26,21 @@ import { migrateCatalogBaseUnits } from './migrations-catalog-base-units.js';
 import { migrateInvoiceTenantUniqueness } from './migrations-invoice-tenant-uniqueness.js';
 import { migrateOperationalOnboarding } from './migrations-operational-onboarding.js';
 import { migrateShiftTenantScope } from './migrations-shift-tenant-scope.js';
+import { migrateCountries } from './migrations-countries.js';
+import { migrateRegions } from './migrations-regions.js';
+import { migrateCities } from './migrations-cities.js';
+import { migrateLanguages } from './migrations-languages.js';
+import { migrateTimezones } from './migrations-timezones.js';
+import { migrateBusinessSectors } from './migrations-business-sectors.js';
+import { migrateCategories } from './migrations-categories.js';
+import { migrateTaxes } from './migrations-taxes.js';
+import { migrateChartOfAccounts } from './migrations-chart-of-accounts.js';
+import { migrateUnits } from './migrations-units.js';
+import { migrateProductCatalog } from './migrations-product-catalog.js';
+import { migratePricing } from './migrations-pricing.js';
+import { migrateSalesCustomers } from './migrations-sales-customers.js';
+import { migratePurchasing } from './migrations-purchasing.js';
+import { migrateReferenceSeeds } from './migrations-reference-seeds.js';
 
 /**
  * Ordered by version; `migrate()` applies every row above the recorded version
@@ -51,8 +66,27 @@ export const LATE_MIGRATIONS = Object.freeze([
 		run: migrateInvoiceTenantUniqueness,
 		note: 'tenant-scoped uniqueness on invoices (number + idempotency_key)',
 	},
-	{ version: 37, run: migrateOperationalOnboarding, note: 'POS operational onboarding profile + saved import templates' },
+	{
+		version: 37,
+		run: migrateOperationalOnboarding,
+		note: 'POS operational onboarding profile + saved import templates',
+	},
 	{ version: 38, run: migrateShiftTenantScope, note: 'POS shifts tenant isolation' },
+	{ version: 39, run: migrateCountries, note: 'countries (ISO 3166-1)' },
+	{ version: 40, run: migrateRegions, note: 'regions (states/provinces/governorates)' },
+	{ version: 41, run: migrateCities, note: 'cities (districts/municipalities)' },
+	{ version: 42, run: migrateLanguages, note: 'languages (ISO 639)' },
+	{ version: 43, run: migrateTimezones, note: 'timezones (IANA)' },
+	{ version: 44, run: migrateBusinessSectors, note: 'business sectors (hierarchical)' },
+	{ version: 45, run: migrateCategories, note: 'product/service categories (hierarchical)' },
+	{ version: 46, run: migrateTaxes, note: 'tax master data' },
+	{ version: 47, run: migrateChartOfAccounts, note: 'chart of accounts templates' },
+	{ version: 48, run: migrateUnits, note: 'units of measure with conversions' },
+	{ version: 49, run: migrateProductCatalog, note: 'professional product catalog' },
+	{ version: 50, run: migratePricing, note: 'pricing engine' },
+	{ version: 51, run: migrateSalesCustomers, note: 'sales & customers' },
+	{ version: 52, run: migratePurchasing, note: 'purchasing & suppliers' },
+	{ version: 53, run: migrateReferenceSeeds, note: 'global reference data seeds (countries→COA)' },
 ]);
 
 export default LATE_MIGRATIONS;

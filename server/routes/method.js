@@ -90,6 +90,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOAD_DIR = join(__dirname, '..', 'uploads');
 
 import { AR_TRANSLATIONS, ALLOWED_LOCALES, LOCALE_NAMES, translationsFor } from './method-i18n.js';
+import { registerDocWriteHandlers } from './method-doc-writes.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 function methodError(res, status, excType, message) {
@@ -268,7 +269,13 @@ function pushTenantScope(spec, req, res, whereParts, sqlParams) {
 		return methodError(res, 403, 'PermissionError', 'نطاق المستأجر غير صالح');
 	}
 	if (!tenantId) return true;
-	whereParts.push('(tenant_id=? OR tenant_id IS NULL)');
+	// `globalScope` (reference-data doctypes, v53): the table's `tenant_id=''`
+	// rows are global templates every tenant must read — the seeds would be
+	// invisible to tenant-bound callers without this clause. Tenant rows still
+	// match only their own id (invariant 1 holds: no cross-tenant row leaks).
+	whereParts.push(
+		spec.globalScope ? `(tenant_id=? OR tenant_id IS NULL OR tenant_id='')` : '(tenant_id=? OR tenant_id IS NULL)',
+	);
 	sqlParams.push(tenantId);
 	return true;
 }
@@ -561,9 +568,10 @@ def('dypos.auth.get_logged_user', (_p, req, res) => {
 //     method-coverage gate now prevents.
 //   - `dypos.auth.register` — the pre-existing lowercase name; kept so no
 //     deployed client loses a verb.
-const register = (params, req, res) => registerSubscriber({ db, crypto, hashPasswordAsync, methodError, params, req, res })
-def('DyPOS.api.auth.register', register)
-def('dypos.auth.register', register)
+const register = (params, req, res) =>
+	registerSubscriber({ db, crypto, hashPasswordAsync, methodError, params, req, res });
+def('DyPOS.api.auth.register', register);
+def('dypos.auth.register', register);
 
 // ── Password reset (maps to /api/auth/forgot + /reset) ──────────────────
 def('DyPOS.api.auth.send_password_reset', (params, _req, res) => {
@@ -741,76 +749,18 @@ def('dypos.client.get', (params, req, res) => {
 	}
 });
 
-def('dypos.client.set_value', (params, req, res) => {
-	if (!requireUser(req, res)) return;
-	const role = req.user.role;
-	if (!['ADMIN', 'MANAGER'].includes(role) && !checkPermission(role, params.doctype, 'write')) {
-		return methodError(res, 403, 'PermissionError', 'صلاحية غير كافية');
-	}
-	const spec = resolveDoctype(params.doctype);
-	if (!spec) return methodError(res, 404, 'NotFoundError', 'غير موجود');
-	const name = String(params.name || '').trim();
-	if (!name) return methodError(res, 400, 'ValidationError', 'المعرف مطلوب');
-	if (!assertMethodRecordTenant(req, res, spec, name)) return;
-	const fieldname = params.fieldname;
-	let values = {};
-	if (fieldname && typeof fieldname === 'object' && !Array.isArray(fieldname)) {
-		values = fieldname;
-	} else if (typeof fieldname === 'string' && params.value !== undefined) {
-		values = { [fieldname]: params.value };
-	} else if (Array.isArray(fieldname) && params.value !== undefined) {
-		// array form: fieldname can be single or we expect object value
-		values = { [fieldname[0]]: params.value };
-	}
-	const sets = [];
-	const sqlParams = [];
-	for (const [k, v] of Object.entries(values)) {
-		const col = spec.fields[k] || (spec.idAliases?.includes(k) ? spec.idCol : null);
-		if (!col || col === spec.idCol) continue;
-		sets.push(`${col}=?`);
-		sqlParams.push(v);
-	}
-	if (!sets.length) return methodError(res, 400, 'ValidationError', 'لا حقول للتحديث');
-	const { where, count } = idLookupWhere(spec);
-	try {
-		const upd = db
-			.prepare(`UPDATE ${spec.table} SET ${sets.join(', ')} WHERE ${where}`)
-			.run(...sqlParams, ...Array(count).fill(name));
-		if (!upd.changes) return methodError(res, 404, 'NotFoundError', 'غير موجود');
-		const row = db.prepare(`SELECT * FROM ${spec.table} WHERE ${where} LIMIT 1`).get(...Array(count).fill(name));
-		const saved = spec.mapRow ? spec.mapRow(row) : redactRow(spec, row);
-		return res.json({ message: saved });
-	} catch (e) {
-		return methodError(res, mapErrorStatus(e), 'ValidationError', String(e.message || 'فشل التحديث').slice(0, 200));
-	}
-});
-
-def('dypos.delete_doc', (params, req, res) => {
-	if (!requireUser(req, res)) return;
-	if (!['ADMIN', 'MANAGER'].includes(req.user.role)) {
-		return methodError(res, 403, 'PermissionError', 'صلاحية غير كافية');
-	}
-	const spec = resolveDoctype(params.doctype);
-	if (!spec) return res.json({ message: { deleted: true } });
-	const name = String(params.name || '').trim();
-	if (!name) return methodError(res, 400, 'ValidationError', 'المعرف مطلوب');
-	if (!assertMethodRecordTenant(req, res, spec, name)) return;
-	const { where, count } = idLookupWhere(spec);
-	try {
-		// Retire, never destroy: a table without an is_active flag cannot
-		// retire its rows, so the request is refused instead of deleting history.
-		const cols = db
-			.prepare(`PRAGMA table_info(${spec.table})`)
-			.all()
-			.map((c) => c.name);
-		if (!cols.includes('is_active')) {
-			return methodError(res, 400, 'ValidationError', 'الحذف الفيزيائي مرفوض — يتطلب عمود حالة');
-		}
-		db.prepare(`UPDATE ${spec.table} SET is_active=0 WHERE ${where}`).run(...Array(count).fill(name));
-		return res.json({ message: { deleted: true } });
-	} catch (e) {
-		return methodError(res, mapErrorStatus(e), 'ValidationError', String(e.message || 'فشل الحذف').slice(0, 200));
-	}
+registerDocWriteHandlers(def, {
+	db,
+	requireUser,
+	methodError,
+	resolveDoctype,
+	tenantColumnKnown,
+	resolveTenantFilter,
+	idLookupWhere,
+	assertMethodRecordTenant,
+	mapErrorStatus,
+	redactRow,
+	checkPermission,
 });
 
 // ── Bootstrap ────────────────────────────────────────────────────────────
@@ -829,13 +779,19 @@ def('DyPOS.api.bootstrap.get_initial_data', (params, req, res) => {
 	if (!tenantId) return methodError(res, 403, 'PermissionError', 'لا يوجد مشترك مرتبط بالمستخدم');
 
 	const settings = allSettings();
-	const terminalId = String(params?.terminal_id || params?.terminalId || '').trim().slice(0, 64) || null;
+	const terminalId =
+		String(params?.terminal_id || params?.terminalId || '')
+			.trim()
+			.slice(0, 64) || null;
 
 	let organization = null;
 	try {
-		organization = db
-			.prepare('SELECT id,name,code,country_code,timezone,establishment_type FROM organizations WHERE tenant_id=? AND is_active=1 ORDER BY created_at LIMIT 1')
-			.get(tenantId) || null;
+		organization =
+			db
+				.prepare(
+					'SELECT id,name,code,country_code,timezone,establishment_type FROM organizations WHERE tenant_id=? AND is_active=1 ORDER BY created_at LIMIT 1',
+				)
+				.get(tenantId) || null;
 	} catch {
 		organization = null;
 	}
@@ -852,7 +808,9 @@ def('DyPOS.api.bootstrap.get_initial_data', (params, req, res) => {
 	let warehouses = [];
 	try {
 		warehouses = db
-			.prepare('SELECT id,name,address,is_active,tenant_id FROM warehouses WHERE tenant_id=? AND is_active=1 ORDER BY name')
+			.prepare(
+				'SELECT id,name,address,is_active,tenant_id FROM warehouses WHERE tenant_id=? AND is_active=1 ORDER BY name',
+			)
 			.all(tenantId);
 	} catch {
 		warehouses = [];
@@ -861,8 +819,8 @@ def('DyPOS.api.bootstrap.get_initial_data', (params, req, res) => {
 	let shift = null;
 	try {
 		const shiftSql = terminalId
-			? 'SELECT * FROM shifts WHERE tenant_id=? AND terminal_id=? AND status=\'OPEN\' ORDER BY opened_at DESC LIMIT 1'
-			: 'SELECT * FROM shifts WHERE tenant_id=? AND opened_by=? AND status=\'OPEN\' ORDER BY opened_at DESC LIMIT 1';
+			? "SELECT * FROM shifts WHERE tenant_id=? AND terminal_id=? AND status='OPEN' ORDER BY opened_at DESC LIMIT 1"
+			: "SELECT * FROM shifts WHERE tenant_id=? AND opened_by=? AND status='OPEN' ORDER BY opened_at DESC LIMIT 1";
 		shift = terminalId
 			? db.prepare(shiftSql).get(tenantId, terminalId) || null
 			: db.prepare(shiftSql).get(tenantId, req.user.fullName || req.user.username) || null;
@@ -880,8 +838,12 @@ def('DyPOS.api.bootstrap.get_initial_data', (params, req, res) => {
 	const branch = branches[0] || null;
 	const warehouse = warehouses.find((w) => w.id === branch?.warehouse_id) || warehouses[0] || null;
 	const locale = req.user?.preferred_locale || 'ar';
-	const currency = String(settings.currency || '').trim().toUpperCase();
-	const country = String(organization?.country_code || settings.country_code || '').trim().toUpperCase();
+	const currency = String(settings.currency || '')
+		.trim()
+		.toUpperCase();
+	const country = String(organization?.country_code || settings.country_code || '')
+		.trim()
+		.toUpperCase();
 
 	return res.json({
 		message: {
@@ -1373,7 +1335,9 @@ def('DyPOS.api.pos_profile.get_pos_profile_data', (_p, req, res) => {
 	const settings = allSettings();
 	let warehouses = [];
 	try {
-		warehouses = db.prepare('SELECT * FROM warehouses WHERE tenant_id=? AND is_active=1 ORDER BY name').all(resolveTenantFilter(req).tenantId);
+		warehouses = db
+			.prepare('SELECT * FROM warehouses WHERE tenant_id=? AND is_active=1 ORDER BY name')
+			.all(resolveTenantFilter(req).tenantId);
 	} catch {
 		/* ignore */
 	}
@@ -1463,7 +1427,9 @@ def('DyPOS.api.shifts.get_opening_dialog_data', (_p, req, res) => {
 			warehouses,
 			payment_methods: paymentMethods,
 			currencies: [{ code: getSetting('currency', 'SAR') }],
-			open_shifts: db.prepare(`SELECT * FROM shifts WHERE tenant_id=? AND status='OPEN' ORDER BY opened_at DESC`).all(resolveTenantFilter(req).tenantId),
+			open_shifts: db
+				.prepare(`SELECT * FROM shifts WHERE tenant_id=? AND status='OPEN' ORDER BY opened_at DESC`)
+				.all(resolveTenantFilter(req).tenantId),
 		},
 	});
 });
@@ -1472,10 +1438,14 @@ def('DyPOS.api.shifts.create_opening_shift', (params, req, res) => {
 	if (!requireUser(req, res)) return;
 	const tenantId = resolveTenantFilter(req).tenantId;
 	if (!tenantId) return methodError(res, 403, 'PermissionError', 'لا يوجد مشترك مرتبط بالمستخدم');
-		const terminalId = String(params.terminal_id || params.terminalId || params.pos_profile || '').trim().slice(0, 64);
-		if (!terminalId) return methodError(res, 422, 'ValidationError', 'معرّف الطرفية مطلوب');
+	const terminalId = String(params.terminal_id || params.terminalId || params.pos_profile || '')
+		.trim()
+		.slice(0, 64);
+	if (!terminalId) return methodError(res, 422, 'ValidationError', 'معرّف الطرفية مطلوب');
 	const openingCash = Number(params.opening_cash || params.openingCash) || 0;
-	const existing = db.prepare('SELECT id FROM shifts WHERE tenant_id=? AND terminal_id=? AND status=?').get(tenantId, terminalId, 'OPEN');
+	const existing = db
+		.prepare('SELECT id FROM shifts WHERE tenant_id=? AND terminal_id=? AND status=?')
+		.get(tenantId, terminalId, 'OPEN');
 	if (existing) return methodError(res, 409, 'ValidationError', 'يوجد وردية مفتوحة بالفعل');
 	const id = crypto.randomUUID();
 	db.prepare('INSERT INTO shifts (id,tenant_id,terminal_id,opened_by,opening_cash,status) VALUES (?,?,?,?,?,?)').run(
@@ -1584,17 +1554,19 @@ def('DyPOS.api.invoices.validate_cart_items', (params, req, res) => {
 });
 
 // ── Geo / country info ──────────────────────────────────────────────────
+// One source: the v53 `countries` table (previously a hardcoded SA-only stub,
+// so every other country answered with nothing). `languages` stays the
+// app-shipped pair — the endpoint reports what DyPOS can actually render.
 def('dypos.geo.country_info.get_country_timezone_info', (_p, _req, res) => {
-	return res.json({
-		message: {
-			countries: {
-				SA: { timezones: ['Asia/Riyadh'], languages: ['ar', 'en'], animated: 1 },
-			},
-			country_info: {
-				SA: { timezones: ['Asia/Riyadh'], languages: ['ar', 'en'], animated: 1 },
-			},
-		},
-	});
+	const info = {};
+	try {
+		for (const r of db.prepare('SELECT iso2, timezone FROM countries WHERE is_active=1').all()) {
+			info[r.iso2] = { timezones: r.timezone ? [r.timezone] : [], languages: ['ar', 'en'], animated: 1 };
+		}
+	} catch {
+		/* table edge → empty map, never 500 */
+	}
+	return res.json({ message: { countries: info, country_info: info } });
 });
 
 // ── Print view (minimal HTML shell — client renders) ────────────────────
@@ -2750,14 +2722,26 @@ def('DyPOS.api.shifts.check_opening_shift', (params, req, res) => {
 			.trim()
 			.slice(0, 64);
 		if (!terminal) return res.json({ message: null });
-		const row = db.prepare("SELECT * FROM shifts WHERE tenant_id=? AND terminal_id=? AND status='OPEN' LIMIT 1").get(tenantId, terminal);
+		const row = db
+			.prepare("SELECT * FROM shifts WHERE tenant_id=? AND terminal_id=? AND status='OPEN' LIMIT 1")
+			.get(tenantId, terminal);
 		if (!row) return res.json({ message: null });
 		const settings = allSettings();
 		const posProfile = {
 			name: row.terminal_id || 'POS',
 			pos_profile: row.terminal_id || 'POS',
 			company: settings.business_name || 'DyPOS',
-			warehouse: (() => { try { return db.prepare('SELECT id FROM warehouses WHERE tenant_id=? AND is_active=1 ORDER BY name LIMIT 1').get(resolveTenantFilter(req).tenantId)?.id || null; } catch { return null; } })(),
+			warehouse: (() => {
+				try {
+					return (
+						db
+							.prepare('SELECT id FROM warehouses WHERE tenant_id=? AND is_active=1 ORDER BY name LIMIT 1')
+							.get(resolveTenantFilter(req).tenantId)?.id || null
+					);
+				} catch {
+					return null;
+				}
+			})(),
 			currency: settings.currency || null,
 		};
 		const message = {
@@ -2793,7 +2777,9 @@ def('DyPOS.api.shifts.get_closing_shift_data', (params, req, res) => {
 		if (!tenantId) return methodError(res, 403, 'PermissionError', 'لا يوجد مشترك مرتبط بالمستخدم');
 		const shift = shiftId
 			? db.prepare('SELECT * FROM shifts WHERE id=? AND tenant_id=?').get(shiftId, tenantId)
-			: db.prepare("SELECT * FROM shifts WHERE tenant_id=? AND status='OPEN' ORDER BY opened_at DESC LIMIT 1").get(tenantId);
+			: db
+					.prepare("SELECT * FROM shifts WHERE tenant_id=? AND status='OPEN' ORDER BY opened_at DESC LIMIT 1")
+					.get(tenantId);
 		if (!shift) return methodError(res, 404, 'NotFoundError', 'الوردية غير موجودة');
 		const stats = db
 			.prepare(
@@ -2825,7 +2811,17 @@ def('DyPOS.api.shifts.get_closing_shift_data', (params, req, res) => {
 					name: shift.terminal_id || 'POS',
 					pos_profile: shift.terminal_id || 'POS',
 					company: settings.business_name || 'DyPOS',
-					warehouse: (() => { try { return db.prepare('SELECT id FROM warehouses WHERE tenant_id=? AND is_active=1 ORDER BY name LIMIT 1').get(tenantId)?.id || null; } catch { return null; } })(),
+					warehouse: (() => {
+						try {
+							return (
+								db
+									.prepare('SELECT id FROM warehouses WHERE tenant_id=? AND is_active=1 ORDER BY name LIMIT 1')
+									.get(tenantId)?.id || null
+							);
+						} catch {
+							return null;
+						}
+					})(),
 				},
 				company: settings.business_name || 'DyPOS',
 				opening_shift: shift,
@@ -2927,7 +2923,9 @@ if (_origCreateOpening) {
 					: Array.isArray(balance)
 						? toNum(balance[0]?.opening_amount ?? balance[0]?.amount)
 						: toNum(params.openingCash);
-		const terminalId = String(params.pos_profile || params.terminal_id || params.terminalId || '').trim().slice(0, 64);
+		const terminalId = String(params.pos_profile || params.terminal_id || params.terminalId || '')
+			.trim()
+			.slice(0, 64);
 		const company = String(params.company || allSettings().business_name || '').slice(0, 200);
 
 		if (!requireUser(req, res)) return;
@@ -2935,17 +2933,14 @@ if (_origCreateOpening) {
 		if (!tenantId) return methodError(res, 403, 'PermissionError', 'لا يوجد مشترك مرتبط بالمستخدم');
 		if (!terminalId) return methodError(res, 422, 'ValidationError', 'معرّف الطرفية مطلوب');
 		try {
-			const existing = db.prepare('SELECT id FROM shifts WHERE tenant_id=? AND terminal_id=? AND status=?').get(tenantId, terminalId, 'OPEN');
+			const existing = db
+				.prepare('SELECT id FROM shifts WHERE tenant_id=? AND terminal_id=? AND status=?')
+				.get(tenantId, terminalId, 'OPEN');
 			if (existing) return methodError(res, 409, 'ValidationError', 'يوجد وردية مفتوحة بالفعل');
 			const id = crypto.randomUUID();
-			db.prepare('INSERT INTO shifts (id,tenant_id,terminal_id,opened_by,opening_cash,status) VALUES (?,?,?,?,?,?)').run(
-				id,
-				tenantId,
-				terminalId,
-				req.user.fullName || req.user.username,
-				openingCash,
-				'OPEN',
-			);
+			db.prepare(
+				'INSERT INTO shifts (id,tenant_id,terminal_id,opened_by,opening_cash,status) VALUES (?,?,?,?,?,?)',
+			).run(id, tenantId, terminalId, req.user.fullName || req.user.username, openingCash, 'OPEN');
 			req.audit?.('shift.open', { shiftId: id, terminalId });
 			const settings = allSettings();
 			const message = {
@@ -2967,7 +2962,17 @@ if (_origCreateOpening) {
 					name: terminalId,
 					pos_profile: terminalId,
 					company,
-					warehouse: (() => { try { return db.prepare('SELECT id FROM warehouses WHERE tenant_id=? AND is_active=1 ORDER BY name LIMIT 1').get(tenantId)?.id || null; } catch { return null; } })(),
+					warehouse: (() => {
+						try {
+							return (
+								db
+									.prepare('SELECT id FROM warehouses WHERE tenant_id=? AND is_active=1 ORDER BY name LIMIT 1')
+									.get(tenantId)?.id || null
+							);
+						} catch {
+							return null;
+						}
+					})(),
 					currency: settings.currency || null,
 				},
 				company,

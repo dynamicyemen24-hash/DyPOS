@@ -3,9 +3,15 @@ import { cleanupUserSession } from "@/utils/sessionCleanup"
 import { logger } from "@/utils/logger"
 import { endpoints } from "@/utils/apiEndpoints"
 import { userRepository } from "@/repositories/userRepository"
-import router from "@/router"
 
 const log = logger.create("LocalSession")
+
+/** Navigation callback set by main.js to break circular dep with router */
+let navigateToLogin = null
+
+export function setNavigateToLogin(fn) {
+	navigateToLogin = fn
+}
 
 const SESSION_STORAGE_KEY = "dypos_user_session"
 
@@ -201,7 +207,9 @@ export const session = reactive({
 			}
 			session.user = null
 			try {
-				await router.replace({ name: "Login" })
+				if (navigateToLogin) {
+					await navigateToLogin()
+				}
 			} catch {
 				/* already on login */
 			}
