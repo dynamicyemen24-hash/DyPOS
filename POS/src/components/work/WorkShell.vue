@@ -317,6 +317,20 @@
       >
         <slot />
       </div>
+
+      <!-- Persistent bottom navigation: every operational workspace has a safe exit. -->
+      <footer class="work-shell__footer">
+        <span class="work-shell__footer-brand">{{ t("DyPOS") }}</span>
+        <nav class="work-shell__footer-nav" :aria-label="t('Quick navigation')">
+          <router-link :to="{ name: 'Reports' }">{{ t("Dashboard") }}</router-link>
+          <router-link :to="{ name: 'POSSale' }">{{ t("Point of Sale") }}</router-link>
+          <router-link :to="{ name: 'Settings' }">{{ t("Settings") }}</router-link>
+        </nav>
+        <button type="button" class="work-shell__footer-back" @click="navigateBack">
+          <FeatherIcon :name="direction === 'rtl' ? 'arrow-right' : 'arrow-left'" class="w-4 h-4" aria-hidden="true" />
+          {{ t("Back") }}
+        </button>
+      </footer>
     </main>
   </div>
 </template>
@@ -439,9 +453,17 @@ function closeMobileNav() {
 function navigateBack() {
 	if (props.backRoute) {
 		router.push(props.backRoute)
-	} else {
-		router.back()
+		return
 	}
+
+	// A direct/deep link may have no useful in-app history entry.
+	// Never leave the operator on a blank/external page when pressing Back.
+	const previous = router.options.history?.state?.back
+	if (typeof previous === "string" && previous.startsWith("/")) {
+		router.back()
+		return
+	}
+	router.replace({ name: "Reports" })
 }
 
 function updateMotionPreference(e) {
@@ -730,5 +752,38 @@ defineOptions({ inheritAttrs: false })
   .work-shell__back-btn,
   .work-shell__mobile-toggle,
   .work-shell__status-close { transition: none; }
+}
+.work-shell__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--dy-space-3);
+  min-height: 52px;
+  padding: var(--dy-space-3) var(--dy-space-6);
+  border-top: 1px solid var(--dy-border);
+  background: var(--dy-surface, #fff);
+  color: var(--dy-text-muted);
+  font-size: var(--dy-text-sm);
+}
+.work-shell__footer-brand { font-weight: var(--dy-weight-semibold); white-space: nowrap; }
+.work-shell__footer-nav { display: flex; align-items: center; flex-wrap: wrap; gap: var(--dy-space-4); }
+.work-shell__footer-nav a { color: inherit; text-decoration: none; }
+.work-shell__footer-nav a:hover,
+.work-shell__footer-nav a:focus-visible { color: var(--dy-primary); text-decoration: underline; }
+.work-shell__footer-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--dy-space-2);
+  padding: var(--dy-space-2) var(--dy-space-3);
+  border: 1px solid var(--dy-border);
+  border-radius: var(--dy-radius-md);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.work-shell__footer-back:focus-visible { outline: var(--dy-focus-ring-width) solid var(--dy-focus-ring-color); outline-offset: var(--dy-focus-ring-offset); }
+@media (max-width: 640px) {
+  .work-shell__footer { align-items: flex-start; flex-wrap: wrap; padding-inline: var(--dy-space-3); }
+  .work-shell__footer-nav { order: 3; width: 100%; justify-content: space-between; gap: var(--dy-space-2); }
 }
 </style>
