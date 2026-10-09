@@ -56,25 +56,11 @@ const actionPayload = item => ({ id: item.id, item, recovery: item.recovery || {
         <div class="sync-recovery__actions">
           <ActionButton
             v-if="item.recovery?.endpoint || item.recovery?.resource"
-            variant="ghost"
+            variant="primary"
             size="sm"
             :disabled="busy(item.id)"
             @click="emit('open-resource', actionPayload(item))"
           >{{ actionLabel(item.recovery) }}</ActionButton>
-          <ActionButton
-            v-else
-            variant="secondary"
-            size="sm"
-            :disabled="busy(item.id)"
-            @click="emit(actionEvent(item.recovery), actionPayload(item))"
-          >{{ actionLabel(item.recovery) }}</ActionButton>
-          <ActionButton
-            v-if="item.recovery?.retryable"
-            variant="primary"
-            size="sm"
-            :disabled="busy(item.id)"
-            @click="emit('retry', actionPayload(item))"
-          >{{ busy(item.id) ? "جارٍ التنفيذ…" : "إعادة المحاولة" }}</ActionButton>
           <ActionButton
             v-else-if="item.recovery?.nextAction === 'EDIT_PAYLOAD_AND_RETRY' || item.recovery?.nextAction === 'FIX_PAYLOAD_AND_RETRY'"
             variant="primary"
@@ -83,12 +69,12 @@ const actionPayload = item => ({ id: item.id, item, recovery: item.recovery || {
             @click="emit('repair', actionPayload(item))"
           >استكمال ثم إعادة الإرسال</ActionButton>
           <ActionButton
-            v-else-if="item.recovery?.nextAction === 'REVIEW_AND_RETRY'"
-            variant="primary"
+            v-else
+            variant="secondary"
             size="sm"
             :disabled="busy(item.id)"
             @click="emit('retry', actionPayload(item))"
-          >إعادة المحاولة بعد المراجعة</ActionButton>
+          >{{ busy(item.id) ? "جارٍ التنفيذ…" : item.recovery?.retryable ? "إعادة المحاولة" : "مراجعة العملية" }}</ActionButton>
         </div>
       </li>
     </ol>
