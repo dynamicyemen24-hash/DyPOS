@@ -136,6 +136,25 @@ describe('Sync lifecycle (HTTP E2E)', () => {
     assert.deepEqual(repairedProduct, { id: 'invalid-product', code: 'FIXED-CODE', name: 'Repaired catalog item' });
   });
 
+  it('rolls back partial side effects when a stock operation fails', async () => {
+    const warehouseId = `sync-warehouse-rollback-${Date.now()}`;
+    const pushed = await req('POST', '/api/sync/push', {
+      changes: [{
+        id: `bad-stock-${Date.now()}`,
+        entity_type: 'STOCK',
+        action: 'UPSERT',
+        payload: JSON.stringify({ productId: 'missing-product-for-sync-test', warehouseId, qty: 5 }),
+      }],
+    });
+
+    assert.equal(pushed.status, 200, JSON.stringify(pushed.body));
+    assert.equal(pushed.body.failed, 1);
+    assert.equal(pushed.body.results[0].status, 'FAILED');
+    assert.equal(pushed.body.results[0].recovery.nextAction, 'REVIEW_AND_RETRY');
+    const warehouse = db.prepare('SELECT id FROM warehouses WHERE id=?').get(warehouseId);
+    assert.equal(warehouse, undefined, 'failed stock item must not leave its warehouse insert behind');
+  });
+
   it('never reports an offline invoice as synced before the invoice core is supported', async () => {
     const pushed = await req('POST', '/api/sync/push', {
       changes: [{
