@@ -27,6 +27,13 @@
             />
           </div>
         </template>
+        <WorkFilters
+          v-model="filterModel"
+          :fields="filterFields"
+          :auto-apply="false"
+          @apply="onFiltersApply"
+          @reset="onFiltersReset"
+        />
       </WorkToolbar>
     </template>
 
@@ -36,8 +43,8 @@
         <div class="home-hero__glow home-hero__glow--two" aria-hidden="true"></div>
         <div class="home-hero__copy">
           <span class="home-kicker"><FeatherIcon name="zap" :size="14" aria-hidden="true" /> {{ todayLabel }}</span>
-          <h1 id="home-title">مركز تشغيل متجرك</h1>
-          <p>كل ما تحتاجه للبيع، المخزون، الفواتير والمتابعة في واجهة واحدة واضحة.</p>
+          <h1 id="home-title">مركز تشغيل المتجر</h1>
+          <p>ابدأ البيع، راقب العمليات، وأدر المخزون من مساحة عمل موحّدة — ببيانات الأنظمة المتصلة ومصادرها الفعلية.</p>
           <div class="home-hero__actions">
             <ActionButton type="button" class="home-primary" @click="goToPOS">
               <FeatherIcon name="shopping-cart" :size="17" aria-hidden="true" /> بدء بيع جديد
@@ -73,6 +80,21 @@
         <router-link class="home-module" :to="{ name: 'WorkScreens' }">
           <span class="home-module__icon"><FeatherIcon name="layers" :size="21" aria-hidden="true" /></span>
           <span><strong>شاشات العمل</strong><small>عمليات المتجر اليومية</small></span>
+          <FeatherIcon class="home-module__arrow" name="arrow-left" :size="17" aria-hidden="true" />
+        </router-link>
+        <router-link class="home-module" :to="{ name: 'WorkScreens', query: { screen: 'customers' } }">
+          <span class="home-module__icon"><FeatherIcon name="users" :size="21" aria-hidden="true" /></span>
+          <span><strong>العملاء</strong><small>بيانات العملاء وسجلاتهم</small></span>
+          <FeatherIcon class="home-module__arrow" name="arrow-left" :size="17" aria-hidden="true" />
+        </router-link>
+        <router-link class="home-module" :to="{ name: 'WorkScreens', query: { screen: 'settlements' } }">
+          <span class="home-module__icon"><FeatherIcon name="clipboard" :size="21" aria-hidden="true" /></span>
+          <span><strong>الورديات والتسويات</strong><small>الأرصدة والفروقات والإغلاق</small></span>
+          <FeatherIcon class="home-module__arrow" name="arrow-left" :size="17" aria-hidden="true" />
+        </router-link>
+        <router-link class="home-module" :to="{ name: 'WorkScreens', query: { screen: 'items' } }">
+          <span class="home-module__icon"><FeatherIcon name="box" :size="21" aria-hidden="true" /></span>
+          <span><strong>دليل الأصناف</strong><small>الأكواد والوحدات وحالة الصنف</small></span>
           <FeatherIcon class="home-module__arrow" name="arrow-left" :size="17" aria-hidden="true" />
         </router-link>
         <router-link class="home-module" :to="{ name: 'Settings' }">
@@ -245,7 +267,21 @@ const broadcastRefresh = () => {
   window.dispatchEvent(new CustomEvent("dypos:dashboard-refresh"))
 }
 
+const onFiltersApply = (values = filterModel) => {
+  const from = String(values?.from ?? filterModel.from ?? "")
+  const to = String(values?.to ?? filterModel.to ?? "")
+  if (from && to && from > to) {
+    // Keep the selected range valid; do not issue misleading dashboard queries.
+    filterModel.from = period.from.value
+    filterModel.to = period.to.value
+    return
+  }
+  period.apply({ from, to })
+  broadcastRefresh()
+}
+
 const onFiltersReset = () => {
+  period.reset()
   filterModel.from = period.from.value
   filterModel.to = period.to.value
   broadcastRefresh()
@@ -256,7 +292,9 @@ onMounted(() => {
 })
 </script><style scoped>
 .dy-home-shell :deep(.work-shell__content) { padding: 0; }
-.home { display: grid; gap: 18px; padding: 4px 0 28px; }
+.home { display: grid; gap: 16px; padding: 4px 0 28px; }
+.dy-home-shell :deep(.work-filters) { margin-block: 0 14px; }
+.home a:focus-visible,.home button:focus-visible { outline: 3px solid var(--dy-primary); outline-offset: 3px; }
 .home-toolbar { width: 100%; display:flex; align-items:center; justify-content:center; gap:24px; }
 .home-toolbar__brand { display:flex; align-items:center; gap:9px; margin-inline-end:auto; }
 .home-toolbar__logo { width:34px; height:34px; display:grid; place-items:center; border:1px solid var(--dy-border); border-radius:10px; background:var(--dy-surface); overflow:hidden; }
@@ -264,7 +302,7 @@ onMounted(() => {
 .home-toolbar__brand strong,.home-toolbar__brand span { display:block; }
 .home-toolbar__brand strong { color:var(--dy-text); font-size:13px; font-weight:850; }
 .home-toolbar__brand span { color:var(--dy-text-muted); font-size:10px; margin-top:2px; }
-.home-hero { position:relative; min-height:250px; overflow:hidden; display:flex; align-items:center; justify-content:space-between; gap:28px; padding:34px 38px; border:1px solid var(--dy-border); border-radius:24px; background:linear-gradient(135deg,var(--dy-bg-sunken),var(--dy-primary-soft)); isolation:isolate; }
+.home-hero { position:relative; min-height:230px; overflow:hidden; display:flex; align-items:center; justify-content:space-between; gap:28px; padding:32px 36px; border:1px solid var(--dy-border); border-radius:20px; background:linear-gradient(125deg,var(--dy-surface) 0%,var(--dy-bg-sunken) 58%,var(--dy-primary-soft) 100%); isolation:isolate; box-shadow:var(--dy-shadow-card); }
 .home-hero__copy { position:relative; z-index:2; max-width:700px; }
 .home-kicker { display:inline-flex; align-items:center; gap:7px; color:var(--dy-primary); font-size:12px; font-weight:800; }
 .home-hero h1 { margin:10px 0 7px; color:var(--dy-text); font-size:clamp(28px,4vw,44px); line-height:1.08; letter-spacing:-.035em; font-weight:900; }
@@ -280,8 +318,8 @@ onMounted(() => {
 .home-hero__glow { position:absolute; border-radius:999px; filter:blur(4px); opacity:.55; pointer-events:none; z-index:-1; }
 .home-hero__glow--one { width:300px; height:300px; inset-inline-end:10%; inset-block-start:-180px; background:var(--dy-primary); opacity:.10; }
 .home-hero__glow--two { width:220px; height:220px; inset-inline-start:-100px; inset-block-end:-120px; background:var(--dy-info); opacity:.08; }
-.home-modules { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; }
-.home-module { min-height:112px; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:10px; padding:14px; border:1px solid var(--dy-border); border-radius:16px; background:var(--dy-surface); color:inherit; text-decoration:none; transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease; }
+.home-modules { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.home-module { min-height:94px; display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:12px; padding:16px; border:1px solid var(--dy-border); border-radius:14px; background:var(--dy-surface); color:inherit; text-decoration:none; transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease; }
 .home-module:hover { transform:translateY(-2px); border-color:var(--dy-accent-border); box-shadow:var(--dy-shadow-card); }
 .home-module--primary { background:var(--dy-primary); border-color:var(--dy-primary); color:var(--dy-primary-contrast); }
 .home-module__icon { width:40px; height:40px; display:grid; place-items:center; border-radius:12px; background:var(--dy-primary-soft); color:var(--dy-primary); }
@@ -308,7 +346,8 @@ onMounted(() => {
 .home-loading { min-height:180px; display:grid; place-items:center; align-content:center; gap:10px; color:var(--dy-text-muted); }
 .home-spinner { width:28px; height:28px; border:3px solid var(--dy-border); border-top-color:var(--dy-primary); border-radius:50%; animation:home-spin .8s linear infinite; }
 @keyframes home-spin { to { transform:rotate(360deg); } }
-@media (max-width:1100px) { .home-modules { grid-template-columns:repeat(3,minmax(0,1fr)); } .home-hero__identity { width:150px; } }
-@media (max-width:760px) { .home { gap:12px; } .home-hero { min-height:auto; padding:24px 20px; } .home-hero__identity { display:none; } .home-hero__actions { display:grid; grid-template-columns:1fr; } .home-modules { grid-template-columns:repeat(2,minmax(0,1fr)); } .home-module { min-height:100px; } .home-grid { grid-template-columns:1fr; } .home-toolbar__brand { display:none; } }
+@media (max-width:1100px) { .home-modules { grid-template-columns:repeat(2,minmax(0,1fr)); } .home-hero__identity { width:150px; } }
+@media (max-width:760px) { .home { gap:12px; } .home-hero { min-height:auto; padding:24px 20px; } .home-hero__identity { display:none; } .home-hero__actions { display:grid; grid-template-columns:1fr; } .home-modules { grid-template-columns:repeat(2,minmax(0,1fr)); } .home-module { min-height:92px; padding:12px; } .home-grid { grid-template-columns:1fr; } .home-toolbar__brand { display:none; } }
 @media (max-width:480px) { .home-modules { grid-template-columns:1fr; } .home-hero h1 { font-size:28px; } .home-panel { padding:14px; } }
+@media (prefers-reduced-motion: reduce) { .home-module { transition:none; } .home-module:hover { transform:none; } .home-spinner { animation:none; } }
 </style>
