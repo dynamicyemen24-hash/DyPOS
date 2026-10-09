@@ -65,6 +65,17 @@ function describeSyncRecovery(change, error) {
 			retryable: false,
 		};
 	}
+	if (entity === 'STOCK' && /FOREIGN KEY constraint failed/i.test(message)) {
+		return {
+			code: 'MISSING_REFERENCE',
+			title: 'الصنف المرتبط غير موجود',
+			message: 'لم يُحدّث المخزون لأن الصنف غير موجود أو لم تتم مزامنته بعد. أنشئ الصنف أو زامنه أولاً، ثم أعد إرسال حركة المخزون.',
+			missingReferences: [{ entity: 'PRODUCT', field: 'productId', value: String(payload?.productId || '') }],
+			nextAction: 'CREATE_OR_SYNC_PRODUCT_FIRST',
+			resource: '/api/products',
+			retryable: false,
+		};
+	}
 	if (/SQLITE_BUSY|database is locked|temporarily unavailable/i.test(message)) {
 		return {
 			code: 'TEMPORARY_STORAGE_ERROR',
