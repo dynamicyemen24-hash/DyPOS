@@ -1,6 +1,6 @@
 {
   "name": "DyPOS",
-  "version": "2.0.7",
+  "version": "2.0.8",
   "description": "Global multi-tenant smart POS and cashier platform for commercial operations, with offline-first execution, intelligent synchronization, and service-based free credits. Proprietary commercial software.",
   "scripts": {
     "install:pos": "npm --prefix POS ci",

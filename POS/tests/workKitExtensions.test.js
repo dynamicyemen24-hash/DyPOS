@@ -446,6 +446,24 @@ describe("WorkMenuStrip — toolbar contract", () => {
 		await nextTick()
 		expect(wrapper.emitted("select")?.[0]?.[0]?.id).toBe("export")
 	})
+
+	it("a disabled action announces its denial with the reason (no silent touch)", async () => {
+		const wrapper = mountTracked(WorkMenuStrip, {
+			props: {
+				items: [{ id: "export", label: "تصدير", disabled: true, reason: "لا سجلات" }],
+			},
+			global: globalBase(),
+		})
+		const button = wrapper.find("button")
+		expect(button.attributes("aria-disabled")).toBe("true")
+		expect(button.attributes("disabled")).toBeUndefined()
+		await button.trigger("click")
+		expect(wrapper.emitted("select")).toBeUndefined()
+		expect(wrapper.emitted("denied")?.[0]?.[0]).toMatchObject({
+			id: "export",
+			reason: "لا سجلات",
+		})
+	})
 })
 
 describe("WorkStatusStrip — provenance roles", () => {

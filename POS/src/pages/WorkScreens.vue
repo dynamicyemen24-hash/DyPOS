@@ -49,7 +49,7 @@
 
 		<div class="work-screens">
 			<!-- شريط الإجراءات: تحديث/تصدير/طباعة — اختصارات حقيقية، لا زر زينة -->
-			<WorkMenuStrip :items="menuItems" @select="onMenuSelect">
+			<WorkMenuStrip :items="menuItems" @select="onMenuSelect" @denied="onMenuDenied">
 				<template #end>
 					<SyncStatusIndicator passive />
 				</template>
@@ -143,6 +143,7 @@ import SyncStatusIndicator from "@/components/pos/SyncStatusIndicator.vue"
 import { useIndustryProfileStore } from "@/stores/industryProfile"
 import { logger } from "@/utils/logger"
 import { t } from "@/utils/translation"
+import { useToast } from "@/composables/useToast"
 import { sessionRole, sessionUser } from "@/data/session"
 import { useOperatorMenu } from "@/composables/useOperatorMenu"
 import OperatorMenu from "@/components/pos/OperatorMenu.vue"
@@ -280,6 +281,12 @@ function onMenuSelect(item) {
 	if (item.id === "record.refresh") load()
 	else if (item.id === "record.exportCsv") exportCsv()
 	else if (item.id === "record.print") window.print()
+}
+
+/** زر معطّل لُمس: السبب يُعلن بدل الصمت (خاصة على اللمس بلا title). */
+const { showWarning } = useToast()
+function onMenuDenied(item) {
+	showWarning(item?.reason || "هذا الإجراء غير متاح الآن")
 }
 
 function csvCell(value) {

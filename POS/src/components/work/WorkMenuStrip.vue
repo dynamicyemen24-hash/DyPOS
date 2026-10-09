@@ -28,7 +28,7 @@
 				class="work-menu-strip__item"
 				:class="{ 'work-menu-strip__item--disabled': item.disabled }"
 				:tabindex="index === focusIndex ? 0 : -1"
-				:disabled="item.disabled"
+				:aria-disabled="item.disabled || undefined"
 				:title="item.reason || undefined"
 				:aria-keyshortcuts="ariaKeyshortcuts(item.shortcut)"
 				:aria-label="item.shortcut ? `${t(item.label)} (${shortcutDisplay(item.shortcut)})` : undefined"
@@ -66,7 +66,7 @@ const props = defineProps({
 	ariaLabel: { type: String, default: "القائمة الأساسية" },
 })
 
-const emit = defineEmits(["select"])
+const emit = defineEmits(["select", "denied"])
 
 const scrollRef = ref(/** @type {HTMLElement|null} */ (null))
 const focusIndex = ref(0)
@@ -157,7 +157,13 @@ function onItemKeydown(event) {
 }
 
 function run(item) {
-	if (item.disabled) return
+	// No native `disabled`: a disabled button fires nothing, so touch users
+	// met silence. `aria-disabled` keeps it perceivable and the denial is
+	// announced with its reason instead of swallowed.
+	if (item.disabled) {
+		emit("denied", item)
+		return
+	}
 	emit("select", item)
 	item.handler?.()
 }

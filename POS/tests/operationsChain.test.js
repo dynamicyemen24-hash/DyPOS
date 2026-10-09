@@ -132,6 +132,13 @@ describe("سلسلة التشغيل (الدخول ← الرئيسية ← ال�
 		expect(HOME).toContain("SyncStatusIndicator")
 	})
 
+	it("المنع يُعلن: الشريط يبث denied والشاشات تستمع والمدى الخاطئ بتنبيه", () => {
+		const WORK = read("src/pages/WorkScreens.vue")
+		expect(WORK).toContain('@denied="onMenuDenied"')
+		expect(WORK).toContain("showWarning")
+		expect(HOME).toContain("تاريخ البداية بعد النهاية")
+	})
+
 	it("المسارات الإدارية الأربعة محروسة بـ adminOnly في الموجّه", () => {
 		for (const name of ["Settings", "OpeningBalances", "ReferenceData", "MasterDataImport"]) {
 			expect(isAdminRoute(name), `${name} سطح إداري`).toBe(true)

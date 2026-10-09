@@ -357,9 +357,10 @@ const onFiltersApply = (values = filterModel) => {
   const from = String(values?.from ?? filterModel.from ?? "")
   const to = String(values?.to ?? filterModel.to ?? "")
   if (from && to && from > to) {
-    // Keep the selected range valid; do not issue misleading dashboard queries.
+    // التصحيح الصامت كان يُربك: المشغّل يرى تواريخه ولا أثر لها.
     filterModel.from = period.from.value
     filterModel.to = period.to.value
+    toastError("تاريخ البداية بعد النهاية — أُعيد النطاق الصالح السابق")
     return
   }
   period.apply({ from, to })
