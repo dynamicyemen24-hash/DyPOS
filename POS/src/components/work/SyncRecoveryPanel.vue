@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from "vue"
+import { computed, useId } from "vue"
 import { ActionButton, FeatherIcon } from "dypos-ui"
 
 const props = defineProps({
@@ -10,6 +10,7 @@ const props = defineProps({
   emptyMessage: { type: String, default: "لا توجد عمليات معلّقة للمعالجة" },
 })
 const emit = defineEmits(["retry", "repair", "review", "open-resource", "dismiss"])
+const headingId = `sync-recovery-title-${useId()}`
 const busy = id => props.busyIds.includes(String(id))
 const failures = computed(() => props.items.filter(item => item?.status === "FAILED" || item?.recovery))
 const actionLabel = recovery => ({
@@ -24,10 +25,10 @@ const actionPayload = item => ({ id: item.id, item, recovery: item.recovery || {
 </script>
 
 <template>
-  <section class="sync-recovery" aria-labelledby="sync-recovery-title">
+  <section class="sync-recovery" :aria-labelledby="headingId">
     <header class="sync-recovery__header">
       <div>
-        <h2 id="sync-recovery-title">{{ title }}</h2>
+        <h2 :id="headingId">{{ title }}</h2>
         <p>{{ failures.length }} عملية تحتاج إلى معالجة</p>
       </div>
       <span class="sync-recovery__count" :aria-label="`${failures.length} أخطاء`">{{ failures.length }}</span>
@@ -36,7 +37,7 @@ const actionPayload = item => ({ id: item.id, item, recovery: item.recovery || {
     <p v-if="!failures.length" class="sync-recovery__empty" role="status">{{ emptyMessage }}</p>
 
     <ol v-else class="sync-recovery__list">
-      <li v-for="item in failures" :key="String(item.id)" class="sync-recovery__item">
+      <li v-for="item in failures" :key="String(item.id)" class="sync-recovery__item" :aria-busy="busy(item.id)">
         <div class="sync-recovery__icon" aria-hidden="true"><FeatherIcon name="alert-triangle" /></div>
         <div class="sync-recovery__body">
           <h3>{{ item.recovery?.title || "تعذّرت معالجة العملية" }}</h3>
