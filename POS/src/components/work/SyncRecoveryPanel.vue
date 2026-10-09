@@ -53,14 +53,14 @@ const actionPayload = item => ({ id: item.id, item, recovery: item.recovery || {
         <div class="sync-recovery__actions">
           <ActionButton
             v-if="item.recovery?.endpoint || item.recovery?.resource"
-            variant="primary"
+            variant="secondary"
             size="sm"
             :disabled="busy(item.id)"
             @click="emit('open-resource', actionPayload(item))"
           >{{ actionLabel(item.recovery) }}</ActionButton>
           <ActionButton
             v-else-if="item.recovery?.nextAction === 'EDIT_PAYLOAD_AND_RETRY' || item.recovery?.nextAction === 'FIX_PAYLOAD_AND_RETRY'"
-            variant="primary"
+            variant="secondary"
             size="sm"
             :disabled="busy(item.id)"
             @click="emit('repair', actionPayload(item))"
