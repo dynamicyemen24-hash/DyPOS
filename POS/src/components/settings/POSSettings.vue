@@ -182,6 +182,17 @@
 								>
 									{{ __("Appearance") }}
 								</button>
+								<button
+									@click="activeTab = 'selfCheckout'"
+									:class="[
+										'px-4 py-2 text-sm font-medium rounded-md transition-all duration-200',
+										activeTab === 'selfCheckout'
+											? 'bg-white text-gray-900 shadow-sm'
+											: 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50',
+									]"
+								>
+									{{ __("Self Checkout") }}
+								</button>
 							</div>
 
 							<!-- Stock Settings Section - Prominent -->
@@ -1225,6 +1236,13 @@
 						</div>
 
 						<div
+							v-if="activeTab === 'selfCheckout'"
+							class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden p-5 md:p-6"
+						>
+							<SelfCheckoutSettings />
+						</div>
+
+						<div
 							v-if="activeTab === 'appearance'"
 							class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
 						>
@@ -1540,6 +1558,7 @@ import CustomerAccountFields from "@/components/settings/CustomerAccountFields.v
 import NumberField from "@/components/settings/NumberField.vue"
 import SelectField from "@/components/settings/SelectField.vue"
 import IndustryProfilePicker from "@/components/settings/IndustryProfilePicker.vue"
+import SelfCheckoutSettings from "@/components/selfCheckout/SelfCheckoutSettings.vue"
 import { useToast } from "@/composables/useToast"
 import { Button, call, createResource } from "dypos-ui"
 import { computed, onMounted, onUnmounted, ref, watch } from "vue"

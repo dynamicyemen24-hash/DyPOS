@@ -6,17 +6,21 @@
 		طاولة نادٍ، مدخل متجر)، لا شاشة موظف داخل سطح العمل.导航 العام
 		(other work nav) ما معنى لها على جهاز لا Pian فيه كاشير.
 	-->
-	<div class="self-checkout" dir="rtl">
+	<div class="self-checkout" dir="rtl" :data-touch-density="preferences.touchDensity" :data-reduce-motion="preferences.reduceMotion ? 'true' : 'false'">
 		<header class="self-checkout__header">
 			<div class="self-checkout__brand">
 				<FeatherIcon name="zap" :stroke-width="2" aria-hidden="true" />
 				<div>
-					<h1 class="self-checkout__title">{{ title }}</h1>
-					<p class="self-checkout__subtitle">{{ subtitle }}</p>
+					<h1 class="self-checkout__title">{{ displayTitle }}</h1>
+					<p class="self-checkout__subtitle">{{ displaySubtitle }}</p>
 				</div>
 			</div>
 
 			<div class="self-checkout__header-actions">
+				<RouterLink class="self-checkout__login-link" :to="{ name: 'Login' }">
+					<FeatherIcon name="arrow-right" aria-hidden="true" />
+					العودة إلى شاشة الدخول
+				</RouterLink>
 				<!--
 					العمل دون اتصال ليس حالة يظهرها مؤشر، بل الوضع الافتراضي:
 					لا مؤشر «متصل» ولا «غير متصل» يوحي بأن الشاشة تحتاج سيرفرًا.
@@ -46,16 +50,38 @@
 					جارٍ تحميل الأصناف…
 				</p>
 
+				<div class="self-checkout__discovery">
+					<label v-if="preferences.searchEnabled" class="self-checkout__search">
+						<FeatherIcon name="search" aria-hidden="true" />
+						<input
+							v-model="searchQuery"
+							type="search"
+							autocomplete="off"
+							:disabled="!canBrowse"
+							placeholder="ابحث بالاسم أو امسح الباركود ثم اضغط Enter…"
+							aria-label="البحث عن المنتجات"
+							@keydown.enter.prevent="submitSearch"
+						/>
+						<button v-if="searchQuery" type="button" class="self-checkout__search-clear" aria-label="مسح البحث" @click="searchQuery = ''">
+							<FeatherIcon name="x" aria-hidden="true" />
+						</button>
+					</label>
+					<div v-if="preferences.smartGuidance" class="self-checkout__smart-hint" role="status" aria-live="polite">
+						<FeatherIcon name="sparkles" aria-hidden="true" />
+						<span>{{ smartHint }}</span>
+					</div>
+				</div>
+
 				<div class="self-checkout__grid">
 					<p
-						v-if="catalog.length === 0 && !loadingCatalog"
+						v-if="filteredCatalog.length === 0 && !loadingCatalog"
 						class="self-checkout__grid-empty"
 					>
-						{{ catalogError || "لا توجد أصناف متاحة للبيع حاليًا" }}
+						{{ searchQuery ? "لم نعثر على صنف مطابق. جرّب اسمًا آخر أو امسح البحث." : (catalogError || "لا توجد أصناف متاحة للبيع حاليًا") }}
 					</p>
 
 					<button
-						v-for="product in catalog"
+						v-for="product in filteredCatalog"
 						:key="product.id"
 						type="button"
 						class="self-checkout__product"
@@ -63,7 +89,7 @@
 						@click="onPick(product)"
 					>
 						<span class="self-checkout__product-name">{{ product.name }}</span>
-						<span class="self-checkout__product-price">
+						<span v-if="preferences.showPrices" class="self-checkout__product-price">
 							{{ money(product.price) }}
 						</span>
 					</button>
@@ -144,13 +170,14 @@
 				<div class="self-checkout__actions">
 					<ActionButton
 						v-if="!isOpen"
+						:disabled="!preferences.enabled"
 						variant="solid"
 						size="lg"
 						block
 						icon="play"
 						@click="startSession"
 					>
-						ابدأ الجلسة
+						{{ preferences.enabled ? "ابدأ الجلسة" : "الخدمة الذاتية متوقفة" }}
 					</ActionButton>
 
 					<template v-else>
@@ -304,7 +331,7 @@
 				<h2 id="self-checkout-receipt-title" class="self-checkout__receipt-title">
 					تمت العملية
 				</h2>
-				<div class="self-checkout__receipt-rows">
+				<div v-if="preferences.showReceiptSummary" class="self-checkout__receipt-rows">
 					<div class="self-checkout__receipt-row">
 						<span>رقم العملية</span>
 						<strong>{{ receipt.invoiceNo }}</strong>
@@ -342,7 +369,7 @@
  * عرض فقط: كل الحالة في `useSelfCheckoutSession` وكل الحساب في
  * `selfCheckoutState`. لا `fetch` هنا — الشاشة تعمل بلا شبكة.
  */
-import { computed, onMounted } from "vue"
+import { computed, onMounted, onUnmounted, ref, watch } from "vue"
 import { FeatherIcon } from "dypos-ui"
 
 import { ActionButton } from "dypos-ui"
@@ -394,7 +421,53 @@ const {
 	dismissReceipt,
 } = useSelfCheckoutSession({ branch: props.branch, terminal: props.terminal })
 
-const paymentMethods = PAYMENT_METHODS
+const SETTINGS_KEY = "dypos:self-checkout:settings:v1"
+const defaultPreferences = Object.freeze({
+	enabled: true,
+	title: "الكاشير الذاتي",
+	subtitle: "امسح الأصناف أو المسها، ثم ادفع بنفسك",
+	showPrices: true,
+	searchEnabled: true,
+	smartGuidance: true,
+	idleTimeoutSeconds: 120,
+	cashEnabled: true,
+	showReceiptSummary: true,
+	touchDensity: "comfortable",
+	reduceMotion: false,
+})
+const preferences = ref({ ...defaultPreferences })
+const displayTitle = computed(() => props.title !== "الكاشير الذاتي" ? props.title : preferences.value.title || props.title)
+const displaySubtitle = computed(() => props.subtitle !== "امسح الأصناف أو المسها، ثم ادفع بنفسك" ? props.subtitle : preferences.value.subtitle || props.subtitle)
+const paymentMethods = computed(() => PAYMENT_METHODS.filter((option) => option.id !== "cash" || preferences.value.cashEnabled))
+
+// بحث فوري محلي: لا طلبات شبكة ولا إرسال لعبارات العميل إلى أي خدمة.
+const searchQuery = ref("")
+let idleResetTimer = null
+const normalizedSearch = computed(() =>
+	searchQuery.value.trim().toLocaleLowerCase("ar").normalize("NFKC"),
+)
+const filteredCatalog = computed(() => {
+	const query = normalizedSearch.value
+	if (!query) return catalog.value
+	return catalog.value.filter((product) =>
+		[String(product.name ?? ""), String(product.id ?? ""), String(product.sku ?? ""), String(product.barcode ?? "")]
+			.some((field) => field.toLocaleLowerCase("ar").normalize("NFKC").includes(query)),
+	)
+})
+
+// إرشاد سياقي مبني على حالة السلة الحقيقية؛ لا يدّعي استخدام نموذج ذكاء اصطناعي خارجي.
+const smartHint = computed(() => {
+	if (!canBrowse.value) return "ابدأ الجلسة لتفعيل الأصناف والبحث وإعداد سلتك."
+	if (loadingCatalog.value) return "نجهّز قائمة الأصناف المتاحة للبيع…"
+	if (catalog.value.length === 0) return "لا توجد أصناف محمّلة حاليًا. استخدم تحديث الأصناف أو اطلب مساعدة الموظف."
+	if (normalizedSearch.value) return filteredCatalog.value.length
+		? `وجدنا ${filteredCatalog.value.length} صنفًا مطابقًا. المس الصنف لإضافته مباشرة.`
+		: "لم يظهر تطابق. جرّب كلمة أقصر أو جزءًا من اسم الصنف."
+	if (isEmpty.value) return "ابدأ بلمس أي صنف. يمكنك تعديل الكمية أو حذف الصنف قبل الدفع."
+	if (itemCount.value === 1) return "تمت إضافة أول صنف. يمكنك زيادة الكمية أو متابعة اختيار بقية الأصناف."
+	if (totals.value?.total > 0) return `أضفت ${itemCount.value} قطعة. راجع الإجمالي ثم اختر «ادفع» عندما تكون جاهزًا.`
+	return "راجع الأصناف والكميات في سلتك؛ الإجمالي يتحدث تلقائيًا."
+})
 
 /** لوحة الأرقام: 1-9 ثم «خلف» و«مسح» و«0». */
 const keypadKeys = Object.freeze([
@@ -438,6 +511,44 @@ function onPick(product) {
 	addItem(product, 1)
 }
 
+/** قارئ الباركود يكتب الرمز ثم يرسل Enter؛ لا نضيف إلا عند تطابق دقيق. */
+function submitSearch() {
+	if (!canBrowse.value) return
+	const query = normalizedSearch.value
+	if (!query) return
+	const exactMatch = catalog.value.find((product) =>
+		[String(product.id ?? ""), String(product.code ?? ""), String(product.sku ?? ""), String(product.barcode ?? "")]
+			.some((field) => field.toLocaleLowerCase("ar").normalize("NFKC") === query),
+	)
+	if (!exactMatch) return
+	onPick(exactMatch)
+	searchQuery.value = ""
+}
+
+/** مسح السلة بعد الخمول يمنع كشف طلب العميل السابق على جهاز مشترك. */
+function clearIdleResetTimer() {
+	if (idleResetTimer !== null) {
+		window.clearTimeout(idleResetTimer)
+		idleResetTimer = null
+	}
+}
+
+function scheduleIdleReset() {
+	clearIdleResetTimer()
+	const seconds = Number(preferences.value.idleTimeoutSeconds)
+	if (!preferences.value.enabled || !isOpen.value || !Number.isFinite(seconds) || seconds <= 0) return
+	idleResetTimer = window.setTimeout(() => {
+		if (isOpen.value) {
+			cancel()
+			searchQuery.value = ""
+		}
+	}, seconds * 1000)
+}
+
+function onCustomerActivity() {
+	if (isOpen.value) scheduleIdleReset()
+}
+
 function onIncrement(line) {
 	changeQty(line.productId, line.qty + 1)
 }
@@ -472,9 +583,31 @@ function pressKey(key) {
  * الكاشير الذاتي بيع أي شيء. `startSession` هي ما يفتح الجلسة، فصار نداءها
  * جزءًا من التركيب لا خطوة اختيارية.
  */
+watch(isOpen, (open) => {
+	if (open) scheduleIdleReset()
+	else clearIdleResetTimer()
+})
+
 onMounted(async () => {
-	startSession()
+	try {
+		const saved = localStorage.getItem(SETTINGS_KEY)
+		if (saved) preferences.value = { ...defaultPreferences, ...JSON.parse(saved) }
+	} catch {
+		preferences.value = { ...defaultPreferences }
+	}
+	if (preferences.value.enabled) startSession()
 	await loadCatalog()
+	window.addEventListener("pointerdown", onCustomerActivity, { passive: true })
+	window.addEventListener("keydown", onCustomerActivity)
+	window.addEventListener("touchstart", onCustomerActivity, { passive: true })
+	scheduleIdleReset()
+})
+
+onUnmounted(() => {
+	clearIdleResetTimer()
+	window.removeEventListener("pointerdown", onCustomerActivity)
+	window.removeEventListener("keydown", onCustomerActivity)
+	window.removeEventListener("touchstart", onCustomerActivity)
 })
 </script>
 
