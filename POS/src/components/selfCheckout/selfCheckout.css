@@ -368,3 +368,68 @@
   }
   .self-checkout__product:focus-visible, .self-checkout button:focus-visible { outline: 3px solid Highlight; }
 }
+
+/* Discovery controls: live local search + honest, state-aware customer guidance. */
+.self-checkout__discovery { display: grid; gap: 12px; }
+.self-checkout__search {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-block-size: 58px;
+  padding: 0 17px;
+  color: var(--sc-muted);
+  background: var(--sc-surface);
+  border: 1px solid var(--sc-line);
+  border-radius: 17px;
+  box-shadow: 0 4px 14px rgb(18 48 35 / 3%);
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.self-checkout__search:focus-within {
+  border-color: var(--sc-accent);
+  box-shadow: 0 0 0 4px var(--sc-accent-soft);
+}
+.self-checkout__search > svg { flex: 0 0 auto; inline-size: 21px; block-size: 21px; color: var(--sc-accent); }
+.self-checkout__search input {
+  flex: 1;
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 54px;
+  color: var(--sc-ink);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font: inherit;
+  font-size: 1rem;
+}
+.self-checkout__search input::placeholder { color: var(--sc-muted); opacity: .9; }
+.self-checkout__search input:disabled { cursor: not-allowed; opacity: .6; }
+.self-checkout__search-clear {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  inline-size: 40px;
+  block-size: 40px;
+  color: var(--sc-muted);
+  background: var(--dy-bg-sunken, #f5f8f6);
+  border: 1px solid var(--sc-line);
+  border-radius: 12px;
+  cursor: pointer;
+}
+.self-checkout__smart-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px 16px;
+  color: var(--sc-accent-strong);
+  background: linear-gradient(105deg, var(--sc-accent-soft), color-mix(in srgb, var(--sc-surface) 92%, transparent));
+  border: 1px solid color-mix(in srgb, var(--sc-accent) 18%, var(--sc-line));
+  border-radius: 15px;
+  font-size: .9rem;
+  line-height: 1.65;
+}
+.self-checkout__smart-hint > svg { flex: 0 0 auto; inline-size: 19px; block-size: 19px; margin-block-start: 2px; }
+@media (max-width: 480px) {
+  .self-checkout__search { min-block-size: 54px; padding-inline: 13px; }
+  .self-checkout__search input { min-block-size: 50px; font-size: .94rem; }
+  .self-checkout__smart-hint { padding: 11px 13px; font-size: .86rem; }
+}
