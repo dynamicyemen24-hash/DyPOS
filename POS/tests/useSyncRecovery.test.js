@@ -28,12 +28,13 @@ describe("useSyncRecovery", () => {
       idempotencyKey: "same-key",
       recovery: { retryable: true },
     }])
+    const original = items.value[0]
     const persistRecord = vi.fn().mockResolvedValue(undefined)
     const pushRecord = vi.fn().mockResolvedValue({ status: "SYNCED", serverId: 22 })
     const state = useSyncRecovery({ items, pushRecord, persistRecord })
 
     expect(await state.retry({ id: "p2", item: items.value[0], recovery: { retryable: true } })).toBe(true)
-    expect(pushRecord).toHaveBeenCalledWith(items.value[0])
+    expect(pushRecord).toHaveBeenCalledWith(original)
     expect(persistRecord).toHaveBeenCalledWith(expect.objectContaining({
       id: "p2",
       status: "SYNCED",
