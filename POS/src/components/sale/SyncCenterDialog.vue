@@ -55,6 +55,13 @@
 				</Button>
 			</div>
 
+				<p
+					v-if="failedRows.length === 0 && Object.keys(recoveryActionErrors).length > 0"
+					class="text-sm text-red-700 rounded-lg border border-red-200 bg-red-50 p-3"
+					role="alert"
+				>
+					{{ Object.values(recoveryActionErrors).join(" — ") }}
+				</p>
 				<SyncRecoveryPanel
 					v-if="failedRows.length > 0"
 					:items="recoveryItems"
