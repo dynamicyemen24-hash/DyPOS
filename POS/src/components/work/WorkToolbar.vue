@@ -51,6 +51,7 @@
         <div
           v-if="overflowOpen"
           :id="overflowId"
+          ref="overflowMenu"
           class="work-toolbar__overflow-menu"
           role="menu"
           :aria-label="t('moreActions')"
@@ -76,7 +77,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, useId } from "vue"
+import { ref, computed, nextTick, onMounted, onUnmounted, useId } from "vue"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
 
@@ -99,15 +100,18 @@ const overflowOpen = ref(false)
 const generatedId = useId()
 const overflowId = `work-toolbar-overflow-${generatedId}`
 const overflowTrigger = ref(null)
+const overflowMenu = ref(null)
 
 const overflowActions = computed(() => props.overflowActions)
 
-function toggleOverflow() {
+async function toggleOverflow() {
 	if (overflowOpen.value) {
 		closeOverflow({ restoreFocus: true })
 		return
 	}
 	overflowOpen.value = true
+	await nextTick()
+	overflowMenu.value?.querySelector("button:not(:disabled)")?.focus()
 }
 
 function closeOverflow({ restoreFocus = false } = {}) {
@@ -120,13 +124,26 @@ function handleMenuKeydown(event) {
 		event.preventDefault()
 		event.stopPropagation()
 		closeOverflow({ restoreFocus: true })
+		return
+	}
+	const items = [...(overflowMenu.value?.querySelectorAll("button:not(:disabled)") || [])]
+	if (!items.length) return
+	const currentIndex = items.indexOf(document.activeElement)
+	let nextIndex = null
+	if (event.key === "ArrowDown") nextIndex = (currentIndex + 1 + items.length) % items.length
+	if (event.key === "ArrowUp") nextIndex = (currentIndex - 1 + items.length) % items.length
+	if (event.key === "Home") nextIndex = 0
+	if (event.key === "End") nextIndex = items.length - 1
+	if (nextIndex !== null) {
+		event.preventDefault()
+		items[nextIndex].focus()
 	}
 }
 
 function executeOverflow(action) {
 	if (action.disabled) return
 	action.handler?.()
-	closeOverflow()
+	closeOverflow({ restoreFocus: true })
 }
 
 // Close on outside click
