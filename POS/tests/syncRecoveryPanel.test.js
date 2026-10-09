@@ -88,6 +88,52 @@ describe("operator sync recovery panel", () => {
     expect(wrapper.find('[role="alert"]').text()).toContain("بقي السجل محفوظًا")
   })
 
+
+  it("emits retry only for a retryable record and preserves its identity", async () => {
+    const item = {
+      id: "sync-73",
+      status: "FAILED",
+      error: "انقطع الاتصال مؤقتًا",
+      recovery: {
+        code: "TEMPORARY_STORAGE_ERROR",
+        title: "تعذّرت المزامنة مؤقتًا",
+        message: "يمكن إعادة المحاولة.",
+        nextAction: "RETRY",
+        retryable: true,
+      },
+    }
+    const wrapper = mount(SyncRecoveryPanel, {
+      props: { items: [item] },
+      global: { stubs },
+    })
+    const button = wrapper.findAll("button").find(el => el.text().includes("إعادة المحاولة"))
+    expect(button).toBeTruthy()
+    await button.trigger("click")
+    expect(wrapper.emitted("retry")?.[0][0]).toMatchObject({
+      id: "sync-73",
+      item,
+      recovery: item.recovery,
+    })
+    expect(wrapper.emitted("review")).toBeUndefined()
+  })
+
+  it("disables actions for a record while the host is processing it", () => {
+    const wrapper = mount(SyncRecoveryPanel, {
+      props: {
+        items: [{
+          id: "sync-busy",
+          status: "FAILED",
+          recovery: { retryable: true, nextAction: "RETRY" },
+        }],
+        busyIds: ["sync-busy"],
+      },
+      global: { stubs },
+    })
+    const button = wrapper.findAll("button").find(el => el.text().includes("جارٍ التنفيذ"))
+    expect(button).toBeTruthy()
+    expect(button.attributes("disabled")).toBeDefined()
+  })
+
   it("provides a clear empty state when there are no failed operations", () => {
     const wrapper = mount(SyncRecoveryPanel, { props: { items: [{ id: "ok", status: "SYNCED" }] }, global: { stubs } })
     expect(wrapper.text()).toContain("لا توجد عمليات معلّقة للمعالجة")
