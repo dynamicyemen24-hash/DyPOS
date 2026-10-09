@@ -11,6 +11,18 @@
 		no-content-padding
 		@refresh="load"
 	>
+		<template #header-actions>
+			<ActionButton
+				type="button"
+				variant="subtle"
+				size="sm"
+				:aria-label="`حساب المشغّل: ${operatorName}`"
+				@click="openOperatorMenu"
+			>
+				<FeatherIcon name="user" :size="16" aria-hidden="true" />
+				<span>{{ operatorName }}</span>
+			</ActionButton>
+		</template>
 		<template #toolbar>
 			<WorkToolbar>
 				<template #center>
@@ -87,6 +99,11 @@
 				</div>
 			</dl>
 		</Drawer>
+		<OperatorMenu
+			:open="showOperatorMenu"
+			@close="closeOperatorMenu"
+			@action="onOperatorAction"
+		/>
 	</WorkShell>
 </template>
 
@@ -118,13 +135,16 @@ import {
 	WorkToolbar,
 } from "@/components/work"
 import { Drawer } from "dypos-ui"
+import { ActionButton, FeatherIcon } from "dypos-ui"
 import { flatWorkNav } from "@/components/work/workNav"
 import { WORK_SCREENS, workScreenById } from "@/data/workScreens"
 import SyncStatusIndicator from "@/components/pos/SyncStatusIndicator.vue"
 import { useIndustryProfileStore } from "@/stores/industryProfile"
 import { logger } from "@/utils/logger"
 import { t } from "@/utils/translation"
-import { sessionRole } from "@/data/session"
+import { sessionRole, sessionUser } from "@/data/session"
+import { useOperatorMenu } from "@/composables/useOperatorMenu"
+import OperatorMenu from "@/components/pos/OperatorMenu.vue"
 import {
 	canSeeAdmin,
 	canSeeScreen,
@@ -166,6 +186,10 @@ const industry = getActivePinia() ? useIndustryProfileStore() : null
  */
 const role = sessionRole()
 const readonly = isReadOnlyRole(role)
+/** قائمة المشغّل (الحساب/الخروج) — نفس القائمة في كل شاشة عمل. */
+const operatorName = computed(() => sessionUser() || "الحساب")
+const { showOperatorMenu, openOperatorMenu, closeOperatorMenu, onOperatorAction } =
+	useOperatorMenu()
 providePermissions(
 	Object.fromEntries(
 		WORK_SCREENS.map((entry) => [

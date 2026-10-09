@@ -112,6 +112,20 @@ describe("سلسلة التشغيل (الدخول ← الرئيسية ← ال�
 		expect(ROUTER.includes("goToDashboard"), "مُساعِد التحويل للوحة").toBe(true)
 	})
 
+	it("الرئيسية وشاشات العمل تحملان قائمة المشغّل (الحساب/الخروج)", () => {
+		const WORK = read("src/pages/WorkScreens.vue")
+		for (const [name, source] of [["الرئيسية", HOME], ["شاشات العمل", WORK]]) {
+			expect(source, `${name}: فتحة إجراءات الترويسة`).toContain('template #header-actions')
+			expect(source, `${name}: زر المشغّل`).toContain("openOperatorMenu")
+			expect(source, `${name}: القائمة`).toContain("OperatorMenu")
+		}
+	})
+
+	it("الرئيسية تحمل زر مشاركة النظام المحلي", () => {
+		expect(HOME).toContain("shareSystem")
+		expect(HOME).toContain("مشاركة النظام")
+	})
+
 	it("المسارات الإدارية الأربعة محروسة بـ adminOnly في الموجّه", () => {
 		for (const name of ["Settings", "OpeningBalances", "ReferenceData", "MasterDataImport"]) {
 			expect(isAdminRoute(name), `${name} سطح إداري`).toBe(true)

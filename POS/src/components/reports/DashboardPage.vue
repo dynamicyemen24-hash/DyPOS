@@ -8,6 +8,19 @@
     :has-data="true"
     @refresh="broadcastRefresh"
   >
+    <template #header-actions>
+      <ActionButton
+        type="button"
+        variant="subtle"
+        size="sm"
+        class="home-operator"
+        :aria-label="`حساب المشغّل: ${operatorName}`"
+        @click="openOperatorMenu"
+      >
+        <FeatherIcon name="user" :size="16" aria-hidden="true" />
+        <span class="home-operator__name">{{ operatorName }}</span>
+      </ActionButton>
+    </template>
     <template #toolbar>
       <WorkToolbar>
         <template #center>
@@ -115,6 +128,9 @@
             <router-link class="home-quick__item" :to="{ name: 'Settings' }">
               <span><FeatherIcon name="sliders" :size="18" /></span><b>تهيئة النظام</b><small>الإعدادات</small>
             </router-link>
+            <ActionButton class="home-quick__item" type="button" @click="onShare">
+              <span><FeatherIcon name="share-2" :size="18" /></span><b>مشاركة النظام</b><small>دعوة متجر جديد</small>
+            </ActionButton>
           </div>
         </aside>
       </section>
@@ -132,6 +148,12 @@
         </div>
       </section>
     </main>
+
+    <OperatorMenu
+      :open="showOperatorMenu"
+      @close="closeOperatorMenu"
+      @action="onOperatorAction"
+    />
   </WorkShell>
 </template>
 
@@ -160,6 +182,10 @@ import {
 import { sessionRole, sessionUser } from "@/data/session"
 import { posContext } from "@/utils/posContext"
 import { shiftState } from "@/composables/useShift"
+import { useOperatorMenu } from "@/composables/useOperatorMenu"
+import OperatorMenu from "@/components/pos/OperatorMenu.vue"
+import { shareSystem } from "@/utils/shareApp"
+import { useToast } from "@/composables/useToast"
 
 const ARABIC_TITLES = {
 	"executive-dashboard": "لوحة التنفيذيين",
@@ -259,6 +285,26 @@ const contextItems = computed(() =>
 	}),
 )
 
+/** قائمة المشغّل (الحساب/الخروج) — نفس القائمة في نقطة البيع، لا نسخة ثانية. */
+const operatorName = computed(() => sessionUser() || "الحساب")
+const { showOperatorMenu, openOperatorMenu, closeOperatorMenu, onOperatorAction } =
+	useOperatorMenu()
+
+/** مشاركة النظام: Web Share على الجهاز، ونسخ الرابط عند غيابها — محلي بالكامل. */
+const { showSuccess: toastSuccess, showError: toastError } = useToast()
+async function onShare() {
+	const url = `${location.origin}/account/register`
+	const result = await shareSystem({
+		title: "DyPOS — نظام نقاط البيع الذكي",
+		text: "DyPOS — افتح حساب متجرك وبِع من أول يوم",
+		url,
+	})
+	if (result === "dismissed") return
+	if (result === "shared" || result === "copied")
+		toastSuccess(result === "shared" ? "تمت المشاركة" : "نُسخ رابط التسجيل — الصقه في أي وسيلة")
+	else toastError(`تعذّرت المشاركة التلقائية — انسخ الرابط يدويًا: ${url}`)
+}
+
 const broadcastRefresh = () => {
   window.dispatchEvent(new CustomEvent("dypos:dashboard-refresh"))
 }
@@ -300,6 +346,9 @@ onMounted(() => {
 .home-toolbar__logo { width:34px; height:34px; display:grid; place-items:center; border:1px solid var(--dy-border); border-radius:10px; background:var(--dy-surface); overflow:hidden; }
 .home-toolbar__logo img { width:26px; height:26px; object-fit:contain; }
 .home-toolbar__brand strong,.home-toolbar__brand span { display:block; }
+/* زر المشغّل: اسم الحساب + قائمة (خروج) — 44px لمسًا. */
+.home-operator { min-height:44px; }
+.home-operator__name { max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .home-toolbar__brand strong { color:var(--dy-text); font-size:13px; font-weight:850; }
 .home-toolbar__brand span { color:var(--dy-text-muted); font-size:10px; margin-top:2px; }
 .home-hero { position:relative; min-height:230px; overflow:hidden; display:flex; align-items:center; justify-content:space-between; gap:28px; padding:32px 36px; border:1px solid var(--dy-border); border-radius:20px; background:linear-gradient(125deg,var(--dy-surface) 0%,var(--dy-bg-sunken) 58%,var(--dy-primary-soft) 100%); isolation:isolate; box-shadow:var(--dy-shadow-card); }
