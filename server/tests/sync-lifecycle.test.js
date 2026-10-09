@@ -150,7 +150,9 @@ describe('Sync lifecycle (HTTP E2E)', () => {
     assert.equal(pushed.status, 200, JSON.stringify(pushed.body));
     assert.equal(pushed.body.failed, 1);
     assert.equal(pushed.body.results[0].status, 'FAILED');
-    assert.equal(pushed.body.results[0].recovery.nextAction, 'REVIEW_AND_RETRY');
+    assert.equal(pushed.body.results[0].recovery.code, 'MISSING_REFERENCE');
+    assert.equal(pushed.body.results[0].recovery.nextAction, 'CREATE_OR_SYNC_PRODUCT_FIRST');
+    assert.equal(pushed.body.results[0].recovery.missingReferences[0].entity, 'PRODUCT');
     const warehouse = db.prepare('SELECT id FROM warehouses WHERE id=?').get(warehouseId);
     assert.equal(warehouse, undefined, 'failed stock item must not leave its warehouse insert behind');
   });
