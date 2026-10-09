@@ -435,7 +435,7 @@ const filteredCatalog = computed(() => {
 const smartHint = computed(() => {
 	if (!canBrowse.value) return "ابدأ الجلسة لتفعيل الأصناف والبحث وإعداد سلتك."
 	if (loadingCatalog.value) return "نجهّز قائمة الأصناف المتاحة للبيع…"
-	if (catalog.length === 0) return "لا توجد أصناف محمّلة حاليًا. استخدم تحديث الأصناف أو اطلب مساعدة الموظف."
+	if (catalog.value.length === 0) return "لا توجد أصناف محمّلة حاليًا. استخدم تحديث الأصناف أو اطلب مساعدة الموظف."
 	if (normalizedSearch.value) return filteredCatalog.value.length
 		? `وجدنا ${filteredCatalog.value.length} صنفًا مطابقًا. المس الصنف لإضافته مباشرة.`
 		: "لم يظهر تطابق. جرّب كلمة أقصر أو جزءًا من اسم الصنف."
