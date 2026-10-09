@@ -28,9 +28,10 @@
           </div>
         </template>
         <WorkFilters
-          v-model="filterModel"
+          :model-value="filterModel"
           :fields="filterFields"
           :auto-apply="false"
+          @update:model-value="updateFilterModel"
           @apply="onFiltersApply"
           @reset="onFiltersReset"
         />
@@ -265,6 +266,10 @@ const navItems = computed(() => {
 
 const broadcastRefresh = () => {
   window.dispatchEvent(new CustomEvent("dypos:dashboard-refresh"))
+}
+
+const updateFilterModel = (values = {}) => {
+  Object.assign(filterModel, values)
 }
 
 const onFiltersApply = (values = filterModel) => {
