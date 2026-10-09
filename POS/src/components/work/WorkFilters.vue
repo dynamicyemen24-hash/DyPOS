@@ -15,6 +15,7 @@
     <!-- Toggle Button -->
     <button
       type="button"
+      :id="toggleId"
       class="work-filters__toggle"
       @click="toggle"
       :aria-expanded="open"
@@ -26,7 +27,7 @@
       <span
         v-if="activeCount > 0"
         class="work-filters__count"
-        aria-label="{{ t('activeFiltersCount', [activeCount]) }}"
+        :aria-label="t('activeFiltersCount', [activeCount])"
       >
         {{ activeCount }}
       </span>
@@ -45,7 +46,7 @@
         class="work-filters__panel"
         role="region"
         :aria-label="t('filtersPanel')"
-        :aria-labelledby="toggleId"
+         :aria-labelledby="toggleId"
       >
         <div class="work-filters__header">
           <h2 class="work-filters__title">{{ t('filters') }}</h2>
@@ -149,7 +150,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from "vue"
+import { ref, computed, watch, onMounted, useId } from "vue"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
 import WorkFilterField from "./WorkFilterField.vue"
@@ -174,8 +175,9 @@ const props = defineProps({
 const emit = defineEmits(["update:modelValue", "apply", "reset", "change"])
 
 const open = ref(props.defaultOpen)
-const panelId = `work-filters-panel-${Math.random().toString(36).slice(2)}`
-const toggleId = `work-filters-toggle-${Math.random().toString(36).slice(2)}`
+const generatedId = useId()
+const panelId = `work-filters-panel-${generatedId}`
+const toggleId = `work-filters-toggle-${generatedId}`
 
 const localModel = ref({ ...props.modelValue })
 

@@ -5,6 +5,98 @@ import { assertTenantScope, resolveTenantFilter, tenantContext } from '../lib/te
 
 const router = Router();
 
+/**
+ * Turn a technical sync failure into a safe, user-actionable recovery plan.
+ * The original error remains available for older clients; newer clients can
+ * render a guided repair instead of treating every FAILED item as a dead end.
+ */
+function describeSyncRecovery(change, error) {
+	const message = String(error?.message || 'تعذّرت معالجة العملية').slice(0, 200);
+	const entity = String(change?.entity_type || '').toUpperCase();
+	const action = String(change?.action || '').toUpperCase();
+	const parsePayload = () => {
+		try {
+			return typeof change?.payload === 'string' ? JSON.parse(change.payload || '{}') : (change?.payload || {});
+		} catch {
+			return null;
+		}
+	};
+	const payload = parsePayload();
+	const fieldLabels = { id: 'معرّف الصنف', code: 'رمز الصنف', name: 'اسم الصنف', productId: 'الصنف', warehouseId: 'المستودع' };
+	if (entity === 'PRODUCT' && action === 'UPSERT' && message.includes('بيانات صنف ناقصة')) {
+		const missingFields = ['id', 'code', 'name'].filter((field) => !String(payload?.[field] ?? '').trim());
+		return {
+			code: 'REQUIRED_FIELDS',
+			title: 'أكمل بيانات الصنف',
+			message: 'لم يُحفظ الصنف لأن حقولاً أساسية ناقصة. أكمل الحقول ثم أعد إرسال هذا السجل فقط.',
+			missingFields: missingFields.map((field) => ({ field, label: fieldLabels[field] })),
+			nextAction: 'EDIT_PAYLOAD_AND_RETRY',
+			retryable: false,
+		};
+	}
+	if (entity === 'STOCK' && action === 'UPSERT' && message.includes('بيانات مخزون ناقصة')) {
+		const missingFields = ['productId', 'warehouseId'].filter((field) => !String(payload?.[field] ?? '').trim());
+		return {
+			code: 'REQUIRED_FIELDS',
+			title: 'أكمل بيانات حركة المخزون',
+			message: 'حدد الصنف والمستودع أولاً، ثم أعد إرسال حركة المخزون.',
+			missingFields: missingFields.map((field) => ({ field, label: fieldLabels[field] })),
+			nextAction: 'EDIT_PAYLOAD_AND_RETRY',
+			retryable: false,
+		};
+	}
+	if (entity === 'INVOICE') {
+		return {
+			code: 'INVOICE_SYNC_UNSUPPORTED',
+			title: 'أكمل البيع عبر مسار الفواتير',
+			message: 'لم تُعتمد الفاتورة ولم تُسجّل كمزامنة ناجحة. احتفظ بمسودة البيع وأرسلها عبر مسار إنشاء الفاتورة المتصل حتى لا تضيع تفاصيل الدفع والمخزون.',
+			nextAction: 'OPEN_ONLINE_INVOICE_FLOW',
+			endpoint: '/api/invoices',
+			preserveDraft: true,
+			retryable: false,
+		};
+	}
+	if (!payload) {
+		return {
+			code: 'INVALID_PAYLOAD_JSON',
+			title: 'صحّح بيانات الإرسال',
+			message: 'تعذّرت قراءة بيانات السجل. أصلح تنسيق JSON ثم أعد المحاولة.',
+			nextAction: 'FIX_PAYLOAD_AND_RETRY',
+			retryable: false,
+		};
+	}
+	if (entity === 'STOCK' && /FOREIGN KEY constraint failed/i.test(message)) {
+		return {
+			code: 'MISSING_REFERENCE',
+			title: 'الصنف المرتبط غير موجود',
+			message: 'لم يُحدّث المخزون لأن الصنف غير موجود أو لم تتم مزامنته بعد. أنشئ الصنف أو زامنه أولاً، ثم أعد إرسال حركة المخزون.',
+			missingReferences: [{ entity: 'PRODUCT', field: 'productId', value: String(payload?.productId || '') }],
+			nextAction: 'CREATE_OR_SYNC_PRODUCT_FIRST',
+			resource: '/api/products',
+			retryable: false,
+		};
+	}
+	if (/SQLITE_BUSY|database is locked|temporarily unavailable/i.test(message)) {
+		return {
+			code: 'TEMPORARY_STORAGE_ERROR',
+			title: 'تعذّر الحفظ مؤقتاً',
+			message: 'لم تُحفظ هذه العملية بعد. أعد المحاولة بعد لحظات؛ إعادة المحاولة آمنة باستخدام مفتاح idempotency نفسه.',
+			nextAction: 'RETRY',
+			retryable: true,
+		};
+	}
+	return {
+		code: 'UNSUPPORTED_OR_INVALID_OPERATION',
+		title: 'راجع نوع العملية',
+		message: message.includes('نوع مزامنة غير مدعوم')
+			? 'هذا النوع أو الإجراء غير مدعوم حالياً. احتفظ بالبيانات، واختر مساراً مدعوماً قبل إعادة الإرسال.'
+			: 'لم تكتمل العملية. راجع تفاصيل السجل والحقول المطلوبة ثم صحّحها وأعد المحاولة.',
+		nextAction: 'REVIEW_AND_RETRY',
+		retryable: false,
+	};
+}
+
+
 // Branch scope for a read: the caller may name its branch (X-Branch-Id /
 // ?branch=). It is VALIDATED against the hierarchy — an unknown or foreign
 // branch is a 404/403, never a silent passthrough that would leak another
@@ -115,6 +207,7 @@ router.post('/push', (req, res) => {
 			// Declared outside try: the catch handler below (UNIQUE-race dedupe)
 			// must see the same key. Declaring it inside try would scope it away.
 			let idemKey = '';
+			let savepointOpen = false;
 			try {
 				// Push idempotency (v16): a retried batch replays safely — an
 				// already-SYNCED key returns deduped without re-applying.
@@ -135,6 +228,11 @@ router.post('/push', (req, res) => {
 						continue;
 					}
 				}
+				// Every item is its own unit of work inside the batch transaction.
+				// This prevents a failed stock update from leaving a warehouse row
+				// or any other partial side effect behind.
+				db.exec(`SAVEPOINT ${_savepoint}`);
+				savepointOpen = true;
 				if (ch.entity_type === 'PRODUCT' && ch.action === 'UPSERT') {
 					const p = JSON.parse(ch.payload || '{}');
 					if (!p.id || !p.code || !p.name) throw new Error('بيانات صنف ناقصة');
@@ -183,6 +281,8 @@ router.post('/push', (req, res) => {
             idempotency_key=CASE WHEN ?<>'' THEN ? ELSE idempotency_key END
             WHERE id=?`).run(pushTenant, pushBranch, idemKey, idemKey || null, ch.id);
 				}
+				db.exec(`RELEASE SAVEPOINT ${_savepoint}`);
+				savepointOpen = false;
 				results.push({ id: ch.id, status: 'SYNCED' });
 				try {
 					syncCounter.labels('in', 'ok').inc();
@@ -190,6 +290,14 @@ router.post('/push', (req, res) => {
 					/* ignore */
 				}
 			} catch (e) {
+				if (savepointOpen) {
+					try {
+						db.exec(`ROLLBACK TO SAVEPOINT ${_savepoint}`);
+						db.exec(`RELEASE SAVEPOINT ${_savepoint}`);
+					} catch {
+						/* preserve the original item error; outer transaction remains authoritative */
+					}
+				}
 				const msg = String(e.message || '');
 				// A lost ACK racing a retry can hit the UNIQUE key on UPDATE even
 				// though the pre-check passed — that is a successful dedupe, not a
@@ -208,7 +316,7 @@ router.post('/push', (req, res) => {
 				} catch {
 					/* ignore */
 				}
-				results.push({ id: ch.id, status: 'FAILED', error: msg.slice(0, 200) });
+				results.push({ id: ch.id, status: 'FAILED', error: msg.slice(0, 200), recovery: describeSyncRecovery(ch, e) });
 				try {
 					syncCounter.labels('in', 'failed').inc();
 				} catch {

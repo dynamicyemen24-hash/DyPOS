@@ -127,7 +127,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from "vue"
+import { computed, ref, watch, useId } from "vue"
 import { useLocale } from "@/composables/useLocale"
 import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
@@ -189,7 +189,7 @@ const paginationText = computed(() => {
 	return t("showingResults", [start, end, totalItems])
 })
 
-const pageSizeId = `work-pagination-size-${Math.random().toString(36).slice(2)}`
+const pageSizeId = `work-pagination-size-${useId()}`
 
 function goToPage(page) {
 	if (page < 1 || page > props.totalPages || page === props.currentPage) return

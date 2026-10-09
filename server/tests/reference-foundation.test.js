@@ -7,7 +7,7 @@ test('v41 reference foundation provisions global POS master data idempotently', 
  const { db, migrate, MIGRATION_VERSION } = await import('../db/schema.js');
  migrate();
  assert.equal(MIGRATION_VERSION, 41);
- const count=(table)=>Number(db.prepare('SELECT COUNT(*) AS c FROM '+table).get().c);
+ const count=(table)=>Number(db.prepare(`SELECT COUNT(*) AS c FROM ${table}`).get().c);
  assert.ok(count('ref_countries') >= 240, 'ISO alpha-2 country catalog should be comprehensive');
  assert.ok(count('ref_currencies') >= 150, 'ISO/current ICU currency catalog should be comprehensive');
  assert.ok(count('business_activities') >= 20);
@@ -17,7 +17,11 @@ test('v41 reference foundation provisions global POS master data idempotently', 
  assert.ok(count('settings_definitions') >= 15);
  assert.ok(count('account_template_lines') >= 12);
  assert.ok(count('opening_balance_template_lines') >= 6);
- assert.ok(count('onboarding_templates') >= 20);
+ assert.ok(count('activity_onboarding_templates') >= 20);
+ const legacyColumns = new Set(db.prepare('PRAGMA table_info(onboarding_templates)').all().map(({ name }) => name));
+ for (const column of ['id', 'tenant_id', 'name', 'data_type', 'content']) {
+  assert.ok(legacyColumns.has(column), `legacy saved-template column ${column} must be preserved`);
+ }
  assert.equal(db.prepare("SELECT COUNT(*) AS c FROM ref_countries WHERE code_alpha2='YE'").get().c,1);
  assert.equal(db.prepare("SELECT COUNT(*) AS c FROM ref_currencies WHERE code='YER'").get().c,1);
  migrate();

@@ -10,6 +10,25 @@
 		:permission-denied="deniedReason"
 		@refresh="load"
 	>
+		<template #menu-strip>
+			<WorkMenuStrip :items="menuActions" @action="onMenuAction">
+				<template #end>
+					<span class="work-screens__selection-count" aria-live="polite">{{ visibleRows.length }} / {{ rows.length }} سجل</span>
+				</template>
+			</WorkMenuStrip>
+		</template>
+
+		<template #status-strip>
+			<WorkStatusStrip
+				:state="loading ? 'loading' : errorState || source === 'unavailable' ? 'error' : source === 'local' ? 'offline' : lastLoaded ? 'ready' : 'warning'"
+				:message="loading ? 'جارٍ تحميل البيانات' : errorState ? 'فشل تحميل البيانات' : source === 'unavailable' ? 'مصدر البيانات غير متاح' : source === 'local' ? 'عرض من النسخة المحلية' : lastLoaded ? 'الشاشة جاهزة' : 'لم يتم تحميل البيانات بعد'"
+				:details="errorState || sourceNote"
+				:updated-at="lastLoaded"
+				:items="[{ id: 'total', label: 'السجلات', value: rows.length }, { id: 'visible', label: 'المعروضة', value: visibleRows.length }]"
+				sticky
+			/>
+		</template>
+
 		<template #toolbar>
 			<WorkToolbar>
 				<template #center>
@@ -23,22 +42,34 @@
 				</template>
 			</WorkToolbar>
 
-			<!-- مصدر البيانات: قائمة فارغة ليست قياسًا (AGENTS.md invariant 9) -->
-			<p
+			<WorkScreenStatus
+				:count="rows.length"
+				:source="source"
+				:loading="loading"
+				:updated-at="lastLoaded"
+			/>
+			<WorkQuickFilters
+				v-if="quickFilterField && quickFilterOptions.length"
+				:label="`تصفية حسب ${quickFilterField.label}`"
+				:options="quickFilterOptions"
+				:model-value="quickFilterValue"
+				:total="rows.length"
+				@update:model-value="quickFilterValue = $event"
+			/>
+			<InlineAlert
 				v-if="sourceNote"
-				class="work-screens__source"
-				role="status"
-				:data-source="source"
-			>
-				{{ sourceNote }}
-			</p>
+				:variant="source === 'unavailable' ? 'error' : 'warning'"
+				:title="source === 'unavailable' ? 'مصدر البيانات غير متاح' : 'عرض من النسخة المحلية'"
+				:message="sourceNote"
+			/>
 		</template>
 
+		<WorkPanel flush class="work-screens__grid-panel">
 		<WorkDataGrid
 			:columns="screen.columns"
-			:rows="rows"
+			:rows="visibleRows"
 			:row-key="rowKey"
-			:total-items="rows.length"
+			:total-items="visibleRows.length"
 			:loading="loading"
 			:aria-label="screen.label"
 			:empty-title="emptyTitle"
@@ -47,6 +78,8 @@
 			selectable
 			@row-click="onRowClick"
 		/>
+		</WorkPanel>
+
 	</WorkShell>
 </template>
 
@@ -72,23 +105,32 @@ import {
 	WorkShell,
 	WorkTabs,
 	WorkToolbar,
+	WorkScreenStatus,
+	WorkQuickFilters,
+	WorkMenuStrip,
+	WorkPanel,
+	WorkStatusStrip,
 } from "@/components/work"
 import { flatWorkNav } from "@/components/work/workNav"
 import { WORK_SCREENS, workScreenById } from "@/data/workScreens"
 import { useIndustryProfileStore } from "@/stores/industryProfile"
 import { logger } from "@/utils/logger"
 import { sessionRole } from "@/data/session"
+import InlineAlert from "@/components/common/InlineAlert.vue"
 
 const log = logger.create("WorkScreens")
 const route = useRoute()
 const router = useRouter()
 
 const ROW_LIMIT = 200
+let loadSequence = 0
 
 const rows = ref([])
 const loading = ref(false)
 const errorState = ref("")
 const source = ref("")
+const lastLoaded = ref(null)
+const quickFilterValue = ref("")
 
 const screenId = computed(() => String(route.query.screen ?? "invoices"))
 const screen = computed(() => workScreenById(screenId.value))
@@ -156,6 +198,42 @@ const subtitle = computed(() =>
 	readonly ? "عرض فقط لصلاحية الكاشير" : "إدارة كاملة",
 )
 
+const quickFilterField = computed(() => {
+	if (!screen.value.columns.some((column) => column.key === "status")) return null
+	return screen.value.columns.find((column) => column.key === "status")
+})
+
+const quickFilterOptions = computed(() => {
+	if (loading.value || !quickFilterField.value) return []
+	const counts = new Map()
+	for (const row of rows.value) {
+		const value = row?.[quickFilterField.value.key]
+		if (value === null || value === undefined || value === "") continue
+		const key = String(value)
+		counts.set(key, (counts.get(key) ?? 0) + 1)
+	}
+	return [...counts.entries()]
+		.sort(([a], [b]) => a.localeCompare(b))
+		.map(([value, count]) => ({ value, label: value, count }))
+})
+
+const visibleRows = computed(() => {
+	if (!quickFilterValue.value || !quickFilterField.value) return rows.value
+	return rows.value.filter(
+		(row) => String(row?.[quickFilterField.value.key] ?? "") === quickFilterValue.value,
+	)
+})
+
+const menuActions = computed(() => [
+	{ id: "refresh", label: "تحديث البيانات", icon: "refresh-cw", shortcut: "Alt+R", disabled: loading.value },
+	{ id: "clear-filter", label: "مسح التصفية", icon: "filter", shortcut: "Alt+C", disabled: !quickFilterValue.value },
+])
+
+function onMenuAction(action) {
+	if (action === "refresh") load()
+	if (action === "clear-filter") quickFilterValue.value = ""
+}
+
 const sourceNote = computed(() => {
 	if (source.value === "local")
 		return "معروضة من النسخة المحلية (السيرفر غير متاح)"
@@ -189,23 +267,28 @@ const emptyDescription = computed(() =>
 )
 
 async function load() {
+	const requestId = ++loadSequence
 	loading.value = true
 	errorState.value = ""
 	try {
 		const result = await screen.value.load(ROW_LIMIT)
+		if (requestId !== loadSequence) return
 		rows.value = Array.isArray(result?.rows) ? result.rows : []
 		source.value = String(result?.source ?? "")
+		lastLoaded.value = result?.source === "unavailable" ? null : new Date()
 		if (result?.error)
 			log.warn("work screen served from fallback", result.error)
 	} catch (error) {
+		if (requestId !== loadSequence) return
 		// An empty grid would read as "no invoices exist" — say it failed instead.
 		rows.value = []
 		source.value = "unavailable"
+		lastLoaded.value = null
 		errorState.value =
 			error?.message || "تعذّر تحميل البيانات — تحقّق من الاتصال ثم أعد المحاولة"
 		log.error("work screen load failed", error)
 	} finally {
-		loading.value = false
+		if (requestId === loadSequence) loading.value = false
 	}
 }
 
@@ -220,24 +303,15 @@ function onRowClick(row) {
 	}
 }
 
-watch(screenId, load)
+watch(screenId, (next, previous) => {
+	if (next !== previous) quickFilterValue.value = ""
+	load()
+})
 onMounted(load)
 </script>
 
 <style scoped>
-.work-screens__source {
-	padding: 0.5rem 0.75rem;
-
-	font-size: 0.8rem;
-
-	color: var(--dy-text-muted);
-	background: var(--dy-bg-sunken);
-
-	border-radius: 0.5rem;
-}
-
-.work-screens__source[data-source="unavailable"] {
-	color: var(--dy-warning);
-	background: var(--dy-warning-soft);
-}
+.work-screens__grid-panel { min-width: 0; margin-block-start: 12px; }
+.work-screens__selection-count { flex: 0 0 auto; padding-inline: 10px; color: var(--dy-text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .work-screens__selection-count { display: none; } }
 </style>

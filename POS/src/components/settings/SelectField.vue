@@ -1,50 +1,43 @@
 <template>
-	<div class="p-2 rounded hover:bg-gray-50 transition-colors">
-		<label :for="fieldId" class="block text-sm font-medium text-gray-900 mb-1">
-			{{ label }}
-		</label>
+	<FormField
+		:label="label"
+		:description="description"
+		:error="error"
+		:required="required"
+		:disabled="disabled"
+		v-slot="{ fieldId, describedBy, invalid, required: fieldRequired, disabled: fieldDisabled }"
+	>
 		<select
 			:id="fieldId"
 			:value="modelValue"
+			:required="fieldRequired"
+			:disabled="fieldDisabled"
+			:aria-invalid="invalid ? 'true' : undefined"
+			:aria-describedby="describedBy"
 			@change="$emit('update:modelValue', $event.target.value)"
-			class="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 focus:border-transparent bg-white cursor-pointer"
+			class="w-full min-h-11 px-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 focus:border-transparent bg-white cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
 		>
 			<option value="">{{ __("-- Select --") }}</option>
 			<option v-for="option in options" :key="option.value" :value="option.value">
 				{{ option.label }}
 			</option>
 		</select>
-		<p v-if="description" class="text-xs text-gray-500 mt-0.5 leading-tight">
-			{{ description }}
-		</p>
-	</div>
+	</FormField>
 </template>
 
 <script setup>
-import { computed } from "vue"
+import FormField from "@/components/ui/FormField.vue"
+import { __ } from "@/utils/translation"
 
-const props = defineProps({
-	modelValue: {
-		type: [String, Number],
-		default: "",
-	},
-	label: {
-		type: String,
-		required: true,
-	},
-	description: {
-		type: String,
-		default: "",
-	},
-	options: {
-		type: Array,
-		default: () => [],
-	},
+defineProps({
+	modelValue: { type: [String, Number], default: "" },
+	label: { type: String, required: true },
+	description: { type: String, default: "" },
+	error: { type: String, default: "" },
+	required: { type: Boolean, default: false },
+	disabled: { type: Boolean, default: false },
+	options: { type: Array, default: () => [] },
 })
 
 defineEmits(["update:modelValue"])
-
-const fieldId = computed(
-	() => `select-${Math.random().toString(36).substr(2, 9)}`,
-)
 </script>

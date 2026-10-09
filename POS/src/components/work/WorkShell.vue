@@ -34,8 +34,6 @@
       'work-shell--mobile-open': mobileNavOpen,
       'work-shell--reduced-motion': prefersReducedMotion,
     }"
-    role="application"
-    aria-label="DyPOS Work Screens"
   >
     <!-- Skip Link (WCAG 2.4.1) -->
     <a
@@ -72,9 +70,7 @@
       id="work-shell-nav"
       class="work-shell__nav"
       :class="{ 'work-shell__nav--mobile': mobileNavOpen }"
-      role="navigation"
       :aria-label="t('mainNavigation')"
-      :aria-expanded="mobileNavOpen"
     >
       <div class="work-shell__nav-header">
         <div class="work-shell__brand">
@@ -145,6 +141,7 @@
       v-if="isMobile"
       type="button"
       class="work-shell__mobile-toggle"
+      ref="mobileToggleRef"
       @click="openMobileNav"
       :aria-label="t('openNavigation')"
       :aria-expanded="mobileNavOpen"
@@ -234,6 +231,13 @@
         <slot name="toolbar" />
       </div>
 
+      <!-- Optional standardized menu strip for screen-level actions -->
+      <div class="work-shell__menu-strip">
+        <slot name="menu-strip">
+          <WorkMenuStrip :items="defaultMenuActions" @action="handleDefaultMenuAction" />
+        </slot>
+      </div>
+
       <!-- Status Bar (Connection, Sync, Alerts) -->
       <div
         v-if="statusMessage"
@@ -317,6 +321,21 @@
       >
         <slot />
       </div>
+
+      <!-- Standard status strip shared by every WorkShell screen. -->
+      <div v-if="$slots['status-strip']" class="work-shell__status-strip">
+        <slot name="status-strip" />
+      </div>
+      <div v-else-if="!statusMessage" class="work-shell__status-strip">
+        <WorkStatusStrip
+          :state="defaultStatusState"
+          :message="defaultStatusMessage"
+          :details="error"
+          :updated-at="lastLoaded"
+          :dismissible="dismissibleStatus"
+          @dismiss="dismissStatus"
+        />
+      </div>
     </main>
   </div>
 </template>
@@ -325,6 +344,8 @@
 import { ref, computed, nextTick as vueNextTick, onMounted, onUnmounted, watch } from "vue"
 import { useRouter, useRoute } from "vue-router"
 import { FeatherIcon } from "dypos-ui"
+import WorkMenuStrip from "./WorkMenuStrip.vue"
+import WorkStatusStrip from "./WorkStatusStrip.vue"
 import { useLocale } from "@/composables/useLocale"
 import { t } from "@/utils/translation"
 import WorkLoadingSkeleton from "./WorkLoadingSkeleton.vue"
@@ -350,6 +371,7 @@ const props = defineProps({
 	permissionDenied: { type: [String, Boolean], default: false },
 	hasData: { type: Boolean, default: false },
 	statusMessage: { type: String, default: "" },
+	lastLoaded: { type: [Date, String, Number], default: null },
 	statusType: {
 		type: String,
 		default: "info",
@@ -361,13 +383,33 @@ const props = defineProps({
 
 const emit = defineEmits(["refresh", "go-home", "status-dismissed"])
 
+const defaultMenuActions = computed(() => [
+  { id: "refresh", label: "تحديث", icon: "refresh-cw", shortcut: "Alt+R", disabled: props.loading },
+])
+const defaultStatusState = computed(() => {
+  if (props.error || props.statusType === "error") return "error"
+  if (props.loading) return "loading"
+  if (props.statusType === "warning") return "warning"
+  if (props.statusType === "success") return "saved"
+  return "ready"
+})
+const defaultStatusMessage = computed(() =>
+  props.statusMessage || (props.error ? t("errorLoadingContent") : props.loading ? t("loadingContent") : props.hasData ? "البيانات جاهزة" : "جاهز"),
+)
+const handleDefaultMenuAction = (action) => {
+  if (action === "refresh" && !props.loading) emit("refresh")
+}
+const dismissStatus = () => emit("status-dismissed")
+
 const router = useRouter()
 const route = useRoute()
 const { locale, dir: direction, isRTL } = useLocale()
 const language = computed(() => locale.value)
 
 const mainRef = ref(null)
+const mobileToggleRef = ref(null)
 const mobileNavOpen = ref(false)
+let previousBodyOverflow = ""
 const prefersReducedMotion = ref(false)
 
 let mediaQuery = null
@@ -421,6 +463,8 @@ function announce(message) {
 }
 
 function openMobileNav() {
+	if (typeof document === "undefined") return
+	previousBodyOverflow = document.body.style.overflow
 	mobileNavOpen.value = true
 	document.body.style.overflow = "hidden"
 	announce(t("navigationOpened"))
@@ -430,10 +474,33 @@ function openMobileNav() {
 	})
 }
 
-function closeMobileNav() {
+function closeMobileNav({ restoreFocus = false } = {}) {
 	mobileNavOpen.value = false
-	document.body.style.overflow = ""
+	if (typeof document !== "undefined") document.body.style.overflow = previousBodyOverflow
 	announce(t("navigationClosed"))
+	if (restoreFocus) vueNextTick(() => mobileToggleRef.value?.focus({ preventScroll: true }))
+}
+
+function handleShellKeydown(event) {
+	if (event.key === "Escape" && mobileNavOpen.value) {
+		event.preventDefault()
+		closeMobileNav({ restoreFocus: true })
+		return
+	}
+	if (!mobileNavOpen.value) return
+	if (event.key !== "Tab" || typeof document === "undefined") return
+	const nav = document.getElementById("work-shell-nav")
+	const focusable = nav?.querySelectorAll('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])')
+	if (!focusable?.length) return
+	const first = focusable[0]
+	const last = focusable[focusable.length - 1]
+	if (event.shiftKey && document.activeElement === first) {
+		event.preventDefault()
+		last.focus()
+	} else if (!event.shiftKey && document.activeElement === last) {
+		event.preventDefault()
+		first.focus()
+	}
 }
 
 function navigateBack() {
@@ -449,6 +516,10 @@ function updateMotionPreference(e) {
 }
 
 onMounted(() => {
+	if (typeof document !== "undefined") {
+		previousBodyOverflow = document.body.style.overflow
+		document.addEventListener("keydown", handleShellKeydown)
+	}
 	if (typeof window !== "undefined") {
 		mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)")
 		updateMotionPreference()
@@ -458,12 +529,13 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+	if (typeof document !== "undefined") document.removeEventListener("keydown", handleShellKeydown)
 	if (mediaQuery)
 		mediaQuery.removeEventListener?.("change", updateMotionPreference)
 	if (typeof window !== "undefined")
 		window.removeEventListener("resize", handleResize)
 	if (announcementTimer) clearTimeout(announcementTimer)
-	document.body.style.overflow = ""
+	if (typeof document !== "undefined") document.body.style.overflow = previousBodyOverflow
 })
 
 watch(
@@ -480,9 +552,9 @@ defineOptions({ inheritAttrs: false })
 <style scoped>
 .work-shell {
   display: grid;
-  grid-template-columns: var(--dy-sidebar-w, 240px) minmax(0, 1fr);
+  grid-template-columns: var(--dy-sidebar-w, 256px) minmax(0, 1fr);
   min-height: 100dvh;
-  background: var(--dy-bg);
+  background: radial-gradient(ellipse at 92% 0%, color-mix(in srgb, var(--dy-primary-soft) 54%, transparent), transparent 34rem), var(--dy-bg);
   color: var(--dy-text);
   font-family: var(--dy-font-ui);
   font-size: var(--dy-text-base);
@@ -518,8 +590,9 @@ defineOptions({ inheritAttrs: false })
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  background: var(--dy-surface);
+  background: color-mix(in srgb, var(--dy-surface) 96%, var(--dy-primary-soft));
   border-inline-end: 1px solid var(--dy-border);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--dy-border) 28%, transparent);
   z-index: 40;
 }
 .work-shell__nav-header {
@@ -550,7 +623,7 @@ defineOptions({ inheritAttrs: false })
 .work-shell__nav-items { list-style: none; margin: 0; padding: 0; }
 .work-shell__nav-item { margin: 0 0 var(--dy-space-1); }
 .work-shell__nav-link {
-  min-height: var(--dy-nav-item-h, 40px);
+  min-height: max(44px, var(--dy-nav-item-h, 44px));
   display: flex;
   align-items: center;
   gap: var(--dy-space-3);
@@ -652,8 +725,10 @@ defineOptions({ inheritAttrs: false })
   align-items: center;
   gap: var(--dy-space-4);
   padding-inline: var(--dy-space-5);
-  background: var(--dy-surface);
+  background: color-mix(in srgb, var(--dy-surface) 94%, transparent);
   border-block-end: 1px solid var(--dy-border);
+  box-shadow: 0 4px 18px rgb(15 23 42 / 0.035);
+  backdrop-filter: blur(14px);
   position: sticky;
   inset-block-start: 0;
   z-index: 30;
@@ -683,7 +758,7 @@ defineOptions({ inheritAttrs: false })
 }
 .work-shell__subtitle { margin: var(--dy-space-1) 0 0; color: var(--dy-text-secondary); font-size: var(--dy-text-xs); }
 .work-shell__toolbar {
-  min-height: var(--dy-toolbar-h, 48px);
+  min-height: var(--dy-toolbar-h, 52px);
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -708,8 +783,17 @@ defineOptions({ inheritAttrs: false })
 .work-shell__status-bar--warning { background: var(--dy-warning-soft); color: var(--dy-warning); }
 .work-shell__status-bar--error { background: var(--dy-danger-soft); color: var(--dy-danger); }
 .work-shell__status-close { width: 32px; height: 32px; border-radius: var(--dy-radius-sm); }
-.work-shell__content { flex: 1; min-height: 0; overflow: auto; padding: var(--dy-content-padding, 24px); }
+.work-shell__content { flex: 1; min-height: 0; overflow: auto; padding: clamp(16px, 2.2vw, 32px); scrollbar-gutter: stable; }
+.work-shell__content > * { min-width: 0; }
 .work-shell__content--no-padding { padding: 0; }
+.work-shell__menu-strip { min-width: 0; position: relative; z-index: 25; }
+.work-shell__status-strip { min-width: 0; position: relative; z-index: 10; }
+.work-shell__menu-strip :deep(.work-menu-strip) { border-block-start: 0; }
+.work-shell__content { scrollbar-width: thin; scrollbar-color: var(--dy-border-strong, var(--dy-border)) transparent; }
+.work-shell__content::-webkit-scrollbar, .work-shell__nav::-webkit-scrollbar { width: 8px; height: 8px; }
+.work-shell__content::-webkit-scrollbar-track, .work-shell__nav::-webkit-scrollbar-track { background: transparent; }
+.work-shell__content::-webkit-scrollbar-thumb, .work-shell__nav::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: var(--dy-border-strong, var(--dy-border)); background-clip: padding-box; }
+.work-shell__content::-webkit-scrollbar-thumb:hover, .work-shell__nav::-webkit-scrollbar-thumb:hover { background: var(--dy-text-muted); background-clip: padding-box; }
 @media (max-width: 1023px) {
   .work-shell { grid-template-columns: 1fr; }
   .work-shell__nav { position: fixed; inset-block: 0; inset-inline-start: 0; width: min(280px, 88vw); }
@@ -718,11 +802,15 @@ defineOptions({ inheritAttrs: false })
   .work-shell__header { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); padding-inline: var(--dy-space-4); }
 }
 @media (max-width: 640px) {
-  .work-shell__header { min-height: var(--dy-header-h-mobile, 56px); gap: var(--dy-space-2); padding-inline: var(--dy-space-3); }
-  .work-shell__title { font-size: var(--dy-text-lg); }
+  .work-shell__header { min-height: 56px; grid-template-columns: minmax(0, 1fr) auto; gap: var(--dy-space-2); padding: 10px var(--dy-space-3); }
+  .work-shell__header-left { grid-column: 1; grid-row: 1; }
+  .work-shell__header-center { grid-column: 1 / -1; grid-row: 2; text-align: start; padding-block-end: 4px; }
+  .work-shell__header-right { grid-column: 2; grid-row: 1; }
+  .work-shell__title { font-size: var(--dy-text-lg); white-space: normal; }
   .work-shell__subtitle { display: none; }
+  .work-shell__breadcrumbs { min-width: 0; max-width: 45vw; overflow: hidden; }
   .work-shell__toolbar { padding-inline: var(--dy-space-3); }
-  .work-shell__content { padding: var(--dy-space-4); }
+  .work-shell__content { padding: 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .work-shell__nav--mobile,

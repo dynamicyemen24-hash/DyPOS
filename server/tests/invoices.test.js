@@ -10,6 +10,7 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert';
 import http from 'node:http';
 import { once } from 'node:events';
+import { db } from '../db/schema.js';
 
 // Import app AFTER env vars are set by tests/setup.js
 import { app } from '../server.js';
@@ -49,8 +50,8 @@ before(async () => {
 
 after(() => server.close());
 
-async function req(method, path, body, tok) {
-	const headers = { 'Content-Type': 'application/json' };
+async function req(method, path, body, tok, extraHeaders = {}) {
+	const headers = { 'Content-Type': 'application/json', ...extraHeaders };
 	if (tok) headers.Authorization = `Bearer ${tok}`;
 	const res = await fetch(`http://localhost:${port}${path}`, {
 		method,
@@ -176,5 +177,43 @@ describe('Invoices — pay (atomicity regression)', () => {
 
 		const dup = await req('POST', `/api/invoices/${unpaidId}/pay`, { method: 'CASH', amount: 5 }, token);
 		assert.strictEqual(dup.status, 400);
+	});
+});
+
+
+describe('Invoices — return workflow (E2E)', () => {
+	it('restores stock once when a full-return request is replayed', async () => {
+		const created = await req('POST', '/api/invoices', { items: [{ productId, qty: 1 }] }, token);
+		assert.strictEqual(created.status, 201);
+		const invoiceId = created.body.invoiceId;
+		const line = db.prepare('SELECT product_id, warehouse_id, qty FROM invoice_items WHERE invoice_id=?').get(invoiceId);
+		assert.ok(line);
+		const warehouseId = line.warehouse_id || 'W-01';
+		const readStock = () => db.prepare(
+			'SELECT qty FROM stock_levels WHERE product_id=? AND warehouse_id=?',
+		).get(line.product_id, warehouseId)?.qty;
+		const stockAfterSale = readStock();
+		assert.notStrictEqual(stockAfterSale, undefined);
+
+		const key = `return-e2e-${Date.now()}`;
+		const headers = { 'x-idempotency-key': key };
+		const returned = await req(
+			'POST', `/api/invoices/${invoiceId}/return`, { reason: 'E2E return' }, token, headers,
+		);
+		assert.strictEqual(returned.status, 200);
+		assert.strictEqual(returned.body.status, 'RETURNED');
+		const stockAfterReturn = readStock();
+		assert.strictEqual(Number(stockAfterReturn), Number(stockAfterSale) + Number(line.qty));
+
+		const replay = await req(
+			'POST', `/api/invoices/${invoiceId}/return`, { reason: 'E2E return' }, token, headers,
+		);
+		assert.strictEqual(replay.status, 200);
+		assert.strictEqual(replay.body.deduped, true);
+		assert.strictEqual(Number(readStock()), Number(stockAfterReturn));
+
+		const persisted = await req('GET', `/api/invoices/${invoiceId}`, null, token);
+		assert.strictEqual(persisted.status, 200);
+		assert.strictEqual(persisted.body.status, 'RETURNED');
 	});
 });

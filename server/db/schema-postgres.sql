@@ -43,11 +43,9 @@ CREATE INDEX IF NOT EXISTS idx_products_active_cat ON products(is_active, catego
 -- "1001". Postgres needs no table rebuild here — the constraint is on the
 -- column, so the narrower index replaces it outright.
 CREATE INDEX IF NOT EXISTS idx_products_code ON products(code);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_products_tenant_code ON products(tenant_id, code);
 -- …and the unbound half. In Postgres a NULL in a unique index is also distinct,
 -- so legacy (tenant_id IS NULL) rows need their own partial unique index or
 -- duplicate codes sail through.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_products_null_tenant_code ON products(code) WHERE tenant_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_products_name_active ON products(is_active, name);
 
 CREATE TABLE IF NOT EXISTS customers (
@@ -134,12 +132,8 @@ CREATE TABLE IF NOT EXISTS invoices (
 -- Invoice number is unique PER TENANT, not globally (v36). Tenancy added
 -- tenant_id after this index existed; a global unique made a second shop —
 -- which also numbers from 1 — fail with a constraint error.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_number ON invoices(tenant_id, number);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_null_tenant_number ON invoices(number) WHERE tenant_id IS NULL;
 -- Idempotency key likewise: a cross-tenant collision could return one tenant's
 -- invoice to another's retry.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_idem ON invoices(tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
-CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_idem ON invoices(tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
 CREATE INDEX IF NOT EXISTS idx_invoices_shift ON invoices(shift_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
 CREATE INDEX IF NOT EXISTS idx_invoices_created ON invoices(created_at);
@@ -210,8 +204,6 @@ CREATE TABLE IF NOT EXISTS coupons (
 CREATE INDEX IF NOT EXISTS idx_coupons_code ON coupons(code);
 -- Coupon code is unique PER TENANT (v36) — a discount is money, and two shops
 -- running the same promotion code is the normal case, not a collision.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_coupons_tenant_code ON coupons(tenant_id, code);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_coupons_null_tenant_code ON coupons(code) WHERE tenant_id IS NULL;
 
 CREATE TABLE IF NOT EXISTS loyalty_transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -261,6 +253,16 @@ CREATE INDEX IF NOT EXISTS idx_sync_tenant ON sync_log(tenant_id, status, id);
 -- Rows written before v29 keep branch_id NULL and stay visible to every
 -- scope of their tenant (legacy passthrough, same rule as tenant_id).
 ALTER TABLE sync_log ADD COLUMN IF NOT EXISTS branch_id TEXT;
+
+-- v39: sync idempotency must be unique per tenant/branch and preserve legacy null scope.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_tenant_branch_idem
+  ON sync_log(tenant_id, branch_id, idempotency_key)
+  WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_null_scope_idem
+  ON sync_log(idempotency_key)
+  WHERE tenant_id IS NULL AND branch_id IS NULL
+    AND idempotency_key IS NOT NULL AND idempotency_key <> '';
+
 CREATE INDEX IF NOT EXISTS idx_sync_tenant_branch ON sync_log(tenant_id, branch_id, status, id);
 CREATE INDEX IF NOT EXISTS idx_sync_pull ON sync_log(status, id, entity_type);
 INSERT INTO schema_version (version, description) VALUES (29, 'sync_log branch scope (multi-branch pull + cursor)') ON CONFLICT DO NOTHING;
@@ -513,6 +515,8 @@ CREATE TABLE IF NOT EXISTS audit_trail (
 CREATE INDEX IF NOT EXISTS idx_trail_entity ON audit_trail(entity_type, entity_id, id);
 CREATE INDEX IF NOT EXISTS idx_trail_tenant ON audit_trail(tenant_id, created_at DESC);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS tenant_id UUID;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_products_tenant_code ON products(tenant_id, code);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_products_null_tenant_code ON products(code) WHERE tenant_id IS NULL;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS created_by TEXT;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS updated_by TEXT;
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS tenant_id UUID;
@@ -522,6 +526,37 @@ ALTER TABLE invoices ADD COLUMN IF NOT EXISTS tenant_id UUID;
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS branch_id UUID;
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS created_by TEXT;
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS updated_by TEXT;
+
+-- v40: branch-aware invoice uniqueness; match the SQLite partial unique indexes.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_branch_number
+  ON invoices(tenant_id, branch_id, number)
+  WHERE tenant_id IS NOT NULL AND branch_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_std_number
+  ON invoices(tenant_id, number)
+  WHERE tenant_id IS NOT NULL AND branch_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_null_branch_number
+  ON invoices(branch_id, number)
+  WHERE tenant_id IS NULL AND branch_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_null_scope_number
+  ON invoices(number)
+  WHERE tenant_id IS NULL AND branch_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_branch_idem
+  ON invoices(tenant_id, branch_id, idempotency_key)
+  WHERE tenant_id IS NOT NULL AND branch_id IS NOT NULL
+    AND idempotency_key IS NOT NULL AND idempotency_key <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_std_idem
+  ON invoices(tenant_id, idempotency_key)
+  WHERE tenant_id IS NOT NULL AND branch_id IS NULL
+    AND idempotency_key IS NOT NULL AND idempotency_key <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_null_branch_idem
+  ON invoices(branch_id, idempotency_key)
+  WHERE tenant_id IS NULL AND branch_id IS NOT NULL
+    AND idempotency_key IS NOT NULL AND idempotency_key <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_null_scope_idem
+  ON invoices(idempotency_key)
+  WHERE tenant_id IS NULL AND branch_id IS NULL
+    AND idempotency_key IS NOT NULL AND idempotency_key <> '';
+
 ALTER TABLE shifts ADD COLUMN IF NOT EXISTS tenant_id UUID;
 ALTER TABLE shifts ADD COLUMN IF NOT EXISTS branch_id UUID;
 ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS tenant_id UUID;
@@ -881,6 +916,8 @@ INSERT INTO schema_version (version, description) VALUES (22, 'partial returns: 
 -- ── v23: promotions plane tenant isolation (offers + coupons) ──
 ALTER TABLE offers ADD COLUMN IF NOT EXISTS tenant_id TEXT;
 ALTER TABLE coupons ADD COLUMN IF NOT EXISTS tenant_id TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_coupons_tenant_code ON coupons(tenant_id, code);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_coupons_null_tenant_code ON coupons(code) WHERE tenant_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_offers_tenant ON offers(tenant_id, is_active);
 CREATE INDEX IF NOT EXISTS idx_coupons_tenant ON coupons(tenant_id, is_active);
 INSERT INTO schema_version (version, description) VALUES (23, 'offers + coupons tenant isolation') ON CONFLICT DO NOTHING;
@@ -4010,7 +4047,6 @@ COMMIT;
 --    tables by tenant/date. Do this only after measuring actual workload and
 --    query plans.
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_null_tenant_idem ON invoices(idempotency_key) WHERE tenant_id IS NULL AND idempotency_key IS NOT NULL AND idempotency_key <> '';
 
 -- ============================================================================
 -- v33 — QUEUE MANAGEMENT (نظام الطوابير)
@@ -4208,7 +4244,7 @@ CREATE TABLE IF NOT EXISTS opening_balance_template_lines (
   direction TEXT NOT NULL, default_amount TEXT NOT NULL DEFAULT '0', name TEXT NOT NULL, name_ar TEXT NOT NULL DEFAULT '',
   PRIMARY KEY(template_code,account_code)
 );
-CREATE TABLE IF NOT EXISTS onboarding_templates (
+CREATE TABLE IF NOT EXISTS activity_onboarding_templates (
   activity_code TEXT NOT NULL REFERENCES business_activities(code), country_code TEXT NOT NULL DEFAULT '',
   template_version INTEGER NOT NULL DEFAULT 1, config_json TEXT NOT NULL DEFAULT '{}',
   is_active BOOLEAN NOT NULL DEFAULT TRUE, PRIMARY KEY(activity_code,country_code)
@@ -4220,4 +4256,4 @@ CREATE INDEX IF NOT EXISTS idx_business_activities_sector ON business_activities
 CREATE INDEX IF NOT EXISTS idx_activity_classes_activity ON activity_product_classes(activity_code,is_active);
 CREATE INDEX IF NOT EXISTS idx_activity_services_activity ON activity_services(activity_code,is_active);
 CREATE INDEX IF NOT EXISTS idx_ref_enum_name ON ref_enum_values(enum_name,is_active,sort_order);
-CREATE INDEX IF NOT EXISTS idx_onboarding_country ON onboarding_templates(country_code,is_active);
+CREATE INDEX IF NOT EXISTS idx_activity_onboarding_country ON activity_onboarding_templates(country_code,is_active);

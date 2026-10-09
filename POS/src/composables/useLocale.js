@@ -88,7 +88,16 @@ function getCachedAllowedLocales() {
 	try {
 		const cached = localStorage.getItem(ALLOWED_LOCALES_KEY)
 		if (cached) {
-			return JSON.parse(cached)
+			const parsed = JSON.parse(cached)
+			if (!Array.isArray(parsed)) {
+				log.warn("Cached allowed locales must be an array")
+				return null
+			}
+
+			// Treat cache as untrusted input; ignore unknown/non-string locale codes.
+			return [...new Set(parsed.filter(
+				(code) => typeof code === "string" && SUPPORTED_LOCALES[code],
+			))]
 		}
 	} catch (error) {
 		log.warn("Failed to parse cached allowed locales", error)
@@ -128,10 +137,18 @@ async function fetchLanguageFromServer() {
  * @returns {string} Language code
  */
 function detectCachedLanguage() {
-	// 1. Explicit in-app switch (persisted when the user used the language switcher)
-	const stored = localStorage.getItem(PREFARED_LANGUAGE_KEY)
-	if (stored && SUPPORTED_LOCALES[stored]) {
-		return stored
+	// Storage is optional: browsers may disable it in private/embedded contexts.
+	// Never let a persistence failure prevent the app from starting in Arabic.
+	try {
+		const stored =
+			typeof localStorage !== "undefined"
+				? localStorage.getItem(PREFARED_LANGUAGE_KEY)
+				: null
+		if (stored && SUPPORTED_LOCALES[stored]) {
+			return stored
+		}
+	} catch (error) {
+		log.warn("Could not read saved language preference", error)
 	}
 
 	// 2. POS Settings default locale (cached) - organization-level preference
@@ -263,22 +280,32 @@ export function useLocale() {
 		currentLocale.value = newLocale
 		currentDir.value = config.dir
 
-		// Update document attributes
-		document.documentElement.setAttribute("dir", config.dir)
-		document.documentElement.setAttribute("lang", newLocale)
+		// Update document attributes when running in a browser. Locale state
+		// must remain usable in SSR, tests and embedded/non-DOM environments.
+		if (typeof document !== "undefined") {
+			const root = document.documentElement
+			root.setAttribute("dir", config.dir)
+			root.setAttribute("lang", newLocale)
 
-		// Toggle RTL class for CSS
-		if (config.dir === "rtl") {
-			document.documentElement.classList.add("rtl")
-		} else {
-			document.documentElement.classList.remove("rtl")
+			if (config.dir === "rtl") root.classList.add("rtl")
+			else root.classList.remove("rtl")
 		}
 
-		// Store preference in localStorage
-		localStorage.setItem(PREFARED_LANGUAGE_KEY, newLocale)
+		// Persistence is best-effort: private browsing, storage policies or a
+		// quota error must not abort the language switch or translation refresh.
+		try {
+			if (typeof localStorage !== "undefined") {
+				localStorage.setItem(PREFARED_LANGUAGE_KEY, newLocale)
+			}
+		} catch (error) {
+			log.warn(
+				"Could not persist language preference; keeping it for this session",
+				error,
+			)
+		}
 
-		// Language preference is local-first (localStorage). A future sync
-		// layer may propagate it; it must never block the switch.
+		// Language preference is local-first. A future sync layer may propagate
+		// it; network availability must never block the direction/locale switch.
 
 		// Fetch new translations dynamically (no page reload needed)
 		// The API returns translations based on the user's current language setting
