@@ -55,6 +55,17 @@
 				</Button>
 			</div>
 
+				<SyncRecoveryPanel
+					v-if="failedRows.length > 0"
+					:items="recoveryItems"
+					:busy-ids="recoveryBusyIds"
+					:action-errors="recoveryActionErrors"
+					title="عمليات مزامنة تحتاج إلى معالجة"
+					empty-message="لا توجد عمليات فاشلة"
+					@retry="retryCanonicalOperation"
+					@review="reviewCanonicalOperation"
+				/>
+
 			<!-- Linkage & automation — المتغيرات العامة التي يحددها المستخدم.
 				ترتيب الخبير: الوضع أولًا، ثم المفتاح الرئيسي، ثم المحركات،
 				ثم قطع الربط. لا شيء هنا يعمل وحده دون ضغطة أو تفعيل. -->
@@ -414,11 +425,14 @@
 
 <script setup>
 import { Button, Dialog } from "dypos-ui"
+import { SyncRecoveryPanel } from "@/components/work"
 import { computed, onMounted, onUnmounted, ref, watch } from "vue"
 
 import { usePOSSyncStore } from "@/stores/posSync"
 import { getOfflineInvoices } from "@/utils/offline/sync"
 import OfflineStore from "@/services/offline-store"
+import db from "@/services/db"
+import { authState } from "@/services/sync-auth"
 import { runSyncCycleSilently, getSyncStatus } from "@/services/sync-manager"
 import { getEffectiveToken } from "@/services/sync-auth"
 import {
@@ -497,6 +511,67 @@ const failedRows = computed(() =>
 		(row) => row.source === "canonical" && row.queueStatus === "failed",
 	),
 )
+
+const recoveryBusyIds = ref([])
+const recoveryActionErrors = ref({})
+const recoveryItems = computed(() =>
+	failedRows.value.map((row) => {
+		const needsReview = /ناقص الحقول|بيانات .* ناقصة|LOCAL_VALIDATION_FAILED|MISSING_REQUIRED_DATA/i.test(String(row.lastError || ""))
+		return {
+			...row,
+			status: "FAILED",
+			error: row.lastError || "تعذّرت مزامنة العملية.",
+			recovery: {
+				title: "تعذّرت مزامنة العملية",
+				message: row.lastError || "تحقق من سبب الفشل ثم أعد المحاولة.",
+				retryable: !needsReview,
+				nextAction: needsReview ? "REVIEW" : "RETRY",
+			},
+		}
+	})
+)
+
+async function retryCanonicalOperation(context) {
+	const rawId = Number(String(context?.id || "").replace("sync-", ""))
+	if (!Number.isSafeInteger(rawId) || rawId <= 0) return
+	const key = String(context.id)
+	if (recoveryBusyIds.value.includes(key)) return
+	const activeTenant = authState.tenantId == null ? "" : String(authState.tenantId)
+	if (!activeTenant) {
+		recoveryActionErrors.value = { ...recoveryActionErrors.value, [key]: "سجّل الدخول وتأكد من هوية المشترك قبل إعادة المحاولة." }
+		return
+	}
+	recoveryBusyIds.value = [...recoveryBusyIds.value, key]
+	try {
+		const stored = await db.syncQueue.get(rawId)
+		if (!stored || String(stored.tenantId || "") !== activeTenant || stored.status !== "failed") {
+			throw new Error("لم تعد العملية متاحة لهذا المشترك؛ حدّث القائمة.")
+		}
+		const reopened = await OfflineStore.retryFailed(rawId)
+		if (!reopened) throw new Error("تعذّر إعادة فتح العملية الفاشلة.")
+		await runSyncCycleSilently()
+		const updated = await db.syncQueue.get(rawId)
+		if (updated?.status === "failed") throw new Error(updated.lastError || "ما زالت العملية فاشلة؛ راجع تفاصيلها.")
+		const nextErrors = { ...recoveryActionErrors.value }
+		delete nextErrors[key]
+		recoveryActionErrors.value = nextErrors
+		await loadPending()
+	} catch (error) {
+		recoveryActionErrors.value = { ...recoveryActionErrors.value, [key]: String(error?.message || error).slice(0, 240) }
+		await loadPending()
+	} finally {
+		recoveryBusyIds.value = recoveryBusyIds.value.filter((id) => id !== key)
+	}
+}
+
+function reviewCanonicalOperation(context) {
+	const key = String(context?.id || "")
+	recoveryActionErrors.value = {
+		...recoveryActionErrors.value,
+		[key]: context?.recovery?.message || context?.item?.lastError || "هذه العملية تحتاج مراجعة بياناتها قبل إعادة المحاولة.",
+	}
+}
+
 
 async function retryFailedRows() {
 	if (posSync.isOffline || syncing.value || failedRows.value.length === 0)
@@ -785,6 +860,9 @@ async function loadPending() {
 					source: "canonical",
 					queueStatus: row.status,
 					entityType: row.entityType,
+					lastError: row.lastError || "",
+					payload: row.payload,
+					tenantId: row.tenantId,
 				}
 			})
 		pending.value = [...(legacy || []), ...mapped].sort(
