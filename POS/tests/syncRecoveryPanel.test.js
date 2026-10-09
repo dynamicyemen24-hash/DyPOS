@@ -55,6 +55,27 @@ describe("operator sync recovery panel", () => {
     expect(wrapper.emitted("retry")).toBeUndefined()
   })
 
+
+  it("opens review for a non-retryable unsupported operation instead of retrying it", async () => {
+    const item = {
+      id: "unknown-42",
+      status: "FAILED",
+      recovery: {
+        code: "UNSUPPORTED_OR_INVALID_OPERATION",
+        title: "راجع العملية",
+        message: "نوع العملية غير مدعوم.",
+        nextAction: "REVIEW_AND_RETRY",
+        retryable: false,
+      },
+    }
+    const wrapper = mount(SyncRecoveryPanel, { props: { items: [item] }, global: { stubs } })
+    const button = wrapper.findAll("button").find(el => el.text().includes("مراجعة العملية"))
+    expect(button).toBeTruthy()
+    await button.trigger("click")
+    expect(wrapper.emitted("review")?.[0][0].id).toBe("unknown-42")
+    expect(wrapper.emitted("retry")).toBeUndefined()
+  })
+
   it("provides a clear empty state when there are no failed operations", () => {
     const wrapper = mount(SyncRecoveryPanel, { props: { items: [{ id: "ok", status: "SYNCED" }] }, global: { stubs } })
     expect(wrapper.text()).toContain("لا توجد عمليات معلّقة للمعالجة")
