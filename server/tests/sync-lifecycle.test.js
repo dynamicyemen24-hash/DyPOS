@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { once } from 'node:events';
 import { app } from '../server.js';
+import { db } from '../db/schema.js';
 
 let server;
 let port;
@@ -71,6 +72,45 @@ describe('Sync lifecycle (HTTP E2E)', () => {
 
     const invalidOperations = await req('POST', '/api/sync/push', { operations: 'not-an-array' });
     assert.equal(invalidOperations.status, 400);
+  });
+
+  it('isolates batch failures and persists valid catalog changes', async () => {
+    const productId = `sync-product-${Date.now()}`;
+    const pushed = await req('POST', '/api/sync/push', {
+      changes: [
+        {
+          id: `bad-product-${Date.now()}`,
+          entity_type: 'PRODUCT',
+          action: 'UPSERT',
+          payload: JSON.stringify({ id: 'invalid-product', name: 'Missing code' }),
+        },
+        {
+          id: `good-product-${Date.now()}`,
+          entity_type: 'PRODUCT',
+          action: 'UPSERT',
+          payload: JSON.stringify({
+            id: productId,
+            code: productId,
+            name: 'Synced catalog item',
+            unitPrice: 12.5,
+            cost: 4,
+            isActive: true,
+          }),
+        },
+      ],
+    });
+
+    assert.equal(pushed.status, 200, JSON.stringify(pushed.body));
+    assert.equal(pushed.body.failed, 1);
+    assert.equal(pushed.body.synced, 1);
+    assert.equal(pushed.body.results[0].status, 'FAILED');
+    assert.equal(pushed.body.results[1].status, 'SYNCED');
+
+    const product = db.prepare('SELECT id, code, name, unit_price FROM products WHERE id=?').get(productId);
+    assert.ok(product);
+    assert.equal(product.code, productId);
+    assert.equal(product.name, 'Synced catalog item');
+    assert.equal(product.unit_price, 12.5);
   });
 
   it('never reports an offline invoice as synced before the invoice core is supported', async () => {
