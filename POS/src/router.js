@@ -315,7 +315,7 @@ const routes = [
 	},
 
 	/**
-	 * الكاشير الذاتي — شاشة مستقلة تمامًا.
+	 * الكاشير الذاتي — مسار عام مستقل من شاشة الدخول، بلا لوحة الموظف.
 	 *
 	 * لا `requiresOpenShift`: الكشك لا يفتح وردية ولا ينهيها، والفاتورة
 	 * تُقفل على نفسها (رقم محلي `SC-…` + طابور). ربطها بالوردية كان
@@ -332,9 +332,6 @@ const routes = [
 		// مباشرة هنا كان سيترك `index.js` بلا مستورد = شجرة ميتة.
 		component: () =>
 			import("@/components/selfCheckout").then((m) => m.SelfCheckoutScreen),
-		meta: {
-			[ROUTE_META.requiresAuth]: true,
-		},
 	},
 
 	/**
