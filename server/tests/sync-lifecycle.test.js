@@ -133,7 +133,10 @@ describe('Sync lifecycle (HTTP E2E)', () => {
     assert.equal(repaired.body.synced, 1);
     assert.equal(repaired.body.results[0].status, 'SYNCED');
     const repairedProduct = db.prepare('SELECT id, code, name FROM products WHERE id=?').get('invalid-product');
-    assert.deepEqual(repairedProduct, { id: 'invalid-product', code: 'FIXED-CODE', name: 'Repaired catalog item' });
+    assert.ok(repairedProduct);
+    assert.equal(repairedProduct.id, 'invalid-product');
+    assert.equal(repairedProduct.code, 'FIXED-CODE');
+    assert.equal(repairedProduct.name, 'Repaired catalog item');
   });
 
   it('rolls back partial side effects when a stock operation fails', async () => {
