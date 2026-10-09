@@ -449,3 +449,13 @@
   scroll-behavior: auto !important;
   transition-duration: 0.01ms !important;
 }
+
+
+.self-checkout__login-link {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 42px;
+  padding: 0 12px; border: 1px solid var(--sc-border, #dbe3ee);
+  border-radius: 10px; color: var(--sc-text, #334155); text-decoration: none;
+  font-size: 12px; font-weight: 700; background: var(--sc-surface, #fff);
+}
+.self-checkout__login-link:hover { background: var(--sc-surface-muted, #f8fafc); }
+.self-checkout__login-link:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
