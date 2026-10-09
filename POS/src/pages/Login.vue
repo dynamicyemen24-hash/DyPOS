@@ -738,7 +738,22 @@ watch(
 			</span>
 		</section>
 
-		 <!-- Initial Loading Skeleton -->
+		 		<!-- مسار مستقل للعميل، منفصل عن مساحة الموظفين. -->
+		<section class="dy-login__self-checkout" aria-labelledby="dy-login-self-checkout-title">
+			<div class="dy-login__self-checkout-icon" aria-hidden="true">
+				<FeatherIcon name="shopping-bag" :size="23" />
+			</div>
+			<div class="dy-login__self-checkout-copy">
+				<h2 id="dy-login-self-checkout-title">{{ __('الكاشير الذكي / الذاتي') }}</h2>
+				<p>{{ __('مسار مستقل للعملاء لاختيار الأصناف وإتمام الشراء دون الدخول إلى لوحة الموظفين.') }}</p>
+			</div>
+			<RouterLink :to="{ name: 'SelfCheckout' }" class="dy-login__self-checkout-link">
+				{{ __('بدء التسوق') }}
+				<FeatherIcon name="arrow-left" :size="17" aria-hidden="true" />
+			</RouterLink>
+		</section>
+
+<!-- Initial Loading Skeleton -->
         <section v-if="isInitialLoading" class="dy-login__panel" aria-busy="true" :aria-label="__('جاري التحميل')">
             <div class="dy-login__panel-inner">
                 <SkeletonLoader :count="3" variant="card" />
