@@ -40,3 +40,27 @@ The sync API must help an operator repair a failed record instead of treating
 Each pushed item is wrapped in a database savepoint. A failed item rolls back
 its own partial writes while independent valid items in the same batch can
 commit. Corrected records can then be re-submitted individually.
+
+## Shared operator UI
+
+The reusable Vue surface is `@/components/work/SyncRecoveryPanel` (also
+exported from `@/components/work`). Pass the per-item `results` returned by
+the push endpoint as `items`, plus identifiers currently being processed as
+`busyIds`.
+
+It emits intent rather than silently mutating local data:
+
+- `repair({ id, item, recovery })`: open an editor for that record, preserve
+  the payload, and resubmit only after the operator confirms the corrected
+  values.
+- `retry({ id, item, recovery })`: retry the selected record; use the same
+  idempotency key for transport retries.
+- `open-resource({ id, item, recovery })`: route to the required catalog or
+  invoice workflow. Preserve the pending operation until the caller confirms
+  it has been resolved.
+- `dismiss`: reserved for host-level queue dismissal policies; dismissal must
+  never delete a pending operation.
+
+The host screen owns persistence, navigation and the actual API request. This
+keeps the component safe to reuse and avoids claiming a repair succeeded before
+the server confirms it.
