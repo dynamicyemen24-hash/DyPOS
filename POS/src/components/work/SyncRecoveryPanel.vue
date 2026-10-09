@@ -19,11 +19,6 @@ const actionLabel = recovery => ({
   RETRY: "إعادة المحاولة",
   REVIEW_AND_RETRY: "مراجعة العملية",
 }[recovery?.nextAction] || "مراجعة الخطأ")
-const actionEvent = recovery => {
-  if (["EDIT_PAYLOAD_AND_RETRY", "FIX_PAYLOAD_AND_RETRY"].includes(recovery?.nextAction)) return "repair"
-  if (["CREATE_OR_SYNC_PRODUCT_FIRST", "OPEN_ONLINE_INVOICE_FLOW"].includes(recovery?.nextAction)) return "open-resource"
-  return "retry"
-}
 const actionPayload = item => ({ id: item.id, item, recovery: item.recovery || {} })
 </script>
 
