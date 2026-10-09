@@ -433,3 +433,19 @@
   .self-checkout__search input { min-block-size: 50px; font-size: .94rem; }
   .self-checkout__smart-hint { padding: 11px 13px; font-size: .86rem; }
 }
+
+
+/* Device-level kiosk preferences */
+.self-checkout[data-touch-density="large"] .self-checkout__product,
+.self-checkout[data-touch-density="large"] .self-checkout__remove,
+.self-checkout[data-touch-density="large"] .self-checkout__method {
+  min-height: 58px;
+}
+.self-checkout[data-reduce-motion="true"] *,
+.self-checkout[data-reduce-motion="true"] *::before,
+.self-checkout[data-reduce-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0.01ms !important;
+}
