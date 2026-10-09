@@ -45,10 +45,28 @@ record is saved as `PENDING`; the host still controls when to send it again.
 The helper preserves the record ID and idempotency key and does not invent a
 local database schema.
 
-This helper is orchestration, not a substitute for connecting it to the actual
-outbox and routes in a host screen. The integration must use the app's existing
-persistence/API adapters and be exercised in an isolated offline/online E2E test
-before being treated as release-ready.
+The recovery panel is now mounted in `POS/src/components/sale/SyncCenterDialog.vue`
+and reads failed operations from the canonical `db.syncQueue` outbox. The host
+integration intentionally supports **review** and **retry** for this queue; it
+does not pretend to provide field-level repair or resource navigation until
+those flows are connected to the real record editors.
+
+The integrated path:
+- filters canonical queue entries to the currently authenticated tenant before
+  displaying them;
+- rechecks tenant ownership and the `failed` state inside a read-write
+  transaction before reopening a record;
+- requires explicit linkage and an effective auth token before sending;
+- preserves the queue entry and its idempotency data while reopening it for the
+  existing sync manager; and
+- reports a retry as successful only after rereading the same queue entry and
+  confirming its status is `synced`. If transport or sync processing fails,
+  the error remains visible even if the queue status changed.
+
+The shared `useSyncRecovery` helper remains available for hosts with an
+appropriate per-record persistence adapter. Before release, exercise the
+integrated dialog in an isolated offline/online E2E test, including a tenant
+switch, a network failure, and a retry that does not reach `synced`.
 
 ## Recovery response contract
 
