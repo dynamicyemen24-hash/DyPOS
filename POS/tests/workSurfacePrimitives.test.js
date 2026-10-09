@@ -61,7 +61,10 @@ describe("standard work-surface primitives", () => {
     const wrapper = mount(WorkToolbar, {
       props: {
         ariaLabel: "إجراءات السجلات",
-        overflowActions: [{ id: "export", label: "تصدير", handler: runExport }],
+        overflowActions: [
+          { id: "export", label: "تصدير", handler: runExport },
+          { id: "print", label: "طباعة", handler: vi.fn() },
+        ],
       },
       attachTo: document.body,
       global: { stubs },
@@ -72,6 +75,10 @@ describe("standard work-surface primitives", () => {
     expect(wrapper.html()).toContain("work-toolbar__row--center")
     await trigger.trigger("click")
     expect(trigger.attributes("aria-expanded")).toBe("true")
+    const menuItems = wrapper.findAll(".work-toolbar__overflow-item")
+    expect(document.activeElement).toBe(menuItems[0].element)
+    await menuItems[0].trigger("keydown", { key: "ArrowDown" })
+    expect(document.activeElement).toBe(menuItems[1].element)
     await wrapper.find(".work-toolbar__overflow-menu").trigger("keydown", { key: "Escape" })
     expect(trigger.attributes("aria-expanded")).toBe("false")
     expect(document.activeElement).toBe(trigger.element)
