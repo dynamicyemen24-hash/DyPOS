@@ -547,8 +547,20 @@ async function retryCanonicalOperation(context) {
 		if (!stored || String(stored.tenantId || "") !== activeTenant || stored.status !== "failed") {
 			throw new Error("لم تعد العملية متاحة لهذا المشترك؛ حدّث القائمة.")
 		}
-		const reopened = await OfflineStore.retryFailed(rawId)
-		if (!reopened) throw new Error("تعذّر إعادة فتح العملية الفاشلة.")
+		const reopened = await db.transaction("rw", db.syncQueue, async () => {
+			const currentTenant = authState.tenantId == null ? "" : String(authState.tenantId)
+			const current = await db.syncQueue.get(rawId)
+			if (!current || !currentTenant || String(current.tenantId || "") !== currentTenant || current.status !== "failed") return false
+			await db.syncQueue.update(rawId, {
+				status: "pending",
+				dead: null,
+				attemptCount: 0,
+				nextRetryAt: null,
+				lastError: null,
+			})
+			return true
+		})
+		if (!reopened) throw new Error("تعذّر إعادة فتح العملية الفاشلة لهذا المشترك.")
 		await runSyncCycleSilently()
 		const updated = await db.syncQueue.get(rawId)
 		if (updated?.status === "failed") throw new Error(updated.lastError || "ما زالت العملية فاشلة؛ راجع تفاصيلها.")
