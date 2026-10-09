@@ -60,6 +60,7 @@
 							:disabled="!canBrowse"
 							placeholder="ابحث بالاسم أو امسح الباركود ثم اضغط Enter…"
 							aria-label="البحث عن المنتجات"
+							@keydown.enter.prevent="submitSearch"
 						/>
 						<button v-if="searchQuery" type="button" class="self-checkout__search-clear" aria-label="مسح البحث" @click="searchQuery = ''">
 							<FeatherIcon name="x" aria-hidden="true" />
@@ -368,7 +369,7 @@
  * عرض فقط: كل الحالة في `useSelfCheckoutSession` وكل الحساب في
  * `selfCheckoutState`. لا `fetch` هنا — الشاشة تعمل بلا شبكة.
  */
-import { computed, onMounted, ref } from "vue"
+import { computed, onMounted, onUnmounted, ref, watch } from "vue"
 import { FeatherIcon } from "dypos-ui"
 
 import { ActionButton } from "dypos-ui"
@@ -441,6 +442,7 @@ const paymentMethods = computed(() => PAYMENT_METHODS.filter((option) => option.
 
 // بحث فوري محلي: لا طلبات شبكة ولا إرسال لعبارات العميل إلى أي خدمة.
 const searchQuery = ref("")
+let idleResetTimer = null
 const normalizedSearch = computed(() =>
 	searchQuery.value.trim().toLocaleLowerCase("ar").normalize("NFKC"),
 )
@@ -509,6 +511,44 @@ function onPick(product) {
 	addItem(product, 1)
 }
 
+/** قارئ الباركود يكتب الرمز ثم يرسل Enter؛ لا نضيف إلا عند تطابق دقيق. */
+function submitSearch() {
+	if (!canBrowse.value) return
+	const query = normalizedSearch.value
+	if (!query) return
+	const exactMatch = catalog.value.find((product) =>
+		[String(product.id ?? ""), String(product.code ?? ""), String(product.sku ?? ""), String(product.barcode ?? "")]
+			.some((field) => field.toLocaleLowerCase("ar").normalize("NFKC") === query),
+	)
+	if (!exactMatch) return
+	onPick(exactMatch)
+	searchQuery.value = ""
+}
+
+/** مسح السلة بعد الخمول يمنع كشف طلب العميل السابق على جهاز مشترك. */
+function clearIdleResetTimer() {
+	if (idleResetTimer !== null) {
+		window.clearTimeout(idleResetTimer)
+		idleResetTimer = null
+	}
+}
+
+function scheduleIdleReset() {
+	clearIdleResetTimer()
+	const seconds = Number(preferences.value.idleTimeoutSeconds)
+	if (!preferences.value.enabled || !isOpen.value || !Number.isFinite(seconds) || seconds <= 0) return
+	idleResetTimer = window.setTimeout(() => {
+		if (isOpen.value) {
+			cancel()
+			searchQuery.value = ""
+		}
+	}, seconds * 1000)
+}
+
+function onCustomerActivity() {
+	if (isOpen.value) scheduleIdleReset()
+}
+
 function onIncrement(line) {
 	changeQty(line.productId, line.qty + 1)
 }
@@ -543,6 +583,11 @@ function pressKey(key) {
  * الكاشير الذاتي بيع أي شيء. `startSession` هي ما يفتح الجلسة، فصار نداءها
  * جزءًا من التركيب لا خطوة اختيارية.
  */
+watch(isOpen, (open) => {
+	if (open) scheduleIdleReset()
+	else clearIdleResetTimer()
+})
+
 onMounted(async () => {
 	try {
 		const saved = localStorage.getItem(SETTINGS_KEY)
@@ -552,6 +597,17 @@ onMounted(async () => {
 	}
 	if (preferences.value.enabled) startSession()
 	await loadCatalog()
+	window.addEventListener("pointerdown", onCustomerActivity, { passive: true })
+	window.addEventListener("keydown", onCustomerActivity)
+	window.addEventListener("touchstart", onCustomerActivity, { passive: true })
+	scheduleIdleReset()
+})
+
+onUnmounted(() => {
+	clearIdleResetTimer()
+	window.removeEventListener("pointerdown", onCustomerActivity)
+	window.removeEventListener("keydown", onCustomerActivity)
+	window.removeEventListener("touchstart", onCustomerActivity)
 })
 </script>
 
