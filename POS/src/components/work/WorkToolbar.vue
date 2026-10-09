@@ -146,13 +146,18 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* SAP Fiori-inspired workbench: quiet surfaces, clear hierarchy, minimal chrome. */
 .work-toolbar {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, min(34vw, 440px)) minmax(0, 1fr);
+  grid-template-areas: "start center end";
+  align-items: center;
   gap: 12px;
+  min-width: 0;
   padding: 12px 24px;
-  border-bottom: 1px solid var(--dy-border, #e2e8f0);
-  background: #fff;
+  border-block-end: 1px solid var(--dy-border, #d9d9d9);
+  background: var(--dy-surface, #fff);
+  color: var(--dy-text, #1d2d3e);
 }
 .work-toolbar--compact { padding: 8px 16px; gap: 8px; }
 .work-toolbar--dense { gap: 8px; }
@@ -161,11 +166,17 @@ onUnmounted(() => {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
-.work-toolbar__row--start { justify-content: flex-start; }
-.work-toolbar__row--center { justify-content: center; }
-.work-toolbar__row--end { justify-content: flex-end; }
-.work-toolbar__overflow { display: none; position: relative; }
+.work-toolbar__row--start { grid-area: start; justify-content: flex-start; }
+.work-toolbar__row--center { grid-area: center; justify-content: center; }
+.work-toolbar__row--end { grid-area: end; justify-content: flex-end; }
+.work-toolbar__overflow { display: none; position: relative; justify-self: end; }
+.work-toolbar :deep(:is(button, [role="button"], input, select, a):focus-visible) {
+  outline: 2px solid var(--dy-color-fiori-blue, #0066c4);
+  outline-offset: 2px;
+}
+.work-toolbar :deep(:is(button, input, select)) { max-width: 100%; }
 
 /* Overflow button */
 .work-toolbar__overflow-btn {
@@ -175,26 +186,29 @@ onUnmounted(() => {
   width: 44px;
   min-width: 44px;
   height: 44px;
-  border: 0;
-  border-radius: 10px;
+  border: 1px solid transparent;
+  border-radius: 4px;
   background: transparent;
-  color: var(--dy-text-muted, #64748b);
+  color: var(--dy-text-muted, #526579);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
 }
-.work-toolbar__overflow-btn:hover { background: var(--dy-bg-hover, #f1f5f9); color: var(--dy-text, #0f172a); }
-.work-toolbar__overflow-btn:focus-visible { outline: 2px solid var(--dy-primary, #059669); outline-offset: 2px; }
+.work-toolbar__overflow-btn:hover { background: var(--dy-bg-hover, #f2f4f5); border-color: var(--dy-border, #d9d9d9); }
+.work-toolbar__overflow-btn:focus-visible { outline: 2px solid var(--dy-color-fiori-blue, #0066c4); outline-offset: 2px; }
 
-/* Overflow menu */
+/* Menu surface and menu items */
 .work-toolbar__overflow-menu {
   position: absolute;
   inset-inline-end: 0;
   top: calc(100% + 4px);
   z-index: 50;
-  min-width: 180px;
+  min-width: 200px;
+  max-width: min(320px, calc(100vw - 32px));
   padding: 4px;
-  border: 1px solid var(--dy-border, #e2e8f0);
-  border-radius: 10px;
-  background: #fff;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  border: 1px solid var(--dy-border, #d9d9d9);
+  border-radius: 6px;
+  background: var(--dy-surface, #fff);
+  box-shadow: 0 4px 16px rgb(29 45 62 / 16%);
 }
 .work-toolbar__overflow-item {
   display: flex;
@@ -203,38 +217,53 @@ onUnmounted(() => {
   width: 100%;
   min-height: 44px;
   padding: 10px 12px;
-  border: 0;
-  border-radius: 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
   background: transparent;
-  color: var(--dy-text, #334155);
+  color: var(--dy-text, #1d2d3e);
   font-size: 13px;
   font-weight: 500;
   text-align: start;
   cursor: pointer;
 }
-.work-toolbar__overflow-item:hover:not(:disabled) { background: var(--dy-bg-hover, #f1f5f9); }
-.work-toolbar__overflow-item:focus-visible { outline: 2px solid var(--dy-primary, #059669); outline-offset: -2px; }
+.work-toolbar__overflow-item:hover:not(:disabled) { background: var(--dy-bg-hover, #f2f4f5); }
+.work-toolbar__overflow-item:focus-visible { outline: 2px solid var(--dy-color-fiori-blue, #0066c4); outline-offset: -2px; }
 .work-toolbar__overflow-item:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* Transitions */
+/* Motion is decorative only and may be disabled by the user. */
 .work-toolbar-fade-enter-active,
-.work-toolbar-fade-leave-active { transition: opacity 0.15s ease, transform 0.15s ease; }
+.work-toolbar-fade-leave-active { transition: opacity 120ms ease, transform 120ms ease; }
 .work-toolbar-fade-enter-from,
-.work-toolbar-fade-leave-to { opacity: 0; transform: translateY(-4px); }
+.work-toolbar-fade-leave-to { opacity: 0; transform: translateY(-3px); }
 
-/* Responsive: stacked on mobile */
 @media (max-width: 768px) {
-  .work-toolbar__row--center { order: 3; width: 100%; }
-  .work-toolbar__overflow { display: flex; }
+  .work-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "start overflow" "center center" "end end";
+    gap: 8px;
+    padding: 10px 16px;
+  }
+  .work-toolbar__row--center { width: 100%; justify-content: stretch; }
+  .work-toolbar__row--end { justify-content: flex-start; }
+  .work-toolbar__overflow { display: flex; grid-area: overflow; }
 }
 @media (max-width: 640px) {
-  .work-toolbar { padding: 8px 16px; }
+  .work-toolbar { padding: 8px 12px; }
   .work-toolbar__row { gap: 6px; }
+  .work-toolbar__row--start,
+  .work-toolbar__row--end { align-items: stretch; }
 }
 @media (prefers-reduced-motion: reduce) {
   .work-toolbar__overflow-btn,
-  .work-toolbar__overflow-item { transition: none; }
+  .work-toolbar__overflow-item,
   .work-toolbar-fade-enter-active,
   .work-toolbar-fade-leave-active { transition: none; }
+}
+@media (forced-colors: active) {
+  .work-toolbar,
+  .work-toolbar__overflow-menu,
+  .work-toolbar__overflow-item { border-color: CanvasText; }
+  .work-toolbar__overflow-btn:focus-visible,
+  .work-toolbar__overflow-item:focus-visible { outline-color: Highlight; }
 }
 </style>
