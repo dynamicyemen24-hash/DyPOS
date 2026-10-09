@@ -580,15 +580,25 @@ async function retryFailedRows() {
 	syncError.value = ""
 	try {
 		let reopened = 0
+		const activeTenant = authState.tenantId == null ? "" : String(authState.tenantId)
+		if (!activeTenant) throw new Error("هوية المشترك غير متاحة؛ سجّل الدخول قبل إعادة المحاولة.")
 		for (const row of failedRows.value) {
 			const id = Number(String(row.id).replace("sync-", ""))
-			if (Number.isFinite(id)) {
-				try {
-					if (await OfflineStore.retryFailed(id)) reopened += 1
-				} catch {
-					/* one bad row never blocks the rest */
-				}
+			if (!Number.isSafeInteger(id) || id <= 0) continue
+			try {
+				const changed = await db.transaction("rw", db.syncQueue, async () => {
+					const current = await db.syncQueue.get(id)
+					if (!current || current.status !== "failed" || String(current.tenantId || "") !== String(authState.tenantId || "")) return false
+					await db.syncQueue.update(id, { status: "pending", dead: null, attemptCount: 0, nextRetryAt: null, lastError: null })
+					return true
+				})
+				if (changed) reopened += 1
+			} catch {
+				/* one bad row never blocks the rest */
 			}
+		}
+		if (reopened > 0 && isLinkEnabled() && getEffectiveToken()) {
+			try { await runSyncCycleSilently() } catch (error) { syncError.value = String(error?.message || error).slice(0, 200) }
 		}
 		await loadPending()
 		syncNote.value =
@@ -837,8 +847,9 @@ async function loadPending() {
 			getOfflineInvoices(activeId.value === LOCAL_ID ? null : activeId.value),
 			OfflineStore.openOperations(),
 		])
+		const activeTenant = authState.tenantId == null ? "" : String(authState.tenantId)
 		const mapped = (canonical || [])
-			.filter((row) => row && row.status !== "synced")
+			.filter((row) => row && row.status !== "synced" && activeTenant && String(row.tenantId || "") === activeTenant)
 			.map((row) => {
 				const payload = row.payload || {}
 				const customer =
