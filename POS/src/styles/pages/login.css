@@ -907,3 +907,24 @@
     width: 100%;
   }
 }
+
+
+/* Independent customer checkout entry point on the login surface */
+.dy-login__self-checkout {
+  width: min(100% - 32px, 760px); margin:18px auto 0; display:grid;
+  grid-template-columns:48px minmax(0,1fr) auto; align-items:center; gap:15px;
+  padding:17px 19px; border:1px solid #bfdbfe; border-radius:18px;
+  background:linear-gradient(115deg,#eff6ff 0%,#fff 75%);
+  box-shadow:0 8px 24px rgb(30 64 175 / 6%); text-align:start;
+}
+.dy-login__self-checkout-icon { display:grid; place-items:center; width:48px; height:48px; border-radius:14px; background:#dbeafe; color:#1d4ed8; }
+.dy-login__self-checkout-copy h2 { margin:0; color:#172b4d; font-size:15px; font-weight:800; }
+.dy-login__self-checkout-copy p { margin:5px 0 0; color:#64748b; font-size:12px; line-height:1.65; }
+.dy-login__self-checkout-link { display:inline-flex; align-items:center; justify-content:center; gap:9px; min-height:44px; padding:0 15px; border:1px solid #1d4ed8; border-radius:11px; background:#2563eb; color:#fff; font-size:12px; font-weight:800; text-decoration:none; white-space:nowrap; }
+.dy-login__self-checkout-link:hover { background:#1d4ed8; }
+.dy-login__self-checkout-link:focus-visible { outline:3px solid #93c5fd; outline-offset:3px; }
+@media (max-width:600px) {
+ .dy-login__self-checkout { grid-template-columns:42px minmax(0,1fr); gap:12px; padding:14px; }
+ .dy-login__self-checkout-icon { width:42px; height:42px; }
+ .dy-login__self-checkout-link { grid-column:1 / -1; width:100%; }
+}
