@@ -76,6 +76,18 @@ describe("operator sync recovery panel", () => {
     expect(wrapper.emitted("retry")).toBeUndefined()
   })
 
+
+  it("announces host-side recovery errors beside the affected record", () => {
+    const wrapper = mount(SyncRecoveryPanel, {
+      props: {
+        items: [{ id: "p-error", status: "FAILED", recovery: { retryable: true } }],
+        actionErrors: { "p-error": "تعذّر الاتصال؛ بقي السجل محفوظًا." },
+      },
+      global: { stubs },
+    })
+    expect(wrapper.find('[role="alert"]').text()).toContain("بقي السجل محفوظًا")
+  })
+
   it("provides a clear empty state when there are no failed operations", () => {
     const wrapper = mount(SyncRecoveryPanel, { props: { items: [{ id: "ok", status: "SYNCED" }] }, global: { stubs } })
     expect(wrapper.text()).toContain("لا توجد عمليات معلّقة للمعالجة")
