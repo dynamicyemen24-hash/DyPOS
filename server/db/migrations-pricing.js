@@ -11,7 +11,7 @@
  * - Min/max price guards
  * - Rounding rules
  */
-export function migratePricing(db, addColumnIfMissing, { version = 53, description = 'pricing engine' } = {}) {
+export function migratePricing(db, _addColumnIfMissing, { version = 53, description = 'pricing engine' } = {}) {
 	db.exec(`
     -- Price Lists
     CREATE TABLE IF NOT EXISTS price_lists (

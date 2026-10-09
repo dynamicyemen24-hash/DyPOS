@@ -4,7 +4,11 @@
  * Global reference data: countries with ISO codes, phone codes, default currency,
  * timezone, date/number formats. Single source for all tenants.
  */
-export function migrateCountries(db, addColumnIfMissing, { version = 42, description = 'countries (ISO 3166-1)' } = {}) {
+export function migrateCountries(
+	db,
+	_addColumnIfMissing,
+	{ version = 42, description = 'countries (ISO 3166-1)' } = {},
+) {
 	db.exec(`
     CREATE TABLE IF NOT EXISTS countries (
       id TEXT PRIMARY KEY,                 -- ISO 3166-1 alpha-2 (e.g., 'YE', 'SA')

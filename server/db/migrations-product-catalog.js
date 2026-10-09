@@ -14,7 +14,11 @@
  * - Kits/BOMs (composite products)
  * - Raw materials & recipes (for restaurants)
  */
-export function migrateProductCatalog(db, addColumnIfMissing, { version = 52, description = 'professional product catalog' } = {}) {
+export function migrateProductCatalog(
+	db,
+	addColumnIfMissing,
+	{ version = 52, description = 'professional product catalog' } = {},
+) {
 	db.exec(`
     -- Brands
     CREATE TABLE IF NOT EXISTS brands (
@@ -83,12 +87,12 @@ export function migrateProductCatalog(db, addColumnIfMissing, { version = 52, de
 	// EXISTS would silently skip it and every catalog index below would then
 	// fail on a missing column — so the catalog rung is added IN PLACE.
 	const productCatalogColumns = [
-		["name_en", "TEXT NOT NULL DEFAULT ''"],
-		["description_ar", "TEXT DEFAULT ''"],
-		["description_en", "TEXT DEFAULT ''"],
+		['name_en', "TEXT NOT NULL DEFAULT ''"],
+		['description_ar', "TEXT DEFAULT ''"],
+		['description_en', "TEXT DEFAULT ''"],
 		['category_id', 'TEXT REFERENCES categories(id)'],
 		['brand_id', 'TEXT REFERENCES brands(id)'],
-		["product_type", "TEXT NOT NULL DEFAULT 'simple'"],
+		['product_type', "TEXT NOT NULL DEFAULT 'simple'"],
 		['uom_id', 'TEXT REFERENCES units_of_measure(id)'],
 		['sale_uom_id', 'TEXT REFERENCES units_of_measure(id)'],
 		['purchase_uom_id', 'TEXT REFERENCES units_of_measure(id)'],
@@ -103,7 +107,7 @@ export function migrateProductCatalog(db, addColumnIfMissing, { version = 52, de
 		['min_stock_level', 'REAL DEFAULT 0'],
 		['max_stock_level', 'REAL DEFAULT 0'],
 		['reorder_qty', 'REAL DEFAULT 0'],
-		["valuation_method", "TEXT NOT NULL DEFAULT 'fifo'"],
+		['valuation_method', "TEXT NOT NULL DEFAULT 'fifo'"],
 		['standard_cost', 'REAL DEFAULT 0'],
 		['track_batch', 'INTEGER NOT NULL DEFAULT 0'],
 		['track_serial', 'INTEGER NOT NULL DEFAULT 0'],
@@ -113,12 +117,12 @@ export function migrateProductCatalog(db, addColumnIfMissing, { version = 52, de
 		['is_sellable', 'INTEGER NOT NULL DEFAULT 1'],
 		['is_purchasable', 'INTEGER NOT NULL DEFAULT 1'],
 		['is_manufacturable', 'INTEGER NOT NULL DEFAULT 0'],
-		["image_url", "TEXT DEFAULT ''"],
-		["images_json", "TEXT DEFAULT '[]'"],
-		["tags_json", "TEXT DEFAULT '[]'"],
-		["attributes_json", "TEXT DEFAULT '{}'"],
-		["variant_config_json", "TEXT DEFAULT '{}'"],
-		["metadata_json", "TEXT DEFAULT '{}'"],
+		['image_url', "TEXT DEFAULT ''"],
+		['images_json', "TEXT DEFAULT '[]'"],
+		['tags_json', "TEXT DEFAULT '[]'"],
+		['attributes_json', "TEXT DEFAULT '{}'"],
+		['variant_config_json', "TEXT DEFAULT '{}'"],
+		['metadata_json', "TEXT DEFAULT '{}'"],
 	];
 	for (const [col, ddl] of productCatalogColumns) addColumnIfMissing('products', col, ddl);
 

@@ -18,10 +18,6 @@
  * a database holding someone else's data may not. That is the line the guard
  * exists to draw, and it is drawn by TENANT, not by table.
  */
-import { existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 // The tenant this seed writes. Re-running against it is safe; running against
 // any other tenant's data is the refusal.
 const ROYAL_TENANT_ID = '00000000-0000-0000-0000-000000000001';

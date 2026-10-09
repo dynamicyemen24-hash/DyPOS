@@ -4,7 +4,7 @@
  * Tax types, rates, and rules per country. Supports inclusive/exclusive,
  * multiple tax types per country, and tenant overrides.
  */
-export function migrateTaxes(db, addColumnIfMissing, { version = 49, description = 'tax master data' } = {}) {
+export function migrateTaxes(db, _addColumnIfMissing, { version = 49, description = 'tax master data' } = {}) {
 	db.exec(`
     CREATE TABLE IF NOT EXISTS tax_types (
       id TEXT PRIMARY KEY,

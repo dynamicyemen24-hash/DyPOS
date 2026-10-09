@@ -3,7 +3,7 @@
  *
  * Global language reference with direction, locale codes, and display names.
  */
-export function migrateLanguages(db, addColumnIfMissing, { version = 45, description = 'languages (ISO 639)' } = {}) {
+export function migrateLanguages(db, _addColumnIfMissing, { version = 45, description = 'languages (ISO 639)' } = {}) {
 	db.exec(`
     CREATE TABLE IF NOT EXISTS languages (
       code TEXT PRIMARY KEY,              -- ISO 639-1 (e.g., 'ar', 'en') or 639-3

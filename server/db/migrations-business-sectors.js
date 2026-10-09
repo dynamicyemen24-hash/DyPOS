@@ -4,7 +4,11 @@
  * Top-level industry classification (ISIC-like but POS-focused).
  * Sectors → Activities → Sub-activities.
  */
-export function migrateBusinessSectors(db, addColumnIfMissing, { version = 47, description = 'business sectors (hierarchical)' } = {}) {
+export function migrateBusinessSectors(
+	db,
+	_addColumnIfMissing,
+	{ version = 47, description = 'business sectors (hierarchical)' } = {},
+) {
 	// v41 (the origin/main foundation) already created a flat `business_sectors`
 	// — same table name, incompatible shape (code PK, name, name_ar; no id).
 	// Rebuild it into the canonical id-keyed hierarchy the doctypes and seeds

@@ -5,11 +5,11 @@
  * accounting/fiscal-year data belongs to the separate accounting product.
  */
 export function migrateOperationalOnboarding(db, addColumnIfMissing) {
-  // v37 can be retried after a deferred/partial upgrade; schema changes must be idempotent.
-  addColumnIfMissing('organizations', 'country_code', "TEXT NOT NULL DEFAULT 'YE'");
-  addColumnIfMissing('organizations', 'timezone', "TEXT NOT NULL DEFAULT 'Asia/Aden'");
-  addColumnIfMissing('organizations', 'establishment_type', "TEXT NOT NULL DEFAULT 'retail'");
-  db.exec(`
+	// v37 can be retried after a deferred/partial upgrade; schema changes must be idempotent.
+	addColumnIfMissing('organizations', 'country_code', "TEXT NOT NULL DEFAULT 'YE'");
+	addColumnIfMissing('organizations', 'timezone', "TEXT NOT NULL DEFAULT 'Asia/Aden'");
+	addColumnIfMissing('organizations', 'establishment_type', "TEXT NOT NULL DEFAULT 'retail'");
+	db.exec(`
     CREATE TABLE IF NOT EXISTS onboarding_templates (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,
@@ -25,8 +25,8 @@ export function migrateOperationalOnboarding(db, addColumnIfMissing) {
     CREATE INDEX IF NOT EXISTS idx_onboarding_templates_tenant
       ON onboarding_templates(tenant_id, data_type, is_active);
   `);
-  db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)').run(
-    37,
-    'POS operational onboarding profile + saved import templates',
-  );
+	db.prepare('INSERT OR REPLACE INTO schema_version (version, description) VALUES (?, ?)').run(
+		37,
+		'POS operational onboarding profile + saved import templates',
+	);
 }

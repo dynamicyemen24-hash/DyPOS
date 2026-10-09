@@ -59,6 +59,7 @@
 				<button
 					type="button"
 					class="dy-login__link-button"
+					:disabled="busy"
 					@click="$emit('cancel-setup')"
 					:aria-label="__('إلغاء إعداد رمز PIN')"
 				>
@@ -94,6 +95,7 @@
 				<button
 					type="button"
 					class="dy-login__link-button"
+					:disabled="busy"
 					@click="$emit('exit')"
 				>
 					{{ __('استخدام كلمة المرور') }}
@@ -221,3 +223,107 @@ async function submitSetup() {
 	emit("authenticated", "pin_setup")
 }
 </script>
+
+<style scoped>
+/*
+ * أنماط النموذج داخل المكوّن — لا في `login.css`.
+ *
+ * الصفحة تُحمِّل `login.css` عبر `<style scoped src>`، فنطاقه أبناء
+ * Login.vue وحدهم ولا يعبر Vue scoped إلى داخل مكوّن أبنٍ (إلا جذرّه).
+ * الاستخراج إلى هنا (1.44.7) ترك الحقول والمدخلات بلا أنماط، ثم حذف
+ * `LoginPinQuickActions.vue` (6170073) أذاق `.dy-login__link-button` —
+ * بما فيها حالة `:disabled` — نفس المصير لأن أنماطه كانت مع المكوّن.
+ *
+ * النسخ هنا ليس تكرارًا عشوائيًا: عقد `designTokens.test.js` يبحث في
+ * الملفين معًا عمدًا، لأن الصفحة لا تصل إلى هذه العناصر إطلاقًا.
+ */
+
+.dy-login__field {
+	display: grid;
+	gap: 6px;
+	min-width: 0;
+}
+
+.dy-login__label {
+	color: var(--dy-text-strong);
+	font-size: .77rem;
+	font-weight: 740;
+}
+
+.dy-login__input {
+	min-width: 0;
+	width: 100%;
+	height: 50px;
+	padding: 0;
+	border: 0;
+	outline: 0;
+	background: transparent;
+	color: var(--dy-text-strong);
+	font: inherit;
+	font-size: 1rem;
+}
+
+.dy-login__error {
+	display: flex;
+	align-items: flex-start;
+	gap: 9px;
+	margin-block-end: 12px;
+	padding: 10px 11px;
+	border: 1px solid var(--login-soft-line);
+	border-radius: 10px;
+	background: var(--dy-surface-soft);
+	font-size: .76rem;
+}
+
+/*
+ * رابط يسلك كرابط: شفاف بلا حدود، ومسار لمس 44px. WCAG 2.2 AA 2.5.8
+ * يطلب 24px كحدّ أدنى وأرضية النظام نفسه 44px — زر نصّي 0.72rem على
+ * شاشة لمس لا يبلغ ذلك وحده.
+ */
+.dy-login__link-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--dy-space-2);
+
+	min-height: var(--dy-touch-min);
+
+	padding-inline: var(--dy-space-2);
+
+	border: 0;
+	border-radius: var(--dy-radius-sm);
+
+	background: transparent;
+	color: var(--dy-primary);
+	font: inherit;
+	font-size: 0.82rem;
+	font-weight: 700;
+
+	cursor: pointer;
+
+	transition:
+		background-color var(--dy-dur-fast) var(--dy-ease-standard),
+		color var(--dy-dur-fast) var(--dy-ease-standard);
+}
+
+.dy-login__link-button:hover:not(:disabled) {
+	background: var(--dy-surface-hover);
+}
+
+.dy-login__link-button:focus-visible {
+	outline: var(--dy-focus-width) solid var(--dy-focus-color);
+	outline-offset: var(--dy-focus-offset);
+}
+
+.dy-login__link-button:disabled {
+	color: var(--dy-text-muted);
+	cursor: not-allowed;
+	/*
+	 * لا `opacity: var(--dy-disabled-opacity)` هنا.
+	 *
+	 * الرمادي وحده كافٍ (#64748b على #f8fafc = 4.76:1)؛ فإذا ضربه
+	 * عامل شفافية 0.55 مع لونه هبط التباين إلى 2.13:1 — فيبدو الزر
+	 * المعطّل فارغًا لا معطّلًا.
+	 */
+}
+</style>

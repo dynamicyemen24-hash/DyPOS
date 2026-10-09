@@ -45,3 +45,26 @@ const { isReducedMotion } = useReducedMotion()
 
 const retryAfterSeconds = computed(() => Math.ceil(props.retryAfterMs / 1000))
 </script>
+
+<style scoped>
+/*
+ * نسخ من `login.css` (المجموعة المشتركة runtime/rate-limit/error): الصفحة
+ * محمّلة بـ`<style scoped>` ولا يعبر نطاقها إلى داخل هذا المكوّن — الجذر
+ * يصله من login.css، والعناصر الداخلية لا.
+ */
+.dy-login__rate-limit-content {
+	min-width: 0;
+	flex: 1 1 auto;
+	display: grid;
+	gap: 2px;
+	line-height: 1.45;
+	color: var(--dy-text-secondary);
+}
+
+.dy-login__rate-limit-icon {
+	flex: 0 0 auto;
+	display: grid;
+	place-items: center;
+	color: var(--dy-brand);
+}
+</style>

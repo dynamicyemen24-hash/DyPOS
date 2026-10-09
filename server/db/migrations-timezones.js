@@ -3,7 +3,7 @@
  *
  * Global timezone reference with UTC offsets, DST rules, and display names.
  */
-export function migrateTimezones(db, addColumnIfMissing, { version = 46, description = 'timezones (IANA)' } = {}) {
+export function migrateTimezones(db, _addColumnIfMissing, { version = 46, description = 'timezones (IANA)' } = {}) {
 	db.exec(`
     CREATE TABLE IF NOT EXISTS timezones (
       id TEXT PRIMARY KEY,                -- IANA timezone identifier (e.g., 'Asia/Aden')

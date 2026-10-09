@@ -4,7 +4,11 @@
  * Comprehensive UoM master with categories, base units, and conversion factors.
  * Supports sale/purchase/inventory units per product, and activity-specific units.
  */
-export function migrateUnits(db, addColumnIfMissing, { version = 51, description = 'units of measure with conversions' } = {}) {
+export function migrateUnits(
+	db,
+	_addColumnIfMissing,
+	{ version = 51, description = 'units of measure with conversions' } = {},
+) {
 	db.exec(`
     CREATE TABLE IF NOT EXISTS uom_categories (
       id TEXT PRIMARY KEY,

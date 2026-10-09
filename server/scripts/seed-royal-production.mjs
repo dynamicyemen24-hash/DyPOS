@@ -37,9 +37,9 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 // (DYPOS_DB_PATH=… ) instead of the live one.
 const DB_PATH = process.env.DYPOS_DB_PATH || join(HERE, '..', 'data', 'dypos.db');
 const db = new DatabaseSync(DB_PATH);
-let safety;
+let _safety;
 try {
-	safety = assertSafeRoyalDemoSeed(db);
+	_safety = assertSafeRoyalDemoSeed(db);
 } catch (error) {
 	db.close();
 	throw error;

@@ -164,7 +164,9 @@ router.post(
 		}
 		const user = db.prepare('SELECT * FROM users WHERE username=? AND is_active=1').get(clean);
 		if (user && subscriberCode) {
-			const subscriber = db.prepare('SELECT id FROM tenants WHERE code=? AND is_active=1').get(String(subscriberCode).trim().toUpperCase());
+			const subscriber = db
+				.prepare('SELECT id FROM tenants WHERE code=? AND is_active=1')
+				.get(String(subscriberCode).trim().toUpperCase());
 			if (!subscriber || String(subscriber.id) !== String(user.tenant_id || '')) {
 				await recordFail(clean);
 				return res.status(401).json({ error: 'بيانات الدخول أو رمز المشترك غير صحيحة' });
@@ -201,7 +203,10 @@ router.post(
 			/* ignore */
 		}
 		const token = generateToken(user);
-		res.setHeader('Set-Cookie', `dypos_token=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax${isProduction ? '; Secure' : ''}`);
+		res.setHeader(
+			'Set-Cookie',
+			`dypos_token=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax${isProduction ? '; Secure' : ''}`,
+		);
 		req.audit?.('auth.login', { userId: user.id, username: user.username });
 		return res.json({
 			token,
@@ -223,7 +228,10 @@ router.post('/refresh', authMiddleware, (req, res) => {
 	if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
 	if (req.token) revokeToken(req.token);
 	const token = generateToken(user);
-	res.setHeader('Set-Cookie', `dypos_token=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax${isProduction ? '; Secure' : ''}`);
+	res.setHeader(
+		'Set-Cookie',
+		`dypos_token=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax${isProduction ? '; Secure' : ''}`,
+	);
 	req.audit?.('auth.refresh', { userId: user.id });
 	return res.json({
 		token,
@@ -330,7 +338,10 @@ router.post(
 // POST /api/auth/logout — revoke current token
 router.post('/logout', authMiddleware, (req, res) => {
 	if (req.token) revokeToken(req.token);
-	res.setHeader('Set-Cookie', `dypos_token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${isProduction ? '; Secure' : ''}`);
+	res.setHeader(
+		'Set-Cookie',
+		`dypos_token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${isProduction ? '; Secure' : ''}`,
+	);
 	req.audit?.('auth.logout', {});
 	return res.json({ revoked: true });
 });

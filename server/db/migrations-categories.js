@@ -4,7 +4,11 @@
  * Hierarchical categories for products and services. Supports global templates
  * and tenant-specific overrides with inheritance.
  */
-export function migrateCategories(db, addColumnIfMissing, { version = 48, description = 'product/service categories (hierarchical)' } = {}) {
+export function migrateCategories(
+	db,
+	_addColumnIfMissing,
+	{ version = 48, description = 'product/service categories (hierarchical)' } = {},
+) {
 	db.exec(`
     CREATE TABLE IF NOT EXISTS categories (
       id TEXT PRIMARY KEY,

@@ -9,7 +9,11 @@
  * - Return reasons for purchases
  * - Supplier documents and certifications
  */
-export function migratePurchasing(db, addColumnIfMissing, { version = 55, description = 'purchasing & suppliers' } = {}) {
+export function migratePurchasing(
+	db,
+	_addColumnIfMissing,
+	{ version = 55, description = 'purchasing & suppliers' } = {},
+) {
 	db.exec(`
     -- Supplier Types
     CREATE TABLE IF NOT EXISTS supplier_types (

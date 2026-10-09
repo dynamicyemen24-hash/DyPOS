@@ -286,4 +286,30 @@ function clearErrorAndFocus() {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/*
+ * القواعد الشريكة في `login.css` لا تصل إلى داخل هذا المكوّن: الصفحة
+ * تحمّله بـ`<style scoped src>` ونطاق Vue scoped يبقى عند الجذر (البطاقة
+ * `.dy-login__error` تعمل) ولا يعبر إلى الأبناء. النسخ من login.css —
+ * نفس منطق "البحث في الملفين معًا" في designTokens.
+ */
+.dy-login__error-content {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: grid;
+  gap: 2px;
+  line-height: 1.45;
+  color: var(--dy-text-secondary);
+}
+
+.dy-login__error-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--dy-brand);
+}
+
+.dy-login__error-close {
+  flex: 0 0 auto;
+}
 </style>

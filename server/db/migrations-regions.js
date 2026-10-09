@@ -4,7 +4,11 @@
  * Hierarchical geographic data under countries. Flexible depth: not all
  * countries use the same subdivision structure.
  */
-export function migrateRegions(db, addColumnIfMissing, { version = 43, description = 'regions (states/provinces/governorates)' } = {}) {
+export function migrateRegions(
+	db,
+	_addColumnIfMissing,
+	{ version = 43, description = 'regions (states/provinces/governorates)' } = {},
+) {
 	db.exec(`
     CREATE TABLE IF NOT EXISTS regions (
       id TEXT PRIMARY KEY,

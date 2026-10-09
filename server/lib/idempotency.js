@@ -23,7 +23,9 @@ function tableAvailable() {
 export function extractKey(req) {
 	const h = req.headers?.['x-idempotency-key'] || req.headers?.['idempotency-key'];
 	const b = req.body?.idempotencyKey || req.body?.idempotency_key;
-	const raw = String(h || b || '').trim().slice(0, 128);
+	const raw = String(h || b || '')
+		.trim()
+		.slice(0, 128);
 	return raw || null;
 }
 

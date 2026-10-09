@@ -166,7 +166,7 @@ export function migrateInvoiceTenantUniqueness(
 		 * `PRAGMA foreign_keys` cannot be changed from inside a transaction, so
 		 * the toggle happens around the transaction, not inside it.
 		 */
-		const fkWasOn = db.prepare('PRAGMA foreign_keys').get()['foreign_keys'] === 1;
+		const fkWasOn = db.prepare('PRAGMA foreign_keys').get().foreign_keys === 1;
 		if (fkWasOn) db.exec('PRAGMA foreign_keys = OFF');
 
 		db.exec('BEGIN');

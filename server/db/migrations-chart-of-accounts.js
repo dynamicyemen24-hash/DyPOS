@@ -6,7 +6,11 @@
  * - Tenant-specific overrides with inheritance
  * - Account types: asset, liability, equity, revenue, expense, cost
  */
-export function migrateChartOfAccounts(db, addColumnIfMissing, { version = 50, description = 'chart of accounts templates' } = {}) {
+export function migrateChartOfAccounts(
+	db,
+	_addColumnIfMissing,
+	{ version = 50, description = 'chart of accounts templates' } = {},
+) {
 	// v41 (the origin/main foundation) already created a flat `account_templates`
 	// — same table name, incompatible shape (code PK; no id, no account_type).
 	// Rebuild it into the canonical id-keyed template the doctypes and seeds

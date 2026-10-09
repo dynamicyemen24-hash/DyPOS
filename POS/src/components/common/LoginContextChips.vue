@@ -44,3 +44,27 @@ defineProps({
 	show: { type: Boolean, default: false },
 })
 </script>
+
+<style scoped>
+/*
+ * نسخ من `login.css` (مجموعة `.dy-login__context-*`): الصفحة محمّلة
+ * بـ`<style scoped>` ولا يعبر نطاقها إلى داخل هذا المكوّن — الجذر
+ * `.dy-login__context` يصله من login.css، والعناصر الداخلية لا.
+ */
+.dy-login__context-item {
+	min-width: 0;
+	display: inline-flex;
+	align-items: baseline;
+	gap: 5px;
+	padding: 5px 8px;
+	border: 1px solid var(--login-soft-line);
+	border-radius: 7px;
+	background: var(--dy-surface-soft);
+}
+
+.dy-login__context-label {
+	color: var(--dy-text-muted);
+	font-size: .66rem;
+	font-weight: 650;
+}
+</style>

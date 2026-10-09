@@ -3,7 +3,11 @@
  *
  * Cities/districts under regions. Supports multiple levels of granularity.
  */
-export function migrateCities(db, addColumnIfMissing, { version = 44, description = 'cities (districts/municipalities)' } = {}) {
+export function migrateCities(
+	db,
+	_addColumnIfMissing,
+	{ version = 44, description = 'cities (districts/municipalities)' } = {},
+) {
 	db.exec(`
     CREATE TABLE IF NOT EXISTS cities (
       id TEXT PRIMARY KEY,

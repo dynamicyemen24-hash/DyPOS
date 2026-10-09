@@ -10,7 +10,11 @@
  * - Sale types (cash, credit, order, quote, layaway, rental)
  * - Sales channels (POS, online, B2B, phone, email)
  */
-export function migrateSalesCustomers(db, addColumnIfMissing, { version = 54, description = 'sales & customers' } = {}) {
+export function migrateSalesCustomers(
+	db,
+	_addColumnIfMissing,
+	{ version = 54, description = 'sales & customers' } = {},
+) {
 	db.exec(`
     -- Customer Types
     CREATE TABLE IF NOT EXISTS customer_types (
