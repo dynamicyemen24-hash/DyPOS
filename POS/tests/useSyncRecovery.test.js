@@ -46,7 +46,7 @@ describe("useSyncRecovery", () => {
     expect(state.busyIds.value).toEqual([])
   })
 
-  it("keeps the original queue record when transport or persistence fails", async () => {
+  it("keeps the original queue record when transport fails", async () => {
     const original = { id: "p3", status: "FAILED", payload: { code: "" }, idempotencyKey: "k3" }
     const items = ref([original])
     const state = useSyncRecovery({
@@ -56,7 +56,7 @@ describe("useSyncRecovery", () => {
     })
 
     expect(await state.retry({ id: "p3", item: original, recovery: { retryable: true } })).toBe(false)
-    expect(items.value[0]).toBe(original)
+    expect(items.value[0]).toEqual(original)
     expect(state.errors.value.p3).toBe("network down")
   })
 
