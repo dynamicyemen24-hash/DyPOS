@@ -138,6 +138,7 @@ import { Drawer } from "dypos-ui"
 import { ActionButton, FeatherIcon } from "dypos-ui"
 import { flatWorkNav } from "@/components/work/workNav"
 import { WORK_SCREENS, workScreenById } from "@/data/workScreens"
+import { resolveStripActions } from "@/utils/actionDictionary"
 import SyncStatusIndicator from "@/components/pos/SyncStatusIndicator.vue"
 import { useIndustryProfileStore } from "@/stores/industryProfile"
 import { logger } from "@/utils/logger"
@@ -265,35 +266,20 @@ const emptyDescription = computed(() =>
 		: "لا توجد سجلات مطابقة",
 )
 
-/* ── شريط القائمة: إجراءات حقيقية على هذه الشاشة فقط ────────────────── */
+/* ── شريط القائمة: من محرك الإجراءات — نفس الأزرار، والقواعد مختبَرة ── */
 
-const menuItems = computed(() => [
-	{
-		id: "refresh",
-		label: "تحديث",
-		icon: "refresh-cw",
-		disabled: loading.value,
-	},
-	{
-		id: "export",
-		label: "تصدير CSV",
-		icon: "download",
-		shortcut: "ctrl+s",
-		// لا تصدير لما لا قُرئ: صف 0 ليس ملفًا (S1).
-		disabled: rows.value.length === 0,
-	},
-	{
-		id: "print",
-		label: "طباعة",
-		icon: "printer",
-		disabled: rows.value.length === 0,
-	},
-])
+const menuItems = computed(() =>
+	resolveStripActions({
+		loading: loading.value,
+		hasRows: rows.value.length > 0,
+		source: source.value,
+	}),
+)
 
 function onMenuSelect(item) {
-	if (item.id === "refresh") load()
-	else if (item.id === "export") exportCsv()
-	else if (item.id === "print") window.print()
+	if (item.id === "record.refresh") load()
+	else if (item.id === "record.exportCsv") exportCsv()
+	else if (item.id === "record.print") window.print()
 }
 
 function csvCell(value) {

@@ -13,7 +13,7 @@
 import { computed, h, mergeProps } from "vue"
 import feather from "feather-icons"
 
-const ALIASES = {
+export const FEATHER_ALIASES = {
 	"loader-circle": "loader",
 	"check-circle-2": "check-circle",
 	"alert-circle": "alert-circle",
@@ -40,7 +40,7 @@ export default {
 		const icon = computed(() => {
 			const direct = feather.icons[props.name]
 			if (direct) return direct
-			const aliased = ALIASES[props.name]
+			const aliased = FEATHER_ALIASES[props.name]
 			if (aliased && feather.icons[aliased]) return feather.icons[aliased]
 			return feather.icons.circle
 		})

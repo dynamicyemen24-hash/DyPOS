@@ -9,7 +9,7 @@
  *    فعليًا (زر معطّل = لا امتصاص للمفتاح).
  *  - `aria-keyshortcuts` بصيغة W3C + عرض بصري داخل عنصر kbd (aria-hidden).
  *
- * Items: [{ id, label, icon?, shortcut?, disabled?, handler }]
+ * Items: [{ id, label, icon?, shortcut?, disabled?, reason?, handler }]
  * Emits: select(item)
  */
 <template>
@@ -29,6 +29,7 @@
 				:class="{ 'work-menu-strip__item--disabled': item.disabled }"
 				:tabindex="index === focusIndex ? 0 : -1"
 				:disabled="item.disabled"
+				:title="item.reason || undefined"
 				:aria-keyshortcuts="ariaKeyshortcuts(item.shortcut)"
 				:aria-label="item.shortcut ? `${t(item.label)} (${shortcutDisplay(item.shortcut)})` : undefined"
 				@click="run(item)"
@@ -59,7 +60,7 @@ import { ActionButton, FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
 
 const props = defineProps({
-	/** [{ id, label, icon?, shortcut?, disabled?, handler }] */
+	/** [{ id, label, icon?, shortcut?, disabled?, reason?, handler }] */
 	items: { type: Array, default: () => [] },
 	/** aria-label للشريط (عربية). */
 	ariaLabel: { type: String, default: "القائمة الأساسية" },
