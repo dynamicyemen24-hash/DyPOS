@@ -46,16 +46,37 @@
 					جارٍ تحميل الأصناف…
 				</p>
 
+				<div class="self-checkout__discovery">
+					<label class="self-checkout__search">
+						<FeatherIcon name="search" aria-hidden="true" />
+						<input
+							v-model="searchQuery"
+							type="search"
+							autocomplete="off"
+							:disabled="!canBrowse"
+							placeholder="ابحث عن صنف بالاسم أو الرمز…"
+							aria-label="البحث عن المنتجات"
+						/>
+						<button v-if="searchQuery" type="button" class="self-checkout__search-clear" aria-label="مسح البحث" @click="searchQuery = ''">
+							<FeatherIcon name="x" aria-hidden="true" />
+						</button>
+					</label>
+					<div class="self-checkout__smart-hint" role="status" aria-live="polite">
+						<FeatherIcon name="sparkles" aria-hidden="true" />
+						<span>{{ smartHint }}</span>
+					</div>
+				</div>
+
 				<div class="self-checkout__grid">
 					<p
-						v-if="catalog.length === 0 && !loadingCatalog"
+						v-if="filteredCatalog.length === 0 && !loadingCatalog"
 						class="self-checkout__grid-empty"
 					>
-						{{ catalogError || "لا توجد أصناف متاحة للبيع حاليًا" }}
+						{{ searchQuery ? "لم نعثر على صنف مطابق. جرّب اسمًا آخر أو امسح البحث." : (catalogError || "لا توجد أصناف متاحة للبيع حاليًا") }}
 					</p>
 
 					<button
-						v-for="product in catalog"
+						v-for="product in filteredCatalog"
 						:key="product.id"
 						type="button"
 						class="self-checkout__product"
@@ -342,7 +363,7 @@
  * عرض فقط: كل الحالة في `useSelfCheckoutSession` وكل الحساب في
  * `selfCheckoutState`. لا `fetch` هنا — الشاشة تعمل بلا شبكة.
  */
-import { computed, onMounted } from "vue"
+import { computed, onMounted, ref } from "vue"
 import { FeatherIcon } from "dypos-ui"
 
 import { ActionButton } from "dypos-ui"
@@ -395,6 +416,34 @@ const {
 } = useSelfCheckoutSession({ branch: props.branch, terminal: props.terminal })
 
 const paymentMethods = PAYMENT_METHODS
+
+// بحث فوري محلي: لا طلبات شبكة ولا إرسال لعبارات العميل إلى أي خدمة.
+const searchQuery = ref("")
+const normalizedSearch = computed(() =>
+	searchQuery.value.trim().toLocaleLowerCase("ar").normalize("NFKC"),
+)
+const filteredCatalog = computed(() => {
+	const query = normalizedSearch.value
+	if (!query) return catalog.value
+	return catalog.value.filter((product) =>
+		[String(product.name ?? ""), String(product.id ?? ""), String(product.sku ?? ""), String(product.barcode ?? "")]
+			.some((field) => field.toLocaleLowerCase("ar").normalize("NFKC").includes(query)),
+	)
+})
+
+// إرشاد سياقي مبني على حالة السلة الحقيقية؛ لا يدّعي استخدام نموذج ذكاء اصطناعي خارجي.
+const smartHint = computed(() => {
+	if (!canBrowse.value) return "ابدأ الجلسة لتفعيل الأصناف والبحث وإعداد سلتك."
+	if (loadingCatalog.value) return "نجهّز قائمة الأصناف المتاحة للبيع…"
+	if (catalog.length === 0) return "لا توجد أصناف محمّلة حاليًا. استخدم تحديث الأصناف أو اطلب مساعدة الموظف."
+	if (normalizedSearch.value) return filteredCatalog.value.length
+		? `وجدنا ${filteredCatalog.value.length} صنفًا مطابقًا. المس الصنف لإضافته مباشرة.`
+		: "لم يظهر تطابق. جرّب كلمة أقصر أو جزءًا من اسم الصنف."
+	if (isEmpty.value) return "ابدأ بلمس أي صنف. يمكنك تعديل الكمية أو حذف الصنف قبل الدفع."
+	if (itemCount.value === 1) return "تمت إضافة أول صنف. يمكنك زيادة الكمية أو متابعة اختيار بقية الأصناف."
+	if (totals.value?.total > 0) return `أضفت ${itemCount.value} قطعة. راجع الإجمالي ثم اختر «ادفع» عندما تكون جاهزًا.`
+	return "راجع الأصناف والكميات في سلتك؛ الإجمالي يتحدث تلقائيًا."
+})
 
 /** لوحة الأرقام: 1-9 ثم «خلف» و«مسح» و«0». */
 const keypadKeys = Object.freeze([
