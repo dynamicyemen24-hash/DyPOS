@@ -29,7 +29,7 @@
         <label class="sc-settings__toggle"><span><b>البحث الفوري</b><small>البحث بالاسم أو الرمز أو الباركود محليًا</small></span><input v-model="settings.searchEnabled" type="checkbox" /></label>
         <label class="sc-settings__toggle"><span><b>الإرشاد السياقي</b><small>رسائل مساعدة تتغير بحسب السلة وخطوة الشراء</small></span><input v-model="settings.smartGuidance" type="checkbox" /></label>
         <label class="sc-settings__field"><span>مهلة الخمول قبل إعادة الضبط</span><select v-model.number="settings.idleTimeoutSeconds"><option :value="0">معطّلة</option><option :value="60">دقيقة واحدة</option><option :value="120">دقيقتان</option><option :value="180">3 دقائق</option><option :value="300">5 دقائق</option></select></label>
-        <p class="sc-settings__hint">مهلة الخمول تحفظ كتفضيل فقط؛ لن تُنهي جلسة نشطة تلقائيًا قبل تفعيل منطق المهلة واختباره.</p>
+        <p class="sc-settings__hint">عند عدم وجود تفاعل، تُمسح السلة ويعود الجهاز إلى شاشة البداية لحماية بيانات العميل السابق. اختر «معطّلة» لإيقاف إعادة الضبط التلقائية.</p>
       </article>
 
       <article class="sc-settings__card">
