@@ -76,10 +76,11 @@ describe('Sync lifecycle (HTTP E2E)', () => {
 
   it('isolates batch failures and persists valid catalog changes', async () => {
     const productId = `sync-product-${Date.now()}`;
+    const badId = `bad-product-${Date.now()}`;
     const pushed = await req('POST', '/api/sync/push', {
       changes: [
         {
-          id: `bad-product-${Date.now()}`,
+          id: badId,
           entity_type: 'PRODUCT',
           action: 'UPSERT',
           payload: JSON.stringify({ id: 'invalid-product', name: 'Missing code' }),
@@ -116,6 +117,23 @@ describe('Sync lifecycle (HTTP E2E)', () => {
     assert.equal(product.code, productId);
     assert.equal(product.name, 'Synced catalog item');
     assert.equal(product.unit_price, 12.5);
+
+    // Recovery loop: the operator fixes the missing code and retries only the
+    // failed item; the successful sibling from the first batch is not replayed.
+    const repaired = await req('POST', '/api/sync/push', {
+      changes: [{
+        id: badId,
+        entity_type: 'PRODUCT',
+        action: 'UPSERT',
+        payload: JSON.stringify({ id: 'invalid-product', code: 'FIXED-CODE', name: 'Repaired catalog item' }),
+      }],
+    });
+    assert.equal(repaired.status, 200, JSON.stringify(repaired.body));
+    assert.equal(repaired.body.failed, 0);
+    assert.equal(repaired.body.synced, 1);
+    assert.equal(repaired.body.results[0].status, 'SYNCED');
+    const repairedProduct = db.prepare('SELECT id, code, name FROM products WHERE id=?').get('invalid-product');
+    assert.deepEqual(repairedProduct, { id: 'invalid-product', code: 'FIXED-CODE', name: 'Repaired catalog item' });
   });
 
   it('never reports an offline invoice as synced before the invoice core is supported', async () => {
