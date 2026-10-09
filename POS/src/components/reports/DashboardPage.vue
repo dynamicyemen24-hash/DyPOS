@@ -48,7 +48,7 @@
           </div>
         </div>
         <div class="home-hero__identity">
-          <div class="home-hero__mark"><img src="/assets/DyPOSLogo.png" alt="DyPOS" /></div>
+          <div class="home-hero__mark"><img :src="DyPOSLogo" alt="DyPOS" /></div>
           <strong>تشغيل ذكي. بيع أسرع.</strong>
           <span>واجهة عربية RTL مصممة للعمل اليومي.</span>
         </div>

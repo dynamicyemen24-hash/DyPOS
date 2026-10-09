@@ -72,29 +72,15 @@ const timezone = ref("Asia/Aden")
 const establishmentType = ref("retail")
 const agreeToTerms = ref(false)
 
-const establishmentTypes = [
-  { value: "retail", label: "متجر / تجزئة" },
-  { value: "supermarket", label: "سوبر ماركت / بقالة" },
-  { value: "restaurant", label: "مطعم" },
-  { value: "cafe", label: "مقهى / كافيه" },
-  { value: "fast_food", label: "مطاعم سريعة" },
-  { value: "bakery_sweets", label: "حلويات / مخابز" },
-  { value: "beverages", label: "عصائر / مشروبات" },
-  { value: "services", label: "منشأة خدمية" },
-  { value: "multi_branch", label: "منشأة متعددة الفروع" },
-  { value: "integrated", label: "منشأة متكاملة / ربط خارجي" },
-]
-
-const countries = [
-  { code: "YE", name: "اليمن", timezone: "Asia/Aden", currency: "YER" },
-  { code: "SA", name: "السعودية", timezone: "Asia/Riyadh", currency: "SAR" },
-  { code: "AE", name: "الإمارات", timezone: "Asia/Dubai", currency: "AED" },
-  { code: "OM", name: "عُمان", timezone: "Asia/Muscat", currency: "OMR" },
-  { code: "QA", name: "قطر", timezone: "Asia/Qatar", currency: "QAR" },
-  { code: "BH", name: "البحرين", timezone: "Asia/Bahrain", currency: "BHD" },
-  { code: "KW", name: "الكويت", timezone: "Asia/Kuwait", currency: "KWD" },
-  { code: "EG", name: "مصر", timezone: "Africa/Cairo", currency: "EGP" },
-]
+// قوائم التسجيل تقرأ من الخادم (مرجع v53: countries + business_sectors) — لا نسخة
+// مكتوبة هنا. النسخة الثابتة السابقة اختلفت عن قائمة المعالج التي يعيد الخادم،
+// فيُقبل رمز عند التسجيل ثم يُرفض عند حفظ الملف التعريفي، وقائمة الدول توقّفت عند
+// ثماني دول بينما الجدول يضم ثمانية عشر. الفشل في التحميل يُظهر رسالة استعادة
+// (فحص الاتصال + إعادة محاولة) — لا قائمة افتراضية مُختلقة.
+const establishmentTypes = ref([])
+const countries = ref([])
+const metaLoading = ref(false)
+const metaError = ref("")
 
 const isSubmitting = ref(false)
 const registerError = ref("")
@@ -127,11 +113,13 @@ const showConfirmPassword = ref(false)
  * One module, one answer, both screens.
  */
 function onCountryChange() {
-  const country = countries.find((item) => item.code === countryCode.value)
-  if (country) {
-    timezone.value = country.timezone
-    currency.value = country.currency
-  }
+	const country = countries.value.find(
+		(item) => item.code === countryCode.value,
+	)
+	if (country) {
+		timezone.value = country.timezone
+		currency.value = country.currency
+	}
 }
 
 const registerStep = ref(1)
@@ -141,15 +129,34 @@ const registerStepMeta = computed(() => [
 	{ number: 2, title: "المنشأة والفرع", hint: "البيانات التشغيلية الأساسية" },
 	{ number: 3, title: "التهيئة", hint: "الدولة والعملة والنشاط" },
 ])
-function stepOneValid() { return fullName.value.trim().length >= 2 && email.value.trim().length > 0 && isPasswordAcceptable(password.value) && password.value === confirmPassword.value }
-function stepTwoValid() { return companyName.value.trim().length >= 2 }
+function stepOneValid() {
+	return (
+		fullName.value.trim().length >= 2 &&
+		email.value.trim().length > 0 &&
+		isPasswordAcceptable(password.value) &&
+		password.value === confirmPassword.value
+	)
+}
+function stepTwoValid() {
+	return companyName.value.trim().length >= 2
+}
 function nextRegisterStep() {
 	clearErrors()
-	if (registerStep.value === 1 && !stepOneValid()) { registerError.value = "أكمل بيانات الحساب وتحقق من كلمة المرور قبل المتابعة."; return }
-	if (registerStep.value === 2 && !stepTwoValid()) { registerError.value = "أدخل اسم المنشأة قبل المتابعة."; return }
+	if (registerStep.value === 1 && !stepOneValid()) {
+		registerError.value =
+			"أكمل بيانات الحساب وتحقق من كلمة المرور قبل المتابعة."
+		return
+	}
+	if (registerStep.value === 2 && !stepTwoValid()) {
+		registerError.value = "أدخل اسم المنشأة قبل المتابعة."
+		return
+	}
 	registerStep.value = Math.min(registerStepCount, registerStep.value + 1)
 }
-function previousRegisterStep() { clearErrors(); registerStep.value = Math.max(1, registerStep.value - 1) }
+function previousRegisterStep() {
+	clearErrors()
+	registerStep.value = Math.max(1, registerStep.value - 1)
+}
 
 const canSubmit = computed(() => {
 	return (
@@ -205,6 +212,46 @@ const showOfflineIndicator = ref(false)
 
 const log = logger.create("Register")
 
+async function loadRegistrationMeta() {
+	metaLoading.value = true
+	metaError.value = ""
+	const controller = new AbortController()
+	const timeoutId = setTimeout(() => controller.abort(), 6000)
+	try {
+		const res = await fetch("/api/method/DyPOS.api.auth.registration_meta", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			credentials: "same-origin",
+			cache: "no-store",
+			signal: controller.signal,
+			body: JSON.stringify({}),
+		})
+		const payload = await res.json().catch(() => ({}))
+		if (!res.ok)
+			throw new Error(
+				payload?.message || payload?.error || "تعذر تحميل بيانات التسجيل",
+			)
+		const message = payload?.message || payload
+		const nextCountries = Array.isArray(message?.countries)
+			? message.countries
+			: []
+		const nextTypes = Array.isArray(message?.establishmentTypes)
+			? message.establishmentTypes
+			: []
+		if (!nextCountries.length || !nextTypes.length)
+			throw new Error("قوائم الخادم فارغة")
+		countries.value = nextCountries
+		establishmentTypes.value = nextTypes
+	} catch (error) {
+		metaError.value =
+			"تعذر تحميل بيانات التسجيل (الدولة ونوع المنشأة). تحقق من الاتصال ثم أعد المحاولة."
+		log.warn("Registration meta load failed", error)
+	} finally {
+		clearTimeout(timeoutId)
+		metaLoading.value = false
+	}
+}
+
 function detectOfflineMode() {
 	if (!isBrowser) return false
 	return !navigator.onLine
@@ -235,6 +282,12 @@ function normalizeValue(value) {
 
 async function submitRegistration() {
 	if (!canSubmit.value) return
+	if (!countries.value.length || !establishmentTypes.value) {
+		registerError.value =
+			metaError.value ||
+			"قوائم التسجيل غير محمّلة بعد. تحقق من الاتصال ثم أعد المحاولة."
+		return
+	}
 	clearErrors()
 	isSubmitting.value = true
 	registerSuccess.value = false
@@ -242,7 +295,9 @@ async function submitRegistration() {
 	try {
 		const name = normalizeValue(fullName.value)
 		const emailValue = normalizeValue(email.value)
-		const phoneValue = phoneNumber.value ? phoneNumber.value.replace(/\D/g, "") : ""
+		const phoneValue = phoneNumber.value
+			? phoneNumber.value.replace(/\D/g, "")
+			: ""
 		const companyValue = normalizeValue(companyName.value)
 		const branchNameValue = normalizeValue(branchName.value) || "المركز الرئيسي"
 		const branchCodeValue = branchCode.value.trim().toUpperCase() || "MAIN"
@@ -284,13 +339,16 @@ async function submitRegistration() {
 				branchName: branchNameValue,
 				branchCode: branchCodeValue,
 				currency: currency.value.trim().toUpperCase() || "YER",
-        				countryCode: countryCode.value,
-        				timezone: timezone.value,
-        				establishmentType: establishmentType.value,
+				countryCode: countryCode.value,
+				timezone: timezone.value,
+				establishmentType: establishmentType.value,
 			}),
 		})
 		const payload = await response.json().catch(() => ({}))
-		if (!response.ok) throw new Error(payload?.message || payload?.error || "تعذر إنشاء الاشتراك")
+		if (!response.ok)
+			throw new Error(
+				payload?.message || payload?.error || "تعذر إنشاء الاشتراك",
+			)
 		const result = payload?.message || payload
 		subscriberCode.value = String(result?.subscriberCode || "").trim()
 		registerSuccess.value = true
@@ -315,21 +373,27 @@ async function submitRegistration() {
 				const controller = new AbortController()
 				const timeoutId = setTimeout(() => controller.abort(), 2500)
 				try {
-					const profileResponse = await fetch("/api/method/DyPOS.api.onboarding.save_profile", {
-						method: "POST",
-						headers: { "Content-Type": "application/json" },
-						credentials: "same-origin",
-						cache: "no-store",
-						signal: controller.signal,
-						body: JSON.stringify({
-							countryCode: countryCode.value,
-							timezone: timezone.value,
-							currency: currency.value.trim().toUpperCase(),
-							establishmentType: establishmentType.value,
-						}),
-					})
+					const profileResponse = await fetch(
+						"/api/method/DyPOS.api.onboarding.save_profile",
+						{
+							method: "POST",
+							headers: { "Content-Type": "application/json" },
+							credentials: "same-origin",
+							cache: "no-store",
+							signal: controller.signal,
+							body: JSON.stringify({
+								countryCode: countryCode.value,
+								timezone: timezone.value,
+								currency: currency.value.trim().toUpperCase(),
+								establishmentType: establishmentType.value,
+							}),
+						},
+					)
 					if (!profileResponse.ok) {
-						log.warn("Operational profile reconciliation deferred", profileResponse.status)
+						log.warn(
+							"Operational profile reconciliation deferred",
+							profileResponse.status,
+						)
 					}
 				} finally {
 					clearTimeout(timeoutId)
@@ -346,13 +410,17 @@ async function submitRegistration() {
 			entryError.value =
 				entryErrorValue?.message ||
 				"تم إنشاء المشترك، لكن تعذر فتح جلسة التشغيل تلقائيًا. يمكنك الدخول يدويًا."
-			log.warn("Registration succeeded but automatic sign-in failed", entryErrorValue)
+			log.warn(
+				"Registration succeeded but automatic sign-in failed",
+				entryErrorValue,
+			)
 		} finally {
 			isEnteringSystem.value = false
 		}
 	} catch (error) {
 		registerSuccess.value = false
-		registerError.value = error?.message || "تعذر إنشاء الاشتراك. تحقق من الاتصال وحاول مرة أخرى."
+		registerError.value =
+			error?.message || "تعذر إنشاء الاشتراك. تحقق من الاتصال وحاول مرة أخرى."
 		emit("error", error)
 	} finally {
 		isSubmitting.value = false
@@ -397,6 +465,7 @@ onMounted(() => {
 	window.addEventListener("offline", handleOffline)
 	emailInput.value?.focus?.()
 	detectAndSetOfflineMode()
+	loadRegistrationMeta()
 })
 
 onUnmounted(() => {
@@ -933,7 +1002,7 @@ onUnmounted(() => {
 						<label for="dypos-register-country" class="dy-register__label">الدولة</label>
 						<div class="dy-register__input-wrap">
 							<FeatherIcon name="globe" :size="18" class="dy-register__input-icon" aria-hidden="true" />
-							<select id="dypos-register-country" v-model="countryCode" class="dy-register__input" :disabled="isSubmitting" @change="onCountryChange">
+							<select id="dypos-register-country" v-model="countryCode" class="dy-register__input" :disabled="isSubmitting || metaLoading" @change="onCountryChange">
 								<option v-for="item in countries" :key="item.code" :value="item.code">{{ item.name }}</option>
 							</select>
 						</div>
@@ -943,10 +1012,11 @@ onUnmounted(() => {
 						<label for="dypos-register-establishment-type" class="dy-register__label">نوع المنشأة</label>
 						<div class="dy-register__input-wrap">
 							<FeatherIcon name="briefcase" :size="18" class="dy-register__input-icon" aria-hidden="true" />
-							<select id="dypos-register-establishment-type" v-model="establishmentType" class="dy-register__input" :disabled="isSubmitting">
+							<select id="dypos-register-establishment-type" v-model="establishmentType" class="dy-register__input" :disabled="isSubmitting || metaLoading">
 								<option v-for="item in establishmentTypes" :key="item.value" :value="item.value">{{ item.label }}</option>
 							</select>
 						</div>
+						<p v-if="metaError" class="dy-register__error" role="alert">{{ metaError }}</p>
 					</div>
 
 					<div v-if="registerStep === 3" class="dy-register__field">

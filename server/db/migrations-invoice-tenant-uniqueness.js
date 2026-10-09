@@ -146,6 +146,29 @@ export function migrateInvoiceTenantUniqueness(
 		const paren = sqlRow.sql.indexOf('(');
 		const body = sqlRow.sql.slice(paren).replace(/code\s+TEXT\s+UNIQUE\s+NOT\s+NULL/i, 'code TEXT NOT NULL');
 
+		/*
+		 * `DROP TABLE ${table}` is what fails — not the copy. `stock_levels`,
+		 * `opening_balances` and `invoice_items` all carry
+		 * `… REFERENCES products(id) ON DELETE NO ACTION`, and with
+		 * `foreign_keys = ON` (schema.js sets it on every connection) SQLite
+		 * refuses to drop a table that other tables reference. Measured on the
+		 * production database: 192 stock rows and 198 opening-balance rows
+		 * reference `products`, so the rebuild aborted and v36 was DEFERRED —
+		 * which is how a live database stayed at v35 while the ladder claimed
+		 * v38, with the global uniqueness bug still shipped.
+		 *
+		 * The rebuild is atomic (BEGIN … COMMIT) and moves NO data out of the
+		 * table: every row is copied into the new table and the old one is
+		 * dropped inside the same transaction, so turning FK checks off for the
+		 * duration of that transaction cannot leave a dangling reference. The
+		 * checks are restored before anything else runs.
+		 *
+		 * `PRAGMA foreign_keys` cannot be changed from inside a transaction, so
+		 * the toggle happens around the transaction, not inside it.
+		 */
+		const fkWasOn = db.prepare('PRAGMA foreign_keys').get()['foreign_keys'] === 1;
+		if (fkWasOn) db.exec('PRAGMA foreign_keys = OFF');
+
 		db.exec('BEGIN');
 		try {
 			db.exec(`CREATE TABLE ${table}_t36_new ${body}`);
@@ -156,8 +179,10 @@ export function migrateInvoiceTenantUniqueness(
 			db.exec('COMMIT');
 		} catch (e) {
 			db.exec('ROLLBACK');
+			if (fkWasOn) db.exec('PRAGMA foreign_keys = ON');
 			throw e;
 		}
+		if (fkWasOn) db.exec('PRAGMA foreign_keys = ON');
 
 		// Derived DDL cannot drop a column by construction — but a table that lost
 		// one is a catalog nobody can reconcile, so prove it instead of trusting it.

@@ -38,12 +38,51 @@ export const DATA_SOURCE = Object.freeze({
 	UNAVAILABLE: "unavailable",
 })
 
+/**
+ * The v53 reference doctypes — global, read by every role, cached in the
+ * `reference_data` table (one store, `doctype` on each row, so offline reads
+ * never mix tables). Pickers and the management screen read through
+ * `methodGetListWithSource`, which lands here when the server is unreachable.
+ */
+export const REFERENCE_DOCTYPES = Object.freeze([
+	"Country",
+	"Region",
+	"City",
+	"Language",
+	"Timezone",
+	"BusinessSector",
+	"Category",
+	"TaxType",
+	"Tax",
+	"UomCategory",
+	"UnitOfMeasure",
+	"UomConversion",
+	"PaymentTerm",
+	"ReturnReason",
+	"PurchaseReturnReason",
+	"SaleType",
+	"SalesChannel",
+	"LoyaltyTier",
+	"CustomerType",
+	"CustomerGroup",
+	"SupplierType",
+	"SupplierGroup",
+	"AccountTemplate",
+	"AccountTemplateSet",
+	"RoundingRule",
+	"ProductAttribute",
+])
+
+/** The single Dexie store every reference doctype reads from. */
+export const REFERENCE_TABLE = "reference_data"
+
 /** Doc types this mirror can answer, mapped to their cached table. */
 export const MIRRORED_DOCTYPES = Object.freeze({
 	"Sales Invoice": "invoice_history",
 	Item: "items",
 	Bin: "stock",
 	Customer: "customers",
+	...Object.fromEntries(REFERENCE_DOCTYPES.map((d) => [d, REFERENCE_TABLE])),
 })
 
 /** Filter operators the mirror reproduces exactly as the server evaluates them. */
@@ -175,9 +214,15 @@ export async function readLocalRows(doctype, options = {}, deps = {}) {
 	if (!table)
 		return { ok: false, rows: [], reason: `no local mirror for ${doctype}` }
 	const { filters = [], limit = 0, offset = 0 } = options
+	// The reference store holds ALL reference doctypes; reading one doctype must
+	// never hand back another's rows, so the doctype predicate is implicit.
+	const effectiveFilters =
+		table === REFERENCE_TABLE
+			? [["doctype", "=", doctype], ...filters]
+			: filters
 	// Validate the filters BEFORE touching IndexedDB: a query we cannot honour
 	// must not read the database at all.
-	for (const filter of filters) {
+	for (const filter of effectiveFilters) {
 		const probe = matchesFilter({}, filter)
 		if (!probe.ok) return { ok: false, rows: [], reason: probe.reason }
 	}
@@ -188,7 +233,7 @@ export async function readLocalRows(doctype, options = {}, deps = {}) {
 			throw new Error("offline database unavailable")
 		}
 		const all = await db.table(table).toArray()
-		const filtered = applyFilters(all, filters)
+		const filtered = applyFilters(all, effectiveFilters)
 		if (!filtered.ok) return { ok: false, rows: [], reason: filtered.reason }
 		// Same windowing the server applies via `limit_start`/`limit_page_length`,
 		// so a paged reader walks identical rows online and offline.

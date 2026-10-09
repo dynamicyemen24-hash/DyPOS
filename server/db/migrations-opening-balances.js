@@ -45,7 +45,7 @@ export function migrateOpeningBalances(db, { version = 25, description = 'openin
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     CREATE UNIQUE INDEX IF NOT EXISTS uq_opening_balance
-      ON opening_balances(fiscal_year, account_type, account_id, tenant_id);
+      ON opening_balances(fiscal_year, account_type, account_id, account_code, tenant_id);
     CREATE INDEX IF NOT EXISTS idx_opening_tenant
       ON opening_balances(tenant_id, fiscal_year);
   `);

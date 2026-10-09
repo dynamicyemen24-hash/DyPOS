@@ -140,6 +140,40 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_null_tenant_number ON invoices(nu
 -- invoice to another's retry.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_idem ON invoices(tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_idem ON invoices(tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
+-- v40: branch-scoped invoice uniqueness — number/idempotency allocated per
+-- branch + fiscal year, so two branches of one tenant must not compete.
+-- Mirrors migrations-invoice-branch-uniqueness.js (SQLite drops the four
+-- pre-v40 indexes above; the PG copies are left in place because this gate
+-- only fails on MISSING objects, and dropping live prod indexes is not this
+-- change's job).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_branch_number
+  ON invoices(tenant_id, branch_id, number)
+  WHERE tenant_id IS NOT NULL AND branch_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_std_number
+  ON invoices(tenant_id, number)
+  WHERE tenant_id IS NOT NULL AND branch_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_null_branch_number
+  ON invoices(branch_id, number)
+  WHERE tenant_id IS NULL AND branch_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_null_scope_number
+  ON invoices(number)
+  WHERE tenant_id IS NULL AND branch_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_branch_idem
+  ON invoices(tenant_id, branch_id, idempotency_key)
+  WHERE tenant_id IS NOT NULL AND branch_id IS NOT NULL
+    AND idempotency_key IS NOT NULL AND idempotency_key <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_std_idem
+  ON invoices(tenant_id, idempotency_key)
+  WHERE tenant_id IS NOT NULL AND branch_id IS NULL
+    AND idempotency_key IS NOT NULL AND idempotency_key <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_null_branch_idem
+  ON invoices(branch_id, idempotency_key)
+  WHERE tenant_id IS NULL AND branch_id IS NOT NULL
+    AND idempotency_key IS NOT NULL AND idempotency_key <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_null_scope_idem
+  ON invoices(idempotency_key)
+  WHERE tenant_id IS NULL AND branch_id IS NULL
+    AND idempotency_key IS NOT NULL AND idempotency_key <> '';
 CREATE INDEX IF NOT EXISTS idx_invoices_shift ON invoices(shift_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
 CREATE INDEX IF NOT EXISTS idx_invoices_created ON invoices(created_at);
@@ -263,6 +297,16 @@ CREATE INDEX IF NOT EXISTS idx_sync_tenant ON sync_log(tenant_id, status, id);
 ALTER TABLE sync_log ADD COLUMN IF NOT EXISTS branch_id TEXT;
 CREATE INDEX IF NOT EXISTS idx_sync_tenant_branch ON sync_log(tenant_id, branch_id, status, id);
 CREATE INDEX IF NOT EXISTS idx_sync_pull ON sync_log(status, id, entity_type);
+-- v39: a retry key belongs to its tenant+branch; the pre-v39 global unique
+-- (idx_sync_idem above) made two branches collide on the same key.
+-- Mirrors migrations-sync-idempotency-scope.js.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_tenant_branch_idem
+  ON sync_log(tenant_id, branch_id, idempotency_key)
+  WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_null_scope_idem
+  ON sync_log(idempotency_key)
+  WHERE tenant_id IS NULL AND branch_id IS NULL
+    AND idempotency_key IS NOT NULL AND idempotency_key <> '';
 INSERT INTO schema_version (version, description) VALUES (29, 'sync_log branch scope (multi-branch pull + cursor)') ON CONFLICT DO NOTHING;
 
 -- v16: minimal device registry (see SQLite migrate() v16)
@@ -917,7 +961,7 @@ CREATE TABLE IF NOT EXISTS opening_balances (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_opening_balance
-  ON opening_balances(fiscal_year, account_type, account_id, tenant_id);
+  ON opening_balances(fiscal_year, account_type, account_id, account_code, tenant_id);
 CREATE INDEX IF NOT EXISTS idx_opening_tenant
   ON opening_balances(tenant_id, fiscal_year);
 INSERT INTO schema_version (version, description) VALUES (25, 'opening balances per fiscal year') ON CONFLICT DO NOTHING;
@@ -4162,9 +4206,6 @@ CREATE TABLE IF NOT EXISTS ref_currencies (
   code TEXT PRIMARY KEY, name TEXT NOT NULL, name_ar TEXT NOT NULL DEFAULT '', symbol TEXT NOT NULL DEFAULT '',
   decimals INTEGER NOT NULL DEFAULT 2, is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
-CREATE TABLE IF NOT EXISTS business_sectors (
-  code TEXT PRIMARY KEY, name TEXT NOT NULL, name_ar TEXT NOT NULL DEFAULT '', is_active BOOLEAN NOT NULL DEFAULT TRUE
-);
 CREATE TABLE IF NOT EXISTS business_activities (
   code TEXT PRIMARY KEY, sector_code TEXT NOT NULL REFERENCES business_sectors(code), name TEXT NOT NULL,
   name_ar TEXT NOT NULL DEFAULT '', is_active BOOLEAN NOT NULL DEFAULT TRUE
@@ -4189,10 +4230,6 @@ CREATE TABLE IF NOT EXISTS settings_definitions (
   scope TEXT NOT NULL DEFAULT 'ORGANIZATION', category TEXT NOT NULL DEFAULT 'GENERAL',
   description TEXT NOT NULL DEFAULT '', is_user_editable BOOLEAN NOT NULL DEFAULT TRUE
 );
-CREATE TABLE IF NOT EXISTS account_templates (
-  code TEXT PRIMARY KEY, name TEXT NOT NULL, name_ar TEXT NOT NULL DEFAULT '', activity_code TEXT,
-  is_default BOOLEAN NOT NULL DEFAULT FALSE, is_active BOOLEAN NOT NULL DEFAULT TRUE
-);
 CREATE TABLE IF NOT EXISTS account_template_lines (
   template_code TEXT NOT NULL REFERENCES account_templates(code), account_code TEXT NOT NULL, parent_code TEXT,
   name TEXT NOT NULL, name_ar TEXT NOT NULL DEFAULT '', account_type TEXT NOT NULL, normal_balance TEXT NOT NULL,
@@ -4208,7 +4245,7 @@ CREATE TABLE IF NOT EXISTS opening_balance_template_lines (
   direction TEXT NOT NULL, default_amount TEXT NOT NULL DEFAULT '0', name TEXT NOT NULL, name_ar TEXT NOT NULL DEFAULT '',
   PRIMARY KEY(template_code,account_code)
 );
-CREATE TABLE IF NOT EXISTS onboarding_templates (
+CREATE TABLE IF NOT EXISTS activity_onboarding_profiles (
   activity_code TEXT NOT NULL REFERENCES business_activities(code), country_code TEXT NOT NULL DEFAULT '',
   template_version INTEGER NOT NULL DEFAULT 1, config_json TEXT NOT NULL DEFAULT '{}',
   is_active BOOLEAN NOT NULL DEFAULT TRUE, PRIMARY KEY(activity_code,country_code)
@@ -4220,4 +4257,1400 @@ CREATE INDEX IF NOT EXISTS idx_business_activities_sector ON business_activities
 CREATE INDEX IF NOT EXISTS idx_activity_classes_activity ON activity_product_classes(activity_code,is_active);
 CREATE INDEX IF NOT EXISTS idx_activity_services_activity ON activity_services(activity_code,is_active);
 CREATE INDEX IF NOT EXISTS idx_ref_enum_name ON ref_enum_values(enum_name,is_active,sort_order);
-CREATE INDEX IF NOT EXISTS idx_onboarding_country ON onboarding_templates(country_code,is_active);
+CREATE INDEX IF NOT EXISTS idx_onboarding_country ON activity_onboarding_profiles(country_code,is_active);
+-- >>> gen-pg-parity: BEGIN (generated by scripts/gen-pg-parity.mjs — do not edit) >>>
+-- Tables, columns and indexes the SQLite schema has that the hand-written
+-- baseline above lacks. Regenerate: npm run parity:sync · Verify: npm run parity.
+BEGIN;
+
+-- (1) 49 missing tables, FK-target order.
+CREATE TABLE IF NOT EXISTS countries (
+  id TEXT PRIMARY KEY,
+  iso2 TEXT UNIQUE NOT NULL,
+  iso3 TEXT UNIQUE NOT NULL,
+  numeric_code TEXT UNIQUE NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  native_name TEXT NOT NULL DEFAULT '',
+  phone_code TEXT NOT NULL DEFAULT '',
+  currency_code TEXT NOT NULL DEFAULT '',
+  timezone TEXT NOT NULL DEFAULT '',
+  date_format TEXT NOT NULL DEFAULT 'yyyy-mm-dd',
+  number_format TEXT NOT NULL DEFAULT '#,###.##',
+  number_system TEXT NOT NULL DEFAULT 'latn',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS regions (
+  id TEXT PRIMARY KEY,
+  country_id TEXT NOT NULL REFERENCES countries(id),
+  code TEXT NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  native_name TEXT NOT NULL DEFAULT '',
+  level BIGINT NOT NULL DEFAULT 1,
+  parent_id TEXT REFERENCES regions(id),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(country_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS cities (
+  id TEXT PRIMARY KEY,
+  region_id TEXT NOT NULL REFERENCES regions(id),
+  country_id TEXT NOT NULL REFERENCES countries(id),
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  native_name TEXT NOT NULL DEFAULT '',
+  postal_code TEXT DEFAULT '',
+  latitude NUMERIC(18,6),
+  longitude NUMERIC(18,6),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS languages (
+  code TEXT PRIMARY KEY,
+  iso639_1 TEXT UNIQUE,
+  iso639_2 TEXT UNIQUE,
+  iso639_3 TEXT UNIQUE,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  native_name TEXT NOT NULL DEFAULT '',
+  direction TEXT NOT NULL DEFAULT 'ltr',
+  locale_codes TEXT NOT NULL DEFAULT '[]',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS timezones (
+  id TEXT PRIMARY KEY,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  utc_offset TEXT NOT NULL DEFAULT '+00:00',
+  utc_dst_offset TEXT NOT NULL DEFAULT '+00:00',
+  has_dst BOOLEAN NOT NULL DEFAULT FALSE,
+  country_codes TEXT NOT NULL DEFAULT '[]',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS business_sectors (
+  id TEXT PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  description_ar TEXT DEFAULT '',
+  description_en TEXT DEFAULT '',
+  icon TEXT DEFAULT '',
+  color TEXT DEFAULT '',
+  parent_id TEXT REFERENCES business_sectors(id),
+  level BIGINT NOT NULL DEFAULT 1,
+  sort_order BIGINT NOT NULL DEFAULT 100,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_leaf BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS categories (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT DEFAULT '',
+  code TEXT NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  description_ar TEXT DEFAULT '',
+  description_en TEXT DEFAULT '',
+  image_url TEXT DEFAULT '',
+  icon TEXT DEFAULT '',
+  type TEXT NOT NULL DEFAULT 'product',
+  parent_id TEXT REFERENCES categories(id),
+  level BIGINT NOT NULL DEFAULT 1,
+  sort_order BIGINT NOT NULL DEFAULT 100,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_system BOOLEAN NOT NULL DEFAULT FALSE,
+  source_template_id TEXT,
+  business_sector_id TEXT REFERENCES business_sectors(id),
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS tax_types (
+  id TEXT PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  description_ar TEXT DEFAULT '',
+  description_en TEXT DEFAULT '',
+  applies_to TEXT NOT NULL DEFAULT 'sales',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_system BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS taxes (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT DEFAULT '',
+  country_id TEXT NOT NULL REFERENCES countries(id),
+  tax_type_id TEXT NOT NULL REFERENCES tax_types(id),
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  rate NUMERIC(18,6) NOT NULL DEFAULT 0,
+  is_inclusive BOOLEAN NOT NULL DEFAULT FALSE,
+  calculation_base TEXT NOT NULL DEFAULT 'net',
+  applies_to TEXT NOT NULL DEFAULT 'sales',
+  valid_from DATE NOT NULL DEFAULT (now() AT TIME ZONE 'UTC')::date,
+  valid_to DATE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_default BOOLEAN NOT NULL DEFAULT FALSE,
+  source_template_id TEXT,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS tax_groups (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT DEFAULT '',
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  description_ar TEXT DEFAULT '',
+  description_en TEXT DEFAULT '',
+  tax_ids TEXT NOT NULL DEFAULT '[]',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS account_templates (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  description_ar TEXT DEFAULT '',
+  description_en TEXT DEFAULT '',
+  account_type TEXT NOT NULL,
+  account_subtype TEXT DEFAULT '',
+  parent_code TEXT,
+  level BIGINT NOT NULL DEFAULT 1,
+  nature TEXT NOT NULL DEFAULT 'debit',
+  is_system BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  country_id TEXT REFERENCES countries(id),
+  business_sector_id TEXT REFERENCES business_sectors(id),
+  sort_order BIGINT NOT NULL DEFAULT 100,
+  allow_manual_entry BOOLEAN NOT NULL DEFAULT TRUE,
+  requires_sub_account BOOLEAN NOT NULL DEFAULT FALSE,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(country_id, business_sector_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS accounts (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  code TEXT NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  description_ar TEXT DEFAULT '',
+  description_en TEXT DEFAULT '',
+  account_type TEXT NOT NULL,
+  account_subtype TEXT DEFAULT '',
+  parent_id TEXT REFERENCES accounts(id),
+  level BIGINT NOT NULL DEFAULT 1,
+  nature TEXT NOT NULL DEFAULT 'debit',
+  is_system BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  allow_manual_entry BOOLEAN NOT NULL DEFAULT TRUE,
+  balance NUMERIC(18,6) NOT NULL DEFAULT 0,
+  opening_balance NUMERIC(18,6) NOT NULL DEFAULT 0,
+  template_id TEXT REFERENCES account_templates(id),
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS account_templates_sets (
+  id TEXT PRIMARY KEY,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  description_ar TEXT DEFAULT '',
+  description_en TEXT DEFAULT '',
+  country_id TEXT REFERENCES countries(id),
+  business_sector_id TEXT REFERENCES business_sectors(id),
+  template_ids TEXT NOT NULL DEFAULT '[]',
+  is_default BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS uom_categories (
+  id TEXT PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  description_ar TEXT DEFAULT '',
+  description_en TEXT DEFAULT '',
+  base_unit_code TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order BIGINT NOT NULL DEFAULT 100,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS units_of_measure (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT DEFAULT '',
+  code TEXT NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  symbol_ar TEXT DEFAULT '',
+  symbol_en TEXT DEFAULT '',
+  category_id TEXT NOT NULL REFERENCES uom_categories(id),
+  factor_to_base NUMERIC(18,6) NOT NULL DEFAULT 1,
+  is_base BOOLEAN NOT NULL DEFAULT FALSE,
+  precision BIGINT NOT NULL DEFAULT 2,
+  rounding_method TEXT NOT NULL DEFAULT 'standard',
+  allows_fraction BIGINT NOT NULL DEFAULT 1,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_system BOOLEAN NOT NULL DEFAULT FALSE,
+  source_template_id TEXT,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS uom_conversions (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT DEFAULT '',
+  from_unit_id TEXT NOT NULL REFERENCES units_of_measure(id),
+  to_unit_id TEXT NOT NULL REFERENCES units_of_measure(id),
+  factor NUMERIC(18,6) NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_system BOOLEAN NOT NULL DEFAULT FALSE,
+  source_template_id TEXT,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, from_unit_id, to_unit_id)
+);
+
+CREATE TABLE IF NOT EXISTS product_unit_mappings (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  sale_unit_id TEXT REFERENCES units_of_measure(id),
+  purchase_unit_id TEXT REFERENCES units_of_measure(id),
+  inventory_unit_id TEXT REFERENCES units_of_measure(id),
+  sale_to_inventory_factor NUMERIC(18,6) DEFAULT 1,
+  purchase_to_inventory_factor NUMERIC(18,6) DEFAULT 1,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, product_id)
+);
+
+CREATE TABLE IF NOT EXISTS product_attributes (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT DEFAULT '',
+  code TEXT NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  input_type TEXT NOT NULL DEFAULT 'select',
+  values_json TEXT NOT NULL DEFAULT '[]',
+  is_required BOOLEAN NOT NULL DEFAULT FALSE,
+  is_variant BOOLEAN NOT NULL DEFAULT TRUE,
+  is_filterable BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order BIGINT NOT NULL DEFAULT 100,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_system BOOLEAN NOT NULL DEFAULT FALSE,
+  source_template_id TEXT,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS product_attribute_values (
+  id TEXT PRIMARY KEY,
+  attribute_id TEXT NOT NULL REFERENCES product_attributes(id),
+  tenant_id TEXT DEFAULT '',
+  value_ar TEXT NOT NULL,
+  value_en TEXT NOT NULL,
+  color_code TEXT DEFAULT '',
+  image_url TEXT DEFAULT '',
+  sort_order BIGINT NOT NULL DEFAULT 100,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS product_variants (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  parent_product_id UUID NOT NULL REFERENCES products(id),
+  code TEXT NOT NULL,
+  barcode TEXT,
+  name_ar TEXT DEFAULT '',
+  name_en TEXT DEFAULT '',
+  attributes_json TEXT NOT NULL DEFAULT '{}',
+  unit_price NUMERIC(18,6) NOT NULL DEFAULT 0,
+  cost NUMERIC(18,6) NOT NULL DEFAULT 0,
+  weight NUMERIC(18,6) DEFAULT 0,
+  image_url TEXT DEFAULT '',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  min_stock_level NUMERIC(18,6) DEFAULT 0,
+  max_stock_level NUMERIC(18,6) DEFAULT 0,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, parent_product_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS product_packaging (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  product_id UUID NOT NULL REFERENCES products(id),
+  level TEXT NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  uom_id TEXT REFERENCES units_of_measure(id),
+  qty_per_unit NUMERIC(18,6) NOT NULL DEFAULT 1,
+  barcode TEXT,
+  barcode_type TEXT DEFAULT 'EAN13',
+  weight NUMERIC(18,6) DEFAULT 0,
+  length NUMERIC(18,6) DEFAULT 0,
+  width NUMERIC(18,6) DEFAULT 0,
+  height NUMERIC(18,6) DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order BIGINT NOT NULL DEFAULT 100,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, product_id, level)
+);
+
+CREATE TABLE IF NOT EXISTS product_kits (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  parent_product_id UUID NOT NULL REFERENCES products(id),
+  component_product_id UUID NOT NULL REFERENCES products(id),
+  component_variant_id TEXT REFERENCES product_variants(id),
+  quantity NUMERIC(18,6) NOT NULL DEFAULT 1,
+  uom_id TEXT REFERENCES units_of_measure(id),
+  is_optional BOOLEAN NOT NULL DEFAULT FALSE,
+  sort_order BIGINT NOT NULL DEFAULT 100,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, parent_product_id, component_product_id, component_variant_id)
+);
+
+CREATE TABLE IF NOT EXISTS recipes (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  product_id UUID NOT NULL REFERENCES products(id),
+  variant_id TEXT REFERENCES product_variants(id),
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  yield_quantity NUMERIC(18,6) NOT NULL DEFAULT 1,
+  yield_uom_id TEXT REFERENCES units_of_measure(id),
+  instructions_ar TEXT DEFAULT '',
+  instructions_en TEXT DEFAULT '',
+  prep_time_minutes BIGINT DEFAULT 0,
+  cook_time_minutes BIGINT DEFAULT 0,
+  cost NUMERIC(18,6) DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  version BIGINT NOT NULL DEFAULT 1,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS recipe_items (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  recipe_id TEXT NOT NULL REFERENCES recipes(id),
+  product_id UUID NOT NULL REFERENCES products(id),
+  variant_id TEXT REFERENCES product_variants(id),
+  quantity NUMERIC(18,6) NOT NULL,
+  uom_id TEXT REFERENCES units_of_measure(id),
+  waste_percentage NUMERIC(18,6) DEFAULT 0,
+  is_optional BOOLEAN NOT NULL DEFAULT FALSE,
+  step_order BIGINT NOT NULL DEFAULT 100,
+  notes_ar TEXT DEFAULT '',
+  notes_en TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, recipe_id, product_id, variant_id, step_order)
+);
+
+CREATE TABLE IF NOT EXISTS product_batches (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  product_id UUID NOT NULL REFERENCES products(id),
+  variant_id TEXT REFERENCES product_variants(id),
+  batch_number TEXT NOT NULL,
+  manufacture_date DATE,
+  expiry_date DATE,
+  supplier_id UUID REFERENCES suppliers(id),
+  notes_ar TEXT DEFAULT '',
+  notes_en TEXT DEFAULT '',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, product_id, batch_number)
+);
+
+CREATE TABLE IF NOT EXISTS product_serials (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  product_id UUID NOT NULL REFERENCES products(id),
+  variant_id TEXT REFERENCES product_variants(id),
+  batch_id TEXT REFERENCES product_batches(id),
+  serial_number TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'in_stock',
+  sold_at TIMESTAMPTZ,
+  sold_invoice_id UUID REFERENCES invoices(id),
+  customer_id UUID REFERENCES customers(id),
+  warranty_expiry TEXT,
+  notes_ar TEXT DEFAULT '',
+  notes_en TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, serial_number)
+);
+
+CREATE TABLE IF NOT EXISTS price_list_items (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  price_list_id UUID NOT NULL REFERENCES price_lists(id),
+  product_id UUID REFERENCES products(id),
+  variant_id TEXT REFERENCES product_variants(id),
+  unit_price NUMERIC(18,6) NOT NULL DEFAULT 0,
+  min_qty NUMERIC(18,6) DEFAULT 0,
+  max_qty NUMERIC(18,6),
+  uom_id TEXT REFERENCES units_of_measure(id),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  valid_from DATE,
+  valid_to DATE,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(price_list_id, product_id, variant_id, uom_id, min_qty)
+);
+
+CREATE TABLE IF NOT EXISTS customer_prices (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  customer_id UUID NOT NULL REFERENCES customers(id),
+  product_id UUID REFERENCES products(id),
+  variant_id TEXT REFERENCES product_variants(id),
+  unit_price NUMERIC(18,6) NOT NULL,
+  uom_id TEXT REFERENCES units_of_measure(id),
+  min_qty NUMERIC(18,6) DEFAULT 0,
+  max_qty NUMERIC(18,6),
+  valid_from DATE,
+  valid_to DATE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, customer_id, product_id, variant_id, uom_id, min_qty)
+);
+
+CREATE TABLE IF NOT EXISTS promotions (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT '',
+  code TEXT NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  description_ar TEXT DEFAULT '',
+  description_en TEXT DEFAULT '',
+  promotion_type TEXT NOT NULL,
+  discount_type TEXT NOT NULL DEFAULT 'percentage',
+  discount_value NUMERIC(18,6) NOT NULL DEFAULT 0,
+  buy_quantity NUMERIC(18,6) DEFAULT 0,
+  get_quantity NUMERIC(18,6) DEFAULT 0,
+  get_discount_percentage NUMERIC(18,6) DEFAULT 100,
+  max_discount_amount NUMERIC(18,6),
+  min_purchase_amount NUMERIC(18,6) DEFAULT 0,
+  max_uses BIGINT DEFAULT 0,
+  used_count BIGINT NOT NULL DEFAULT 0,
+  uses_per_customer BIGINT DEFAULT 1,
+  applies_to_products TEXT DEFAULT '[]',
+  applies_to_categories TEXT DEFAULT '[]',
+  applies_to_brands TEXT DEFAULT '[]',
+  applies_to_customer_groups TEXT DEFAULT '[]',
+  excluded_products TEXT DEFAULT '[]',
+  excluded_categories TEXT DEFAULT '[]',
+  channels TEXT DEFAULT '["pos"]',
+  valid_from DATE NOT NULL,
+  valid_to DATE NOT NULL,
+  start_time TEXT DEFAULT '00:00',
+  end_time TEXT DEFAULT '23:59',
+  days_of_week TEXT DEFAULT '1,2,3,4,5,6,7',
+  requires_coupon BOOLEAN NOT NULL DEFAULT FALSE,
+  coupon_code TEXT,
+  coupon_max_uses BIGINT DEFAULT 0,
+  coupon_used_count BIGINT NOT NULL DEFAULT 0,
+  priority BIGINT NOT NULL DEFAULT 100,
+  can_combine BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_system BOOLEAN NOT NULL DEFAULT FALSE,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS promotion_applications (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  promotion_id TEXT NOT NULL REFERENCES promotions(id),
+  invoice_id UUID REFERENCES invoices(id),
+  customer_id UUID REFERENCES customers(id),
+  discount_amount NUMERIC(18,6) NOT NULL DEFAULT 0,
+  applied_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS rounding_rules (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT '',
+  code TEXT NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  applies_to TEXT NOT NULL DEFAULT 'total',
+  method TEXT NOT NULL DEFAULT 'standard',
+  precision BIGINT NOT NULL DEFAULT 2,
+  min_amount NUMERIC(18,6) DEFAULT 0,
+  max_amount NUMERIC(18,6),
+  currency_code TEXT REFERENCES currencies(code),
+  is_default BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS price_guards (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  product_id UUID REFERENCES products(id),
+  category_id TEXT REFERENCES categories(id),
+  brand_id UUID REFERENCES brands(id),
+  min_price NUMERIC(18,6),
+  max_price NUMERIC(18,6),
+  min_margin_pct NUMERIC(18,6),
+  max_discount_pct NUMERIC(18,6),
+  applies_to_roles TEXT DEFAULT '[]',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS customer_types (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT DEFAULT '',
+  code TEXT NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  description_ar TEXT DEFAULT '',
+  description_en TEXT DEFAULT '',
+  default_credit_limit NUMERIC(18,6) DEFAULT 0,
+  default_payment_terms_id TEXT,
+  requires_approval BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_system BOOLEAN NOT NULL DEFAULT FALSE,
+  source_template_id TEXT,
+  sort_order BIGINT NOT NULL DEFAULT 100,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS customer_groups (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT '',
+  code TEXT NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  description_ar TEXT DEFAULT '',
+  description_en TEXT DEFAULT '',
+  discount_percentage NUMERIC(18,6) DEFAULT 0,
+  price_list_id UUID REFERENCES price_lists(id),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_system BOOLEAN NOT NULL DEFAULT FALSE,
+  source_template_id TEXT,
+  sort_order BIGINT NOT NULL DEFAULT 100,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS payment_terms (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT DEFAULT '',
+  code TEXT NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  description_ar TEXT DEFAULT '',
+  description_en TEXT DEFAULT '',
+  days_net BIGINT NOT NULL DEFAULT 0,
+  days_discount BIGINT DEFAULT 0,
+  discount_percentage NUMERIC(18,6) DEFAULT 0,
+  payment_schedule TEXT DEFAULT '[]',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_system BOOLEAN NOT NULL DEFAULT FALSE,
+  source_template_id TEXT,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS return_reasons (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT DEFAULT '',
+  code TEXT NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'return',
+  requires_approval BOOLEAN NOT NULL DEFAULT FALSE,
+  affects_inventory BIGINT NOT NULL DEFAULT 1,
+  affects_loyalty BIGINT NOT NULL DEFAULT 1,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_system BOOLEAN NOT NULL DEFAULT FALSE,
+  source_template_id TEXT,
+  sort_order BIGINT NOT NULL DEFAULT 100,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS sale_types (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT DEFAULT '',
+  code TEXT NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  description_ar TEXT DEFAULT '',
+  description_en TEXT DEFAULT '',
+  requires_customer BOOLEAN NOT NULL DEFAULT TRUE,
+  allows_credit BIGINT NOT NULL DEFAULT 1,
+  allows_partial_payment BIGINT NOT NULL DEFAULT 1,
+  creates_invoice BIGINT NOT NULL DEFAULT 1,
+  creates_order BIGINT NOT NULL DEFAULT 0,
+  creates_quote BIGINT NOT NULL DEFAULT 0,
+  requires_deposit BOOLEAN NOT NULL DEFAULT FALSE,
+  deposit_percentage NUMERIC(18,6) DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_system BOOLEAN NOT NULL DEFAULT FALSE,
+  source_template_id TEXT,
+  sort_order BIGINT NOT NULL DEFAULT 100,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS sales_channels (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT DEFAULT '',
+  code TEXT NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  description_ar TEXT DEFAULT '',
+  description_en TEXT DEFAULT '',
+  channel_type TEXT NOT NULL DEFAULT 'pos',
+  requires_sync BOOLEAN NOT NULL DEFAULT TRUE,
+  default_price_list_id UUID REFERENCES price_lists(id),
+  default_warehouse_id TEXT REFERENCES warehouses(id),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_system BOOLEAN NOT NULL DEFAULT FALSE,
+  source_template_id TEXT,
+  sort_order BIGINT NOT NULL DEFAULT 100,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS loyalty_tiers (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT '',
+  code TEXT NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  description_ar TEXT DEFAULT '',
+  description_en TEXT DEFAULT '',
+  min_points BIGINT NOT NULL DEFAULT 0,
+  max_points BIGINT,
+  discount_percentage NUMERIC(18,6) DEFAULT 0,
+  points_earn_rate NUMERIC(18,6) NOT NULL DEFAULT 1,
+  points_redeem_rate NUMERIC(18,6) NOT NULL DEFAULT 1,
+  benefits_json TEXT DEFAULT '[]',
+  color TEXT DEFAULT '',
+  icon TEXT DEFAULT '',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_system BOOLEAN NOT NULL DEFAULT FALSE,
+  source_template_id TEXT,
+  sort_order BIGINT NOT NULL DEFAULT 100,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS customer_documents (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  customer_id UUID NOT NULL REFERENCES customers(id),
+  document_type TEXT NOT NULL,
+  document_number TEXT NOT NULL,
+  issuing_authority TEXT DEFAULT '',
+  issue_date DATE,
+  expiry_date DATE,
+  file_url TEXT DEFAULT '',
+  verified BIGINT NOT NULL DEFAULT 0,
+  verified_by TEXT DEFAULT '',
+  verified_at TIMESTAMPTZ,
+  notes_ar TEXT DEFAULT '',
+  notes_en TEXT DEFAULT '',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, customer_id, document_type, document_number)
+);
+
+CREATE TABLE IF NOT EXISTS supplier_types (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT DEFAULT '',
+  code TEXT NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  description_ar TEXT DEFAULT '',
+  description_en TEXT DEFAULT '',
+  default_payment_terms_id TEXT REFERENCES payment_terms(id),
+  requires_approval BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_system BOOLEAN NOT NULL DEFAULT FALSE,
+  source_template_id TEXT,
+  sort_order BIGINT NOT NULL DEFAULT 100,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS supplier_groups (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT DEFAULT '',
+  code TEXT NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  description_ar TEXT DEFAULT '',
+  description_en TEXT DEFAULT '',
+  discount_percentage NUMERIC(18,6) DEFAULT 0,
+  price_list_id UUID REFERENCES price_lists(id),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_system BOOLEAN NOT NULL DEFAULT FALSE,
+  source_template_id TEXT,
+  sort_order BIGINT NOT NULL DEFAULT 100,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS supplier_documents (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  supplier_id UUID NOT NULL REFERENCES suppliers(id),
+  document_type TEXT NOT NULL,
+  document_number TEXT NOT NULL,
+  issuing_authority TEXT DEFAULT '',
+  issue_date DATE,
+  expiry_date DATE,
+  file_url TEXT DEFAULT '',
+  verified BIGINT NOT NULL DEFAULT 0,
+  verified_by TEXT DEFAULT '',
+  verified_at TIMESTAMPTZ,
+  notes_ar TEXT DEFAULT '',
+  notes_en TEXT DEFAULT '',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, supplier_id, document_type, document_number)
+);
+
+CREATE TABLE IF NOT EXISTS goods_receipts (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  number TEXT NOT NULL,
+  po_id UUID REFERENCES purchase_orders(id),
+  supplier_id UUID NOT NULL REFERENCES suppliers(id),
+  warehouse_id TEXT NOT NULL REFERENCES warehouses(id),
+  branch_id UUID REFERENCES branches(id),
+  receipt_date DATE NOT NULL DEFAULT (now() AT TIME ZONE 'UTC')::date,
+  status TEXT NOT NULL DEFAULT 'pending',
+  delivery_note TEXT DEFAULT '',
+  vehicle_number TEXT DEFAULT '',
+  driver_name TEXT DEFAULT '',
+  received_by UUID REFERENCES users(id),
+  inspected_by UUID REFERENCES users(id),
+  notes_ar TEXT DEFAULT '',
+  notes_en TEXT DEFAULT '',
+  created_by UUID NOT NULL REFERENCES users(id),
+  updated_by UUID REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, number)
+);
+
+CREATE TABLE IF NOT EXISTS goods_receipt_items (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  gr_id TEXT NOT NULL REFERENCES goods_receipts(id),
+  po_item_id UUID REFERENCES purchase_order_items(id),
+  product_id UUID NOT NULL REFERENCES products(id),
+  variant_id TEXT REFERENCES product_variants(id),
+  line_number BIGINT NOT NULL DEFAULT 1,
+  ordered_qty NUMERIC(18,6) NOT NULL DEFAULT 0,
+  received_qty NUMERIC(18,6) NOT NULL DEFAULT 0,
+  accepted_qty NUMERIC(18,6) NOT NULL DEFAULT 0,
+  rejected_qty NUMERIC(18,6) NOT NULL DEFAULT 0,
+  uom_id TEXT REFERENCES units_of_measure(id),
+  batch_id TEXT REFERENCES product_batches(id),
+  serial_numbers_json TEXT DEFAULT '[]',
+  expiry_date DATE,
+  unit_cost NUMERIC(18,6) NOT NULL DEFAULT 0,
+  line_total NUMERIC(18,6) NOT NULL DEFAULT 0,
+  quality_status TEXT DEFAULT 'accepted',
+  rejection_reason_ar TEXT DEFAULT '',
+  rejection_reason_en TEXT DEFAULT '',
+  notes_ar TEXT DEFAULT '',
+  notes_en TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS purchase_invoices (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  number TEXT NOT NULL,
+  supplier_id UUID NOT NULL REFERENCES suppliers(id),
+  gr_id TEXT REFERENCES goods_receipts(id),
+  po_id UUID REFERENCES purchase_orders(id),
+  branch_id UUID REFERENCES branches(id),
+  invoice_date DATE NOT NULL DEFAULT (now() AT TIME ZONE 'UTC')::date,
+  due_date DATE,
+  currency_code TEXT NOT NULL REFERENCES currencies(code),
+  exchange_rate NUMERIC(18,6) NOT NULL DEFAULT 1,
+  subtotal NUMERIC(18,6) NOT NULL DEFAULT 0,
+  tax_amount NUMERIC(18,6) NOT NULL DEFAULT 0,
+  discount_amount NUMERIC(18,6) NOT NULL DEFAULT 0,
+  total_amount NUMERIC(18,6) NOT NULL DEFAULT 0,
+  paid_amount NUMERIC(18,6) NOT NULL DEFAULT 0,
+  balance_amount NUMERIC(18,6) NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'pending',
+  payment_terms_id TEXT REFERENCES payment_terms(id),
+  notes_ar TEXT DEFAULT '',
+  notes_en TEXT DEFAULT '',
+  supplier_invoice_number TEXT DEFAULT '',
+  supplier_invoice_date DATE,
+  approved_by UUID REFERENCES users(id),
+  approved_at TIMESTAMPTZ,
+  created_by UUID NOT NULL REFERENCES users(id),
+  updated_by UUID REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, number)
+);
+
+CREATE TABLE IF NOT EXISTS purchase_invoice_items (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  pi_id TEXT NOT NULL REFERENCES purchase_invoices(id),
+  gr_item_id TEXT REFERENCES goods_receipt_items(id),
+  po_item_id UUID REFERENCES purchase_order_items(id),
+  product_id UUID NOT NULL REFERENCES products(id),
+  variant_id TEXT REFERENCES product_variants(id),
+  line_number BIGINT NOT NULL DEFAULT 1,
+  description_ar TEXT DEFAULT '',
+  description_en TEXT DEFAULT '',
+  quantity NUMERIC(18,6) NOT NULL DEFAULT 0,
+  uom_id TEXT REFERENCES units_of_measure(id),
+  unit_price NUMERIC(18,6) NOT NULL DEFAULT 0,
+  discount_percentage NUMERIC(18,6) DEFAULT 0,
+  discount_amount NUMERIC(18,6) NOT NULL DEFAULT 0,
+  tax_id TEXT REFERENCES taxes(id),
+  tax_rate NUMERIC(18,6) NOT NULL DEFAULT 0,
+  tax_amount NUMERIC(18,6) NOT NULL DEFAULT 0,
+  line_total NUMERIC(18,6) NOT NULL DEFAULT 0,
+  notes_ar TEXT DEFAULT '',
+  notes_en TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS purchase_return_reasons (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT DEFAULT '',
+  code TEXT NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  requires_approval BOOLEAN NOT NULL DEFAULT TRUE,
+  affects_inventory BIGINT NOT NULL DEFAULT 1,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_system BOOLEAN NOT NULL DEFAULT FALSE,
+  source_template_id TEXT,
+  sort_order BIGINT NOT NULL DEFAULT 100,
+  created_by TEXT DEFAULT '',
+  updated_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS purchase_returns (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  number TEXT NOT NULL,
+  supplier_id UUID NOT NULL REFERENCES suppliers(id),
+  warehouse_id TEXT NOT NULL REFERENCES warehouses(id),
+  pi_id TEXT REFERENCES purchase_invoices(id),
+  gr_id TEXT REFERENCES goods_receipts(id),
+  return_date DATE NOT NULL DEFAULT (now() AT TIME ZONE 'UTC')::date,
+  reason_id TEXT REFERENCES purchase_return_reasons(id),
+  status TEXT NOT NULL DEFAULT 'pending',
+  total_amount NUMERIC(18,6) NOT NULL DEFAULT 0,
+  notes_ar TEXT DEFAULT '',
+  notes_en TEXT DEFAULT '',
+  approved_by UUID REFERENCES users(id),
+  approved_at TIMESTAMPTZ,
+  created_by UUID NOT NULL REFERENCES users(id),
+  updated_by UUID REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, number)
+);
+
+-- (2) 118 missing columns on baseline tables.
+ALTER TABLE products ADD COLUMN IF NOT EXISTS name_en TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS description_ar TEXT DEFAULT '';
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS description_en TEXT DEFAULT '';
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS uom_id TEXT REFERENCES units_of_measure(id);
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS sale_uom_id TEXT REFERENCES units_of_measure(id);
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS purchase_uom_id TEXT REFERENCES units_of_measure(id);
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS tax_id TEXT REFERENCES taxes(id);
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS tax_group_id TEXT REFERENCES tax_groups(id);
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS weight NUMERIC(18,6) DEFAULT 0;
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS weight_uom_id TEXT REFERENCES units_of_measure(id);
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS length NUMERIC(18,6) DEFAULT 0;
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS width NUMERIC(18,6) DEFAULT 0;
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS height NUMERIC(18,6) DEFAULT 0;
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS dimension_uom_id TEXT REFERENCES units_of_measure(id);
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS min_stock_level NUMERIC(18,6) DEFAULT 0;
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS max_stock_level NUMERIC(18,6) DEFAULT 0;
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS valuation_method TEXT NOT NULL DEFAULT 'fifo';
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS standard_cost NUMERIC(18,6) DEFAULT 0;
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS track_expiry BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS shelf_life_days BIGINT DEFAULT 0;
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS is_sellable BOOLEAN NOT NULL DEFAULT TRUE;
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS is_purchasable BOOLEAN NOT NULL DEFAULT TRUE;
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS is_manufacturable BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT '';
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS images_json TEXT DEFAULT '[]';
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS tags_json TEXT DEFAULT '[]';
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS attributes_json TEXT DEFAULT '{}';
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS variant_config_json TEXT DEFAULT '{}';
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS metadata_json TEXT DEFAULT '{}';
+
+ALTER TABLE brands ADD COLUMN IF NOT EXISTS name_en TEXT NOT NULL;
+
+ALTER TABLE brands ADD COLUMN IF NOT EXISTS logo_url TEXT DEFAULT '';
+
+ALTER TABLE brands ADD COLUMN IF NOT EXISTS description_ar TEXT DEFAULT '';
+
+ALTER TABLE brands ADD COLUMN IF NOT EXISTS description_en TEXT DEFAULT '';
+
+ALTER TABLE brands ADD COLUMN IF NOT EXISTS is_system BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE brands ADD COLUMN IF NOT EXISTS source_template_id TEXT;
+
+ALTER TABLE brands ADD COLUMN IF NOT EXISTS created_by TEXT DEFAULT '';
+
+ALTER TABLE brands ADD COLUMN IF NOT EXISTS updated_by TEXT DEFAULT '';
+
+ALTER TABLE product_barcodes ADD COLUMN IF NOT EXISTS variant_id TEXT REFERENCES product_variants(id);
+
+ALTER TABLE product_barcodes ADD COLUMN IF NOT EXISTS packaging_level TEXT DEFAULT 'unit';
+
+ALTER TABLE product_barcodes ADD COLUMN IF NOT EXISTS qty_in_pack NUMERIC(18,6) DEFAULT 1;
+
+ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS name_ar TEXT NOT NULL;
+
+ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS name_en TEXT NOT NULL;
+
+ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS description_ar TEXT DEFAULT '';
+
+ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS description_en TEXT DEFAULT '';
+
+ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL REFERENCES currencies(code);
+
+ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS applies_to_channels TEXT DEFAULT '[]';
+
+ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS applies_to_customer_groups TEXT DEFAULT '[]';
+
+ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS created_by TEXT DEFAULT '';
+
+ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS updated_by TEXT DEFAULT '';
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS name_en TEXT NOT NULL;
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS short_name_ar TEXT DEFAULT '';
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS short_name_en TEXT DEFAULT '';
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS supplier_type_id TEXT REFERENCES supplier_types(id);
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS supplier_group_id TEXT REFERENCES supplier_groups(id);
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS payment_terms_id TEXT REFERENCES payment_terms(id);
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS currency_code TEXT REFERENCES currencies(code);
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS commercial_register TEXT DEFAULT '';
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS contact_person TEXT DEFAULT '';
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS mobile TEXT DEFAULT '';
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS website TEXT DEFAULT '';
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS address_ar TEXT DEFAULT '';
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS address_en TEXT DEFAULT '';
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS city_id TEXT REFERENCES cities(id);
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS region_id TEXT REFERENCES regions(id);
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS country_id TEXT REFERENCES countries(id);
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS postal_code TEXT DEFAULT '';
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS bank_name TEXT DEFAULT '';
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS bank_account TEXT DEFAULT '';
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS iban TEXT DEFAULT '';
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS swift_code TEXT DEFAULT '';
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS credit_used NUMERIC(18,6) DEFAULT 0;
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS rating BIGINT DEFAULT 0;
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS preferred_supply_method TEXT DEFAULT 'direct';
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS lead_time_days BIGINT DEFAULT 0;
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS min_order_amount NUMERIC(18,6) DEFAULT 0;
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS is_preferred BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS onboarding_status TEXT DEFAULT 'active';
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS notes_ar TEXT DEFAULT '';
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS notes_en TEXT DEFAULT '';
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS metadata_json TEXT DEFAULT '{}';
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS created_by TEXT DEFAULT '';
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS updated_by TEXT DEFAULT '';
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'normal';
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS order_date DATE NOT NULL DEFAULT (now() AT TIME ZONE 'UTC')::date;
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS expected_date DATE;
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS required_date DATE;
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL REFERENCES currencies(code);
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(18,6) NOT NULL DEFAULT 1;
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS total_amount NUMERIC(18,6) NOT NULL DEFAULT 0;
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(18,6) NOT NULL DEFAULT 0;
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS balance_amount NUMERIC(18,6) NOT NULL DEFAULT 0;
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS notes_ar TEXT DEFAULT '';
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS notes_en TEXT DEFAULT '';
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS internal_notes_ar TEXT DEFAULT '';
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS internal_notes_en TEXT DEFAULT '';
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS sent_by UUID REFERENCES users(id);
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS sent_at TIMESTAMPTZ;
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS updated_by UUID REFERENCES users(id);
+
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL;
+
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS po_id UUID NOT NULL REFERENCES purchase_orders(id);
+
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS variant_id TEXT REFERENCES product_variants(id);
+
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS line_number BIGINT NOT NULL DEFAULT 1;
+
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS description_ar TEXT DEFAULT '';
+
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS description_en TEXT DEFAULT '';
+
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS quantity NUMERIC(18,6) NOT NULL DEFAULT 0;
+
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS uom_id TEXT REFERENCES units_of_measure(id);
+
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS unit_price NUMERIC(18,6) NOT NULL DEFAULT 0;
+
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS discount_percentage NUMERIC(18,6) DEFAULT 0;
+
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS tax_id TEXT REFERENCES taxes(id);
+
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(18,6) NOT NULL DEFAULT 0;
+
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS line_total NUMERIC(18,6) NOT NULL DEFAULT 0;
+
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS invoiced_qty NUMERIC(18,6) NOT NULL DEFAULT 0;
+
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS cancelled_qty NUMERIC(18,6) NOT NULL DEFAULT 0;
+
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS notes_ar TEXT DEFAULT '';
+
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS notes_en TEXT DEFAULT '';
+
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
+-- (3) 129 missing indexes.
+CREATE INDEX IF NOT EXISTS idx_countries_active ON countries (is_active);
+CREATE INDEX IF NOT EXISTS idx_countries_currency ON countries (currency_code);
+CREATE INDEX IF NOT EXISTS idx_regions_country ON regions (country_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_regions_parent ON regions (parent_id);
+CREATE INDEX IF NOT EXISTS idx_cities_region ON cities (region_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_cities_country ON cities (country_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_languages_active ON languages (is_active);
+CREATE INDEX IF NOT EXISTS idx_languages_direction ON languages (direction);
+CREATE INDEX IF NOT EXISTS idx_timezones_active ON timezones (is_active);
+CREATE INDEX IF NOT EXISTS idx_sectors_parent ON business_sectors (parent_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_sectors_level ON business_sectors (level, is_active);
+CREATE INDEX IF NOT EXISTS idx_sectors_leaf ON business_sectors (is_leaf, is_active);
+CREATE INDEX IF NOT EXISTS idx_categories_tenant ON categories (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_categories_parent ON categories (parent_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_categories_type ON categories (type, is_active);
+CREATE INDEX IF NOT EXISTS idx_categories_sector ON categories (business_sector_id);
+CREATE INDEX IF NOT EXISTS idx_categories_template ON categories (source_template_id);
+CREATE INDEX IF NOT EXISTS idx_tax_types_active ON tax_types (is_active);
+CREATE INDEX IF NOT EXISTS idx_taxes_tenant ON taxes (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_taxes_country ON taxes (country_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_taxes_type ON taxes (tax_type_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_taxes_valid ON taxes (valid_from, valid_to);
+CREATE INDEX IF NOT EXISTS idx_taxes_template ON taxes (source_template_id);
+CREATE INDEX IF NOT EXISTS idx_tax_groups_tenant ON tax_groups (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_acc_tpl_country ON account_templates (country_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_acc_tpl_sector ON account_templates (business_sector_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_acc_tpl_type ON account_templates (account_type, is_active);
+CREATE INDEX IF NOT EXISTS idx_acc_tpl_parent ON account_templates (parent_code);
+CREATE INDEX IF NOT EXISTS idx_accounts_tenant ON accounts (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_accounts_parent ON accounts (parent_id);
+CREATE INDEX IF NOT EXISTS idx_accounts_type ON accounts (account_type, is_active);
+CREATE INDEX IF NOT EXISTS idx_accounts_template ON accounts (template_id);
+CREATE INDEX IF NOT EXISTS idx_acc_sets_country ON account_templates_sets (country_id);
+CREATE INDEX IF NOT EXISTS idx_acc_sets_sector ON account_templates_sets (business_sector_id);
+CREATE INDEX IF NOT EXISTS idx_uom_cat_active ON uom_categories (is_active);
+CREATE INDEX IF NOT EXISTS idx_uom_tenant ON units_of_measure (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_uom_category ON units_of_measure (category_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_uom_base ON units_of_measure (is_base, is_active);
+CREATE INDEX IF NOT EXISTS idx_uom_template ON units_of_measure (source_template_id);
+CREATE INDEX IF NOT EXISTS idx_uom_conv_tenant ON uom_conversions (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_uom_conv_from ON uom_conversions (from_unit_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_uom_conv_to ON uom_conversions (to_unit_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_pum_tenant ON product_unit_mappings (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_pum_product ON product_unit_mappings (product_id);
+CREATE INDEX IF NOT EXISTS idx_brands_tenant ON brands (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_pattr_tenant ON product_attributes (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_pattr_val_attr ON product_attribute_values (attribute_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_products_brand ON products (brand_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_products_type ON products (product_type, is_active);
+CREATE INDEX IF NOT EXISTS idx_pvar_parent ON product_variants (parent_product_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_pvar_code ON product_variants (tenant_id, code);
+CREATE INDEX IF NOT EXISTS idx_pvar_barcode ON product_variants (barcode);
+CREATE INDEX IF NOT EXISTS idx_pbar_product ON product_barcodes (product_id);
+CREATE INDEX IF NOT EXISTS idx_pbar_variant ON product_barcodes (variant_id);
+CREATE INDEX IF NOT EXISTS idx_pbar_barcode ON product_barcodes (barcode);
+CREATE INDEX IF NOT EXISTS idx_ppack_product ON product_packaging (product_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_pkit_parent ON product_kits (parent_product_id);
+CREATE INDEX IF NOT EXISTS idx_pkit_component ON product_kits (component_product_id);
+CREATE INDEX IF NOT EXISTS idx_recipes_product ON recipes (product_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_ritem_recipe ON recipe_items (recipe_id);
+CREATE INDEX IF NOT EXISTS idx_ritem_product ON recipe_items (product_id);
+CREATE INDEX IF NOT EXISTS idx_pbatch_product ON product_batches (product_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_pbatch_expiry ON product_batches (expiry_date, is_active);
+CREATE INDEX IF NOT EXISTS idx_pbatch_number ON product_batches (batch_number);
+CREATE INDEX IF NOT EXISTS idx_pserial_product ON product_serials (product_id, status);
+CREATE INDEX IF NOT EXISTS idx_pserial_batch ON product_serials (batch_id);
+CREATE INDEX IF NOT EXISTS idx_pserial_status ON product_serials (status);
+CREATE INDEX IF NOT EXISTS idx_plist_tenant ON price_lists (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_plist_default ON price_lists (is_default, is_active);
+CREATE INDEX IF NOT EXISTS idx_plitem_list ON price_list_items (price_list_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_plitem_product ON price_list_items (product_id, variant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_plitem_qty ON price_list_items (min_qty, max_qty);
+CREATE INDEX IF NOT EXISTS idx_cprice_customer ON customer_prices (customer_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_cprice_product ON customer_prices (product_id, variant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_cprice_valid ON customer_prices (valid_from, valid_to);
+CREATE INDEX IF NOT EXISTS idx_promo_tenant ON promotions (tenant_id, is_active, valid_from, valid_to);
+CREATE INDEX IF NOT EXISTS idx_promo_coupon ON promotions (coupon_code, is_active);
+CREATE INDEX IF NOT EXISTS idx_promo_type ON promotions (promotion_type, is_active);
+CREATE INDEX IF NOT EXISTS idx_papp_promo ON promotion_applications (promotion_id);
+CREATE INDEX IF NOT EXISTS idx_papp_invoice ON promotion_applications (invoice_id);
+CREATE INDEX IF NOT EXISTS idx_papp_customer ON promotion_applications (customer_id);
+CREATE INDEX IF NOT EXISTS idx_papp_date ON promotion_applications (applied_at);
+CREATE INDEX IF NOT EXISTS idx_rrule_tenant ON rounding_rules (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_rrule_default ON rounding_rules (is_default, is_active);
+CREATE INDEX IF NOT EXISTS idx_pguard_tenant ON price_guards (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_pguard_product ON price_guards (product_id);
+CREATE INDEX IF NOT EXISTS idx_pguard_category ON price_guards (category_id);
+CREATE INDEX IF NOT EXISTS idx_ctype_tenant ON customer_types (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_cgroup_tenant ON customer_groups (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_pterms_tenant ON payment_terms (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_rreason_tenant ON return_reasons (tenant_id, is_active, type);
+CREATE INDEX IF NOT EXISTS idx_stype_tenant ON sale_types (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_schannel_tenant ON sales_channels (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_ltier_tenant ON loyalty_tiers (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_ltier_points ON loyalty_tiers (min_points, max_points);
+CREATE INDEX IF NOT EXISTS idx_cdoc_customer ON customer_documents (customer_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_cdoc_type ON customer_documents (document_type);
+CREATE INDEX IF NOT EXISTS idx_cdoc_expiry ON customer_documents (expiry_date);
+CREATE INDEX IF NOT EXISTS idx_sgroup_tenant ON supplier_groups (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_suppliers_tenant ON suppliers (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_suppliers_type ON suppliers (supplier_type_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_suppliers_group ON suppliers (supplier_group_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_sdoc_supplier ON supplier_documents (supplier_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_sdoc_expiry ON supplier_documents (expiry_date);
+CREATE INDEX IF NOT EXISTS idx_po_tenant ON purchase_orders (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_po_warehouse ON purchase_orders (warehouse_id);
+CREATE INDEX IF NOT EXISTS idx_po_date ON purchase_orders (order_date);
+CREATE INDEX IF NOT EXISTS idx_po_number ON purchase_orders (tenant_id, number);
+CREATE INDEX IF NOT EXISTS idx_poi_po ON purchase_order_items (po_id);
+CREATE INDEX IF NOT EXISTS idx_poi_product ON purchase_order_items (product_id, variant_id);
+CREATE INDEX IF NOT EXISTS idx_gr_tenant ON goods_receipts (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_gr_po ON goods_receipts (po_id);
+CREATE INDEX IF NOT EXISTS idx_gr_supplier ON goods_receipts (supplier_id);
+CREATE INDEX IF NOT EXISTS idx_gr_date ON goods_receipts (receipt_date);
+CREATE INDEX IF NOT EXISTS idx_gri_gr ON goods_receipt_items (gr_id);
+CREATE INDEX IF NOT EXISTS idx_gri_po_item ON goods_receipt_items (po_item_id);
+CREATE INDEX IF NOT EXISTS idx_gri_product ON goods_receipt_items (product_id, variant_id);
+CREATE INDEX IF NOT EXISTS idx_gri_batch ON goods_receipt_items (batch_id);
+CREATE INDEX IF NOT EXISTS idx_pinv_tenant ON purchase_invoices (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_pinv_supplier ON purchase_invoices (supplier_id, status);
+CREATE INDEX IF NOT EXISTS idx_pinv_due ON purchase_invoices (due_date, status);
+CREATE INDEX IF NOT EXISTS idx_pinv_date ON purchase_invoices (invoice_date);
+CREATE INDEX IF NOT EXISTS idx_pii_pi ON purchase_invoice_items (pi_id);
+CREATE INDEX IF NOT EXISTS idx_pii_gr_item ON purchase_invoice_items (gr_item_id);
+CREATE INDEX IF NOT EXISTS idx_pii_product ON purchase_invoice_items (product_id, variant_id);
+CREATE INDEX IF NOT EXISTS idx_pret_tenant ON purchase_return_reasons (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_preturn_tenant ON purchase_returns (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_preturn_supplier ON purchase_returns (supplier_id);
+CREATE INDEX IF NOT EXISTS idx_preturn_date ON purchase_returns (return_date);
+
+COMMIT;
+-- <<< gen-pg-parity: END <<<

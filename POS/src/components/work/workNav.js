@@ -93,6 +93,21 @@ export const WORK_NAV_SECTIONS = Object.freeze([
 				to: { name: "OpeningBalances" },
 				icon: "book",
 			},
+			{
+				// قوائم v53 (ضرائب/وحدات/شروط دفع…) — تُدار من شاشة واحدة.
+				id: "reference-data",
+				label: "البيانات المرجعية",
+				to: { name: "ReferenceData" },
+				icon: "database",
+			},
+			{
+				// كان هذا المسار موجودًا في الموجّه بلا أي رابط يصل إليه —
+				// شاشة غير قابلة للوصول عُدّت عيبًا (S7b)، فأُضيف الباب إليها.
+				id: "master-data-import",
+				label: "استيراد البيانات الأساسية",
+				to: { name: "MasterDataImport" },
+				icon: "upload-cloud",
+			},
 		],
 	},
 ])

@@ -112,6 +112,11 @@ const CURRENT_SCHEMA = {
 		"&pos_profile, date, total_sales, invoice_count, tax_amount",
 	// ZATCA compliance settings per company
 	zatca_settings: "&company_id, enable_zalina, enable_sfd, tax_regime",
+
+	// Reference data cache (v53): the 26 global reference doctypes, one row per
+	// record, `doctype` on every row so a doctype query never mixes tables.
+	// Keyed [doctype+name] — the same id (e.g. "YE") exists in several tables.
+	reference_data: "&[doctype+name], doctype",
 }
 
 /**

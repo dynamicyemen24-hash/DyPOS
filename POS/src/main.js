@@ -30,7 +30,7 @@ import { createApp } from "vue"
 
 import App from "./App.vue"
 
-import { session, sessionUser } from "./data/session"
+import { session, sessionUser, setNavigateToLogin } from "./data/session"
 import { userResource } from "./data/user"
 import router from "./router"
 
@@ -1266,6 +1266,9 @@ async function initializeApp() {
 		   ------------------------------------------------------------------ */
 
 		app.use(router)
+
+		/* Wire up navigation callback to break circular dep with data/session */
+		setNavigateToLogin(() => router.replace({ name: "Login" }))
 
 		/* ---------------------------------------------------------------------
 		   Mount application

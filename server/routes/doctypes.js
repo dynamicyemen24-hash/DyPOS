@@ -18,6 +18,33 @@
  * and produces the fields it reads. An entry that exists but maps to nothing is
  * the failure mode that made dashboards render confident zeros.
  */
+/**
+ * Reference-data doctype factory (v53 seeds).
+ *
+ * `globalScope: true` tells `pushTenantScope` that this table's `tenant_id=''
+ * rows are global templates every tenant may read — without it the tenant
+ * clause would filter the seeds out and every picker would render empty.
+ * `defaultWhere: null` on purpose: a management screen must SEE the rows it
+ * retired (`is_active=0`) in order to restore them; pickers pass
+ * `filters: { is_active: 1 }` when they want only the live ones.
+ *
+ * `code` is the column holding the human code (null = the table has none);
+ * `fields` lists every column set_value may write, and nothing else — a
+ * typo'd key would reach SQL and silently degrade to an empty list.
+ */
+function mkRef(table, { idCol = 'id', code = 'code', fields = {} } = {}) {
+	const base = { name: idCol, name_ar: 'name_ar', name_en: 'name_en', is_active: 'is_active' };
+	if (code) base.code = code;
+	return {
+		table,
+		idCol,
+		globalScope: true,
+		defaultWhere: null,
+		fields: { ...base, ...fields },
+		idAliases: code ? [idCol, 'code'] : [idCol],
+	};
+}
+
 export const DOCTYPES = {
 	Item: {
 		table: 'products',
@@ -294,6 +321,292 @@ export const DOCTYPES = {
 		defaultWhere: null,
 		idAliases: ['id', 'name'],
 	},
+	// ── Reference data (v53) — global templates, read by every role ──
+	Country: mkRef('countries', {
+		code: 'iso2',
+		fields: {
+			iso2: 'iso2',
+			iso3: 'iso3',
+			numeric_code: 'numeric_code',
+			phone_code: 'phone_code',
+			currency_code: 'currency_code',
+			timezone: 'timezone',
+			date_format: 'date_format',
+			number_format: 'number_format',
+			number_system: 'number_system',
+		},
+	}),
+	Region: mkRef('regions', {
+		fields: { country_id: 'country_id', level: 'level', parent_id: 'parent_id', native_name: 'native_name' },
+	}),
+	City: mkRef('cities', {
+		code: null,
+		fields: {
+			country_id: 'country_id',
+			region_id: 'region_id',
+			postal_code: 'postal_code',
+			latitude: 'latitude',
+			longitude: 'longitude',
+			native_name: 'native_name',
+		},
+	}),
+	Language: mkRef('languages', {
+		idCol: 'code',
+		fields: {
+			iso639_1: 'iso639_1',
+			iso639_2: 'iso639_2',
+			iso639_3: 'iso639_3',
+			native_name: 'native_name',
+			direction: 'direction',
+			locale_codes: 'locale_codes',
+		},
+	}),
+	Timezone: mkRef('timezones', {
+		code: null,
+		fields: {
+			utc_offset: 'utc_offset',
+			utc_dst_offset: 'utc_dst_offset',
+			has_dst: 'has_dst',
+			country_codes: 'country_codes',
+		},
+	}),
+	BusinessSector: mkRef('business_sectors', {
+		fields: {
+			description_ar: 'description_ar',
+			description_en: 'description_en',
+			icon: 'icon',
+			color: 'color',
+			parent_id: 'parent_id',
+			level: 'level',
+			sort_order: 'sort_order',
+			is_leaf: 'is_leaf',
+		},
+	}),
+	Category: mkRef('categories', {
+		fields: {
+			description_ar: 'description_ar',
+			description_en: 'description_en',
+			image_url: 'image_url',
+			icon: 'icon',
+			type: 'type',
+			parent_id: 'parent_id',
+			level: 'level',
+			sort_order: 'sort_order',
+			is_system: 'is_system',
+			business_sector_id: 'business_sector_id',
+		},
+	}),
+	TaxType: mkRef('tax_types', {
+		fields: {
+			description_ar: 'description_ar',
+			description_en: 'description_en',
+			applies_to: 'applies_to',
+			is_system: 'is_system',
+		},
+	}),
+	Tax: mkRef('taxes', {
+		code: null,
+		fields: {
+			country_id: 'country_id',
+			tax_type_id: 'tax_type_id',
+			rate: 'rate',
+			is_inclusive: 'is_inclusive',
+			calculation_base: 'calculation_base',
+			applies_to: 'applies_to',
+			valid_from: 'valid_from',
+			valid_to: 'valid_to',
+			is_default: 'is_default',
+		},
+	}),
+	UomCategory: mkRef('uom_categories', {
+		fields: {
+			description_ar: 'description_ar',
+			description_en: 'description_en',
+			base_unit_code: 'base_unit_code',
+			sort_order: 'sort_order',
+		},
+	}),
+	UnitOfMeasure: mkRef('units_of_measure', {
+		fields: {
+			symbol_ar: 'symbol_ar',
+			symbol_en: 'symbol_en',
+			category_id: 'category_id',
+			factor_to_base: 'factor_to_base',
+			is_base: 'is_base',
+			precision: 'precision',
+			rounding_method: 'rounding_method',
+			allows_fraction: 'allows_fraction',
+			is_system: 'is_system',
+		},
+	}),
+	UomConversion: mkRef('uom_conversions', {
+		code: null,
+		fields: { from_unit_id: 'from_unit_id', to_unit_id: 'to_unit_id', factor: 'factor', is_system: 'is_system' },
+	}),
+	PaymentTerm: mkRef('payment_terms', {
+		fields: {
+			description_ar: 'description_ar',
+			description_en: 'description_en',
+			days_net: 'days_net',
+			days_discount: 'days_discount',
+			discount_percentage: 'discount_percentage',
+			payment_schedule: 'payment_schedule',
+			is_system: 'is_system',
+		},
+	}),
+	ReturnReason: mkRef('return_reasons', {
+		fields: {
+			type: 'type',
+			requires_approval: 'requires_approval',
+			affects_inventory: 'affects_inventory',
+			affects_loyalty: 'affects_loyalty',
+			sort_order: 'sort_order',
+			is_system: 'is_system',
+		},
+	}),
+	PurchaseReturnReason: mkRef('purchase_return_reasons', {
+		fields: {
+			requires_approval: 'requires_approval',
+			affects_inventory: 'affects_inventory',
+			sort_order: 'sort_order',
+			is_system: 'is_system',
+		},
+	}),
+	SaleType: mkRef('sale_types', {
+		fields: {
+			description_ar: 'description_ar',
+			description_en: 'description_en',
+			requires_customer: 'requires_customer',
+			allows_credit: 'allows_credit',
+			allows_partial_payment: 'allows_partial_payment',
+			creates_invoice: 'creates_invoice',
+			creates_order: 'creates_order',
+			creates_quote: 'creates_quote',
+			requires_deposit: 'requires_deposit',
+			deposit_percentage: 'deposit_percentage',
+			sort_order: 'sort_order',
+			is_system: 'is_system',
+		},
+	}),
+	SalesChannel: mkRef('sales_channels', {
+		fields: {
+			description_ar: 'description_ar',
+			description_en: 'description_en',
+			channel_type: 'channel_type',
+			requires_sync: 'requires_sync',
+			default_price_list_id: 'default_price_list_id',
+			default_warehouse_id: 'default_warehouse_id',
+			sort_order: 'sort_order',
+			is_system: 'is_system',
+		},
+	}),
+	LoyaltyTier: mkRef('loyalty_tiers', {
+		fields: {
+			description_ar: 'description_ar',
+			description_en: 'description_en',
+			min_points: 'min_points',
+			max_points: 'max_points',
+			discount_percentage: 'discount_percentage',
+			points_earn_rate: 'points_earn_rate',
+			points_redeem_rate: 'points_redeem_rate',
+			benefits_json: 'benefits_json',
+			color: 'color',
+			icon: 'icon',
+			sort_order: 'sort_order',
+			is_system: 'is_system',
+		},
+	}),
+	CustomerType: mkRef('customer_types', {
+		fields: {
+			description_ar: 'description_ar',
+			description_en: 'description_en',
+			default_credit_limit: 'default_credit_limit',
+			default_payment_terms_id: 'default_payment_terms_id',
+			requires_approval: 'requires_approval',
+			sort_order: 'sort_order',
+			is_system: 'is_system',
+		},
+	}),
+	CustomerGroup: mkRef('customer_groups', {
+		fields: {
+			description_ar: 'description_ar',
+			description_en: 'description_en',
+			discount_percentage: 'discount_percentage',
+			price_list_id: 'price_list_id',
+			sort_order: 'sort_order',
+			is_system: 'is_system',
+		},
+	}),
+	SupplierType: mkRef('supplier_types', {
+		fields: {
+			description_ar: 'description_ar',
+			description_en: 'description_en',
+			default_payment_terms_id: 'default_payment_terms_id',
+			requires_approval: 'requires_approval',
+			sort_order: 'sort_order',
+			is_system: 'is_system',
+		},
+	}),
+	SupplierGroup: mkRef('supplier_groups', {
+		fields: {
+			description_ar: 'description_ar',
+			description_en: 'description_en',
+			discount_percentage: 'discount_percentage',
+			price_list_id: 'price_list_id',
+			sort_order: 'sort_order',
+			is_system: 'is_system',
+		},
+	}),
+	AccountTemplate: mkRef('account_templates', {
+		fields: {
+			description_ar: 'description_ar',
+			description_en: 'description_en',
+			account_type: 'account_type',
+			account_subtype: 'account_subtype',
+			parent_code: 'parent_code',
+			level: 'level',
+			nature: 'nature',
+			is_system: 'is_system',
+			country_id: 'country_id',
+			business_sector_id: 'business_sector_id',
+			sort_order: 'sort_order',
+			allow_manual_entry: 'allow_manual_entry',
+			requires_sub_account: 'requires_sub_account',
+		},
+	}),
+	AccountTemplateSet: mkRef('account_templates_sets', {
+		code: null,
+		fields: {
+			description_ar: 'description_ar',
+			description_en: 'description_en',
+			country_id: 'country_id',
+			business_sector_id: 'business_sector_id',
+			template_ids: 'template_ids',
+			is_default: 'is_default',
+		},
+	}),
+	RoundingRule: mkRef('rounding_rules', {
+		fields: {
+			applies_to: 'applies_to',
+			method: 'method',
+			precision: 'precision',
+			min_amount: 'min_amount',
+			max_amount: 'max_amount',
+			currency_code: 'currency_code',
+			is_default: 'is_default',
+		},
+	}),
+	ProductAttribute: mkRef('product_attributes', {
+		fields: {
+			input_type: 'input_type',
+			values_json: 'values_json',
+			is_required: 'is_required',
+			is_variant: 'is_variant',
+			is_filterable: 'is_filterable',
+			sort_order: 'sort_order',
+			is_system: 'is_system',
+		},
+	}),
 };
 
 export function resolveDoctype(doctype) {

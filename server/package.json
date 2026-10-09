@@ -26,6 +26,7 @@
     "load": "node scripts/load-test.mjs",
     "campaign": "node scripts/stress-campaign.mjs",
     "parity": "node scripts/check-pg-parity.mjs",
+    "parity:sync": "node scripts/gen-pg-parity.mjs",
     "contract": "node scripts/check-method-coverage.mjs",
     "upstream": "node scripts/check-api-upstream.mjs",
     "load:k6": "k6 run -e BASE=http://localhost:3001 tests/load/k6-invoices.js",
@@ -41,7 +42,7 @@
     "that module was unreachable from any entry point, so the collector wiring it",
     "declared (api, resources, semantic-conventions, instrumentation-express/http,",
     "Prometheus exporter) had no importer either. An SDK plus an exporter that",
-    "nothing configures is worse than none — a deployment that enabled OTLP got an",
+    "nothing configures is worse than none ΓÇö a deployment that enabled OTLP got an",
     "unconfigured collector. Add a package back the moment a code path really",
     "exports traces or OTLP metrics, and wire it in the same commit."
   ],
