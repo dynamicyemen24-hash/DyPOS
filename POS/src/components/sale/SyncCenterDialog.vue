@@ -541,6 +541,10 @@ async function retryCanonicalOperation(context) {
 		recoveryActionErrors.value = { ...recoveryActionErrors.value, [key]: "سجّل الدخول وتأكد من هوية المشترك قبل إعادة المحاولة." }
 		return
 	}
+	if (!isLinkEnabled() || !getEffectiveToken()) {
+		recoveryActionErrors.value = { ...recoveryActionErrors.value, [key]: "فعّل الربط بالمنصة وسجّل الدخول قبل إعادة المحاولة." }
+		return
+	}
 	recoveryBusyIds.value = [...recoveryBusyIds.value, key]
 	try {
 		const stored = await db.syncQueue.get(rawId)
@@ -563,7 +567,9 @@ async function retryCanonicalOperation(context) {
 		if (!reopened) throw new Error("تعذّر إعادة فتح العملية الفاشلة لهذا المشترك.")
 		await runSyncCycleSilently()
 		const updated = await db.syncQueue.get(rawId)
-		if (updated?.status === "failed") throw new Error(updated.lastError || "ما زالت العملية فاشلة؛ راجع تفاصيلها.")
+		if (!updated || String(updated.tenantId || "") !== String(authState.tenantId || "") || updated.status !== "synced") {
+			throw new Error(updated?.lastError || "لم يؤكد الخادم نجاح العملية؛ بقيت محفوظة في قائمة الانتظار.")
+		}
 		const nextErrors = { ...recoveryActionErrors.value }
 		delete nextErrors[key]
 		recoveryActionErrors.value = nextErrors
@@ -594,6 +600,7 @@ async function retryFailedRows() {
 		let reopened = 0
 		const activeTenant = authState.tenantId == null ? "" : String(authState.tenantId)
 		if (!activeTenant) throw new Error("هوية المشترك غير متاحة؛ سجّل الدخول قبل إعادة المحاولة.")
+		if (!isLinkEnabled() || !getEffectiveToken()) throw new Error("فعّل الربط بالمنصة وسجّل الدخول قبل إعادة المحاولة.")
 		for (const row of failedRows.value) {
 			const id = Number(String(row.id).replace("sync-", ""))
 			if (!Number.isSafeInteger(id) || id <= 0) continue
