@@ -18,6 +18,7 @@
       :class="inputClasses"
       @input="onInput"
       @change="onInput"
+      @keydown.enter="emit('enter', $event)"
     />
     <span
       v-if="$slots.suffix"
@@ -58,9 +59,14 @@ const props = defineProps({
 	variant: { type: String, default: "subtle" },
 	/** Debounce the emitted value (search boxes). */
 	debounce: { type: Number, default: 0 },
+	/**
+	 * وضع الباركود: `enterkeyhint=go` + `autocomplete=off` — الماسح الضوئي
+	 * (keyboard-wedge) ينتهي بـ Enter، فيُعرف الزر التالي وجهته قبل أن يُضغط.
+	 */
+	barcode: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(["update:modelValue", "change"])
+const emit = defineEmits(["update:modelValue", "change", "enter"])
 const attrs = useAttrs()
 const slots = useSlots()
 const inputRef = ref(/** @type {HTMLInputElement|null} */ (null))
@@ -71,6 +77,10 @@ const controlAttrs = computed(() => {
 	const rest = {}
 	for (const key of Object.keys(attrs)) {
 		if (key !== "class" && key !== "style") rest[key] = attrs[key]
+	}
+	if (props.barcode) {
+		rest.enterkeyhint = rest.enterkeyhint ?? "go"
+		rest.autocomplete = rest.autocomplete ?? "off"
 	}
 	return rest
 })

@@ -8,6 +8,9 @@
 // Layout & Shell
 export { default as WorkShell } from "./WorkShell.vue"
 export { default as WorkToolbar } from "./WorkToolbar.vue"
+export { default as WorkMenuStrip } from "./WorkMenuStrip.vue"
+export { default as WorkStatusStrip } from "./WorkStatusStrip.vue"
+export { default as WorkPanel } from "./WorkPanel.vue"
 
 // Navigation
 export { default as WorkTabs } from "./WorkTabs.vue"
@@ -20,27 +23,16 @@ export { default as WorkChart } from "./WorkChart.vue"
 export { default as WorkFilters } from "./WorkFilters.vue"
 export { default as WorkFilterField } from "./WorkFilterField.vue"
 export { default as WorkSearch } from "./WorkSearch.vue"
+export { default as StatusBadge } from "./StatusBadge.vue"
 
 // Feedback & States
 export { default as WorkLoadingSkeleton } from "./WorkLoadingSkeleton.vue"
 export { default as WorkErrorState } from "./WorkErrorState.vue"
 export { default as WorkPermissionState } from "./WorkPermissionState.vue"
 export { default as WorkEmptyState } from "./WorkEmptyState.vue"
-// The imperative API lives in a plain module: `<script setup>` cannot hold ES
-// exports, and re-exporting `notify` from the SFC is a compile error — which is
-// why this file only ever "worked" while nothing compiled it.
-export {
-	notify,
-	notifySuccess,
-	notifyError,
-	notifyWarning,
-	notifyInfo,
-	dismissAll,
-	remove,
-	pause,
-	resume,
-	workNotifications,
-} from "./workNotifications.js"
+// التنبيهات عبر `useToast` + `common/Toast.vue` وحدهما (S3): متجر
+// `workNotifications` احتُذِي بلا مُصيِّر ولا نادٍ فحُذِف بدل أن يبقى
+// واجهة عامة لا يراها أحد.
 
 // Actions
 export { default as WorkActions } from "./WorkActions.vue"

@@ -16,8 +16,9 @@
         class="work-table__table"
         :role="selectable ? 'grid' : 'table'"
         :aria-label="ariaLabel"
-        :aria-multiselectable="selectable && selectionMode === 'multiple'"
-      >
+          :aria-multiselectable="selectable && selectionMode === 'multiple'"
+          :aria-busy="loading ? true : undefined"
+        >
         <thead class="work-table__head">
           <tr role="row">
             <th
@@ -76,6 +77,46 @@
         </thead>
 
         <tbody class="work-table__body">
+          <!-- Loading (لا صفوف بعد: هياكل عظمية — لا بيانات مُختلقة) -->
+          <template v-if="loading && !sortedRows.length">
+            <tr
+              v-for="n in 4"
+              :key="`work-table-skeleton-${n}`"
+              class="work-table__row work-table__row--skeleton"
+              aria-hidden="true"
+            >
+              <td v-if="selectable" class="work-table__td work-table__td--selection">
+                <span class="work-table__skeleton work-table__skeleton--sm" />
+              </td>
+              <td
+                v-for="column in columns"
+                :key="column.key"
+                class="work-table__td"
+              >
+                <span
+                  class="work-table__skeleton"
+                  :style="{ width: skeletonWidth(n) }"
+                />
+              </td>
+              <td v-if="actionsColumn" class="work-table__td work-table__td--actions">
+                <span class="work-table__skeleton work-table__skeleton--sm" />
+              </td>
+            </tr>
+            <tr class="work-table__row">
+              <td :colspan="totalColumns" class="work-table__td">
+                <span class="sr-only" role="status" aria-live="polite">{{ t('loadingContent') }}</span>
+              </td>
+            </tr>
+          </template>
+
+          <!-- Error (يأخذ الأفضلية على الفراغ: فشل لا يُقدَّم كجدول فارغ) -->
+          <tr v-else-if="error" class="work-table__error-row">
+            <td :colspan="totalColumns" class="work-table__empty-cell">
+              <WorkErrorState :message="error" @retry="emit('retry')" />
+            </td>
+          </tr>
+
+          <template v-else>
           <tr
             v-for="(row, rowIndex) in sortedRows"
             :key="getRowKey(row, rowIndex)"
@@ -168,6 +209,7 @@
               />
             </td>
           </tr>
+          </template>
         </tbody>
       </table>
     </div>
@@ -191,6 +233,7 @@ import { FeatherIcon } from "dypos-ui"
 import { t } from "@/utils/translation"
 import { formatCurrencySafe as formatCurrency } from "@/utils/currency"
 import WorkEmptyState from "./WorkEmptyState.vue"
+import WorkErrorState from "./WorkErrorState.vue"
 import WorkPagination from "./WorkPagination.vue"
 
 const props = defineProps({
@@ -238,6 +281,10 @@ const props = defineProps({
 	emptyAction: { type: Function, default: null },
 	/** Accessibility */
 	ariaLabel: { type: String, default: "Data Table" },
+	/** جاري التحميل: هياكل عظمية عندما لا توجد صفوف بعد */
+	loading: { type: Boolean, default: false },
+	/** رسالة خطأ — تعرض صف تنبيه (role=alert) مع إعادة المحاولة، لا جدولًا فارغًا */
+	error: { type: String, default: "" },
 })
 
 const emit = defineEmits([
@@ -247,6 +294,7 @@ const emit = defineEmits([
 	"sort",
 	"row-click",
 	"row-select",
+	"retry",
 ])
 
 const sortKey = ref(props.defaultSort?.key || null)
@@ -399,6 +447,12 @@ function handlePageSizeChange(size) {
 
 function formatNumber(val) {
 	return new Intl.NumberFormat("ar-SA").format(Number(val))
+}
+
+/** عرض ثابت لكل سطر هيكل (بدون عشوائية: نتائج قابلة للتكرار). */
+function skeletonWidth(rowIndex) {
+	const widths = ["72%", "90%", "58%", "81%"]
+	return widths[rowIndex % widths.length]
 }
 function formatPercent(val) {
 	return new Intl.NumberFormat("ar-SA", { style: "percent" }).format(
@@ -580,6 +634,25 @@ function formatDate(val) {
 .work-table__action--danger { color: var(--dy-color-status-danger-icon, #ef4444); }
 .work-table__action--danger:hover:not(:disabled) { background: var(--dy-color-status-danger-weak, #fee2e2); }
 
+/* Loading skeleton (هياكل عظمية — لا بيانات وهمية) */
+.work-table__skeleton {
+  display: inline-block;
+  height: 10px;
+  width: 72%;
+  border-radius: var(--dy-radius-full, 9999px);
+  background: var(--dy-color-surface-sunken, #f1f5f9);
+  animation: work-table-skeleton-pulse 1.4s ease-in-out infinite;
+}
+.work-table__skeleton--sm {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--dy-radius-sm, 4px);
+}
+@keyframes work-table-skeleton-pulse {
+  50% { opacity: 0.5; }
+}
+.work-table__row--skeleton:hover { background: transparent; }
+
 /* Empty Row */
 .work-table__empty-row { background: transparent; }
 .work-table__empty-cell {
@@ -601,6 +674,7 @@ function formatDate(val) {
   .work-table__sort-icon {
     transition: none;
   }
+  .work-table__skeleton { animation: none; }
 }
 
 /* High Contrast */

@@ -31,6 +31,15 @@
 						<p :class="['text-sm mt-1', toastStyles.messageColor]">
 							{{ toastNotification.message }}
 						</p>
+						<ActionButton
+							v-if="toastNotification.action"
+							class="mt-2"
+							variant="outline"
+							size="sm"
+							@click="runAction"
+						>
+							{{ toastNotification.action.label }}
+						</ActionButton>
 					</div>
 <ActionButton
 					@click="hideToast"
@@ -104,6 +113,17 @@ const toastStyles = computed(() => {
 	if (!toastNotification.value) return DEFAULT_STYLES
 	return TOAST_TYPE_STYLES[toastNotification.value.type] || DEFAULT_STYLES
 })
+
+/** زر استرداد داخل التوست: ينفّذ الإجراء ثم يُغلق التوست (فعله المستخدم). */
+function runAction() {
+	const action = toastNotification.value?.action
+	if (!action) return
+	try {
+		action.handler?.()
+	} finally {
+		if (action.dismiss !== false) hideToast()
+	}
+}
 </script>
 
 <style scoped>

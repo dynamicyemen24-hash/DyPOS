@@ -7,7 +7,13 @@ import { extractKey, storedResponse, idempotency, resetIdempotencyForTests, newK
 
 function mockReq(key, tenant = null, branch = null) {
 	return {
-		headers: key ? { 'x-idempotency-key': key, ...(tenant ? { 'x-tenant-id': tenant } : {}), ...(branch ? { 'x-branch-id': branch } : {}) } : {},
+		headers: key
+			? {
+					'x-idempotency-key': key,
+					...(tenant ? { 'x-tenant-id': tenant } : {}),
+					...(branch ? { 'x-branch-id': branch } : {}),
+				}
+			: {},
 		body: {},
 	};
 }

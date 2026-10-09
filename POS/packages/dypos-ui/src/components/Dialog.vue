@@ -19,7 +19,7 @@
             :aria-label="options?.title || undefined"
             tabindex="-1"
             class="dy-dialog-panel my-8 w-full transform overflow-hidden rounded-xl border border-[var(--dy-border)] bg-[var(--dy-surface)] text-start shadow-xl outline-none"
-            :class="[sizeClass, panelClass]"
+            :class="[sizeClass, panelClass, isBottom ? 'dy-dialog-panel--bottom' : '']"
             @keydown.esc.stop="close"
             @keydown.tab="onTab"
           >
@@ -142,21 +142,29 @@ const SIZE = {
 
 const sizeClass = computed(() => SIZE[props.options?.size] || SIZE.lg)
 const panelClass = computed(() => props.options?.panelClass || "")
+/** لوحة سفلية (bottom sheet) — للجوال أو لطلبه `position: "bottom"`. */
+const isBottom = computed(() => props.options?.position === "bottom")
 const overlayClass = computed(
 	() => props.options?.overlayClass || "bg-[var(--dy-bg-overlay)]",
 )
 const positionClass = computed(() => {
 	if (props.options?.paddingTop) return ""
-	return props.options?.position === "top" ? "pt-[12vh]" : "justify-center"
+	const position = props.options?.position
+	if (position === "top") return "pt-[12vh]"
+	if (position === "bottom") return "justify-end"
+	return "justify-center"
 })
 const positionStyle = computed(() =>
 	props.options?.paddingTop
 		? { paddingTop: String(props.options.paddingTop) }
 		: {},
 )
-const transitionName = computed(() =>
-	props.options?.position === "top" ? "dy-dialog-top" : "dy-dialog",
-)
+const transitionName = computed(() => {
+	const position = props.options?.position
+	if (position === "top") return "dy-dialog-top"
+	if (position === "bottom") return "dy-dialog-bottom"
+	return "dy-dialog"
+})
 
 const iconName = computed(() => {
 	const icon = props.options?.icon
@@ -281,6 +289,24 @@ onBeforeUnmount(() => lockScroll(false))
 .dy-dialog-top-enter-from .dy-dialog-panel,
 .dy-dialog-top-leave-to .dy-dialog-panel {
 	transform: translateY(-12px);
+}
+/* Bottom sheet: ملتصق بالحافة السفلية بعرض كامل على الجوال، ومحتوى داخلي
+   يتمرّر (لا لوحة تُدفع خارج الشاشة مع نص طويل). */
+.dy-dialog-panel--bottom {
+	margin-block-end: -1rem;
+	margin-inline: -1rem;
+	border-start-start-radius: 1rem;
+	border-start-end-radius: 1rem;
+	border-end-start-radius: 0;
+	border-end-end-radius: 0;
+	max-height: 86vh;
+	overflow-y: auto;
+	scrollbar-width: thin;
+}
+.dy-dialog-bottom-enter-from .dy-dialog-panel,
+.dy-dialog-bottom-leave-to .dy-dialog-panel {
+	transform: translateY(24px);
+	opacity: 0;
 }
 @media (prefers-reduced-motion: reduce) {
 	.dy-dialog-enter-active,

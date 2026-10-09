@@ -21,9 +21,11 @@ function __(msg, replace) {
 }
 
 // Toast timing — graded by severity (Arabic messages read slower):
-// error 6s / warning 5s / success+info 4s. Hover pauses the countdown.
+// error = sticky (0 → dismissed only by the user: a failure that vanishes on a
+// timer is a failure nobody read), warning 5s / success+info 4s. Hover pauses
+// the countdown. An explicit `duration` in show options overrides the grade.
 const TOAST_DURATIONS = Object.freeze({
-	error: 6000,
+	error: 0,
 	warning: 5000,
 	success: 4000,
 	info: 4000,
@@ -41,6 +43,27 @@ let isProcessing = false
 // For backward compatibility
 const toastNotification = computed(() => currentToast.value)
 
+let pausedRemaining = null
+let pauseStartedAt = 0
+
+/** Effective auto-hide for a toast: explicit duration, else the severity grade. */
+function resolveDuration(toast) {
+	if (toast && typeof toast.duration === "number") return toast.duration
+	return TOAST_DURATIONS[toast?.type] ?? TOAST_DURATIONS.info
+}
+
+function finishAndAdvance() {
+	showToast.value = false
+	setTimeout(() => {
+		currentToast.value = null
+		isProcessing = false
+		// Process next toast in queue
+		if (toastQueue.value.length > 0) {
+			setTimeout(processQueue, TOAST_QUEUE_DELAY)
+		}
+	}, TOAST_FADE_DURATION)
+}
+
 function processQueue() {
 	if (isProcessing || toastQueue.value.length === 0) {
 		return
@@ -53,76 +76,80 @@ function processQueue() {
 	// Clear any existing timer
 	if (toastTimer) {
 		clearTimeout(toastTimer)
+		toastTimer = null
 	}
 
-	// Auto-hide after a severity-graded duration (hover pauses — see pauseToast/resumeToast)
-	const duration =
-		TOAST_DURATIONS[currentToast.value?.type] ?? TOAST_DURATIONS.info
+	// Auto-hide after a severity-graded duration (hover pauses — see
+	// pauseToast/resumeToast). duration 0 = sticky: no timer, manual close only.
+	const duration = resolveDuration(currentToast.value)
+	if (duration <= 0) return
 	pauseStartedAt = Date.now()
-	toastTimer = setTimeout(() => {
-		showToast.value = false
-		setTimeout(() => {
-			currentToast.value = null
-			isProcessing = false
-			// Process next toast in queue
-			if (toastQueue.value.length > 0) {
-				setTimeout(processQueue, TOAST_QUEUE_DELAY)
-			}
-		}, TOAST_FADE_DURATION)
-	}, duration)
+	toastTimer = setTimeout(finishAndAdvance, duration)
 }
-
-let pausedRemaining = null
-let pauseStartedAt = 0
 
 function pauseToast() {
 	if (!toastTimer || !currentToast.value) return
 	clearTimeout(toastTimer)
 	toastTimer = null
-	const duration =
-		TOAST_DURATIONS[currentToast.value?.type] ?? TOAST_DURATIONS.info
+	const duration = resolveDuration(currentToast.value)
 	pausedRemaining = Math.max(500, duration - (Date.now() - pauseStartedAt))
 }
 
 function resumeToast() {
 	if (toastTimer || !currentToast.value || pausedRemaining == null) return
+	if (resolveDuration(currentToast.value) <= 0) return
 	const remaining = pausedRemaining
 	pausedRemaining = null
 	pauseStartedAt = Date.now()
-	toastTimer = setTimeout(() => {
-		showToast.value = false
-		setTimeout(() => {
-			currentToast.value = null
-			isProcessing = false
-			if (toastQueue.value.length > 0) {
-				setTimeout(processQueue, TOAST_QUEUE_DELAY)
-			}
-		}, TOAST_FADE_DURATION)
-	}, remaining)
+	toastTimer = setTimeout(finishAndAdvance, remaining)
 }
 
 export function useToast() {
-	function showToastNotification(title, message, type = "success") {
-		// Add to queue
-		toastQueue.value.push({ title, message, type })
-		// Start processing if not already
+	/**
+	 * Show a toast.
+	 * @param {string} title
+	 * @param {string} message
+	 * @param {"success"|"error"|"warning"|"info"} type
+	 * @param {{action?:{label:string,handler:Function,dismiss?:boolean}|null, duration?:number}} [options]
+	 *   `duration: 0` = sticky; `action` renders one recovery button on the toast.
+	 */
+	function showToastNotification(
+		title,
+		message,
+		type = "success",
+		options = {},
+	) {
+		toastQueue.value.push({
+			title,
+			message,
+			type,
+			action: options.action ?? null,
+			duration: options.duration,
+		})
+		// A sticky toast (usually an error) blocks the single toast slot; a NEW
+		// piece of information displaces it (the queue must keep flowing) — the
+		// no-timer rule still holds: nothing ever hides it on a clock.
+		if (currentToast.value && resolveDuration(currentToast.value) <= 0) {
+			hideToast()
+			return
+		}
 		processQueue()
 	}
 
-	function showSuccess(message) {
-		showToastNotification(__("Success"), message, "success")
+	function showSuccess(message, options) {
+		showToastNotification(__("Success"), message, "success", options)
 	}
 
-	function showError(message) {
-		showToastNotification(__("Error"), message, "error")
+	function showError(message, options) {
+		showToastNotification(__("Error"), message, "error", options)
 	}
 
-	function showWarning(message) {
-		showToastNotification(__("Validation Error"), message, "warning")
+	function showWarning(message, options) {
+		showToastNotification(__("Validation Error"), message, "warning", options)
 	}
 
-	function showInfo(message) {
-		showToastNotification(__("Info"), message, "info")
+	function showInfo(message, options) {
+		showToastNotification(__("Info"), message, "info", options)
 	}
 
 	/** Strip the server's HTML message markup down to plain text for a toast. */
@@ -206,15 +233,8 @@ export function useToast() {
 			clearTimeout(toastTimer)
 			toastTimer = null
 		}
-		showToast.value = false
-		setTimeout(() => {
-			currentToast.value = null
-			isProcessing = false
-			// Process next toast in queue
-			if (toastQueue.value.length > 0) {
-				setTimeout(processQueue, TOAST_QUEUE_DELAY)
-			}
-		}, TOAST_FADE_DURATION)
+		pausedRemaining = null
+		finishAndAdvance()
 	}
 
 	function clearAllToasts() {

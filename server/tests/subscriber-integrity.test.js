@@ -36,10 +36,9 @@
  */
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert';
-import { mkdtempSync, rmSync, copyFileSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createHash } from 'node:crypto';
 
 const RGT = '00000000-0000-0000-0000-000000000001';
 const SUBSCRIBER_CURRENCY = 'YER';
@@ -72,7 +71,9 @@ describe('subscriber #1 integrity (Royal Global)', () => {
 	});
 
 	after(() => {
-		try { db?.close(); } catch {}
+		try {
+			db?.close();
+		} catch {}
 		if (tmpDir) {
 			// SQLite leaves -wal / -shm behind on close, and Windows refuses to
 			// rmdir a non-empty dir. Retry once with a short backoff instead of
@@ -86,10 +87,18 @@ describe('subscriber #1 integrity (Royal Global)', () => {
 				}
 			}
 			// Last resort: nuke the SQLite sidecars directly so the dir is empty.
-			try { rmSync(join(tmpDir, 'dypos.db-wal'), { force: true }); } catch {}
-			try { rmSync(join(tmpDir, 'dypos.db-shm'), { force: true }); } catch {}
-			try { rmSync(join(tmpDir, 'dypos.db-journal'), { force: true }); } catch {}
-			try { rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+			try {
+				rmSync(join(tmpDir, 'dypos.db-wal'), { force: true });
+			} catch {}
+			try {
+				rmSync(join(tmpDir, 'dypos.db-shm'), { force: true });
+			} catch {}
+			try {
+				rmSync(join(tmpDir, 'dypos.db-journal'), { force: true });
+			} catch {}
+			try {
+				rmSync(tmpDir, { recursive: true, force: true });
+			} catch {}
 		}
 	});
 
@@ -107,12 +116,9 @@ describe('subscriber #1 integrity (Royal Global)', () => {
 	});
 
 	it('carries an opening position covering every stock row', () => {
-		const stockRows = count(
-			db,
-			'stock_levels',
-			'product_id IN (SELECT id FROM products WHERE tenant_id=:i)',
-			{ i: RGT },
-		);
+		const stockRows = count(db, 'stock_levels', 'product_id IN (SELECT id FROM products WHERE tenant_id=:i)', {
+			i: RGT,
+		});
 		const obRows = count(db, 'opening_balances', 'tenant_id=:i', { i: RGT });
 		assert.ok(
 			obRows >= stockRows,

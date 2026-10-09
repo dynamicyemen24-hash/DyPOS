@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="visible"
-    role="alert"
+    :role="role"
     class="grid grid-cols-[auto_1fr_auto] items-start gap-3 rounded-lg px-4 py-3"
     :class="containerClass"
   >
@@ -26,6 +26,10 @@
         </p>
       </slot>
       <slot />
+      <!-- إجراء التعافي: الخطوة التي يسميها الخطأ/التحذير، لا زر زينة. -->
+      <div v-if="$slots.actions" class="mt-1 flex flex-wrap items-center gap-2">
+        <slot name="actions" />
+      </div>
     </div>
 
     <button
@@ -64,6 +68,15 @@ const props = defineProps({
 	dismissable: { type: Boolean, default: true },
 	/** Arabic aria-label for the close button. */
 	dismissLabel: { type: String, default: "إغلاق" },
+	/**
+	 * `alert` (assertive — افتراضي، الأخطاء تُعلن فورًا) أو `status`
+	 * (polite — للمعلومات التي لا تستحق مقاطعة قارئ الشاشة).
+	 */
+	role: {
+		type: String,
+		default: "alert",
+		validator: (v) => ["alert", "status"].includes(v),
+	},
 })
 const emit = defineEmits(["dismiss", "update:modelValue"])
 

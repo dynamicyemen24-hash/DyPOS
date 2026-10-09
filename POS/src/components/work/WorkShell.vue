@@ -322,7 +322,14 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick as vueNextTick, onMounted, onUnmounted, watch } from "vue"
+import {
+	ref,
+	computed,
+	nextTick as vueNextTick,
+	onMounted,
+	onUnmounted,
+	watch,
+} from "vue"
 import { useRouter, useRoute } from "vue-router"
 import { FeatherIcon } from "dypos-ui"
 import { useLocale } from "@/composables/useLocale"

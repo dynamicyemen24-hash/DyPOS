@@ -138,16 +138,17 @@ describe('/api/method — auth (login / get_logged_user / has_permission)', () =
 	};
 	let cashierUser;
 
-
 	before(async () => {
 		const reg = await call('POST', '/api/method/dypos.auth.register', {
 			body: { ...user, companyName: 'Test Store', role: 'CASHIER' },
 		});
 		assert.strictEqual(reg.status, 201);
 		assert.ok(reg.body.message?.id || reg.body.id);
-		const adminToken = (await call('POST', '/api/method/login', {
-			body: { usr: user.username, pwd: user.password },
-		})).body.token;
+		const adminToken = (
+			await call('POST', '/api/method/login', {
+				body: { usr: user.username, pwd: user.password },
+			})
+		).body.token;
 		cashierUser = {
 			username: `m_cashier_${Date.now()}`,
 			password: 'StrongP@55!',
@@ -173,7 +174,13 @@ describe('/api/method — auth (login / get_logged_user / has_permission)', () =
 		// this proves the handler actually creates the user.
 		const username = `m_cap_${Date.now()}`;
 		const res = await call('POST', '/api/method/DyPOS.api.auth.register', {
-			body: { username, password: 'StrongP@55!', fullName: 'Capitalised', role: 'CASHIER', companyName: 'Capitalised Store' },
+			body: {
+				username,
+				password: 'StrongP@55!',
+				fullName: 'Capitalised',
+				role: 'CASHIER',
+				companyName: 'Capitalised Store',
+			},
 		});
 		assert.strictEqual(res.status, 201);
 		const created = res.body.message || res.body;

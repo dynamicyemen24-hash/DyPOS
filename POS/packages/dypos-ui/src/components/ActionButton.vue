@@ -291,11 +291,20 @@ const iconClass = computed(() => [
 
 /**
  * Route/link navigation wins over `click`, matching the historical contract.
+ *
+ * حماية النقر المزدوج: النقرة الثانية من النقرة المزدوجة تحمل `detail >= 2`
+ * في MouseEvent — تُبتلع هنا دون مؤقّتات: لا ساعة مزوَّرة تكسرها في
+ * الاختبارات، ولا مهلة تمنع إعادة المحاولة العمدية بعد نصف ثانية.
  * @param {MouseEvent} event
  */
 function onClick(event) {
 	if (isDisabled.value) {
 		event.preventDefault()
+		return
+	}
+	if (event.detail >= 2) {
+		event.preventDefault()
+		event.stopPropagation()
 		return
 	}
 	if (props.route) {
@@ -311,3 +320,14 @@ function onClick(event) {
 	emit("click", event)
 }
 </script>
+
+<style scoped>
+/* S0 — العتاد الرخيص (لوحة مفاتيح تلامس): هدف لمس ≥ 44px لكل المقاسات
+   دون تغيير مقاسات سطح المكتب (h-9/lg يبقى كما هو). */
+@media (pointer: coarse) {
+	.dy-action-btn {
+		min-height: var(--dy-touch-min, 44px);
+		min-width: var(--dy-touch-min, 44px);
+	}
+}
+</style>

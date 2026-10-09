@@ -86,7 +86,11 @@ export const LATE_MIGRATIONS = Object.freeze([
 	},
 	{ version: 38, run: migrateShiftTenantScope, note: 'POS shifts tenant isolation' },
 	{ version: 39, run: migrateSyncIdempotencyScope, note: 'sync idempotency tenant and branch isolation' },
-	{ version: 40, run: migrateInvoiceBranchUniqueness, note: 'invoice uniqueness aligned with branch-scoped numbering and idempotency' },
+	{
+		version: 40,
+		run: migrateInvoiceBranchUniqueness,
+		note: 'invoice uniqueness aligned with branch-scoped numbering and idempotency',
+	},
 	{ version: 41, run: migrateReferenceFoundation, note: 'comprehensive reference/master data foundation' },
 	{ version: 42, run: migrateCountries, note: 'countries (ISO 3166-1)' },
 	{ version: 43, run: migrateRegions, note: 'regions (states/provinces/governorates)' },

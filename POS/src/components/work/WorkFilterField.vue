@@ -63,26 +63,21 @@
         @input="$emit('update:modelValue', Number($event.target.value) || null)"
       />
 
-      <!-- Select (single) -->
-      <select
+      <!-- Select (single) — combobox قابل للبحث بدلاً من قائمة المتصفح -->
+      <Combobox
         v-else-if="field.type === 'select'"
         :id="inputId"
-        :value="modelValue"
+        :model-value="modelValue === '' ? null : modelValue"
+        :options="selectOptions"
+        :placeholder="t(field.placeholder || 'selectOption')"
         :disabled="disabled"
+        :aria-label="field.label ? t(field.label) : undefined"
         :aria-describedby="describedByIds"
-        :aria-invalid="!!errorMessage"
-        class="work-filter-field__select"
-        @change="handleChange"
-      >
-        <option value="">{{ t(field.placeholder || 'selectOption') }}</option>
-        <option
-          v-for="opt in field.options"
-          :key="opt.value"
-          :value="opt.value"
-        >
-          {{ t(opt.label) }}
-        </option>
-      </select>
+        :clear-label="t('clear')"
+        class="work-filter-field__combobox"
+        @update:model-value="handleSelectChange"
+        @blur="handleBlur"
+      />
 
       <!-- Multi Select -->
       <div v-else-if="field.type === 'multiselect'" class="work-filter-field__multiselect">
@@ -218,7 +213,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from "vue"
 import { t } from "@/utils/translation"
-import { ActionButton, FeatherIcon } from "dypos-ui"
+import { ActionButton, Combobox, FeatherIcon } from "dypos-ui"
 
 const props = defineProps({
 	modelValue: { type: [String, Number, Boolean, Array, Object], default: null },
@@ -264,9 +259,23 @@ function toggleMultiselectOption(value) {
 	emit("update:modelValue", current)
 }
 
-function handleChange(e) {
-	emit("update:modelValue", e.target.value)
-	emit("change", e.target.value)
+/** خيارات القائمة المنسدلة مُترجمة مسبقًا (Combobox يطبع الملصق كما هو). */
+const selectOptions = computed(() =>
+	(props.field.options || []).map((opt) => ({
+		value: opt.value,
+		label: t(opt.label),
+		disabled: Boolean(opt.disabled),
+	})),
+)
+
+/**
+ * عقد قديم محفوظ: select كان يُرجِع نصًا دائمًا — "" للبند الفارغ.
+ * الضغط على «مسح» في الـ combobox يُرجِع null فيُطبَّق "" أيضًا.
+ */
+function handleSelectChange(value) {
+	const next = value == null ? "" : value
+	emit("update:modelValue", next)
+	emit("change", next)
 }
 
 function handleBlur(e) {
@@ -330,8 +339,7 @@ onUnmounted(() => {
 }
 
 /* Inputs */
-.work-filter-field__input,
-.work-filter-field__select {
+.work-filter-field__input {
   width: 100%;
   min-width: 180px;
   height: var(--dy-components-input-height-md, 40px);
@@ -349,18 +357,21 @@ onUnmounted(() => {
     background-color var(--dy-motion-duration-fast, 100ms);
 }
 
-.work-filter-field__input::placeholder,
-.work-filter-field__select:invalid {
+/* Select → Combobox (dypos-ui): يأخذ العرض والحد الأدنى هنا، والباقي داخلي */
+.work-filter-field__combobox {
+  width: 100%;
+  min-width: 180px;
+}
+
+.work-filter-field__input::placeholder {
   color: var(--dy-color-text-disabled, #94a3b8);
 }
 
-.work-filter-field__input:hover,
-.work-filter-field__select:hover {
+.work-filter-field__input:hover {
   border-color: var(--dy-color-surface-border-strong, #cbd5e1);
 }
 
-.work-filter-field__input:focus,
-.work-filter-field__select:focus {
+.work-filter-field__input:focus {
   outline: none;
   border-color: var(--dy-color-brand-500, #10b981);
   box-shadow:
@@ -368,37 +379,26 @@ onUnmounted(() => {
     0 0 0 calc(var(--dy-a11y-focus-ring-width, 2px) + var(--dy-a11y-focus-ring-offset, 2px)) var(--dy-a11y-focus-ring-offset-color, #ffffff);
 }
 
-.work-filter-field__input:disabled,
-.work-filter-field__select:disabled {
+.work-filter-field__input:disabled {
   background: var(--dy-color-surface-overlay, #f8fafc);
   color: var(--dy-color-text-disabled, #94a3b8);
   cursor: not-allowed;
 }
 
 /* Error state */
-.work-filter-field--error .work-filter-field__input,
-.work-filter-field--error .work-filter-field__select {
+.work-filter-field--error .work-filter-field__input {
   border-color: var(--dy-color-status-danger-icon, #ef4444);
 }
-.work-filter-field--error .work-filter-field__input:focus,
-.work-filter-field--error .work-filter-field__select:focus {
+.work-filter-field--error .work-filter-field__input:focus {
   box-shadow:
     0 0 0 var(--dy-a11y-focus-ring-width, 2px) var(--dy-color-status-danger-icon, #ef4444),
     0 0 0 calc(var(--dy-a11y-focus-ring-width, 2px) + var(--dy-a11y-focus-ring-offset, 2px)) var(--dy-a11y-focus-ring-offset-color, #ffffff);
 }
-
-/* Select */
-.work-filter-field__select {
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  padding-right: 36px;
+.work-filter-field--error .work-filter-field__combobox :deep(.dy-combobox__input) {
+  border-color: var(--dy-color-status-danger-icon, #ef4444);
 }
-:dir(rtl) .work-filter-field__select {
-  background-position: left 12px center;
-  padding-right: 12px;
-  padding-left: 36px;
+.work-filter-field--disabled .work-filter-field__combobox {
+  opacity: 0.6;
 }
 
 /* Multiselect */
@@ -540,8 +540,8 @@ onUnmounted(() => {
 /* Reduced Motion */
 @media (prefers-reduced-motion: reduce) {
   .work-filter-field__input,
-  .work-filter-field__select,
   .work-filter-field__multiselect-option,
+  .work-filter-field__combobox :deep(.dy-combobox__input),
   .work-filter-fade-enter-active,
   .work-filter-fade-leave-active {
     transition: none;
@@ -551,7 +551,7 @@ onUnmounted(() => {
 /* High Contrast */
 @media (forced-colors: active) {
   .work-filter-field__input,
-  .work-filter-field__select,
+  .work-filter-field__combobox :deep(.dy-combobox__input),
   .work-filter-field__multiselect-menu,
   .work-filter-field__checkbox {
     border-color: CanvasText;
@@ -559,7 +559,7 @@ onUnmounted(() => {
     color: CanvasText;
   }
   .work-filter-field__input:focus,
-  .work-filter-field__select:focus,
+  .work-filter-field__combobox :deep(.dy-combobox__input):focus,
   .work-filter-field__checkbox:focus-visible {
     outline-color: Highlight;
   }

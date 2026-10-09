@@ -73,7 +73,9 @@ import {
 	Alert,
 	Badge,
 	Button,
+	Combobox,
 	Dialog,
+	Drawer,
 	ErrorMessage,
 	FormControl,
 	Input,
@@ -411,6 +413,8 @@ const globalComponents = Object.freeze({
 	FormControl,
 	ErrorMessage,
 	Dialog,
+	Drawer,
+	Combobox,
 	Alert,
 	Badge,
 })

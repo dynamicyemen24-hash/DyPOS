@@ -1,11 +1,12 @@
 <template>
-	<button
-		type="button"
+	<component
+		:is="passive ? 'span' : 'button'"
+		:type="passive ? undefined : 'button'"
 		class="sync-indicator"
-		:class="`sync-indicator--${mode}`"
+		:class="[`sync-indicator--${mode}`, { 'sync-indicator--passive': passive }]"
 		:aria-label="accessibleLabel"
 		:title="accessibleLabel"
-		@click="emit('click', status)"
+		@click="passive ? undefined : emit('click', status)"
 	>
 		<span class="sync-indicator__dot" aria-hidden="true" />
 
@@ -18,20 +19,28 @@
 		>
 			{{ status.pendingCount > 99 ? "99+" : status.pendingCount }}
 		</span>
-	</button>
+	</component>
 </template>
 
 <script setup>
 /**
- * SyncStatusIndicator — مؤشر حالة المزامنة الحي في شاشة البيع.
+ * SyncStatusIndicator — مؤشر حالة المزامنة الحي.
  *
  * يعرض: متصل / جارٍ المزامنة / مزامنة أولية (بالتقدم) / غير متصل،
  * مع شارة عدد العمليات المعلقة وتلميح بوقت آخر مزامنة ناجحة.
  * يستقصي getSyncStatus دوريًا (كل ثانيتين) ليظل دقيقًا دون فرض تفاعلية.
+ *
+ * `passive`: يُرسم كـ span بلا فرط (cursor/active) — لشاشات تُعرض فيه
+ * المؤشر للقراءة فقط دون وجهة نقر حقيقية (S5: لا زر ميت).
  */
 import { computed, onMounted, onUnmounted, reactive } from "vue"
 
 import { getSyncStatus } from "@/services/sync-manager"
+
+const props = defineProps({
+	/** عرض تلقائي فقط: span بدل button، بلا إرسال نقر. */
+	passive: { type: Boolean, default: false },
+})
 
 const emit = defineEmits(["click"])
 
@@ -128,6 +137,10 @@ const accessibleLabel = computed(() => {
 	transition:
 		background-color 140ms ease,
 		border-color 140ms ease;
+}
+
+.sync-indicator--passive {
+	cursor: default;
 }
 
 .sync-indicator:focus-visible {
