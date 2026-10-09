@@ -144,6 +144,58 @@
 		font-variant-numeric: tabular-nums;
 	}
 
+	.self-checkout__sku {
+		align-self: flex-start;
+		font-size: 0.6875rem;
+		font-family: var(--dy-font-mono);
+		color: var(--dy-text-muted);
+		background: var(--dy-bg-sunken);
+		border-radius: 6px;
+		padding: 2px 6px;
+		direction: ltr;
+	}
+
+	/* --------------------------------------------------------------------------
+	   البحث وشرائح التشغيل — 16px لمنع زوم iOS، و44px للمس
+	   -------------------------------------------------------------------------- */
+	.self-checkout__search {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-height: 44px;
+		margin-block-end: 12px;
+		padding-inline: 12px;
+		background: var(--dy-bg);
+		border: var(--dy-border-width-thin) solid var(--dy-border);
+		border-radius: var(--dy-radius-md);
+		color: var(--dy-text-muted);
+	}
+
+	.self-checkout__search input {
+		flex: 1;
+		min-width: 0;
+		border: 0;
+		outline: 0;
+		background: transparent;
+		color: var(--dy-text);
+		font-size: 16px;
+	}
+
+	.self-checkout__meta {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+		margin: 6px 0 0;
+	}
+
+	.self-checkout__chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		font-size: 0.75rem;
+		color: var(--dy-text-muted);
+	}
+
 	/* --------------------------------------------------------------------------
    السلة
    -------------------------------------------------------------------------- */

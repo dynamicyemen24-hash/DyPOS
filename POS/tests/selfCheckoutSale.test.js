@@ -20,6 +20,11 @@
  * hundred-times-wrong total.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { readFileSync } from "node:fs"
+import { dirname, join, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
+
+import { filterCatalog } from "@/components/selfCheckout/selfCheckoutState"
 
 vi.mock("@/utils/qzTray", () => ({
 	getQZStatus: vi.fn(() => ({ connected: true })),
@@ -283,5 +288,36 @@ describe("a self-checkout sale end to end", () => {
 			second.receipt.value.invoiceNo,
 		)
 		expect(paymentMethodById("cash")).toBeTruthy()
+	})
+})
+
+describe("ترشيح كتالوج الكاشير الذاتي", () => {
+	const rows = [
+		{ id: "1", code: "DR-001", name: "مياه معدنية", barcode: "6281001" },
+		{ id: "2", code: "BK-005", name: "خبز طازج", barcode: "6281002" },
+	]
+	it("الفارغ يعني الكل، والبحث يطال الاسم والرمز والباركود", () => {
+		expect(filterCatalog(rows, "")).toHaveLength(2)
+		expect(filterCatalog(rows, "  ")).toHaveLength(2)
+		expect(filterCatalog(rows, "مياه")).toEqual([rows[0]])
+		expect(filterCatalog(rows, "bk-005")).toEqual([rows[1]])
+		expect(filterCatalog(rows, "6281001")).toEqual([rows[0]])
+		expect(filterCatalog(rows, "غير موجود")).toEqual([])
+	})
+	it("الغياب قائمة فارغة لا خطأ", () => {
+		expect(filterCatalog(null, "x")).toEqual([])
+		expect(filterCatalog(undefined, "x")).toEqual([])
+	})
+
+	it("الشاشة مربوطة بالبحث والرمز والشرائح (لا عناصر زينة)", () => {
+		const root = resolve(dirname(fileURLToPath(import.meta.url)), "..")
+		const template = readFileSync(
+			join(root, "src", "components", "selfCheckout", "SelfCheckoutScreen.vue"),
+			"utf8",
+		)
+		expect(template).toContain("v-model=\"searchQuery\"")
+		expect(template).toContain("visibleCatalog")
+		expect(template).toContain("self-checkout__sku")
+		expect(template).toContain("metaChips")
 	})
 })

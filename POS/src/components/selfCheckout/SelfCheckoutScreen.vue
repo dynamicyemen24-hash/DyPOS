@@ -13,6 +13,12 @@
 				<div>
 					<h1 class="self-checkout__title">{{ title }}</h1>
 					<p class="self-checkout__subtitle">{{ subtitle }}</p>
+					<p v-if="metaChips.length" class="self-checkout__meta" role="status">
+						<span v-for="chip in metaChips" :key="chip.label" class="self-checkout__chip">
+							<FeatherIcon :name="chip.icon" :size="13" aria-hidden="true" />
+							{{ chip.label }}
+						</span>
+					</p>
 				</div>
 			</div>
 
@@ -46,22 +52,34 @@
 					جارٍ تحميل الأصناف…
 				</p>
 
+				<div class="self-checkout__search" role="search">
+					<FeatherIcon name="search" :size="16" aria-hidden="true" />
+					<input
+						v-model="searchQuery"
+						type="search"
+						placeholder="ابحث بالاسم أو الرمز أو الباركود…"
+						aria-label="البحث في الأصناف"
+						autocomplete="off"
+					/>
+				</div>
+
 				<div class="self-checkout__grid">
 					<p
-						v-if="catalog.length === 0 && !loadingCatalog"
+						v-if="visibleCatalog.length === 0 && !loadingCatalog"
 						class="self-checkout__grid-empty"
 					>
-						{{ catalogError || "لا توجد أصناف متاحة للبيع حاليًا" }}
+						{{ searchQuery.trim() ? "لا أصناف مطابقة لبحثك" : (catalogError || "لا توجد أصناف متاحة للبيع حاليًا") }}
 					</p>
 
 					<button
-						v-for="product in catalog"
+						v-for="product in visibleCatalog"
 						:key="product.id"
 						type="button"
 						class="self-checkout__product"
 						:disabled="!canBrowse"
 						@click="onPick(product)"
 					>
+						<span v-if="product.code" class="self-checkout__sku">{{ product.code }}</span>
 						<span class="self-checkout__product-name">{{ product.name }}</span>
 						<span class="self-checkout__product-price">
 							{{ money(product.price) }}
@@ -342,12 +360,12 @@
  * عرض فقط: كل الحالة في `useSelfCheckoutSession` وكل الحساب في
  * `selfCheckoutState`. لا `fetch` هنا — الشاشة تعمل بلا شبكة.
  */
-import { computed, onMounted } from "vue"
+import { computed, onMounted, ref } from "vue"
 import { FeatherIcon } from "dypos-ui"
 
 import { ActionButton } from "dypos-ui"
 import { formatNumberSafe, getCurrencySymbol } from "@/utils/currency"
-import { PAYMENT_METHODS, SESSION_STATES } from "./selfCheckoutState.js"
+import { PAYMENT_METHODS, SESSION_STATES, filterCatalog } from "./selfCheckoutState.js"
 import { useSelfCheckoutSession } from "./useSelfCheckoutSession.js"
 
 const props = defineProps({
@@ -419,6 +437,18 @@ const isOpen = computed(() => state.value === SESSION_STATES.OPEN)
 const isPaying = computed(() => state.value === SESSION_STATES.PAYING)
 /** الكتالوج قابل للّمس فقط أثناء الجلسة المفتوحة. */
 const canBrowse = computed(() => isOpen.value)
+/** بحث فوري محلي بالاسم أو الرمز أو الباركود — لا شبكة ولا انتظار. */
+const searchQuery = ref("")
+const visibleCatalog = computed(() => filterCatalog(catalog.value, searchQuery.value))
+/** شرائح التشغيل: الفرع والطرفية والعملة — تُعرض فقط عند معرفتها. */
+const currencySymbol = computed(() => getCurrencySymbol())
+const metaChips = computed(() =>
+	[
+		props.branch ? { icon: "map-pin", label: `الفرع ${props.branch}` } : null,
+		props.terminal ? { icon: "smartphone", label: `طرفية ${props.terminal}` } : null,
+		{ icon: "dollar-sign", label: `العملة ${currencySymbol.value}` },
+	].filter(Boolean),
+)
 const tenderMajor = computed(() => tenderMinor.value / 100)
 const idleHint = computed(() =>
 	isOpen.value ? "المس أي صنف لإضافته" : "ابدأ الجلسة لتبدأ",

@@ -173,7 +173,7 @@ describe("المعيار الطباعي (Plex + Inter)", () => {
 		// لون صف التنبيه الحرج على السطح — نفس الحساب لا Fallback.
 		const danger = resolveColor("--dy-danger")
 		const surface = resolveColor("--dy-surface")
-		expect(ratio(danger, surface), `حرج/سطح`).toBeGreaterThanOrEqual(4.5)
+		expect(ratio(danger, surface), "حرج/سطح").toBeGreaterThanOrEqual(4.5)
 	})
 
 	it("أهداف اللمس الأساسية ≥ 44px", () => {

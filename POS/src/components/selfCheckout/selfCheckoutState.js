@@ -62,6 +62,24 @@ export const PAYMENT_STEPS = Object.freeze({
 export const MAX_TENDER_MINOR = 100_000_000
 
 /**
+ * ترشيح الكتالوج بالاسم أو الرمز أو الباركود — بحث فوري محلي.
+ * الفارغ يعني الكل؛ والغياب ليس خطأً بل قائمة فارغة صادقة.
+ */
+export function filterCatalog(rows = [], query = "") {
+	const list = Array.isArray(rows) ? rows : []
+	const needle = String(query ?? "").trim().toLocaleLowerCase()
+	if (!needle) return list
+	return list.filter((product) => {
+		if (!product) return false
+		return (
+			String(product.name ?? "").toLocaleLowerCase().includes(needle) ||
+			String(product.code ?? "").toLocaleLowerCase().includes(needle) ||
+			String(product.barcode ?? "").toLocaleLowerCase().includes(needle)
+		)
+	})
+}
+
+/**
  * يوحّد شكل السطر: أي صنف يدخل من أي مسار (مسح/لمس/كتابة) يصبح السطر
  * نفسه، فتبقى الحسابات في مكان واحد.
  *
