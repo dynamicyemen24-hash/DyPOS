@@ -96,3 +96,39 @@ describe("useSyncRecovery", () => {
     expect(persistRecord).toHaveBeenCalledWith(items.value[0])
   })
 })
+
+
+  it("deduplicates concurrent retries for the same queue record", async () => {
+    const item = { id: "p6", status: "FAILED", payload: { code: "A-6" } }
+    let resolvePush
+    const pushRecord = vi.fn(() => new Promise(resolve => { resolvePush = resolve }))
+    const state = useSyncRecovery({
+      items: ref([item]),
+      pushRecord,
+      persistRecord: vi.fn().mockResolvedValue(undefined),
+    })
+
+    const first = state.retry({ id: "p6", item, recovery: { retryable: true } })
+    expect(state.busyIds.value).toContain("p6")
+    expect(await state.retry({ id: "p6", item, recovery: { retryable: true } })).toBe(false)
+    expect(pushRecord).toHaveBeenCalledTimes(1)
+
+    resolvePush({ status: "SYNCED" })
+    expect(await first).toBe(true)
+    expect(state.busyIds.value).toEqual([])
+  })
+
+  it("surfaces review-routing errors without losing the recovery context", async () => {
+    const item = { id: "p7", status: "FAILED" }
+    const openReview = vi.fn().mockRejectedValue(new Error("review route unavailable"))
+    const state = useSyncRecovery({
+      items: ref([item]),
+      openReview,
+    })
+    const recovery = { code: "MISSING_REFERENCE", nextAction: "REVIEW" }
+
+    expect(await state.handleReview({ id: "p7", item, recovery })).toBe(false)
+    expect(openReview).toHaveBeenCalledWith(item, recovery)
+    expect(state.errors.value.p7).toBe("review route unavailable")
+  })
+
