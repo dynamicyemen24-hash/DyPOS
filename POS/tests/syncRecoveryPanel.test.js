@@ -140,18 +140,22 @@ describe("operator sync recovery panel", () => {
     expect(wrapper.find("ol").exists()).toBe(false)
   })
 
-  it("uses unique accessible heading IDs and exposes per-record busy state", () => {
-    const props = {
-      items: [{ id: "sync-busy-a", status: "FAILED", recovery: { retryable: true } }],
-      busyIds: ["sync-busy-a"],
-    }
-    const first = mount(SyncRecoveryPanel, { props, global: { stubs } })
-    const second = mount(SyncRecoveryPanel, { props, global: { stubs } })
-    const firstId = first.find("h2").attributes("id")
-    const secondId = second.find("h2").attributes("id")
+  it("uses unique accessible heading IDs in one app and exposes per-record busy state", () => {
+    const wrapper = mount({
+      components: { SyncRecoveryPanel },
+      data: () => ({
+        items: [{ id: "sync-busy-a", status: "FAILED", recovery: { retryable: true } }],
+        busyIds: ["sync-busy-a"],
+      }),
+      template: '<div><SyncRecoveryPanel :items="items" :busy-ids="busyIds" /><SyncRecoveryPanel :items="items" :busy-ids="busyIds" /></div>',
+    }, { global: { stubs } })
+    const panels = wrapper.findAll("section.sync-recovery")
+    expect(panels).toHaveLength(2)
+    const firstId = panels[0].find("h2").attributes("id")
+    const secondId = panels[1].find("h2").attributes("id")
     expect(firstId).not.toBe(secondId)
-    expect(first.find("section").attributes("aria-labelledby")).toBe(firstId)
-    expect(first.find("li").attributes("aria-busy")).toBe("true")
-    expect(second.find("li").attributes("aria-busy")).toBe("true")
+    expect(panels[0].attributes("aria-labelledby")).toBe(firstId)
+    expect(panels[0].find("li").attributes("aria-busy")).toBe("true")
+    expect(panels[1].find("li").attributes("aria-busy")).toBe("true")
   })
 })
