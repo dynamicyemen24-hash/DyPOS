@@ -196,6 +196,7 @@ router.post('/push', (req, res) => {
 			// Declared outside try: the catch handler below (UNIQUE-race dedupe)
 			// must see the same key. Declaring it inside try would scope it away.
 			let idemKey = '';
+			let savepointOpen = false;
 			try {
 				// Push idempotency (v16): a retried batch replays safely — an
 				// already-SYNCED key returns deduped without re-applying.
@@ -216,6 +217,11 @@ router.post('/push', (req, res) => {
 						continue;
 					}
 				}
+				// Every item is its own unit of work inside the batch transaction.
+				// This prevents a failed stock update from leaving a warehouse row
+				// or any other partial side effect behind.
+				db.exec(`SAVEPOINT ${_savepoint}`);
+				savepointOpen = true;
 				if (ch.entity_type === 'PRODUCT' && ch.action === 'UPSERT') {
 					const p = JSON.parse(ch.payload || '{}');
 					if (!p.id || !p.code || !p.name) throw new Error('بيانات صنف ناقصة');
@@ -264,6 +270,8 @@ router.post('/push', (req, res) => {
             idempotency_key=CASE WHEN ?<>'' THEN ? ELSE idempotency_key END
             WHERE id=?`).run(pushTenant, pushBranch, idemKey, idemKey || null, ch.id);
 				}
+				db.exec(`RELEASE SAVEPOINT ${_savepoint}`);
+				savepointOpen = false;
 				results.push({ id: ch.id, status: 'SYNCED' });
 				try {
 					syncCounter.labels('in', 'ok').inc();
@@ -271,6 +279,14 @@ router.post('/push', (req, res) => {
 					/* ignore */
 				}
 			} catch (e) {
+				if (savepointOpen) {
+					try {
+						db.exec(`ROLLBACK TO SAVEPOINT ${_savepoint}`);
+						db.exec(`RELEASE SAVEPOINT ${_savepoint}`);
+					} catch {
+						/* preserve the original item error; outer transaction remains authoritative */
+					}
+				}
 				const msg = String(e.message || '');
 				// A lost ACK racing a retry can hit the UNIQUE key on UPDATE even
 				// though the pre-check passed — that is a successful dedupe, not a
