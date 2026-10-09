@@ -5,6 +5,87 @@ import { assertTenantScope, resolveTenantFilter, tenantContext } from '../lib/te
 
 const router = Router();
 
+/**
+ * Turn a technical sync failure into a safe, user-actionable recovery plan.
+ * The original error remains available for older clients; newer clients can
+ * render a guided repair instead of treating every FAILED item as a dead end.
+ */
+function describeSyncRecovery(change, error) {
+	const message = String(error?.message || 'تعذّرت معالجة العملية').slice(0, 200);
+	const entity = String(change?.entity_type || '').toUpperCase();
+	const action = String(change?.action || '').toUpperCase();
+	const parsePayload = () => {
+		try {
+			return typeof change?.payload === 'string' ? JSON.parse(change.payload || '{}') : (change?.payload || {});
+		} catch {
+			return null;
+		}
+	};
+	const payload = parsePayload();
+	const fieldLabels = { id: 'معرّف الصنف', code: 'رمز الصنف', name: 'اسم الصنف', productId: 'الصنف', warehouseId: 'المستودع' };
+	if (entity === 'PRODUCT' && action === 'UPSERT' && message.includes('بيانات صنف ناقصة')) {
+		const missingFields = ['id', 'code', 'name'].filter((field) => !String(payload?.[field] ?? '').trim());
+		return {
+			code: 'REQUIRED_FIELDS',
+			title: 'أكمل بيانات الصنف',
+			message: 'لم يُحفظ الصنف لأن حقولاً أساسية ناقصة. أكمل الحقول ثم أعد إرسال هذا السجل فقط.',
+			missingFields: missingFields.map((field) => ({ field, label: fieldLabels[field] })),
+			nextAction: 'EDIT_PAYLOAD_AND_RETRY',
+			retryable: false,
+		};
+	}
+	if (entity === 'STOCK' && action === 'UPSERT' && message.includes('بيانات مخزون ناقصة')) {
+		const missingFields = ['productId', 'warehouseId'].filter((field) => !String(payload?.[field] ?? '').trim());
+		return {
+			code: 'REQUIRED_FIELDS',
+			title: 'أكمل بيانات حركة المخزون',
+			message: 'حدد الصنف والمستودع أولاً، ثم أعد إرسال حركة المخزون.',
+			missingFields: missingFields.map((field) => ({ field, label: fieldLabels[field] })),
+			nextAction: 'EDIT_PAYLOAD_AND_RETRY',
+			retryable: false,
+		};
+	}
+	if (entity === 'INVOICE') {
+		return {
+			code: 'INVOICE_SYNC_UNSUPPORTED',
+			title: 'أكمل البيع عبر مسار الفواتير',
+			message: 'لم تُعتمد الفاتورة ولم تُسجّل كمزامنة ناجحة. احتفظ بمسودة البيع وأرسلها عبر مسار إنشاء الفاتورة المتصل حتى لا تضيع تفاصيل الدفع والمخزون.',
+			nextAction: 'OPEN_ONLINE_INVOICE_FLOW',
+			endpoint: '/api/invoices',
+			preserveDraft: true,
+			retryable: false,
+		};
+	}
+	if (!payload) {
+		return {
+			code: 'INVALID_PAYLOAD_JSON',
+			title: 'صحّح بيانات الإرسال',
+			message: 'تعذّرت قراءة بيانات السجل. أصلح تنسيق JSON ثم أعد المحاولة.',
+			nextAction: 'FIX_PAYLOAD_AND_RETRY',
+			retryable: false,
+		};
+	}
+	if (/SQLITE_BUSY|database is locked|temporarily unavailable/i.test(message)) {
+		return {
+			code: 'TEMPORARY_STORAGE_ERROR',
+			title: 'تعذّر الحفظ مؤقتاً',
+			message: 'لم تُحفظ هذه العملية بعد. أعد المحاولة بعد لحظات؛ إعادة المحاولة آمنة باستخدام مفتاح idempotency نفسه.',
+			nextAction: 'RETRY',
+			retryable: true,
+		};
+	}
+	return {
+		code: 'UNSUPPORTED_OR_INVALID_OPERATION',
+		title: 'راجع نوع العملية',
+		message: message.includes('نوع مزامنة غير مدعوم')
+			? 'هذا النوع أو الإجراء غير مدعوم حالياً. احتفظ بالبيانات، واختر مساراً مدعوماً قبل إعادة الإرسال.'
+			: 'لم تكتمل العملية. راجع تفاصيل السجل والحقول المطلوبة ثم صحّحها وأعد المحاولة.',
+		nextAction: 'REVIEW_AND_RETRY',
+		retryable: false,
+	};
+}
+
+
 // Branch scope for a read: the caller may name its branch (X-Branch-Id /
 // ?branch=). It is VALIDATED against the hierarchy — an unknown or foreign
 // branch is a 404/403, never a silent passthrough that would leak another
@@ -208,7 +289,7 @@ router.post('/push', (req, res) => {
 				} catch {
 					/* ignore */
 				}
-				results.push({ id: ch.id, status: 'FAILED', error: msg.slice(0, 200) });
+				results.push({ id: ch.id, status: 'FAILED', error: msg.slice(0, 200), recovery: describeSyncRecovery(ch, e) });
 				try {
 					syncCounter.labels('in', 'failed').inc();
 				} catch {
