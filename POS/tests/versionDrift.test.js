@@ -103,4 +103,43 @@ describe("version single source", () => {
 			).toBe(expected)
 		}
 	})
+
+	/**
+	 * The release version belongs to THIS repo and to nothing else in the lock.
+	 *
+	 * A version bump is usually done as a text replace, and a text replace does
+	 * not know which `2.0.8` is ours. In 2.0.9 it also rewrote
+	 * `node_modules/proxy-addr` — a transitive Express dependency whose newest
+	 * published version is 2.0.8 — to a 2.0.9 npm has never shipped. Nothing
+	 * local noticed: every suite was green, because node_modules was already
+	 * populated and no test resolves the lock. CI died on `npm ci` with
+	 * `ETARGET No matching version found for proxy-addr@2.0.9`, before a single
+	 * test ran, on a tree that had passed every gate on the laptop.
+	 *
+	 * The three root fields above are the ONLY places our version may appear.
+	 * A third party that happens to publish the same number will fail here by
+	 * name — which is the point: the exception then has to be written down, so
+	 * a coincidence can never again be indistinguishable from a corrupted lock.
+	 */
+	it.each([
+		"package-lock.json",
+		"POS/package-lock.json",
+		"server/package-lock.json",
+	])("%s gives the app version to no dependency", (lockfile) => {
+		const lock = readJson(path.join(REPO_ROOT, lockfile))
+		const claimed = Object.entries(lock.packages ?? {})
+			.filter(([key, entry]) => key !== "" && entry?.version === appVersion)
+			.map(([key]) => key)
+
+		expect(
+			claimed,
+			[
+				`${lockfile}: these dependency entries carry the app version`,
+				`(${appVersion}). A release bump must touch only the root`,
+				"fields — a transitive dependency's version is its own, and a",
+				"dependency claiming a version npm may never have published",
+				"dies in `npm ci` with ETARGET before any test runs.",
+			].join(" "),
+		).toEqual([])
+	})
 })
