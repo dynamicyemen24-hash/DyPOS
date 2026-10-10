@@ -24,6 +24,20 @@
 
 			<div class="self-checkout__header-actions">
 				<!--
+					الخروج ليس تنقل موظفين: زر «عودة» واحد يعيد الداخل إلى
+					حيث أتى (الكاشير للموظف، الدخول للزائر) — كشك بلا خروج
+					جدار بلا باب. القرار النقي في `resolveKioskExit`.
+				-->
+				<ActionButton
+					variant="ghost"
+					iconLeft="arrow-right"
+					data-testid="kiosk-exit"
+					:aria-label="'عودة'"
+					@click="exitKiosk"
+				>
+					عودة
+				</ActionButton>
+				<!--
 					العمل دون اتصال ليس حالة يظهرها مؤشر، بل الوضع الافتراضي:
 					لا مؤشر «متصل» ولا «غير متصل» يوحي بأن الشاشة تحتاج سيرفرًا.
 				-->
@@ -364,11 +378,14 @@ import { computed, onMounted, ref } from "vue"
 import { FeatherIcon } from "dypos-ui"
 
 import { ActionButton } from "dypos-ui"
+import appRouter, { goToDashboard, goToLogin } from "@/router"
+import { sessionUser } from "@/data/session"
 import { formatNumberSafe, getCurrencySymbol } from "@/utils/currency"
 import {
 	PAYMENT_METHODS,
 	SESSION_STATES,
 	filterCatalog,
+	resolveKioskExit,
 } from "./selfCheckoutState.js"
 import { useSelfCheckoutSession } from "./useSelfCheckoutSession.js"
 
@@ -474,6 +491,38 @@ function lineTotal(line) {
 
 function onPick(product) {
 	addItem(product, 1)
+}
+
+/**
+ * خروج الكشك — عودة داخلية آمنة أو باب بقية الأعمال.
+ *
+ * لا `router.back()` أعمى (قد يقذف لخارج التطبيق)، ولا طرد للزائر إلى
+ * لوحة لا يملكها: القرار النقي يختار، والشاشة تنفذ فقط.
+ */
+function exitKiosk() {
+	let back = null
+	try {
+		back = appRouter?.options?.history?.state?.back ?? null
+	} catch {
+		back = null
+	}
+	const decision = resolveKioskExit({
+		back,
+		loggedIn: Boolean(sessionUser()),
+	})
+	if (decision === "back") {
+		try {
+			appRouter.back()
+			return
+		} catch {
+			/* سقط الرجوع: نكمل للباب الصريح أدناه */
+		}
+	}
+	if (decision === "dashboard") {
+		goToDashboard()
+		return
+	}
+	goToLogin()
 }
 
 function onIncrement(line) {

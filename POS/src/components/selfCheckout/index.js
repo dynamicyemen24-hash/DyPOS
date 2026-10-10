@@ -24,6 +24,7 @@ export {
 	evaluateTender,
 	paidSession,
 	idleSession,
+	resolveKioskExit,
 } from "./selfCheckoutState.js"
 
 export {

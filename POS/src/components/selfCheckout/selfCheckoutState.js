@@ -257,6 +257,29 @@ export function idleSession() {
 	return { state: SESSION_STATES.IDLE, cart: [] }
 }
 
+/**
+ * أين يخرج الكشك؟ قرار نقي قابل للاختبار.
+ *
+ * الكشك شاشة زبون بلا تنقل موظفين — لكن حبس الداخل إليها جدار بلا باب:
+ * الموظف الذي فتحها من الكاشير والزائر من صفحة الدخول يجب أن يجدا
+ * «عودة» تعمل دائمًا. القاعدة: عودة داخلية للتاريخ الداخلي فقط (رجوع
+ * أعمى قد يقذف الزبون لموقع خارجي)، وإلا فاللوحة للمسجّل وصفحة الدخول
+ * للزائر — واللوحة هي باب بقية الأعمال والمهام.
+ *
+ * @param {{back?: unknown, loggedIn?: boolean}} input
+ * @returns {"back"|"dashboard"|"login"}
+ */
+export function resolveKioskExit({ back = null, loggedIn = false } = {}) {
+	if (
+		typeof back === "string" &&
+		back.startsWith("/") &&
+		!back.startsWith("/api")
+	) {
+		return "back"
+	}
+	return loggedIn ? "dashboard" : "login"
+}
+
 export default {
 	SESSION_STATES,
 	PAYMENT_METHODS,
@@ -272,4 +295,5 @@ export default {
 	evaluateTender,
 	paidSession,
 	idleSession,
+	resolveKioskExit,
 }
