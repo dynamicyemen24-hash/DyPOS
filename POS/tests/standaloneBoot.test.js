@@ -84,8 +84,12 @@ describe("standalone boot — zero network without user demand", () => {
 	it("the version watchdog never phones home without consent", () => {
 		// Same-origin build stamp reads are cache-served; the polling loop
 		// that forces network revalidation must still ask for consent first.
+		// Consent is linkage OR the visible auto-update switch (default on,
+		// changeable in the update banner) — both names are pinned so
+		// removing either fails here instead of on a till.
 		const watchdog = main.slice(main.indexOf("startBuildVersionWatchdog"))
 		expect(watchdog).toContain("isLinkEnabled")
+		expect(watchdog).toContain("isAutoUpdateEnabled")
 	})
 
 	it("the network monitor arms no ping loop before link consent", () => {

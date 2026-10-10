@@ -19,6 +19,48 @@ const updateError = ref(null)
 const release = ref(null)
 const currentVersion = ref(null)
 
+/**
+ * Automatic update consent — the visible switch behind every automatic
+ * version check. Default ON: the shop owner demanded a till that updates
+ * itself, and the switch (in the update banner) plus the banner itself
+ * mean no check is ever a surprise. Turning it off leaves only the manual
+ * "فحص التحديث" button, which is an explicit demand and always allowed.
+ */
+const AUTO_UPDATE_KEY = "dypos.auto-update"
+
+function readAutoUpdate() {
+	try {
+		if (typeof localStorage === "undefined") return true
+		const raw = localStorage.getItem(AUTO_UPDATE_KEY)
+		return raw === null ? true : raw === "1"
+	} catch {
+		return true
+	}
+}
+
+/** Pure read for non-Vue callers (the boot watchdog in main.js). */
+export function isAutoUpdateEnabled() {
+	return readAutoUpdate()
+}
+
+const autoUpdate = ref(readAutoUpdate())
+
+function setAutoUpdate(on) {
+	const next = on === true || on === "1" || on === 1
+	try {
+		if (typeof localStorage !== "undefined") {
+			localStorage.setItem(AUTO_UPDATE_KEY, next ? "1" : "0")
+		}
+	} catch {
+		/* storage full: the session keeps the choice */
+	}
+	autoUpdate.value = next
+	return next
+}
+
+const checking = ref(false)
+const cacheClearing = ref(false)
+
 try {
 	currentVersion.value =
 		typeof __APP_VERSION__ !== "undefined" ? String(__APP_VERSION__) : null
@@ -30,9 +72,12 @@ let listenerInstalled = false
 let loadedVersion = null
 
 function compareVersions(a, b) {
+	// Full semver: every numeric part counts. (An earlier cut split with a
+	// limit of 1, so "2.0.12" parsed as [2] and a patch release NEVER looked
+	// newer — the update banner could not fire on exactly the releases that
+	// carry fixes. The gate below pins all three parts.)
 	const parse = (value) =>
 		String(value || "")
-			.split(/[.+-]/, 1)[0]
 			.split(".")
 			.map((part) => Number.parseInt(part, 10) || 0)
 	const aa = parse(a)
@@ -211,6 +256,74 @@ function dismissUpdate() {
 	updateError.value = null
 }
 
+/**
+ * Compare the running build against the live release stamp.
+ * Explicit demand (button press, watchdog tick) — safe to call whenever
+ * online; the CALLER owns the consent decision (linkage or auto-update
+ * toggle). Never throws: no update found is a normal answer, not an error.
+ * @returns {Promise<{updated: boolean, version?: string, reason?: string}>}
+ */
+async function checkForUpdate() {
+	if (checking.value) return { updated: updateAvailable.value }
+	checking.value = true
+	try {
+		if (typeof navigator !== "undefined" && navigator.onLine === false) {
+			return { updated: false, reason: "offline" }
+		}
+		if (typeof fetch !== "function") return { updated: false }
+		const response = await fetch("/version.json", {
+			method: "GET",
+			cache: "no-store",
+			credentials: "same-origin",
+			headers: { Accept: "application/json" },
+		})
+		if (!response?.ok) return { updated: false }
+		const data = await response.json().catch(() => null)
+		const serverVersion = data?.version ? String(data.version) : null
+		if (!serverVersion || !currentVersion.value) {
+			return { updated: false }
+		}
+		if (compareVersions(serverVersion, currentVersion.value) > 0) {
+			handleUpdateSignal({ detail: { version: serverVersion } })
+			return { updated: true, version: serverVersion }
+		}
+		return { updated: false, version: serverVersion }
+	} catch {
+		return { updated: false }
+	} finally {
+		checking.value = false
+	}
+}
+
+/**
+ * Clear every CacheStorage entry, then reload so the worker re-precaches
+ * the live shell. CACHES ONLY — IndexedDB (sales, queue, users, stock) is
+ * never touched: a stuck screen must never cost a shop its unsynced work.
+ * @returns {Promise<boolean>} true when caches were cleared and reload issued.
+ */
+async function clearAppCaches() {
+	if (cacheClearing.value) return false
+	cacheClearing.value = true
+	try {
+		if (!("caches" in globalThis)) {
+			throw new Error("التخزين المؤقت غير متاح في هذا المتصفح")
+		}
+		const keys = (await globalThis.caches.keys()) || []
+		await Promise.all(
+			keys.map((key) => globalThis.caches.delete(key).catch(() => false)),
+		)
+		log.info("App caches cleared, reloading", { count: keys.length })
+		window.location.reload()
+		return true
+	} catch (error) {
+		updateError.value = error?.message || "تعذر مسح الكاش حاليًا"
+		log.warn("Cache clear failed", error)
+		return false
+	} finally {
+		cacheClearing.value = false
+	}
+}
+
 export function useAppUpdate() {
 	installListener()
 	return {
@@ -219,6 +332,12 @@ export function useAppUpdate() {
 		updateError,
 		release,
 		currentVersion,
+		autoUpdate,
+		setAutoUpdate,
+		checking,
+		checkForUpdate,
+		cacheClearing,
+		clearAppCaches,
 		loadReleaseFeed,
 		applyUpdate,
 		dismissUpdate,

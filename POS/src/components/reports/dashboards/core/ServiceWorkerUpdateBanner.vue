@@ -1,5 +1,6 @@
 <!-- DyPOS Smart Self-Update Dialog v2.0.1 -->
 <script setup>
+import { onBeforeUnmount, ref } from "vue"
 import { useAppUpdate } from "@/composables/useAppUpdate"
 import { FeatherIcon, ActionButton } from "dypos-ui"
 
@@ -9,11 +10,42 @@ const {
 	updateError,
 	release,
 	currentVersion,
+	autoUpdate,
+	setAutoUpdate,
+	checking,
+	checkForUpdate,
+	cacheClearing,
+	clearAppCaches,
 	applyUpdate,
 	dismissUpdate,
 } = useAppUpdate()
 
 const isCritical = () => String(release?.value?.severity || "") === "critical"
+
+/** Two-step cache clear: the first press arms, the second (within 6s) fires. */
+const clearArmed = ref(false)
+let clearTimer = null
+function onClearCaches() {
+	if (cacheClearing.value) return
+	if (!clearArmed.value) {
+		clearArmed.value = true
+		if (clearTimer) window.clearTimeout(clearTimer)
+		clearTimer = window.setTimeout(() => {
+			clearArmed.value = false
+			clearTimer = null
+		}, 6000)
+		return
+	}
+	if (clearTimer) {
+		window.clearTimeout(clearTimer)
+		clearTimer = null
+	}
+	clearArmed.value = false
+	void clearAppCaches()
+}
+onBeforeUnmount(() => {
+	if (clearTimer) window.clearTimeout(clearTimer)
+})
 </script>
 
 <template>
@@ -89,6 +121,47 @@ const isCritical = () => String(release?.value?.severity || "") === "critical"
 					</button>
 				</div>
 			</div>
+
+			<details class="dy-sw-update-banner__more">
+				<summary class="dy-sw-update-banner__more-summary">
+					خيارات التحديث والكاش
+				</summary>
+				<div class="dy-sw-update-banner__more-body">
+					<button
+						type="button"
+						class="dy-sw-update-banner__option"
+						:disabled="checking"
+						@click="checkForUpdate"
+					>
+						<FeatherIcon name="search" :size="15" />
+						{{ checking ? "جارٍ الفحص…" : "فحص التحديث الآن" }}
+					</button>
+					<label class="dy-sw-update-banner__option dy-sw-update-banner__toggle">
+						<input
+							type="checkbox"
+							:checked="autoUpdate"
+							@change="setAutoUpdate($event.target.checked)"
+						/>
+						<span>تحديث تلقائي عند الاتصال</span>
+					</label>
+					<button
+						type="button"
+						class="dy-sw-update-banner__option dy-sw-update-banner__option--danger"
+						:class="{ 'dy-sw-update-banner__option--armed': clearArmed }"
+						:disabled="cacheClearing"
+						@click="onClearCaches"
+					>
+						<FeatherIcon name="trash-2" :size="15" />
+						{{
+							cacheClearing
+								? "جارٍ المسح…"
+								: clearArmed
+									? "تأكيد مسح الكاش؟ (المبيعات بأمان)"
+									: "مسح الكاش وإعادة التحميل"
+						}}
+					</button>
+				</div>
+			</details>
 		</div>
 	</transition>
 </template>
@@ -166,6 +239,47 @@ const isCritical = () => String(release?.value?.severity || "") === "critical"
 	opacity: 0.7;
 }
 .dy-sw-update-banner__dismiss:hover { opacity: 1; }
+.dy-sw-update-banner__more {
+	margin-top: 8px;
+	border-top: 1px solid rgb(255 255 255 / 0.2);
+	padding-top: 8px;
+}
+.dy-sw-update-banner__more-summary {
+	cursor: pointer;
+	font-size: 0.75rem;
+	opacity: 0.85;
+}
+.dy-sw-update-banner__more-body {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 8px;
+}
+.dy-sw-update-banner__option {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 36px;
+	padding: 6px 12px;
+	border: 1px solid rgb(255 255 255 / 0.35);
+	border-radius: 8px;
+	background: transparent;
+	color: white;
+	font: inherit;
+	font-size: 0.78rem;
+	cursor: pointer;
+}
+.dy-sw-update-banner__option:disabled { opacity: 0.55; cursor: wait; }
+.dy-sw-update-banner__option--armed {
+	border-color: #fbbf24;
+	background: rgb(251 191 36 / 0.15);
+}
+.dy-sw-update-banner__toggle { cursor: pointer; }
+.dy-sw-update-banner__toggle input {
+	width: 18px;
+	height: 18px;
+	accent-color: var(--dy-mint-400);
+}
 @keyframes dy-spin {
 	from { transform: rotate(0deg); }
 	to { transform: rotate(360deg); }

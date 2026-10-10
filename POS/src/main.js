@@ -55,6 +55,7 @@ import {
 } from "./utils/performance"
 
 import { isLinkEnabled, subscribeLinkConsent } from "./services/link-consent"
+import { isAutoUpdateEnabled } from "./composables/useAppUpdate"
 import {
 	getServiceEndpoint,
 	SERVICE_ENDPOINTS,
@@ -327,14 +328,19 @@ function startBuildVersionWatchdog() {
 	let reconnectTimer = null
 
 	const check = async () => {
-		// Standalone-first: the build stamp is compile-time truth. Polling it
-		// over the network without the user's linkage consent is a connection
-		// nobody demanded — linked devices still learn about deploys on time.
-		if (!isLinkEnabled()) {
+		// Consent first: an automatic check runs on linkage OR the visible
+		// auto-update switch (default on, changeable in the update banner).
+		// The manual "فحص التحديث" button needs neither — pressing it IS
+		// the demand. (standaloneBoot pins both names below: removing
+		// either fails the gate.)
+		if (typeof navigator !== "undefined" && navigator.onLine === false) {
+			return
+		}
+		if (!isLinkEnabled() && !isAutoUpdateEnabled()) {
 			return
 		}
 		try {
-			const response = await fetch("/assets/DyPOS/pos/version.json", {
+			const response = await fetch("/version.json", {
 				method: "GET",
 				cache: "no-store",
 				credentials: "same-origin",
