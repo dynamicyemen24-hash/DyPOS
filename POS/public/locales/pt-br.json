@@ -129,6 +129,7 @@
 	"إظهار كلمة المرور": "Mostrar senha",
 	"الحماية": "Proteção",
 	"كلمة المرور مطلوبة": "Senha obrigatória",
+	"بيانات الدخول غير صحيحة": "Credenciais inválidas",
 	"جاهزة": "Pronta",
 	"قيد التجهيز": "Em preparação",
 	"غير مهيأة": "Não pronta",
@@ -218,5 +219,6 @@
 	"كاشير": "Caixa",
 	"الدخول المحلي فشل (مستخدم/كلمة مرور غير صحيحة)، والسيرفر غير متاح حاليًا. تأكد من البيانات أو استخدم بيانات التثبيت المحلية.": "Login local falhou (usuário/senha inválidos), e o servidor está indisponível no momento. Verifique suas credenciais ou use as credenciais de instalação local.",
 	"المستخدم غير موجود محليًا وكلمة المرور غير صحيحة، والسيرفر غير متاح حاليًا": "Usuário não encontrado localmente e senha incorreta, e o servidor está indisponível no momento",
-	"السيرفر غير متاح": "Servidor indisponível"
+	"السيرفر غير متاح": "Servidor indisponível",
+	"الكاشير الذاتي": "Autoatendimento"
 }

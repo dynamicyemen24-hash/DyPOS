@@ -321,3 +321,52 @@ describe("ترشيح كتالوج الكاشير الذاتي", () => {
 		expect(template).toContain("metaChips")
 	})
 })
+
+/**
+ * الوصول إلى الكاشير الذاتي — عقد في المنتج، لا تفضيل تنفيذي.
+ *
+ * كشك ينتظر دخول موظف كشك ميّت: الشاشة زبون على جهاز لمس، وكل ما يعرضه
+ * كتالوج ودفع. قبل هذا الإصلاح كان `/self-checkout` يحمل
+ * `requiresAuth: true` ولا يوجد أي رابط إليه من `Login.vue` — فكان
+ * الوصول إليه يتطلب معرفة المسار يدويًا بعد دخول موظف، وهو عكس المطلوب.
+ *
+ * البوابتان هنا تقيسان الاتجاهين: المسار بلا حارس، والزر موجود في شاشة
+ * الدخول. أي تعديل يُعيد الحاجز أو يحذف الزر يكسرهما.
+ */
+describe("الوصول إلى الكاشير الذاتي من شاشة الدخول", () => {
+	const root = resolve(dirname(fileURLToPath(import.meta.url)), "..")
+
+	it("المسار لا يفرض المصادقة — شاشة زبون لا شاشة موظف", () => {
+		const router = readFileSync(join(root, "src", "router.js"), "utf8")
+		// isolating the route block: from its path to the next route's path
+		const raw = router.slice(
+			router.indexOf('path: "/self-checkout"'),
+			router.indexOf('path: "/queue"'),
+		)
+		expect(raw.length).toBeGreaterThan(0)
+		// Judge the CODE, not the commentary: the docstring above this route
+		// explains WHY it has no `requiresAuth`, and a naive match would
+		// trip over its own explanation. Strip comments first.
+		const code = raw
+			.replace(/\/\*[\s\S]*?\*\//g, "")
+			.replace(/^\s*\/\/.*$/gm, "")
+		expect(code).not.toMatch(/requiresAuth/)
+		expect(code).not.toMatch(/requiresOpenShift/)
+		expect(code).not.toMatch(/guestOnly/)
+	})
+
+	it("زر «الكاشير الذاتي» موجود في شاشة الدخول ويشير إلى المسار", () => {
+		const login = readFileSync(join(root, "src", "pages", "Login.vue"), "utf8")
+		expect(login).toContain("name: 'SelfCheckout'")
+		expect(login).toContain("الكاشير الذاتي")
+	})
+
+	it("الزر لا يظهر إلا بتنسيق يسمح بلمسه (44px)", () => {
+		const css = readFileSync(
+			join(root, "src", "styles", "pages", "login.css"),
+			"utf8",
+		)
+		expect(css).toContain("dy-login__self-checkout-link")
+		expect(css).toMatch(/min-height:\s*44px/)
+	})
+})

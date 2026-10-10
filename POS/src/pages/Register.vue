@@ -282,12 +282,6 @@ function normalizeValue(value) {
 
 async function submitRegistration() {
 	if (!canSubmit.value) return
-	if (!countries.value.length || !establishmentTypes.value) {
-		registerError.value =
-			metaError.value ||
-			"قوائم التسجيل غير محمّلة بعد. تحقق من الاتصال ثم أعد المحاولة."
-		return
-	}
 	clearErrors()
 	isSubmitting.value = true
 	registerSuccess.value = false
@@ -322,6 +316,19 @@ async function submitRegistration() {
 			await session.bootstrap().catch(() => {})
 			await router.replace({ name: "Reports" })
 			return
+		}
+
+		// Server registration only: the meta lists (countries + business
+		// sectors) come from the server, so a server registration cannot
+		// proceed without them. This check is deliberately AFTER the local
+		// branch above — an earlier copy put it at the top of the function,
+		// so a dead server blocked the LOCAL account too, and no customer
+		// could register at all while the till was meant to work offline.
+		if (!countries.value.length || !establishmentTypes.value) {
+			throw new Error(
+				metaError.value ||
+					"قوائم التسجيل غير محمّلة بعد. تحقق من الاتصال ثم أعد المحاولة.",
+			)
 		}
 
 		const response = await fetch("/api/method/DyPOS.api.auth.register", {

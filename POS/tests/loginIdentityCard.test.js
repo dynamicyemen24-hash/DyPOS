@@ -20,7 +20,11 @@ describe("login identity context", () => {
 		expect(css).not.toContain("grid-area: panel")
 	})
 
-	it("does not fabricate branch readiness", () => {
-		expect(page).toContain("اختر الفرع قبل تسجيل الدخول")
+	it("branch never blocks offline login (optional, persisted)", () => {
+		// الفرع اختياري دائمًا: إيقاف الدخول خلف قائمة فروع (فارغة محليًا
+		// أو بعيدة بلا شبكة) كان جدارًا بلا باب للمحل الصغير. من اختار
+		// فرعًا يُحفظ اختياره، ومن لم يختر يدخل ويبيع.
+		expect(page).not.toContain("اختر الفرع قبل تسجيل الدخول")
+		expect(page).toContain("dypos.lastBranchId")
 	})
 })

@@ -67,6 +67,14 @@ async function mountLogin() {
 				name: "Agreement",
 				component: { template: "<div />" },
 			},
+			// The login screen now carries a "الكاشير الذاتي" RouterLink. A
+			// memory router without this route throws on render, which
+			// cascades into every later assertion in this file.
+			{
+				path: "/self-checkout",
+				name: "SelfCheckout",
+				component: { template: "<div />" },
+			},
 		],
 	})
 

@@ -7,11 +7,18 @@
  * Release contract (explicit, never implied):
  *   OFFLINE_ONLY (default): the till sells, prints, reports and queues
  *     durably with no network. /api/* upstream (Express) is OPTIONAL —
- *     its 503 is reported, never hidden, and never gates the release.
+ *     its fault is reported, never hidden, and never gates the release.
  *     What gates instead is OFFLINE DURABILITY (shell + SW + bundle markers).
  *   ONLINE_REQUIRED (--contract=online): cloud login + sync are required.
- *     Any 503 / UPSTREAM_MISCONFIGURED on a required dependency is a
- *     RELEASE BLOCKER (exit 1). Use for releases that promise cloud sync.
+ *     Any UPSTREAM fault on a required dependency is a RELEASE BLOCKER
+ *     (exit 1). Use for releases that promise cloud sync. The edge names
+ *     those faults machine-readably: UPSTREAM_MISCONFIGURED,
+ *     UPSTREAM_UNAVAILABLE, DATABASE_UNBOUND.
+ *   Offline-first is the product's premise (S2): the server is optional and
+ *   sync-only, so a broken sync tier is an ADVISORY under OFFLINE_ONLY —
+ *   named, with its recovery, never softened into silence. Measured on
+ *   production 2026-10-10 for release 2.0.9: Cloudflare answered 403 + HTML
+ *   (Error 1003) on every proxied /api/* while the edge itself was healthy.
  *
  * Why a script and not inline `curl` in YAML: the heartbeat used to probe
  * `/assets/DyPOS/pos/version.json` (the embedded Worker layout) and demand a
@@ -45,9 +52,10 @@
  *   sync readiness        /api/health → 200 + version (optional offline, required online)
  *
  * A 7/7 (or N/N) pass with a required Auth/Sync dependency unready is NOT a
- * pass: in --contract=online any UPSTREAM_MISCONFIGURED/503 on the above is a
- * BLOCKER. In OFFLINE_ONLY the same 503 is an acknowledged ⚠️ with the
- * offline-durability proof — never a silent green, never a hidden red.
+ * pass: in --contract=online any UPSTREAM fault on the above is a BLOCKER.
+ * In OFFLINE_ONLY the same fault is an acknowledged ⚠️ SYNC TIER advisory
+ * carrying the machine code and the recovery — never a silent green, never
+ * a hidden red, and never a blocker on an offline-first release.
  *
  * Exit code 1 = at least one REQUIRED probe failed. `GITHUB_STEP_SUMMARY`,
  * when set, gets the same table the terminal shows.
@@ -55,6 +63,15 @@
 import { appendFileSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+// ONE implementation of upstream-fault detection, shared with the test that
+// proves it bites (S3): a detector that only exists inside a script nobody
+// can import is a detector nobody can prove.
+import {
+	ALWAYS_BLOCKER_CODE,
+	httpFailure,
+	isUpstreamFault,
+	upstreamHint,
+} from "./lib/probe-faults.mjs"
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const flag = (name, fallback) => {
@@ -115,16 +132,41 @@ async function probe(label, run) {
 	}
 }
 
-/** Run one contract-dependent probe: required online, advisory offline. */
+/**
+ * Run one contract-dependent probe: required online, advisory offline.
+ *
+ * The contract is OFFLINE-FIRST, and so is the product: the till sells with
+ * no network, and the server is optional and sync-only (S2). A broken sync
+ * backend therefore MUST NOT block an offline release — that would make a
+ * server the gate on a product whose whole premise is that the server is
+ * optional. What it MUST do is name itself and its recovery loudly, so an
+ * operator never has to guess. `contractProbe` does exactly that: offline it
+ * pushes an advisory carrying the machine code and the fix; online it is a
+ * blocker, because that contract is the one that promises cloud Auth+Sync.
+ */
+const SYNC_TIER_FAULT = "CLOUDFLARE_REJECTED_UPSTREAM"
+
 async function contractProbe(label, run) {
 	try {
 		const detail = await run()
 		if (ONLINE_REQUIRED) results.push({ label, detail, ok: true })
 		else advisories.push(`${label} — ${detail}`)
 	} catch (e) {
-		const detail = String(e?.message || e).slice(0, 240)
-		if (ONLINE_REQUIRED) results.push({ label, detail: `BLOCKER: ${detail}`, ok: false })
-		else advisories.push(`⚠️ ${label} — ${detail}; offline POS release is unaffected`)
+		const raw = String(e?.message || e)
+		const detail = raw.slice(0, 240)
+		if (ONLINE_REQUIRED) {
+			results.push({ label, detail: `BLOCKER: ${detail}`, ok: false })
+			return
+		}
+		// Offline-first: this is the sync tier, not the till. Report it as
+		// the named fault it is — never as "unaffected", never as a blocker.
+		if (raw.includes(SYNC_TIER_FAULT)) {
+			advisories.push(
+				`⚠️ SYNC TIER — ${label} — ${detail} — the till is unaffected (offline-first); fix BACKEND_URL to restore cloud login/sync`,
+			)
+			return
+		}
+		advisories.push(`⚠️ ${label} — ${detail}; offline POS release is unaffected`)
 	}
 }
 
@@ -208,35 +250,16 @@ async function offlineDurability() {
 }
 
 /**
- * A bare "HTTP 503" sends the operator back to curl by hand, and this probe is
- * read unattended by the 15-minute heartbeat. The edge already answers with a
- * machine-readable `code` (UPSTREAM_MISCONFIGURED, DATABASE_UNBOUND, …) and an
- * Arabic `error`, so name the fault instead of just the number.
+ * Upstream-fault detection lives in `scripts/lib/probe-faults.mjs` so the
+ * gate and its test share ONE implementation (S3). Measured 2026-10-10 for
+ * 2.0.9: the edge is UP (/api/edge-health and /api/ready answer 200 JSON)
+ * while every proxied /api/* returns Cloudflare's own 403 HTML page
+ * (`<title>Direct IP access not allowed | Cloudflare</title>`) because
+ * BACKEND_URL points at a host Cloudflare will not forward to. That was
+ * invisible to the old status-only check (503/500/502 + JSON `code`), so
+ * the 15-minute heartbeat stayed green over a cloud tier that could not
+ * answer a single login.
  */
-function httpFailure(status, body) {
-	const head = `HTTP ${status}`
-	try {
-		const parsed = JSON.parse(body)
-		const named = [parsed.code, parsed.error].filter(Boolean).join(" — ")
-		if (named) return `${head} · ${named}`
-	} catch {
-		// Not JSON — fall through to the raw body, collapsed and truncated.
-	}
-	return `${head} · ${String(body).replace(/\s+/g, " ").slice(0, 160)}`
-}
-
-function isUpstreamFault(status, body) {
-	if (status !== 503 && status !== 500 && status !== 502) return null
-	try {
-		const parsed = JSON.parse(body)
-		if (parsed.code === "UPSTREAM_MISCONFIGURED" || parsed.code === "UPSTREAM_UNAVAILABLE" || parsed.code === "DATABASE_UNBOUND") {
-			return parsed.code
-		}
-	} catch {
-		/* not JSON */
-	}
-	return null
-}
 
 async function apiEdge() {
 	const { status: healthStatus, body: healthBody } = await httpGet(`${SITE}/api/edge-health`)
@@ -260,7 +283,7 @@ async function apiEdge() {
 async function csrfReadiness() {
 	const { status, body, headers } = await httpGet(`${SITE}/api/csrf_token`)
 	const upstream = isUpstreamFault(status, body)
-	if (upstream) throw new Error(`${httpFailure(status, body)} — BACKEND_URL secret missing/unreachable (edge fail-closed, correct behaviour)`)
+	if (upstream) throw new Error(`${httpFailure(status, body)} — ${upstreamHint("CSRF handshake cannot start")}`)
 	assert(status === 200, httpFailure(status, body))
 	const parsed = JSON.parse(body)
 	const token = parsed.csrf_token || parsed.message?.csrf_token
@@ -274,7 +297,7 @@ async function authReadiness() {
 	// Empty credentials must 400 (validation), never 200-fake or 503-masked.
 	const { status, body } = await httpPost(`${SITE}/api/auth/login`, {})
 	const upstream = isUpstreamFault(status, body)
-	if (upstream) throw new Error(`${httpFailure(status, body)} — login upstream missing (BLOCKER when online required)`)
+	if (upstream) throw new Error(`${httpFailure(status, body)} — ${upstreamHint("login cannot be exercised")}`)
 	assert([400, 401, 429].includes(status), `expected 400/401/429 for empty login, got ${httpFailure(status, body)}`)
 	return `login rejects empty credentials with HTTP ${status} (no fake success)`
 }
@@ -282,7 +305,7 @@ async function authReadiness() {
 async function sessionLifecycle() {
 	const { status, body } = await httpGet(`${SITE}/api/auth/me`)
 	const upstream = isUpstreamFault(status, body)
-	if (upstream) throw new Error(`${httpFailure(status, body)} — session check upstream missing`)
+	if (upstream) throw new Error(`${httpFailure(status, body)} — ${upstreamHint("session lifecycle cannot be checked")}`)
 	// No token → 401. A 200 without credentials would be a session bypass.
 	assert(status === 401, `expected 401 for anonymous /me, got ${httpFailure(status, body)}`)
 	return `anonymous session 401 (lifecycle closed)`
@@ -291,7 +314,7 @@ async function sessionLifecycle() {
 async function tenantIsolation() {
 	const { status, body } = await httpGet(`${SITE}/api/tenants`)
 	const upstream = isUpstreamFault(status, body)
-	if (upstream) throw new Error(`${httpFailure(status, body)} — tenant list upstream missing`)
+	if (upstream) throw new Error(`${httpFailure(status, body)} — ${upstreamHint("tenant fail-closed cannot be confirmed")}`)
 	assert([401, 403].includes(status), `expected 401/403 for anonymous tenant list, got ${httpFailure(status, body)}`)
 	return `anonymous tenant list HTTP ${status} (fail-closed)`
 }
@@ -299,7 +322,7 @@ async function tenantIsolation() {
 async function logoutReadiness() {
 	const { status, body } = await httpPost(`${SITE}/api/auth/logout`, {})
 	const upstream = isUpstreamFault(status, body)
-	if (upstream) throw new Error(`${httpFailure(status, body)} — logout upstream missing`)
+	if (upstream) throw new Error(`${httpFailure(status, body)} — ${upstreamHint("logout cannot be exercised")}`)
 	assert(status === 401, `expected 401 for anonymous logout, got ${httpFailure(status, body)}`)
 	return `anonymous logout 401 (no fake logout)`
 }
@@ -309,8 +332,12 @@ async function optionalSyncBackend() {
 		const { status, body } = await httpGet(`${SITE}/api/health`)
 		const upstream = isUpstreamFault(status, body)
 		if (upstream) {
-			if (ONLINE_REQUIRED) throw new Error(`${httpFailure(status, body)} — sync backend REQUIRED by contract=online`)
-			return `⚠️ optional sync backend unavailable — ${httpFailure(status, body)}; offline POS release is unaffected`
+			// Offline-first: the sync tier being broken is not a release
+			// blocker under the offline contract — the till sells without
+			// it. Throwing here lets `contractProbe` classify it, and the
+			// Cloudflare case gets the SYNC TIER advisory instead of the
+			// generic "unaffected" line, which would hide the recovery.
+			throw new Error(`${httpFailure(status, body)} — ${upstreamHint("sync backend cannot answer")}`)
 		}
 		if (status === 200) {
 			const parsed = JSON.parse(body)
@@ -323,9 +350,10 @@ async function optionalSyncBackend() {
 		if (ONLINE_REQUIRED) throw new Error(httpFailure(status, body))
 		return `⚠️ optional sync backend unavailable — ${httpFailure(status, body)}; offline POS release is unaffected`
 	} catch (error) {
-		if (ONLINE_REQUIRED && String(error?.message || "").startsWith("BLOCKER") === false && error?.message) throw error
 		if (ONLINE_REQUIRED) throw error
-		return `⚠️ optional sync backend unavailable — ${String(error?.message || error).slice(0, 160)}; offline POS release is unaffected`
+		// Offline-first: let the thrown error reach `contractProbe`, which
+		// already knows how to classify a sync-tier fault as an advisory.
+		throw error
 	}
 }
 

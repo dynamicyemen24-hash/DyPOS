@@ -336,6 +336,31 @@ describe("register page — registration lists come from the server", () => {
 			'code: "SA", name: "السعودية"',
 		)
 	})
+
+	it("a dead server never blocks the LOCAL registration path (offline-first)", () => {
+		const source = readSrc("pages", "Register.vue")
+		// The local path must come FIRST — before any check that depends on
+		// server-provided lists. An earlier copy put
+		// `if (!countries.value.length …)` at the very top of
+		// `submitRegistration`, so a dead or unreachable backend left
+		// `countries` empty and the guard returned early for EVERYONE —
+		// including a customer with no network who only wanted a local
+		// PBKDF2 account. That is the offline-first invariant (S2): the
+		// till must work with the server absent, and registration is the
+		// door to the till.
+		const localIdx = source.indexOf("await userRepository.create(")
+		const guardIdx = source.indexOf("if (!countries.value.length")
+		expect(localIdx, "local registration path missing").toBeGreaterThan(-1)
+		expect(guardIdx, "server meta guard missing").toBeGreaterThan(-1)
+		expect(
+			localIdx,
+			"the local registration path must run BEFORE the server meta guard",
+		).toBeLessThan(guardIdx)
+		// And the guard must throw (recovery message) not silently return,
+		// so the failure names a recovery instead of a dead button.
+		const guardSlice = source.slice(guardIdx, guardIdx + 200)
+		expect(guardSlice).toContain("throw new Error(")
+	})
 })
 
 describe("stock count dialog — one catalog, no private copy (S3)", () => {

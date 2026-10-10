@@ -107,6 +107,7 @@ import { useTechnicalMode } from "@/composables/useTechnicalMode"
 import { useHardwareDiagnostics } from "@/composables/useHardwareDiagnostics"
 import { useNetworkDiagnostics } from "@/composables/useNetworkDiagnostics"
 import { methodGetList } from "@/utils/methodClient"
+import { isLinkEnabled } from "@/services/link-consent"
 import { cleanupUserSession, normalizeAuthError } from "@/utils/auth"
 import { useCompleteAuthentication } from "@/composables/useCompleteAuthentication"
 import { useLoginMethods } from "@/composables/useLoginMethods"
@@ -493,9 +494,13 @@ async function onPasskeyAuthenticated() {
  */
 async function submitLogin() {
 	if (isSubmitting.value || !validateRequiredFields()) return
-	if (branches.value.length > 0 && !selectedBranchId.value) {
-		loginError.value = __("اختر الفرع قبل تسجيل الدخول")
-		return
+	// الفرع اختياري دائمًا: يُحفظ إن اختير، ولا يمنع الدخول أبدًا.
+	if (selectedBranchId.value) {
+		try {
+			localStorage.setItem("dypos.lastBranchId", selectedBranchId.value)
+		} catch {
+			/* التخزين غير متاح: يُكمل الدخول في الذاكرة */
+		}
 	}
 
 	if (isRateLimited.value) {
@@ -527,6 +532,9 @@ async function submitLogin() {
 			}
 
 			completeAuthentication("offline_login")
+		} else if (!isLinkEnabled()) {
+			// مستقل بلا ربط: صفر شبكة — الفشل المحلي هو الجواب كله.
+			throw new Error(offlineResult.error || "بيانات الدخول غير صحيحة")
 		} else {
 			// Local failed — try server ONLY if linkage consent granted
 			// and network appears available. prepareServerDemand now
@@ -1350,6 +1358,22 @@ watch(
                     {{ __('ليس لديك حساب؟') }}
                     <RouterLink :to="{ name: 'Register' }">
                         {{ __('سجّل الآن') }}
+                    </RouterLink>
+                </p>
+
+                <!--
+                    الكاشير الذاتي — شاشة زبون على جهاز لمس.
+                    وصوله من هنا شرط في عقد المنتج: كشك ينتظر دخول موظف كشك ميّت.
+                    المسار بلا `requiresAuth` (انظر router.js) وكل ما يعرضه كتالوج
+                    ودفع — لا تقارير ولا إعدادات.
+                -->
+                <p class="dy-login__self-checkout">
+                    <RouterLink
+                        :to="{ name: 'SelfCheckout' }"
+                        class="dy-login__self-checkout-link"
+                    >
+                        <FeatherIcon name="shopping-cart" :size="16" aria-hidden="true" />
+                        <span>{{ __('الكاشير الذاتي') }}</span>
                     </RouterLink>
                 </p>
 

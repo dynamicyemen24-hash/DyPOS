@@ -16,6 +16,10 @@ import assert from 'node:assert';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+// ONE implementation of upstream-fault detection, shared with the live gate
+// (S3): a detector that only exists inside a script nobody can import is a
+// detector nobody can prove bites.
+import * as faults from '../../scripts/lib/probe-faults.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..');
@@ -73,7 +77,10 @@ describe('Cloudflare Pages preflight', () => {
 describe('live verification probe (scripts/verify-live.mjs)', () => {
 	it('reports optional sync-backend faults without gating the offline release', () => {
 		const live = readFileSync(join(REPO, 'scripts', 'verify-live.mjs'), 'utf8');
-		assert.match(live, /function httpFailure\(/);
+		// `httpFailure` moved to `scripts/lib/probe-faults.mjs` so this gate and
+		// its detector test share ONE implementation (S3). The import is the
+		// proof it is still the same function, not a second copy.
+		assert.match(live, /from "\.\/lib\/probe-faults\.mjs"/);
 		assert.match(live, /async function optionalSyncBackend\(/);
 		assert.match(live, /offline POS release is unaffected/);
 		assert.doesNotMatch(live, /probe\("API \/api\/health"/);
@@ -109,6 +116,96 @@ describe('live verification probe (scripts/verify-live.mjs)', () => {
 		// A required Auth/Sync dependency that is unready must fail the gate —
 		// never a 7/7 pass with a warning standing in for a blocker.
 		assert.match(live, /BLOCKER/);
+	});
+});
+
+/**
+ * Measured on production 2026-10-10 for release 2.0.9: the edge was UP
+ * (/api/edge-health and /api/ready answered 200 JSON) while every proxied
+ * /api/* returned Cloudflare's own 403 HTML page —
+ * `<title>Direct IP access not allowed | Cloudflare</title>` — because the
+ * BACKEND_URL secret pointed at a host Cloudflare would not forward to.
+ *
+ * The detector that should have caught it accepted only 503/500/502 with a
+ * JSON `code`, so it returned null for a 403 + HTML body, and the failure
+ * fell into the offline "advisory" bucket as an unnamed line. The offline
+ * contract was RIGHT not to block — the till sells without a server (S2) —
+ * but the advisory hid the recovery. These tests pin BOTH directions: the
+ * detector must catch the case it used to miss, and the offline contract
+ * must still refuse to make a sync fault a release blocker.
+ */
+describe('upstream fault detector (scripts/lib/probe-faults.mjs)', () => {
+	const { ALWAYS_BLOCKER_CODE, httpFailure, isUpstreamFault, upstreamHint } = faults;
+
+	// The body Cloudflare served: 403, text/html, 7936 bytes, that exact title.
+	const CLOUDFLARE_1003_HTML =
+		'<!doctype html>\n<html class="no-js" lang="en-US">\n<head>\n<title>Direct IP access not allowed | Cloudflare</title>\n</head>\n</html>';
+
+	it('mustCatch: the 403 + Cloudflare HTML that reached production is an upstream fault', () => {
+		assert.strictEqual(isUpstreamFault(403, CLOUDFLARE_1003_HTML), ALWAYS_BLOCKER_CODE);
+		// Not just a truthy: the probe escalates by exact code match.
+		assert.strictEqual(ALWAYS_BLOCKER_CODE, 'CLOUDFLARE_REJECTED_UPSTREAM');
+	});
+
+	it('mustCatch: httpFailure names the code and the recovery, not just the status', () => {
+		const text = httpFailure(403, CLOUDFLARE_1003_HTML);
+		assert.ok(text.includes('CLOUDFLARE_REJECTED_UPSTREAM'), text);
+		assert.ok(text.includes('BACKEND_URL'), 'must name the secret to fix');
+		assert.ok(text.includes('1003'), 'must name the Cloudflare error code');
+	});
+
+	it('mustCatch: the old 503 JSON signatures still count as upstream faults', () => {
+		for (const code of ['UPSTREAM_MISCONFIGURED', 'UPSTREAM_UNAVAILABLE', 'DATABASE_UNBOUND']) {
+			assert.strictEqual(isUpstreamFault(503, JSON.stringify({ code })), code, code);
+		}
+	});
+
+	it('mustNotCatch: a genuine fail-closed 403 with a JSON body is NOT an upstream fault', () => {
+		// /api/tenants answers 403 for an anonymous caller. If that were
+		// treated as an upstream fault the tenant-isolation probe would fail
+		// on correct behaviour.
+		const json403 = JSON.stringify({ error: 'المستأجر غير موجود' });
+		assert.strictEqual(isUpstreamFault(403, json403), null);
+	});
+
+	it('mustNotCatch: anonymous /me returning 401 JSON is NOT an upstream fault', () => {
+		assert.strictEqual(isUpstreamFault(401, JSON.stringify({ error: 'unauthorized' })), null);
+	});
+
+	it('mustNotCatch: an HTML error page WITHOUT the Error-1003 marker is not claimed', () => {
+		// Some proxies serve custom HTML errors. Claiming every HTML body
+		// would make the detector a guess, not a measurement.
+		const customHtml = '<!doctype html><html><body><h1>502 Bad Gateway</h1></body></html>';
+		assert.strictEqual(isUpstreamFault(502, customHtml), null);
+	});
+
+	it('mustNotCatch: a healthy 200 JSON body is not an upstream fault', () => {
+		const health = JSON.stringify({ status: 'ok', version: '2.0.9' });
+		assert.strictEqual(isUpstreamFault(200, health), null);
+	});
+
+	it('upstreamHint says Cloudflare intercepted the hop, never "edge fail-closed, correct behaviour"', () => {
+		const hint = upstreamHint('login cannot be exercised');
+		assert.ok(hint.includes('Cloudflare intercepted'), hint);
+		assert.doesNotMatch(hint, /fail-closed, correct behaviour/);
+	});
+
+	it('the sync tier is an ADVISORY offline, a BLOCKER online — never a blocker on an offline-first release', () => {
+		const live = readFileSync(join(REPO, 'scripts', 'verify-live.mjs'), 'utf8');
+		// Offline-first is the product premise (S2): the server is optional
+		// and sync-only, so a broken sync tier must NOT gate the release.
+		// It must still name itself and its recovery — never go silent.
+		assert.match(live, /SYNC TIER/);
+		assert.match(live, /fix BACKEND_URL to restore cloud login\/sync/);
+		// And the online contract still gates it, which is the whole point
+		// of having two contracts instead of one.
+		assert.match(live, /if \(ONLINE_REQUIRED\) \{\s*results\.push\(\{ label, detail: `BLOCKER/);
+		// The shared module must be imported, not re-declared — one
+		// implementation per rule (S3).
+		assert.match(live, /from "\.\/lib\/probe-faults\.mjs"/);
+		// And the detector must still be the one that catches the Cloudflare
+		// 403+HTML case, which the old status-only check missed entirely.
+		assert.strictEqual(faults.isUpstreamFault(403, CLOUDFLARE_1003_HTML), faults.ALWAYS_BLOCKER_CODE);
 	});
 });
 

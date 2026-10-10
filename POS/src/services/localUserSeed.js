@@ -53,8 +53,8 @@ const SEED_FLAG = "localUserSeeded.v1"
 export const DEFAULT_INSTALL_USER = Object.freeze({
 	email: "admin@dypos.local",
 	password: null, // generated per install — never a repository constant
-	full_name: "مدير النظام",
-	company: "DyPOS",
+	full_name: "مدير رويال",
+	company: "رويال",
 	role: "ADMIN",
 })
 

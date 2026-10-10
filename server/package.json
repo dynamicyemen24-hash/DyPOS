@@ -1,6 +1,6 @@
 {
   "name": "dypos-server",
-  "version": "2.0.9",
+  "version": "2.0.11",
   "description": "DyPOS SaaS backend - REST API + JWT Auth + SQLite (node:sqlite, zero native deps)",
   "main": "server.js",
   "type": "module",
@@ -19,6 +19,8 @@
     "migrate": "node db/migrate.js",
     "seed": "node db/seed.js",
     "seed:royal:sample": "node scripts/seed-royal-production.mjs",
+    "provision:royal": "node scripts/provision-royal.mjs",
+    "provision:reset-password": "node scripts/reset-user-password.mjs",
     "e2e:royal": "node scripts/e2e-royal.mjs",
     "e2e:yaqoub": "node scripts/operational-run-yaqoub.mjs",
     "backup": "node scripts/backup.mjs",

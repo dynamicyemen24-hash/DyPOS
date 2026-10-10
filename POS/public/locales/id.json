@@ -129,6 +129,7 @@
 	"إظهار كلمة المرور": "Tampilkan kata sandi",
 	"الحماية": "Perlindungan",
 	"كلمة المرور مطلوبة": "Kata sandi diperlukan",
+	"بيانات الدخول غير صحيحة": "Kredensial tidak valid",
 	"جاهزة": "Siap",
 	"قيد التجهيز": "Sedang disiapkan",
 	"غير مهيأة": "Tidak siap",
@@ -218,5 +219,6 @@
 	"كاشير": "Kasir",
 	"الدخول المحلي فشل (مستخدم/كلمة مرور غير صحيحة)، والسيرفر غير متاح حاليًا. تأكد من البيانات أو استخدم بيانات التثبيت المحلية.": "Login lokal gagal (pengguna/kata sandi tidak valid), dan server saat ini tidak tersedia. Periksa kredensial Anda atau gunakan kredensial instalasi lokal.",
 	"المستخدم غير موجود محليًا وكلمة المرور غير صحيحة، والسيرفر غير متاح حاليًا": "Pengguna tidak ditemukan secara lokal dan kata sandi tidak valid, dan server saat ini tidak tersedia",
-	"السيرفر غير متاح": "Server tidak tersedia"
+	"السيرفر غير متاح": "Server tidak tersedia",
+	"الكاشير الذاتي": "Kasir Mandiri"
 }

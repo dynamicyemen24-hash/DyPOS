@@ -129,6 +129,7 @@
 	"إظهار كلمة المرور": "Show password",
 	"الحماية": "Protection",
 	"كلمة المرور مطلوبة": "Password required",
+	"بيانات الدخول غير صحيحة": "Invalid credentials",
 	"جاهزة": "Ready",
 	"قيد التجهيز": "Being prepared",
 	"غير مهيأة": "Not ready",
@@ -218,5 +219,6 @@
 	"كاشير": "Cashier",
 	"الدخول المحلي فشل (مستخدم/كلمة مرور غير صحيحة)، والسيرفر غير متاح حاليًا. تأكد من البيانات أو استخدم بيانات التثبيت المحلية.": "Local login failed (invalid user/password), and the server is currently unavailable. Check your credentials or use the local install credentials.",
 	"المستخدم غير موجود محليًا وكلمة المرور غير صحيحة، والسيرفر غير متاح حاليًا": "User not found locally and password is incorrect, and the server is currently unavailable",
-	"السيرفر غير متاح": "Server unavailable"
+	"السيرفر غير متاح": "Server unavailable",
+	"الكاشير الذاتي": "Self Checkout"
 }

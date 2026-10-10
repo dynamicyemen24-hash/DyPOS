@@ -2,6 +2,7 @@ import { ref, computed } from "vue"
 import { useBiometric } from "@/composables/useBiometric"
 import { getPasswordStrength } from "@/utils/passwordPolicy"
 import { methodGetList } from "@/utils/methodClient"
+import { isLinkEnabled } from "@/services/link-consent"
 import { endpoints } from "@/utils/apiEndpoints"
 import { __ } from "@/utils/translation"
 import { logger } from "@/utils/logger"
@@ -80,6 +81,9 @@ export function useLoginForm({
 	}
 
 	async function loadRemoteBranches() {
+		// بلا موافقة ربط: صفر شبكة — قائمة الفروع البعيدة لا تُطلب أصلًا،
+		// والدخول المحلي لا يحتاجها (الفرع اختياري في submitLogin).
+		if (!isLinkEnabled()) return
 		if (typeof navigator !== "undefined" && navigator.onLine === false) return
 		try {
 			const response = await methodGetList(endpoints.branches.list, {
