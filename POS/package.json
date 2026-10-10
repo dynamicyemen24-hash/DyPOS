@@ -34,7 +34,7 @@
     "socket.io-client": "^4.7.2",
     "vue": "3.5.43",
     "vue-chartjs": "^5.3.4",
-    "vue-router": "^4.5.0"
+    "vue-router": "^5.3.1"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
