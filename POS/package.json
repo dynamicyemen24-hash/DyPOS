@@ -40,7 +40,7 @@
     "@biomejs/biome": "1.9.4",
     "@tailwindcss/forms": "^0.5.9",
     "@vitejs/plugin-vue": "^5.1.4",
-    "@vitest/coverage-v8": "^2.1.8",
+    "@vitest/coverage-v8": "^5.0.3",
     "@vue/test-utils": "^2.5.1",
     "autoprefixer": "^10.6.1",
     "fake-indexeddb": "^6.0.0",
