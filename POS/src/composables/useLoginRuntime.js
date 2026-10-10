@@ -25,7 +25,6 @@ import { ensureCSRFToken } from "@/utils/csrf"
 import { offlineWorker } from "@/utils/offline/workerClient"
 import { sanitizeForInput } from "@/utils/securityHardening"
 import { enhancedLoginRateLimiter } from "@/utils/rateLimiterEnhanced"
-import { userRepository } from "@/repositories/userRepository"
 import { session } from "@/stores/session"
 import { isLinkEnabled } from "@/services/link-consent"
 
@@ -118,38 +117,17 @@ export async function detectOfflineMode() {
 }
 
 /**
- * تسجيل دخول محلي عبر مستودع المستخدمين (Dexie) — بلا شبكة إطلاقًا.
- * الجلسة المحلية تنتهي بعد 8 ساعات (نفس عقد data/session) ومربوطة بالجهاز.
- * @returns {Promise<{success: boolean, user?: object, error?: string}>}
+ * تسجيل دخول محلي عبر التنفيذ الوحيد (`data/session#submitLocalLogin`) —
+ * بلا شبكة إطلاقًا. الجلسة المحلية تنتهي بعد 8 ساعات ومربوطة بالجهاز.
+ *
+ * لا منطق هنا عمدًا: النسخة السابقة تحققت من الكلمة ثم كتبت `user`
+ * على وكيل Pinia (computed للقراءة فقط — كتابة ميتة)، فبقي الحارس
+ * يقرأ "غير مسجّل" والكاشير عالق على الشاشة بعد كلمة صحيحة.
+ * @returns {Promise<{success: boolean, user?: *, error?: string}>}
  */
 export async function attemptLocalLogin(email, password) {
-	const result = await userRepository.authenticate(email, password)
-	if (!result.success) return result
-
-	const user = result.user
-	session.user = user.email
-
-	try {
-		const now = Date.now()
-		localStorage.setItem(
-			"dypos_user_session",
-			JSON.stringify({
-				email: user.email,
-				full_name: user.full_name,
-				user_id: user.id,
-				role: user.role,
-				tenantId: user.tenantId || user.tenant_id || null,
-				loginTime: now,
-				expiresAt: now + 8 * 60 * 60 * 1000,
-			}),
-		)
-	} catch (error) {
-		// التخزين ممتلئ أو غير متاح: الجلسة تعمل في الذاكرة فقط.
-		log.warn("Offline session persistence failed", error)
-	}
-
-	log.info("Offline login successful for:", user.email)
-	return { success: true, user }
+	const { submitLocalLogin } = await import("@/data/session")
+	return submitLocalLogin(email, password)
 }
 
 /**

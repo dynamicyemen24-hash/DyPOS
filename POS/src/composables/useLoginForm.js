@@ -1,6 +1,5 @@
-import { ref, computed } from "vue"
+import { ref } from "vue"
 import { useBiometric } from "@/composables/useBiometric"
-import { getPasswordStrength } from "@/utils/passwordPolicy"
 import { methodGetList } from "@/utils/methodClient"
 import { isLinkEnabled } from "@/services/link-consent"
 import { endpoints } from "@/utils/apiEndpoints"
@@ -23,8 +22,6 @@ export function useLoginForm({
 	subscriberCode,
 	loginForm,
 }) {
-	const passwordStrength = computed(() => getPasswordStrength(password.value))
-
 	async function attemptBiometricLogin() {
 		if (!biometricResult.value?.processing) return
 
@@ -106,7 +103,6 @@ export function useLoginForm({
 	}
 
 	return {
-		passwordStrength,
 		attemptBiometricLogin,
 		handleSubmitLogin,
 		initializeLoginData,

@@ -396,21 +396,13 @@
 	min-width: 0;
 }
 
-.dy-login__label-row {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 10px;
-}
-
 .dy-login__label {
 	color: var(--dy-text-strong);
-	font-size: .77rem;
+	font-size: .82rem;
 	font-weight: 740;
 }
 
-.dy-login__optional,
-.dy-login__strength {
+.dy-login__optional {
 	color: var(--dy-text-muted);
 	font-size: .68rem;
 	font-weight: 650;
@@ -420,7 +412,7 @@
 	position: relative;
 	display: flex;
 	align-items: center;
-	min-height: 52px;
+	min-height: 56px;
 	border: 1px solid var(--login-line);
 	border-radius: 11px;
 	background: var(--dy-surface);
@@ -565,9 +557,10 @@
 
 .dy-login__submit {
 	width: 100%;
-	min-height: 54px;
-	margin-block-start: 2px;
-	border-radius: 11px;
+	min-height: 58px;
+	margin-block-start: 4px;
+	border-radius: 12px;
+	font-size: 1.05rem;
 	font-weight: 800;
 	box-shadow: none;
 }
@@ -575,6 +568,10 @@
 .dy-login__submit:not(:disabled):hover {
 	transform: none;
 	box-shadow: none;
+}
+
+.dy-login__submit:not(:disabled):active {
+	transform: translateY(1px);
 }
 
 /* ── Progressive disclosure ────────────────────────────────────────────── */

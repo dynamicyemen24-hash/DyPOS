@@ -165,6 +165,32 @@ async function tryOnlineLogin(email, password, subscriberCode = "") {
 	}
 }
 
+/**
+ * Canonical offline login — ONE implementation (S3), zero network always.
+ *
+ * Verifies against Dexie and establishes the reactive session + storage
+ * that the router guard reads. Every local path (the login page, PIN,
+ * biometric) MUST come through here. A second copy of this finalization
+ * lived in `useLoginRuntime#attemptLocalLogin`: it verified the password
+ * correctly and then wrote the Pinia proxy's readonly `user` instead of
+ * this reactive one — so the guard kept reading logged-out and the cashier
+ * stayed on the login screen after a CORRECT password. That copy is gone;
+ * this function is the only writer.
+ *
+ * @returns {Promise<{success: boolean, user?: *, error?: string}>}
+ */
+export async function submitLocalLogin(email, password) {
+	const cleanEmail = String(email || "").trim()
+	const localResult = await userRepository.authenticate(cleanEmail, password)
+	if (!localResult.success) return localResult
+	persistSession(localResult.user)
+	session.login.reset()
+	lastLoginSource = "local"
+	lastServerAuth = null
+	log.info("Local login successful", cleanEmail)
+	return { success: true, user: session.user }
+}
+
 export async function refreshOnlineSession(
 	email,
 	password,
@@ -203,19 +229,10 @@ export const session = reactive({
 			}
 
 			// 1) Local Core first. An installed terminal must enter without
-			// waiting for API/CSRF/DNS/Cloudflare.
-			const localResult = await userRepository.authenticate(
-				cleanEmail,
-				password,
-			)
-			if (localResult.success) {
-				persistSession(localResult.user)
-				session.login.reset()
-				lastLoginSource = "local"
-				lastServerAuth = null
-				log.info("Local login successful", cleanEmail)
-				return session.user
-			}
+			// waiting for API/CSRF/DNS/Cloudflare (single implementation:
+			// submitLocalLogin above — never a second copy).
+			const localResult = await submitLocalLogin(cleanEmail, password)
+			if (localResult.success) return session.user
 
 			// 2) Only when no local identity exists, try the explicitly
 			// demanded server login. Network failure falls back to the local

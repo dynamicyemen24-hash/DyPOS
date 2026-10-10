@@ -223,13 +223,15 @@ describe("login surface — the wiring the feature depends on", () => {
 		// `__()` at render time, or the screen keeps printing the previous
 		// locale's text - so the assertion follows the markup to its new home
 		// instead of being deleted.
-		for (const expression of [
-			"__(runtimeStatus.label)",
-			"__(submitLabel)",
-			"__(passwordStrength.label)",
-		]) {
+		for (const expression of ["__(runtimeStatus.label)", "__(submitLabel)"]) {
 			expect(page).toContain(expression)
 		}
+
+		// No strength evaluation on the login screen: a weak/strong meter on
+		// the SIGN-IN form blocked nobody and annoyed everybody — the password
+		// is verified, never graded. The meter lives on Register/Reset only.
+		expect(page).not.toContain("passwordStrength")
+		expect(page).not.toMatch(/<PasswordStrengthBar\b/)
 
 		expect(page).not.toContain("label: __(row.label)")
 	})

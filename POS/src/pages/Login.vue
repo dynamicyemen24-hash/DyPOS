@@ -41,7 +41,6 @@ import NotificationBar from "@/components/NotificationBar.vue"
 import LoginBackendUnavailableBanner from "@/components/common/LoginBackendUnavailableBanner.vue"
 import LoginErrorBanner from "@/components/common/LoginErrorBanner.vue"
 import LoginRateLimitWarning from "@/components/common/LoginRateLimitWarning.vue"
-import PasswordStrengthBar from "@/components/reports/dashboards/core/PasswordStrengthBar.vue"
 import TechnicalModeToggle from "@/components/common/TechnicalModeToggle.vue"
 import HardwareDiagnosticsPanel from "@/components/common/HardwareDiagnosticsPanel.vue"
 import NetworkDiagnosticsPanel from "@/components/common/NetworkDiagnosticsPanel.vue"
@@ -261,7 +260,6 @@ const { completeEmail } = useLoginEmail({
 })
 
 const {
-	passwordStrength,
 	attemptBiometricLogin,
 	handleSubmitLogin,
 	initializeLoginData,
@@ -994,32 +992,12 @@ watch(
                     <!-- Password -->
 
                     <div class="dy-login__field">
-                        <div
-                            class="dy-login__label-row"
+                        <label
+                            for="dypos-login-password"
+                            class="dy-login__label"
                         >
-                            <label
-                                for="dypos-login-password"
-                                class="dy-login__label"
-                            >
-                                {{ __('كلمة المرور') }}
-                            </label>
-
-                            <span
-                                v-if="password"
-                                class="dy-login__strength"
-                                :style="{ color: passwordStrength.color }"
-                                aria-live="polite"
-                            >
-                                {{ __(passwordStrength.label) }}
-                            </span>
-                        </div>
-
-                        <PasswordStrengthBar
-                            v-if="password"
-                            :password="password"
-                            :show-label="false"
-                            :aria-label="__('قوة كلمة المرور')"
-                        />
+                            {{ __('كلمة المرور') }}
+                        </label>
 
                         <div
                             class="dy-login__input-wrap"
