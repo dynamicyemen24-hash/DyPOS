@@ -36,7 +36,7 @@
     "lint:fix": "biome check --write ."
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.14"
+    "@biomejs/biome": "^2.5.15"
   },
   "comment": [
     "Every dependency here is imported by shipped code, a config, a CSS @import",
