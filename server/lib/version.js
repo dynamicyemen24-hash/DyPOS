@@ -175,5 +175,5 @@
  * contractProbe as CSRF/auth/session/tenant/logout (clean BLOCKER report
  * instead of an uncaught throw under --contract=online).
  */
-export const VERSION = '2.0.13';
+export const VERSION = '2.0.14';
 export default VERSION;

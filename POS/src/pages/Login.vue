@@ -32,6 +32,7 @@ import LoginAppearanceBar from "@/components/common/LoginAppearanceBar.vue"
 import LoginContextChips from "@/components/common/LoginContextChips.vue"
 import LoginPinForm from "@/components/common/LoginPinForm.vue"
 import InstallCredentialsCard from "@/components/common/InstallCredentialsCard.vue"
+import UpdateToolsPanel from "@/components/common/UpdateToolsPanel.vue"
 import SystemAboutPanel from "@/components/common/SystemAboutPanel.vue"
 import DyPanel from "@/components/common/DyPanel.vue"
 import ShiftOpsPanel from "@/components/common/ShiftOpsPanel.vue"
@@ -1294,6 +1295,7 @@ watch(
                         <SystemAboutPanel />
                         <VersionInfo />
                         <InstallCredentialsCard />
+                        <UpdateToolsPanel />
                     </div>
                 </details>
 
