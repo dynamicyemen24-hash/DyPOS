@@ -13,11 +13,12 @@ import { describe, expect, it } from "vitest"
 
 import { loadOpsAlerts } from "@/utils/opsAlerts"
 
-const quiet = () => loadOpsAlerts({
-	lowStockFn: async () => [],
-	syncFn: async () => ({ pendingCount: 0, isOnline: true }),
-	draftFn: () => false,
-})
+const quiet = () =>
+	loadOpsAlerts({
+		lowStockFn: async () => [],
+		syncFn: async () => ({ pendingCount: 0, isOnline: true }),
+		draftFn: () => false,
+	})
 
 describe("مركز تنبيهات التشغيل", () => {
 	it("الهدوء يُعلن ولا يُخفى", async () => {
@@ -78,7 +79,9 @@ describe("مركز تنبيهات التشغيل", () => {
 
 	it("فشل القراءة يُعلن ولا يُقدَّم كهدوء", async () => {
 		const result = await loadOpsAlerts({
-			lowStockFn: async () => { throw new Error("db gone") },
+			lowStockFn: async () => {
+				throw new Error("db gone")
+			},
 			syncFn: async () => ({}),
 			draftFn: () => false,
 		})

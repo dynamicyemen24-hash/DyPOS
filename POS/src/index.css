@@ -75,16 +75,16 @@
    ============================================================================= */
 
 :root {
-	--dy-font-ar: "IBM Plex Sans Arabic", "Cairo", "Noto Sans Arabic", "Segoe UI", Tahoma, Arial,
-		sans-serif;
+	--dy-font-ar: "IBM Plex Sans Arabic", "Cairo", "Noto Sans Arabic", "Segoe UI",
+		Tahoma, Arial, sans-serif;
 
 	--dy-font-latin: "Inter", "Segoe UI", Arial, sans-serif;
 
-	--dy-font-ui: "IBM Plex Sans Arabic", "Cairo", "Inter", "Noto Sans Arabic", "Segoe UI", Tahoma, Arial,
-		sans-serif;
-
-	--dy-font-currency: "SaudiRiyalSymbol", "Inter", "IBM Plex Sans Arabic", "Cairo",
+	--dy-font-ui: "IBM Plex Sans Arabic", "Cairo", "Inter", "Noto Sans Arabic",
 		"Segoe UI", Tahoma, Arial, sans-serif;
+
+	--dy-font-currency: "SaudiRiyalSymbol", "Inter", "IBM Plex Sans Arabic",
+		"Cairo", "Segoe UI", Tahoma, Arial, sans-serif;
 
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;

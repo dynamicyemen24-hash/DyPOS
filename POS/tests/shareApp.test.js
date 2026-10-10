@@ -24,7 +24,11 @@ function mockNavigator(overrides = {}) {
 	})
 }
 
-const payload = { title: "t", text: "x", url: "https://dypos.smartportssoft.com/account/register" }
+const payload = {
+	title: "t",
+	text: "x",
+	url: "https://dypos.smartportssoft.com/account/register",
+}
 
 describe("مشاركة النظام", () => {
 	it("يستخدم واجهة الجهاز عند توفرها", async () => {
@@ -45,13 +49,18 @@ describe("مشاركة النظام", () => {
 
 	it("فشل المشاركة يسقط لنسخ الرابط", async () => {
 		const writeText = vi.fn().mockResolvedValue(undefined)
-		mockNavigator({ share: vi.fn().mockRejectedValue(new Error("nope")), clipboard: { writeText } })
+		mockNavigator({
+			share: vi.fn().mockRejectedValue(new Error("nope")),
+			clipboard: { writeText },
+		})
 		await expect(shareSystem(payload)).resolves.toBe("copied")
 		expect(writeText).toHaveBeenCalledWith(payload.url)
 	})
 
 	it("بلا مشاركة ينسخ مباشرة، وبلا حافظة يُعلن عدم الدعم", async () => {
-		mockNavigator({ clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
+		mockNavigator({
+			clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+		})
 		await expect(shareSystem(payload)).resolves.toBe("copied")
 		mockNavigator({})
 		await expect(shareSystem(payload)).resolves.toBe("unsupported")

@@ -219,7 +219,8 @@ export async function pushLocalChange(
 	operation,
 	payload,
 ) {
-	const tenantId = authState.tenantId || payload?._tenantId || payload?.tenantId || null
+	const tenantId =
+		authState.tenantId || payload?._tenantId || payload?.tenantId || null
 	if (!tenantId) {
 		throw new Error("لا يمكن إضافة عملية للمزامنة قبل تثبيت هوية المشترك")
 	}

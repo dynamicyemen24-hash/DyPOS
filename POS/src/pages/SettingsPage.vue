@@ -85,7 +85,6 @@ function goBack() {
 	if (window.history.length > 1) router.back()
 	else router.replace({ name: "POSSale" })
 }
-
 </script>
 
 <style scoped>

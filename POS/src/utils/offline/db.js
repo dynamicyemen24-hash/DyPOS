@@ -62,7 +62,8 @@ const CURRENT_SCHEMA = {
 
 	// Authoritative opening positions per subscriber/fiscal year.
 	// Natural key prevents duplicate imports and keeps the baseline available offline.
-	opening_balances: "&key, tenant_id, fiscal_year, account_type, account_id, account_code, product_id, amount_minor, quantity, updated_at",
+	opening_balances:
+		"&key, tenant_id, fiscal_year, account_type, account_id, account_code, product_id, amount_minor, quantity, updated_at",
 
 	// Sales persons cache
 	sales_persons: "&name, pos_profile",
@@ -389,7 +390,10 @@ export const clearTenantScopedCaches = async () => {
 		results.invoice_validity = await db.invoice_validity.clear()
 		results.daily_sales_summary = await db.daily_sales_summary.clear()
 		results.zatca_settings = await db.zatca_settings.clear()
-		log.info("Tenant-sensitive caches cleared; offline queues preserved", results)
+		log.info(
+			"Tenant-sensitive caches cleared; offline queues preserved",
+			results,
+		)
 		return { success: true, cleared: results }
 	} catch (error) {
 		log.error("Error clearing tenant-sensitive caches:", error)

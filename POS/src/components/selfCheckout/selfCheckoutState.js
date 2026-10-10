@@ -27,13 +27,41 @@ export const SESSION_STATES = Object.freeze({
 
 /** طرق الدفع المتاحة في الكاشير الذاتي. */
 export const PAYMENT_METHODS = Object.freeze([
-	{ id: "cash", label: "نقدًا", icon: "credit-card", keypad: true, availableOffline: true },
-	{ id: "card", label: "بطاقة", icon: "credit-card", keypad: false, availableOffline: false, requiresIntegration: true },
-	{ id: "wallet", label: "محفظة رقمية", icon: "smartphone", keypad: false, availableOffline: false, requiresIntegration: true },
-	{ id: "transfer", label: "تحويل بنكي", icon: "repeat", keypad: false, availableOffline: false, requiresIntegration: true },
+	{
+		id: "cash",
+		label: "نقدًا",
+		icon: "credit-card",
+		keypad: true,
+		availableOffline: true,
+	},
+	{
+		id: "card",
+		label: "بطاقة",
+		icon: "credit-card",
+		keypad: false,
+		availableOffline: false,
+		requiresIntegration: true,
+	},
+	{
+		id: "wallet",
+		label: "محفظة رقمية",
+		icon: "smartphone",
+		keypad: false,
+		availableOffline: false,
+		requiresIntegration: true,
+	},
+	{
+		id: "transfer",
+		label: "تحويل بنكي",
+		icon: "repeat",
+		keypad: false,
+		availableOffline: false,
+		requiresIntegration: true,
+	},
 ])
 
-export const SELF_CHECKOUT_PAYMENT_INTEGRATION_MESSAGE = "هذه الطريقة تحتاج تكامل دفع معتمدًا؛ لا يمكن اعتمادها محليًا قبل تهيئة موفّر الدفع."
+export const SELF_CHECKOUT_PAYMENT_INTEGRATION_MESSAGE =
+	"هذه الطريقة تحتاج تكامل دفع معتمدًا؛ لا يمكن اعتمادها محليًا قبل تهيئة موفّر الدفع."
 
 export const PAYMENT_LABELS = Object.freeze(
 	Object.fromEntries(
@@ -67,14 +95,22 @@ export const MAX_TENDER_MINOR = 100_000_000
  */
 export function filterCatalog(rows = [], query = "") {
 	const list = Array.isArray(rows) ? rows : []
-	const needle = String(query ?? "").trim().toLocaleLowerCase()
+	const needle = String(query ?? "")
+		.trim()
+		.toLocaleLowerCase()
 	if (!needle) return list
 	return list.filter((product) => {
 		if (!product) return false
 		return (
-			String(product.name ?? "").toLocaleLowerCase().includes(needle) ||
-			String(product.code ?? "").toLocaleLowerCase().includes(needle) ||
-			String(product.barcode ?? "").toLocaleLowerCase().includes(needle)
+			String(product.name ?? "")
+				.toLocaleLowerCase()
+				.includes(needle) ||
+			String(product.code ?? "")
+				.toLocaleLowerCase()
+				.includes(needle) ||
+			String(product.barcode ?? "")
+				.toLocaleLowerCase()
+				.includes(needle)
 		)
 	})
 }

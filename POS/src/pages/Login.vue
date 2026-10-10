@@ -178,7 +178,8 @@ const showShortcutsHelp = ref(false)
 
 const showEmailSuggestions = ref(false)
 
-const { deferHideEmailSuggestions, cleanup: cleanupEmailSuggestionTimer } = useLoginEmailBlur({ showEmailSuggestions })
+const { deferHideEmailSuggestions, cleanup: cleanupEmailSuggestionTimer } =
+	useLoginEmailBlur({ showEmailSuggestions })
 
 /** تلميح Caps Lock: يُحدَّث من الحدث نفسه، لا بمراقب دائم للمستند. */
 const { capsLockOn, trackCapsLock } = useCapsLock()
@@ -527,13 +528,29 @@ async function submitLogin() {
 
 			completeAuthentication("offline_login")
 		} else {
-			// Explicit server demand: handshake first, then login.
+			// Local failed — try server ONLY if linkage consent granted
+			// and network appears available. prepareServerDemand now
+			// handles failures silently (continues offline).
 			await prepareServerDemand()
-			await session.login({
-				usr: sanitizeForInput(email.value.trim()),
-				pwd: sanitizeForInput(password.value),
-				subscriberCode: sanitizeForInput(subscriberCode.value.trim().toUpperCase()),
-			})
+			try {
+				await session.login({
+					usr: sanitizeForInput(email.value.trim()),
+					pwd: sanitizeForInput(password.value),
+					subscriberCode: sanitizeForInput(
+						subscriberCode.value.trim().toUpperCase(),
+					),
+				})
+			} catch (serverError) {
+				// Server login failed (network/Cloudflare/403) — treat as offline
+				log.warn(
+					"Server login failed, continuing offline",
+					serverError?.message || serverError,
+				)
+				throw new Error(
+					offlineResult.error ||
+						"المستخدم غير موجود محليًا وكلمة المرور غير صحيحة، والسيرفر غير متاح حاليًا",
+				)
+			}
 
 			if (!offlineDetected.value) {
 				await detectAndSetOfflineMode()
@@ -560,7 +577,19 @@ async function submitLogin() {
 				retryAfterMs: limitResult.retryAfterMs,
 			})
 		} else {
-			loginError.value = normalizeAuthError(error, { online: isOnline.value })
+			// رسالة واضحة بالعربية: محلي فاشل + سيرفر غير متاح
+			const msg = error?.message || ""
+			if (
+				msg.includes("السيرفر غير متاح") ||
+				msg.includes("network") ||
+				msg.includes("Failed to fetch")
+			) {
+				loginError.value = __(
+					"الدخول المحلي فشل (مستخدم/كلمة مرور غير صحيحة)، والسيرفر غير متاح حاليًا. تأكد من البيانات أو استخدم بيانات التثبيت المحلية.",
+				)
+			} else {
+				loginError.value = normalizeAuthError(error, { online: isOnline.value })
+			}
 			handleAuthFailure({
 				stage: "login",
 				status: error?.status || error?.response?.status || undefined,
@@ -596,7 +625,6 @@ async function onPinAuthenticated(how) {
 		await goToDashboard()
 	}
 }
-
 
 const {
 	emailMissing,
@@ -655,10 +683,7 @@ onMounted(async () => {
 		emailInput.value?.focus?.()
 	}
 
-	void Promise.allSettled([
-		initializeMethodsData(),
-		prepareRuntime(),
-	])
+	void Promise.allSettled([initializeMethodsData(), prepareRuntime()])
 })
 
 onBeforeUnmount(async () => {
@@ -1287,6 +1312,7 @@ watch(
                 </details>
 
                 <!-- PIN sign-in / setup — extracted to `LoginPinForm.vue` -->
+
 
                 <LoginPinForm
                     v-if="pinModeActive || showPinSetup"

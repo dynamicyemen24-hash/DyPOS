@@ -15,7 +15,12 @@
  *   للقراءة والطباعة والتصدير، ولا إجراء مدمر مسجّل أصلًا.
  */
 
-export const ACTION_KINDS = Object.freeze(["primary", "secondary", "nav", "danger"])
+export const ACTION_KINDS = Object.freeze([
+	"primary",
+	"secondary",
+	"nav",
+	"danger",
+])
 export const CONFIRM_POLICIES = Object.freeze(["none", "explicit"])
 
 export const ACTIONS = Object.freeze({
@@ -86,15 +91,91 @@ export const ACTIONS = Object.freeze({
 		confirm: "none",
 		idempotent: true,
 	},
-	"nav.pos": { label: "نقطة البيع", icon: "shopping-cart", kind: "nav", permission: "pos.sell", confirm: "none", idempotent: true, route: "POSSale" },
-	"nav.invoices": { label: "الفواتير", icon: "file-text", kind: "nav", permission: "work.invoices", confirm: "none", idempotent: true, route: "WorkScreens", screen: "invoices" },
-	"nav.stock": { label: "المخزون", icon: "package", kind: "nav", permission: "stock.view", confirm: "none", idempotent: true, route: "StockManagement" },
-	"nav.work": { label: "شاشات العمل", icon: "layers", kind: "nav", permission: "work.view", confirm: "none", idempotent: true, route: "WorkScreens" },
-	"nav.customers": { label: "العملاء", icon: "users", kind: "nav", permission: "work.customers", confirm: "none", idempotent: true, route: "WorkScreens", screen: "customers" },
-	"nav.settlements": { label: "الورديات والتسويات", icon: "clipboard", kind: "nav", permission: "work.settlements", confirm: "none", idempotent: true, route: "WorkScreens", screen: "settlements" },
-	"nav.items": { label: "دليل الأصناف", icon: "box", kind: "nav", permission: "work.items", confirm: "none", idempotent: true, route: "WorkScreens", screen: "items" },
-	"nav.settings": { label: "الإعدادات", icon: "settings", kind: "nav", permission: "admin.settings", confirm: "none", idempotent: true, route: "Settings" },
-	"nav.queue": { label: "الطوابير", icon: "users", kind: "nav", permission: "queue.view", confirm: "none", idempotent: true, route: "Queue" },
+	"nav.pos": {
+		label: "نقطة البيع",
+		icon: "shopping-cart",
+		kind: "nav",
+		permission: "pos.sell",
+		confirm: "none",
+		idempotent: true,
+		route: "POSSale",
+	},
+	"nav.invoices": {
+		label: "الفواتير",
+		icon: "file-text",
+		kind: "nav",
+		permission: "work.invoices",
+		confirm: "none",
+		idempotent: true,
+		route: "WorkScreens",
+		screen: "invoices",
+	},
+	"nav.stock": {
+		label: "المخزون",
+		icon: "package",
+		kind: "nav",
+		permission: "stock.view",
+		confirm: "none",
+		idempotent: true,
+		route: "StockManagement",
+	},
+	"nav.work": {
+		label: "شاشات العمل",
+		icon: "layers",
+		kind: "nav",
+		permission: "work.view",
+		confirm: "none",
+		idempotent: true,
+		route: "WorkScreens",
+	},
+	"nav.customers": {
+		label: "العملاء",
+		icon: "users",
+		kind: "nav",
+		permission: "work.customers",
+		confirm: "none",
+		idempotent: true,
+		route: "WorkScreens",
+		screen: "customers",
+	},
+	"nav.settlements": {
+		label: "الورديات والتسويات",
+		icon: "clipboard",
+		kind: "nav",
+		permission: "work.settlements",
+		confirm: "none",
+		idempotent: true,
+		route: "WorkScreens",
+		screen: "settlements",
+	},
+	"nav.items": {
+		label: "دليل الأصناف",
+		icon: "box",
+		kind: "nav",
+		permission: "work.items",
+		confirm: "none",
+		idempotent: true,
+		route: "WorkScreens",
+		screen: "items",
+	},
+	"nav.settings": {
+		label: "الإعدادات",
+		icon: "settings",
+		kind: "nav",
+		permission: "admin.settings",
+		confirm: "none",
+		idempotent: true,
+		route: "Settings",
+	},
+	"nav.queue": {
+		label: "الطوابير",
+		icon: "users",
+		kind: "nav",
+		permission: "queue.view",
+		confirm: "none",
+		idempotent: true,
+		route: "Queue",
+	},
 })
 
 export function describeAction(id) {
@@ -105,7 +186,9 @@ export function describeAction(id) {
 const VOID_STATES = new Set(["voided", "cancelled", "ملغي", "ملغاة", "void"])
 
 export function normalizeRecordState(status) {
-	const raw = String(status ?? "").trim().toLowerCase()
+	const raw = String(status ?? "")
+		.trim()
+		.toLowerCase()
 	if (VOID_STATES.has(raw)) return "voided"
 	if (raw === "draft" || raw === "مسودة") return "draft"
 	if (raw === "paid" || raw === "مدفوع") return "paid"
@@ -117,14 +200,24 @@ export function normalizeRecordState(status) {
  * القواعد (SAP): التحميل يجمّد الكل، وانعدام المصدر يبقي التحديث وحده،
  * وغياب الصفوف يمنع التصدير والطباعة — كل منع بسبب معلن.
  */
-export function resolveStripActions({ loading = false, hasRows = false, source = "" } = {}) {
+export function resolveStripActions({
+	loading = false,
+	hasRows = false,
+	source = "",
+} = {}) {
 	const defs = [
 		{ id: "record.refresh", shortcut: undefined },
 		{ id: "record.exportCsv", shortcut: "ctrl+s" },
 		{ id: "record.print", shortcut: undefined },
 	]
 	if (loading) {
-		return defs.map((d) => ({ ...ACTIONS[d.id], id: d.id, shortcut: d.shortcut, disabled: true, reason: "جارٍ التحميل…" }))
+		return defs.map((d) => ({
+			...ACTIONS[d.id],
+			id: d.id,
+			shortcut: d.shortcut,
+			disabled: true,
+			reason: "جارٍ التحميل…",
+		}))
 	}
 	if (!source || source === "unavailable") {
 		return defs.map((d) => ({
@@ -144,5 +237,11 @@ export function resolveStripActions({ loading = false, hasRows = false, source =
 			reason: d.id === "record.refresh" ? undefined : "لا سجلات",
 		}))
 	}
-	return defs.map((d) => ({ ...ACTIONS[d.id], id: d.id, shortcut: d.shortcut, disabled: false, reason: undefined }))
+	return defs.map((d) => ({
+		...ACTIONS[d.id],
+		id: d.id,
+		shortcut: d.shortcut,
+		disabled: false,
+		reason: undefined,
+	}))
 }

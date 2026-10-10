@@ -77,7 +77,12 @@ describe("Arabic typography", () => {
 		// IBM Plex Sans Arabic (@fontsource/ibm-plex-sans-arabic), the
 		// riyal glyph font. Everything else must be a platform stack the device
 		// actually resolves — never a family name that resolves to nothing.
-		const shipped = new Set(["Inter", "Cairo", "IBM Plex Sans Arabic", "SaudiRiyalSymbol"])
+		const shipped = new Set([
+			"Inter",
+			"Cairo",
+			"IBM Plex Sans Arabic",
+			"SaudiRiyalSymbol",
+		])
 		const platform = new Set([
 			"Segoe UI",
 			"Arial",

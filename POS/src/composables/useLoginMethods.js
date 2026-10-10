@@ -49,8 +49,12 @@ export function useLoginMethods({
 			if (Array.isArray(response.message)) {
 				branches.value = response.message
 				const persisted = localStorage.getItem("dypos.lastBranchId") || ""
-				const persistedBranch = response.message.find((branch) => String(branch.id) === String(persisted))
-				selectedBranchId.value = persistedBranch ? String(persistedBranch.id) : ""
+				const persistedBranch = response.message.find(
+					(branch) => String(branch.id) === String(persisted),
+				)
+				selectedBranchId.value = persistedBranch
+					? String(persistedBranch.id)
+					: ""
 			}
 		} catch (e) {
 			log.warn("Failed to load branches", e)

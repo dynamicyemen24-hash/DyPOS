@@ -930,7 +930,8 @@ async function confirmPayment() {
 			return !Number.isFinite(price) || price < 0
 		})
 		if (invalidPriceItem) {
-			paymentError.value = "يوجد صنف بلا سعر بيع صالح. صحح بيانات الصنف قبل إتمام البيع."
+			paymentError.value =
+				"يوجد صنف بلا سعر بيع صالح. صحح بيانات الصنف قبل إتمام البيع."
 			syncState.value = "error"
 			showNotification(paymentError.value, "warning")
 			return

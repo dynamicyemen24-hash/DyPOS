@@ -27,7 +27,15 @@ export function useLoginSessionBootstrap({
 			// and can strand the cashier before POS renders.
 
 			const readiness = session?.workspaceReadiness || {}
-			const required = ["identity", "tenant", "branch", "terminal", "profile", "permissions", "settings"]
+			const required = [
+				"identity",
+				"tenant",
+				"branch",
+				"terminal",
+				"profile",
+				"permissions",
+				"settings",
+			]
 			const missing = required.filter((key) => readiness[key] !== true)
 			if (missing.length > 0) {
 				const labels = {
@@ -39,11 +47,12 @@ export function useLoginSessionBootstrap({
 					settings: "إعدادات نقطة البيع",
 					identity: "هوية المستخدم",
 				}
-				const missingLabels = missing.map((key) => labels[key] || key).join("، ")
-				log.warn(
-					"Workspace has deferred setup; continuing to POS",
-					{ missing: missingLabels },
-				)
+				const missingLabels = missing
+					.map((key) => labels[key] || key)
+					.join("، ")
+				log.warn("Workspace has deferred setup; continuing to POS", {
+					missing: missingLabels,
+				})
 			}
 
 			sessionReady.value = true

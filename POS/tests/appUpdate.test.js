@@ -22,7 +22,9 @@ describe("resilient application update notice", () => {
 	it("hydrates the interactive notice from the release feed when linked", async () => {
 		vi.stubGlobal("localStorage", {
 			getItem: vi.fn((key) =>
-				key === "DyPOS_link_consent" ? JSON.stringify({ mode: "linked" }) : null,
+				key === "DyPOS_link_consent"
+					? JSON.stringify({ mode: "linked" })
+					: null,
 			),
 			setItem: vi.fn(),
 			removeItem: vi.fn(),
@@ -40,7 +42,10 @@ describe("resilient application update notice", () => {
 		})
 		const updater = useAppUpdate()
 		const release = await updater.loadReleaseFeed("2.0.1")
-		expect(fetch).toHaveBeenCalledWith("/api/updates/latest", expect.objectContaining({ cache: "no-store" }))
+		expect(fetch).toHaveBeenCalledWith(
+			"/api/updates/latest",
+			expect.objectContaining({ cache: "no-store" }),
+		)
 		expect(release).toMatchObject({
 			version: "2.0.1",
 			title: "تحسينات الاستقرار",

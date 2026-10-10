@@ -20,7 +20,7 @@ const { test, expect } = require("playwright/test")
 const { UI_ENABLED, UI_GATE_REASON } = require("./support/env")
 const { seedApi } = require("./support/api")
 
-const ui = test.describe.skip(!UI_ENABLED, UI_GATE_REASON)
+const ui = UI_ENABLED ? test.describe : test.describe.skip
 
 ui("DyPOS UI sale", () => {
 	let seed

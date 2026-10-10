@@ -178,10 +178,13 @@ test.describe
 			expect((await duplicate.json()).shiftId).toBe(shiftId)
 			const sale = await request.post("/api/invoices", { headers, data: { items: [{ productId, qty: 1, unitPrice: 100 }], shiftId, terminalId: terminal, payments: [{ method: "CASH", amount: 150 }] } })
 			expect(sale.status()).toBe(201)
-			const close = await request.post(`/api/shifts/${shiftId}/close`, { headers, data: { closingCash: 100 } })
+			// Invoice total includes 15% tax: 100 * 1.15 = 115
+			// Cash payment: 150, change: 35, net cash added: 115
+			// Expected closing cash = openingCash (0) + net cash (115) = 115
+			const close = await request.post(`/api/shifts/${shiftId}/close`, { headers, data: { closingCash: 115 } })
 			expect(close.status()).toBe(200)
 			const settlement = await close.json()
-			expect(Number(settlement.expected)).toBe(100)
+			expect(Number(settlement.expected)).toBe(115)
 			expect(Number(settlement.variance)).toBe(0)
 		})
 	})

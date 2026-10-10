@@ -275,13 +275,27 @@ export function useLoginRuntime(options = {}) {
 
 	/**
 	 * مصافحة السيرفر لطلب صريح (ضغطة دخول سيرفر): تُستدعى فقط عندما
-	 * يطلب المستخدم السيرفر فعلًا، لا عند عرض الشاشة. الفشل يرمي
-	 * ليحوّله مسار الدخول إلى رسالة عربية.
+	 * يطلب المستخدم السيرفر فعلًا، لا عند عرض الشاشة.
+	 * في الوضع المستقل (standalone) أو عند فشل الشبكة: لا ترمي، فقط سجل
+	 * وأكمل - المسار المحلي هو الأساس.
 	 * @returns {Promise<void>}
 	 */
 	async function prepareServerDemand() {
-		await ensureCSRFToken()
-		csrfReady.value = true
+		if (!isLinkEnabled()) {
+			log.debug("Standalone — server demand skipped (no linkage consent)")
+			return
+		}
+		try {
+			await ensureCSRFToken()
+			csrfReady.value = true
+		} catch (error) {
+			log.warn(
+				"Server demand failed (network/Cloudflare), continuing offline",
+				error,
+			)
+			// لا نرمي - نكمل بالوضع المحلي
+			csrfReady.value = false
+		}
 	}
 
 	/**

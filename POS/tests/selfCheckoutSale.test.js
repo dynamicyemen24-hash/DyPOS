@@ -315,7 +315,7 @@ describe("ترشيح كتالوج الكاشير الذاتي", () => {
 			join(root, "src", "components", "selfCheckout", "SelfCheckoutScreen.vue"),
 			"utf8",
 		)
-		expect(template).toContain("v-model=\"searchQuery\"")
+		expect(template).toContain('v-model="searchQuery"')
 		expect(template).toContain("visibleCatalog")
 		expect(template).toContain("self-checkout__sku")
 		expect(template).toContain("metaChips")

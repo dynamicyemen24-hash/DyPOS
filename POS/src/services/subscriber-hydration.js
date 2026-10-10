@@ -6,7 +6,12 @@
  * subscriber master data and opening balances. None of the rows are fabricated.
  */
 import { methodCall } from "@/utils/methodClient"
-import { clearTenantScopedCaches, db, getSetting, setSetting } from "@/utils/offline/db"
+import {
+	clearTenantScopedCaches,
+	db,
+	getSetting,
+	setSetting,
+} from "@/utils/offline/db"
 import { logger } from "@/utils/logger"
 
 const log = logger.create("SubscriberHydration")
@@ -39,8 +44,7 @@ async function pullItems({ warehouseId = null } = {}) {
 				...row,
 				item_code: code,
 				item_name: row.item_name || row.name || code,
-				price:
-					row.price ?? row.standard_rate ?? row.unit_price ?? null,
+				price: row.price ?? row.standard_rate ?? row.unit_price ?? null,
 				price_missing:
 					row.price == null &&
 					row.standard_rate == null &&
@@ -114,7 +118,8 @@ export async function hydrateSubscriberLocalData({
 	warehouseId = null,
 	bootstrapData = null,
 } = {}) {
-	if (typeof navigator !== "undefined" && navigator.onLine === false) return null
+	if (typeof navigator !== "undefined" && navigator.onLine === false)
+		return null
 
 	try {
 		await db.open()
@@ -123,7 +128,11 @@ export async function hydrateSubscriberLocalData({
 		// Legacy cache tables are not tenant-prefixed, so never expose one
 		// subscriber's catalog/history to another. Pending queues remain intact.
 		const previousTenant = await getSetting("subscriber_hydration_tenant", "")
-		if (previousTenant && tenantId && String(previousTenant) !== String(tenantId)) {
+		if (
+			previousTenant &&
+			tenantId &&
+			String(previousTenant) !== String(tenantId)
+		) {
 			const cleared = await clearTenantScopedCaches()
 			if (!cleared?.success) {
 				log.warn("Tenant cache transition blocked for safety", {
@@ -148,14 +157,17 @@ export async function hydrateSubscriberLocalData({
 	}
 
 	try {
-		const bootstrapPaymentMethods = Array.isArray(bootstrapData?.payment_methods)
+		const bootstrapPaymentMethods = Array.isArray(
+			bootstrapData?.payment_methods,
+		)
 			? bootstrapData.payment_methods
 			: []
 		if (bootstrapPaymentMethods.length) {
 			await db.payment_methods.bulkPut(
 				bootstrapPaymentMethods.map((row) => ({
 					...row,
-					pos_profile: row.pos_profile || bootstrapData?.pos_profile?.name || null,
+					pos_profile:
+						row.pos_profile || bootstrapData?.pos_profile?.name || null,
 				})),
 			)
 			result.paymentMethods = bootstrapPaymentMethods.length
@@ -168,7 +180,9 @@ export async function hydrateSubscriberLocalData({
 			null
 		if (!warehouse) {
 			try {
-				const warehouses = unwrap(await methodCall("DyPOS.api.pos_profile.get_warehouses", {}))
+				const warehouses = unwrap(
+					await methodCall("DyPOS.api.pos_profile.get_warehouses", {}),
+				)
 				warehouse = warehouses?.[0]?.id || warehouses?.[0]?.name || null
 			} catch {
 				/* warehouse discovery is best effort; item master still hydrates */
@@ -181,12 +195,25 @@ export async function hydrateSubscriberLocalData({
 			pullOpeningBalances(tenantId),
 			(async () => {
 				try {
-					const profile = bootstrapData?.pos_profile?.name || bootstrapData?.pos_profile || null
-					const rows = unwrap(await methodCall("DyPOS.api.pos_profile.get_payment_methods", profile ? {
-						pos_profile: profile,
-					} : {}))
+					const profile =
+						bootstrapData?.pos_profile?.name ||
+						bootstrapData?.pos_profile ||
+						null
+					const rows = unwrap(
+						await methodCall(
+							"DyPOS.api.pos_profile.get_payment_methods",
+							profile
+								? {
+										pos_profile: profile,
+									}
+								: {},
+						),
+					)
 					if (!Array.isArray(rows)) return []
-					const normalized = rows.map((row) => ({ ...row, pos_profile: row.pos_profile || profile || null }))
+					const normalized = rows.map((row) => ({
+						...row,
+						pos_profile: row.pos_profile || profile || null,
+					}))
 					if (normalized.length) await db.payment_methods.bulkPut(normalized)
 					return normalized
 				} catch (error) {
@@ -198,7 +225,10 @@ export async function hydrateSubscriberLocalData({
 		result.items = items
 		result.customers = customers
 		result.openingBalances = balances.rows.length
-		result.paymentMethods = Math.max(result.paymentMethods, paymentMethods.length)
+		result.paymentMethods = Math.max(
+			result.paymentMethods,
+			paymentMethods.length,
+		)
 
 		await setSetting("subscriber_hydration_at", Date.now())
 		await setSetting("subscriber_hydration_tenant", tenantId || "")

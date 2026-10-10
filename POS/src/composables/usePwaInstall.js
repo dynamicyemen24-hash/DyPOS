@@ -12,8 +12,10 @@ function detectIos() {
 
 function detectStandalone() {
 	if (typeof window === "undefined") return false
-	return window.matchMedia?.("(display-mode: standalone)")?.matches === true ||
+	return (
+		window.matchMedia?.("(display-mode: standalone)")?.matches === true ||
 		window.navigator?.standalone === true
+	)
 }
 
 function onBeforeInstallPrompt(event) {
@@ -28,9 +30,15 @@ function onInstalled() {
 }
 
 export function usePwaInstall() {
-	const canInstall = computed(() => Boolean(deferredPrompt.value) && !installed.value)
+	const canInstall = computed(
+		() => Boolean(deferredPrompt.value) && !installed.value,
+	)
 	const showIosGuide = computed(
-		() => ios.value && !installed.value && !deferredPrompt.value && !dismissed.value,
+		() =>
+			ios.value &&
+			!installed.value &&
+			!deferredPrompt.value &&
+			!dismissed.value,
 	)
 
 	async function install() {

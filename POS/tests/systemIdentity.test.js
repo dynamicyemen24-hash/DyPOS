@@ -65,13 +65,19 @@ describe("هوية النظام مستقلة عن المشترك", () => {
 		const hits = vueFiles().filter((full) =>
 			readFileSync(full, "utf8").includes("companyName"),
 		)
-		expect(hits.map((f) => f.split("src")[1].replace(/\\/g, "/"))).toEqual(["/pages/Register.vue"])
+		expect(hits.map((f) => f.split("src")[1].replace(/\\/g, "/"))).toEqual([
+			"/pages/Register.vue",
+		])
 	})
 
 	it("هوية المشترك تُعرض فقط في شرائح سياق مُعلَّنة", () => {
-		expect(read("src/components/reports/DashboardPage.vue")).toContain("opsContextItems")
+		expect(read("src/components/reports/DashboardPage.vue")).toContain(
+			"opsContextItems",
+		)
 		expect(read("src/pages/Login.vue")).toContain("LoginContextChips")
-		expect(read("src/composables/useLoginContextItems.js")).toContain("CONTEXT_FIELDS")
+		expect(read("src/composables/useLoginContextItems.js")).toContain(
+			"CONTEXT_FIELDS",
+		)
 	})
 
 	it("عناوين المستندات عربية بلاحقة DyPOS على كل تنقل", () => {

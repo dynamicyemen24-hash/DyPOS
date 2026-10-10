@@ -102,7 +102,9 @@ describe("LoginErrorBanner", () => {
 		const wrapper = mount(LoginErrorBanner, {
 			props: { error: "المستخدم غير موجود محليًا" },
 		})
-		expect(wrapper.text()).toContain("تحقق من كتابة البريد الإلكتروني بشكل صحيح")
+		expect(wrapper.text()).toContain(
+			"تحقق من كتابة البريد الإلكتروني بشكل صحيح",
+		)
 	})
 
 	it("emits focus-email event when focus email button is clicked", async () => {

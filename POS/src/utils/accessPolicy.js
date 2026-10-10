@@ -13,10 +13,18 @@
  */
 
 export function normalizeRole(role) {
-	return String(role ?? "").trim().toLowerCase()
+	return String(role ?? "")
+		.trim()
+		.toLowerCase()
 }
 
-const OPERATOR_ROLES = new Set(["cashier", "seller", "salesman", "كاشير", "بائع"])
+const OPERATOR_ROLES = new Set([
+	"cashier",
+	"seller",
+	"salesman",
+	"كاشير",
+	"بائع",
+])
 const AUDIT_ROLES = new Set([
 	"auditor",
 	"accountant",
@@ -70,26 +78,129 @@ export function isAdminRoute(routeName) {
  * `capability: "queue"` لما تملكه اشتراكات بعينها، `adminOnly` للإدارة.
  */
 export const HOME_MODULES = Object.freeze([
-	{ id: "pos", title: "نقطة البيع", sub: "بيع، دفع، خصومات وفواتير", icon: "shopping-cart", to: { name: "POSSale" }, primary: true, permission: "pos.sell" },
-	{ id: "invoices", title: "الفواتير", sub: "مراجعة العمليات والمرتجعات", icon: "file-text", screen: "invoices", permission: "work.invoices" },
-	{ id: "stock", title: "المخزون", sub: "الأصناف والكميات والتنبيهات", icon: "package", to: { name: "StockManagement" }, permission: "stock.view" },
-	{ id: "work", title: "شاشات العمل", sub: "عمليات المتجر اليومية", icon: "layers", to: { name: "WorkScreens" }, permission: "work.view" },
-	{ id: "customers", title: "العملاء", sub: "بيانات العملاء وسجلاتهم", icon: "users", screen: "customers", permission: "work.customers" },
-	{ id: "settlements", title: "الورديات والتسويات", sub: "الأرصدة والفروقات والإغلاق", icon: "clipboard", screen: "settlements", permission: "work.settlements" },
-	{ id: "items", title: "دليل الأصناف", sub: "الأكواد والوحدات وحالة الصنف", icon: "box", screen: "items", permission: "work.items" },
-	{ id: "settings", title: "الإعدادات", sub: "تهيئة النظام والفرع", icon: "settings", to: { name: "Settings" }, permission: "admin.settings", adminOnly: true },
-	{ id: "queue", title: "الطوابير", sub: "إدارة خدمة العملاء", icon: "users", to: { name: "Queue" }, permission: "queue.view", capability: "queue" },
+	{
+		id: "pos",
+		title: "نقطة البيع",
+		sub: "بيع، دفع، خصومات وفواتير",
+		icon: "shopping-cart",
+		to: { name: "POSSale" },
+		primary: true,
+		permission: "pos.sell",
+	},
+	{
+		id: "invoices",
+		title: "الفواتير",
+		sub: "مراجعة العمليات والمرتجعات",
+		icon: "file-text",
+		screen: "invoices",
+		permission: "work.invoices",
+	},
+	{
+		id: "stock",
+		title: "المخزون",
+		sub: "الأصناف والكميات والتنبيهات",
+		icon: "package",
+		to: { name: "StockManagement" },
+		permission: "stock.view",
+	},
+	{
+		id: "work",
+		title: "شاشات العمل",
+		sub: "عمليات المتجر اليومية",
+		icon: "layers",
+		to: { name: "WorkScreens" },
+		permission: "work.view",
+	},
+	{
+		id: "customers",
+		title: "العملاء",
+		sub: "بيانات العملاء وسجلاتهم",
+		icon: "users",
+		screen: "customers",
+		permission: "work.customers",
+	},
+	{
+		id: "settlements",
+		title: "الورديات والتسويات",
+		sub: "الأرصدة والفروقات والإغلاق",
+		icon: "clipboard",
+		screen: "settlements",
+		permission: "work.settlements",
+	},
+	{
+		id: "items",
+		title: "دليل الأصناف",
+		sub: "الأكواد والوحدات وحالة الصنف",
+		icon: "box",
+		screen: "items",
+		permission: "work.items",
+	},
+	{
+		id: "settings",
+		title: "الإعدادات",
+		sub: "تهيئة النظام والفرع",
+		icon: "settings",
+		to: { name: "Settings" },
+		permission: "admin.settings",
+		adminOnly: true,
+	},
+	{
+		id: "queue",
+		title: "الطوابير",
+		sub: "إدارة خدمة العملاء",
+		icon: "users",
+		to: { name: "Queue" },
+		permission: "queue.view",
+		capability: "queue",
+	},
 ])
 
 /** عناصر تنقل قشرة اللوحة — نفس القاعدة. */
 export const DASH_NAV = Object.freeze([
-	{ id: "pos", label: "نقطة البيع", to: { name: "POSSale" }, icon: "shopping-cart" },
-	{ id: "invoices", label: "الفواتير", to: { name: "WorkScreens", query: { screen: "invoices" } }, icon: "file-text" },
-	{ id: "stock", label: "المخزون", to: { name: "StockManagement" }, icon: "package" },
-	{ id: "reports", label: "التقارير", to: { name: "Reports" }, icon: "bar-chart-2" },
-	{ id: "work", label: "شاشات العمل", to: { name: "WorkScreens" }, icon: "layers" },
-	{ id: "settings", label: "الإعدادات", to: { name: "Settings" }, icon: "settings", adminOnly: true },
-	{ id: "queue", label: "الطوابير", to: { name: "Queue" }, icon: "users", capability: "queue" },
+	{
+		id: "pos",
+		label: "نقطة البيع",
+		to: { name: "POSSale" },
+		icon: "shopping-cart",
+	},
+	{
+		id: "invoices",
+		label: "الفواتير",
+		to: { name: "WorkScreens", query: { screen: "invoices" } },
+		icon: "file-text",
+	},
+	{
+		id: "stock",
+		label: "المخزون",
+		to: { name: "StockManagement" },
+		icon: "package",
+	},
+	{
+		id: "reports",
+		label: "التقارير",
+		to: { name: "Reports" },
+		icon: "bar-chart-2",
+	},
+	{
+		id: "work",
+		label: "شاشات العمل",
+		to: { name: "WorkScreens" },
+		icon: "layers",
+	},
+	{
+		id: "settings",
+		label: "الإعدادات",
+		to: { name: "Settings" },
+		icon: "settings",
+		adminOnly: true,
+	},
+	{
+		id: "queue",
+		label: "الطوابير",
+		to: { name: "Queue" },
+		icon: "users",
+		capability: "queue",
+	},
 ])
 
 function passesModuleGate(module, role, queueEnabled) {
@@ -129,7 +240,13 @@ export function roleLabel(role) {
  * شرائح سياق التشغيل (من يعمل: مستخدم/دور/مشترك/فرع/وردية).
  * المجهول يُسقط — الشريحة الفارغة كذبة بصرية.
  */
-export function opsContextItems({ user, role, tenantName, branchName, shiftOpen } = {}) {
+export function opsContextItems({
+	user,
+	role,
+	tenantName,
+	branchName,
+	shiftOpen,
+} = {}) {
 	const items = []
 	if (user) items.push({ icon: "users", label: String(user) })
 	const labeled = roleLabel(role)
@@ -137,6 +254,7 @@ export function opsContextItems({ user, role, tenantName, branchName, shiftOpen 
 	if (tenantName) items.push({ icon: "briefcase", label: String(tenantName) })
 	if (branchName) items.push({ icon: "map-pin", label: String(branchName) })
 	if (shiftOpen === true) items.push({ icon: "clock", label: "وردية مفتوحة" })
-	else if (shiftOpen === false) items.push({ icon: "clock", label: "لا وردية مفتوحة" })
+	else if (shiftOpen === false)
+		items.push({ icon: "clock", label: "لا وردية مفتوحة" })
 	return items
 }

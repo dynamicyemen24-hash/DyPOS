@@ -76,7 +76,6 @@ export async function upsertQueueRow(
 	const resolvedTenantId =
 		tenantId ?? payload?._tenantId ?? payload?.tenantId ?? null
 	const freshPayload = {
-
 		...payload,
 		_localRev: Date.now().toString(),
 		_localUpdatedAt: new Date().toISOString(),
@@ -200,7 +199,8 @@ export class OfflineStore {
 	 * @returns {Promise<number>} The queue row id.
 	 */
 	async enqueue(entityType, entityId, operation, payload, tenantId = null) {
-		const resolvedTenantId = tenantId ?? payload?._tenantId ?? payload?.tenantId ?? null
+		const resolvedTenantId =
+			tenantId ?? payload?._tenantId ?? payload?.tenantId ?? null
 		if (!resolvedTenantId) throw new Error("هوية المشترك مطلوبة للطابور المحلي")
 		return this.db.syncQueue.add({
 			entityType,
@@ -254,7 +254,8 @@ export class OfflineStore {
 		commitItems = [],
 	}) {
 		const invoiceNo = String(invoice?.invoiceNo || entityId || "").trim()
-		const resolvedTenantId = tenantId ?? queuePayload?._tenantId ?? queuePayload?.tenantId ?? null
+		const resolvedTenantId =
+			tenantId ?? queuePayload?._tenantId ?? queuePayload?.tenantId ?? null
 		if (!resolvedTenantId) throw new Error("هوية المشترك مطلوبة للحفظ المحلي")
 		if (!invoiceNo) throw new Error("رقم الفاتورة مطلوب للحفظ المحلي")
 		const lines = Array.isArray(invoice?.items) ? invoice.items : []

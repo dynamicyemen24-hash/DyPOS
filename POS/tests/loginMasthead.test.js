@@ -24,16 +24,25 @@ describe("login operating shell", () => {
 	})
 
 	it("keeps technical diagnostics conditional and outside the primary form", () => {
-		expect(login).toMatch(/<HardwareDiagnosticsPanel v-if="technicalModeEnabled"/)
-		expect(login).toMatch(/<NetworkDiagnosticsPanel v-if="technicalModeEnabled"/)
-		expect(login).toContain('<LoginPasskeyActions')
+		expect(login).toMatch(
+			/<HardwareDiagnosticsPanel v-if="technicalModeEnabled"/,
+		)
+		expect(login).toMatch(
+			/<NetworkDiagnosticsPanel v-if="technicalModeEnabled"/,
+		)
+		expect(login).toContain("<LoginPasskeyActions")
 	})
 
 	it("uses SPA navigation and one primary authentication action to the main dashboard", () => {
-		expect(login).toContain('goToDashboard')
+		expect(login).toContain("goToDashboard")
 		expect(login).not.toMatch(/window\.location\.href/)
-		const template = login.slice(login.indexOf("<template>"), login.indexOf("</template>"))
-		expect((template.match(/class="dy-login__submit"/g) || []).length).toBeGreaterThan(0)
+		const template = login.slice(
+			login.indexOf("<template>"),
+			login.indexOf("</template>"),
+		)
+		expect(
+			(template.match(/class="dy-login__submit"/g) || []).length,
+		).toBeGreaterThan(0)
 		expect((template.match(/<h1\b/g) || []).length).toBeGreaterThan(0)
 	})
 })

@@ -206,7 +206,6 @@ describe("login surface — nothing escapes __()", () => {
 
 describe("login surface — the wiring the feature depends on", () => {
 	const page = read("src", "pages", "Login.vue")
-	
 
 	it("binds direction and language instead of pinning RTL", () => {
 		// A hard-coded `dir="rtl"` freezes the page in Arabic layout even when
@@ -231,7 +230,6 @@ describe("login surface — the wiring the feature depends on", () => {
 		]) {
 			expect(page).toContain(expression)
 		}
-
 
 		expect(page).not.toContain("label: __(row.label)")
 	})

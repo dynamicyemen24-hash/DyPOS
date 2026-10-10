@@ -160,7 +160,10 @@ export function refreshPosContext({
 	const savedBranchId = safeStorage()?.getItem("dypos.lastBranchId") || ""
 	let branch = bootstrapData?.pos_profile?.branch || null
 	if (savedBranchId && Array.isArray(bootstrapData?.branches)) {
-		branch = bootstrapData.branches.find((item) => String(item.id) === String(savedBranchId)) || branch
+		branch =
+			bootstrapData.branches.find(
+				(item) => String(item.id) === String(savedBranchId),
+			) || branch
 	}
 	const terminal = bootstrapData?.terminal || null
 	const tenantId =
@@ -203,7 +206,12 @@ export function refreshPosContext({
 	const sector =
 		pick(tenant, ["sector", "industry", "business_sector"]) ||
 		pick(organization, ["sector", "industry", "business_sector"]) ||
-		pick(bootstrapData, ["sector", "industry", "business_sector", "subscriber_sector"]) ||
+		pick(bootstrapData, [
+			"sector",
+			"industry",
+			"business_sector",
+			"subscriber_sector",
+		]) ||
 		pick(settings, ["sector", "industry", "business_sector"]) ||
 		posContext.sector
 	const businessType =
@@ -212,8 +220,20 @@ export function refreshPosContext({
 		pick(settings, ["business_type", "subscriber_type"]) ||
 		posContext.businessType
 	const subscriptionLevel =
-		pick(tenant, ["subscriptionLevel", "subscription_level", "planLevel", "plan_level", "level"]) ||
-		pick(bootstrapData, ["subscriptionLevel", "subscription_level", "planLevel", "plan_level", "subscriber_level"]) ||
+		pick(tenant, [
+			"subscriptionLevel",
+			"subscription_level",
+			"planLevel",
+			"plan_level",
+			"level",
+		]) ||
+		pick(bootstrapData, [
+			"subscriptionLevel",
+			"subscription_level",
+			"planLevel",
+			"plan_level",
+			"subscriber_level",
+		]) ||
 		pick(settings, ["subscription_level", "plan_level", "subscriptionLevel"]) ||
 		posContext.subscriptionLevel
 	const queueLevels =

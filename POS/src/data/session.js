@@ -126,7 +126,12 @@ async function tryOnlineLogin(email, password, subscriberCode = "") {
 			cache: "no-store",
 			signal: controller.signal,
 			// Canonical: { username }. `email` stays as an alias for older backends.
-			body: JSON.stringify({ username: email, email, password, ...(subscriberCode ? { subscriberCode } : {}) }),
+			body: JSON.stringify({
+				username: email,
+				email,
+				password,
+				...(subscriberCode ? { subscriberCode } : {}),
+			}),
 		})
 		if (
 			response.status === 401 ||
@@ -139,28 +144,43 @@ async function tryOnlineLogin(email, password, subscriberCode = "") {
 			error.status = response.status
 			throw error
 		}
-		if (!response.ok) return null
+		if (!response.ok) {
+			// Network/5xx/Cloudflare 403 — treat as network failure, fall back to local
+			log.warn("Online login failed with status", response.status)
+			return null
+		}
 		const data = await response.json().catch(() => null)
 		return data || null
 	} catch (error) {
-		// Explicit rejections propagate; network/abort/5xx fall through to local.
+		// Explicit rejections (401/403/429) propagate; network/abort/5xx fall through to local.
 		if (error?.status === 401 || error?.status === 403 || error?.status === 429)
 			throw error
+		log.debug(
+			"Online login unavailable, falling back to local",
+			error?.message || error,
+		)
 		return null
 	} finally {
 		clearTimeout(timeoutId)
 	}
 }
 
-export async function refreshOnlineSession(email, password, subscriberCode = "") {
+export async function refreshOnlineSession(
+	email,
+	password,
+	subscriberCode = "",
+) {
 	const onlineAuth = await tryOnlineLogin(email, password, subscriberCode)
 	const onlineUser = onlineAuth?.user || null
 	if (!(onlineUser?.username || onlineUser?.email)) return null
 	lastServerAuth = onlineAuth?.token
 		? {
 				token: onlineAuth.token,
-				refreshToken: onlineAuth.refreshToken || onlineAuth.refresh_token || null,
-				expiresIn: Number(onlineAuth.expiresIn || onlineAuth.expires_in || 86400),
+				refreshToken:
+					onlineAuth.refreshToken || onlineAuth.refresh_token || null,
+				expiresIn: Number(
+					onlineAuth.expiresIn || onlineAuth.expires_in || 86400,
+				),
 				user: onlineUser,
 			}
 		: null
@@ -175,14 +195,19 @@ export const session = reactive({
 	login: {
 		async submit({ email, password, subscriberCode = "" } = {}) {
 			const cleanEmail = String(email || "").trim()
-			const cleanSubscriberCode = String(subscriberCode || "").trim().toUpperCase()
+			const cleanSubscriberCode = String(subscriberCode || "")
+				.trim()
+				.toUpperCase()
 			if (!cleanEmail || !password) {
 				throw new Error("بيانات الدخول ناقصة")
 			}
 
 			// 1) Local Core first. An installed terminal must enter without
 			// waiting for API/CSRF/DNS/Cloudflare.
-			const localResult = await userRepository.authenticate(cleanEmail, password)
+			const localResult = await userRepository.authenticate(
+				cleanEmail,
+				password,
+			)
 			if (localResult.success) {
 				persistSession(localResult.user)
 				session.login.reset()
@@ -195,18 +220,31 @@ export const session = reactive({
 			// 2) Only when no local identity exists, try the explicitly
 			// demanded server login. Network failure falls back to the local
 			// error instead of holding the cashier for a long timeout.
-			const onlineAuth = await tryOnlineLogin(cleanEmail, password, cleanSubscriberCode)
+			const onlineAuth = await tryOnlineLogin(
+				cleanEmail,
+				password,
+				cleanSubscriberCode,
+			)
 			const onlineUser = onlineAuth?.user || null
 			if (onlineUser?.username || onlineUser?.email) {
-				lastServerAuth = onlineAuth?.token ? {
-					token: onlineAuth.token,
-					refreshToken: onlineAuth.refreshToken || onlineAuth.refresh_token || null,
-					expiresIn: Number(onlineAuth.expiresIn || onlineAuth.expires_in || 86400),
-					user: onlineUser,
-				} : null
+				lastServerAuth = onlineAuth?.token
+					? {
+							token: onlineAuth.token,
+							refreshToken:
+								onlineAuth.refreshToken || onlineAuth.refresh_token || null,
+							expiresIn: Number(
+								onlineAuth.expiresIn || onlineAuth.expires_in || 86400,
+							),
+							user: onlineUser,
+						}
+					: null
 				persistSession({
 					email: onlineUser.email || onlineUser.username,
-					full_name: onlineUser.full_name || onlineUser.fullName || onlineUser.username || onlineUser.email,
+					full_name:
+						onlineUser.full_name ||
+						onlineUser.fullName ||
+						onlineUser.username ||
+						onlineUser.email,
 					id: onlineUser.id || onlineUser.user_id || null,
 					role: onlineUser.role || "POS User",
 					tenantId: onlineUser.tenantId || onlineUser.tenant_id || null,

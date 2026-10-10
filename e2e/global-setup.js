@@ -10,7 +10,13 @@ const fs = require("node:fs")
 const path = require("node:path")
 
 const TEST_RESULTS = path.join(__dirname, "..", "test-results")
+const E2E_DB = path.join(TEST_RESULTS, "e2e-db")
 
 module.exports = async function globalSetup() {
-	fs.rmSync(TEST_RESULTS, { recursive: true, force: true })
+	try {
+		fs.rmSync(E2E_DB, { recursive: true, force: true })
+	} catch (e) {
+		// Directory might be locked by webServer startup; ignore and continue
+		console.warn("[globalSetup] Could not remove e2e-db:", e.message)
+	}
 }

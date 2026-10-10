@@ -700,7 +700,10 @@ router.beforeEach(async (to, from) => {
 
 	// Feature routes are capability-gated, not merely hidden in the UI.
 	if (to.meta?.feature === "queue" && authenticated && !isQueueEnabled()) {
-		return { name: ROUTE_NAMES.REPORTS, query: { feature: "queue-unavailable" } }
+		return {
+			name: ROUTE_NAMES.REPORTS,
+			query: { feature: "queue-unavailable" },
+		}
 	}
 
 	/**

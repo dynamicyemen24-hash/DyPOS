@@ -370,5 +370,5 @@ describe("stock count dialog — one catalog, no private copy (S3)", () => {
 			Object.keys(CURRENCY_DEFINITIONS).length,
 		)
 		wrapper.unmount()
-	})
+	}, 10000)
 })

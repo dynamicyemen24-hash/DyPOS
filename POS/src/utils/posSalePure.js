@@ -54,7 +54,8 @@ export function normalizeProduct(product) {
 	if (!id) {
 		return null
 	}
-	const rawPrice = product.price ?? product.rate ?? product.standard_rate ?? null
+	const rawPrice =
+		product.price ?? product.rate ?? product.standard_rate ?? null
 	const price = rawPrice === null || rawPrice === "" ? null : Number(rawPrice)
 	const priceMissing = price === null || !Number.isFinite(price) || price < 0
 	return {
@@ -74,7 +75,6 @@ export function normalizeProduct(product) {
 		unit: product.unit ?? product.stock_uom ?? "قطعة",
 		disabled: product.disabled === true,
 		priceMissing,
-
 	}
 }
 

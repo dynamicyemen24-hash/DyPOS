@@ -365,7 +365,11 @@ import { FeatherIcon } from "dypos-ui"
 
 import { ActionButton } from "dypos-ui"
 import { formatNumberSafe, getCurrencySymbol } from "@/utils/currency"
-import { PAYMENT_METHODS, SESSION_STATES, filterCatalog } from "./selfCheckoutState.js"
+import {
+	PAYMENT_METHODS,
+	SESSION_STATES,
+	filterCatalog,
+} from "./selfCheckoutState.js"
 import { useSelfCheckoutSession } from "./useSelfCheckoutSession.js"
 
 const props = defineProps({
@@ -439,13 +443,17 @@ const isPaying = computed(() => state.value === SESSION_STATES.PAYING)
 const canBrowse = computed(() => isOpen.value)
 /** بحث فوري محلي بالاسم أو الرمز أو الباركود — لا شبكة ولا انتظار. */
 const searchQuery = ref("")
-const visibleCatalog = computed(() => filterCatalog(catalog.value, searchQuery.value))
+const visibleCatalog = computed(() =>
+	filterCatalog(catalog.value, searchQuery.value),
+)
 /** شرائح التشغيل: الفرع والطرفية والعملة — تُعرض فقط عند معرفتها. */
 const currencySymbol = computed(() => getCurrencySymbol())
 const metaChips = computed(() =>
 	[
 		props.branch ? { icon: "map-pin", label: `الفرع ${props.branch}` } : null,
-		props.terminal ? { icon: "smartphone", label: `طرفية ${props.terminal}` } : null,
+		props.terminal
+			? { icon: "smartphone", label: `طرفية ${props.terminal}` }
+			: null,
 		{ icon: "dollar-sign", label: `العملة ${currencySymbol.value}` },
 	].filter(Boolean),
 )

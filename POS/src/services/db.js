@@ -134,7 +134,6 @@ class DyPOSDb extends Dexie {
 						}
 					}),
 			)
-
 	}
 }
 

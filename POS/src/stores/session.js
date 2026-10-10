@@ -15,7 +15,12 @@
 import { computed, ref } from "vue"
 import { defineStore } from "pinia"
 
-import { session as localSession, lastLoginSource, lastServerAuth, refreshOnlineSession } from "@/data/session"
+import {
+	session as localSession,
+	lastLoginSource,
+	lastServerAuth,
+	refreshOnlineSession,
+} from "@/data/session"
 import { userResource, userData } from "@/data/user"
 import { userRepository } from "@/repositories/userRepository"
 import { shiftState, useShift } from "@/composables/useShift"
@@ -146,14 +151,38 @@ export const useSessionStore = defineStore("session", () => {
 	// collection of competing setup prompts.
 	const nextOperationalStep = computed(() => {
 		const readiness = workspaceReadiness.value
-		if (!readiness.identity) return { code: "AUTHENTICATE", label: "تسجيل الدخول", priority: "critical" }
-		if (!readiness.tenant) return { code: "TENANT", label: "تأكيد المشترك", priority: "critical" }
-		if (!readiness.branch) return { code: "BRANCH", label: "اختيار أو تهيئة الفرع", priority: "high" }
-		if (!readiness.terminal) return { code: "TERMINAL", label: "تهيئة الطرفية", priority: "high" }
-		if (!readiness.profile) return { code: "POS_PROFILE", label: "تهيئة ملف نقطة البيع", priority: "high" }
-		if (!readiness.settings) return { code: "SETTINGS", label: "إكمال إعدادات نقطة البيع", priority: "high" }
-		if (!readiness.permissions) return { code: "PERMISSIONS", label: "تحميل الصلاحيات", priority: "high" }
-		if (!readiness.shift) return { code: "SHIFT", label: "فتح الوردية", priority: "required" }
+		if (!readiness.identity)
+			return {
+				code: "AUTHENTICATE",
+				label: "تسجيل الدخول",
+				priority: "critical",
+			}
+		if (!readiness.tenant)
+			return { code: "TENANT", label: "تأكيد المشترك", priority: "critical" }
+		if (!readiness.branch)
+			return {
+				code: "BRANCH",
+				label: "اختيار أو تهيئة الفرع",
+				priority: "high",
+			}
+		if (!readiness.terminal)
+			return { code: "TERMINAL", label: "تهيئة الطرفية", priority: "high" }
+		if (!readiness.profile)
+			return {
+				code: "POS_PROFILE",
+				label: "تهيئة ملف نقطة البيع",
+				priority: "high",
+			}
+		if (!readiness.settings)
+			return {
+				code: "SETTINGS",
+				label: "إكمال إعدادات نقطة البيع",
+				priority: "high",
+			}
+		if (!readiness.permissions)
+			return { code: "PERMISSIONS", label: "تحميل الصلاحيات", priority: "high" }
+		if (!readiness.shift)
+			return { code: "SHIFT", label: "فتح الوردية", priority: "required" }
 		return { code: "SELL", label: "بدء البيع", priority: "ready" }
 	})
 
@@ -203,22 +232,37 @@ export const useSessionStore = defineStore("session", () => {
 									lastServerAuth.token,
 									lastServerAuth.refreshToken,
 									lastServerAuth.expiresIn || 86400,
-									serverUser?.tenantId || serverUser?.tenant_id || localSession.user?.tenantId || null,
-									serverUser?.id || serverUser?.user_id || localSession.user?.id || null,
+									serverUser?.tenantId ||
+										serverUser?.tenant_id ||
+										localSession.user?.tenantId ||
+										null,
+									serverUser?.id ||
+										serverUser?.user_id ||
+										localSession.user?.id ||
+										null,
 								)
 							}
 							await userRepository.upsertAuthenticatedUser(
-								{ ...serverUser, email: serverUser.email || serverUser.username || usr },
+								{
+									...serverUser,
+									email: serverUser.email || serverUser.username || usr,
+								},
 								pwd,
 							)
 							await hydrateSubscriberLocalData({
-								tenantId: serverUser.tenantId || serverUser.tenant_id || localSession.user?.tenantId || null,
+								tenantId:
+									serverUser.tenantId ||
+									serverUser.tenant_id ||
+									localSession.user?.tenantId ||
+									null,
 							})
 						} catch (error) {
 							log.warn("Background online session convergence deferred", error)
 						}
 					})
-					.catch((error) => log.warn("Background online reauthentication deferred", error))
+					.catch((error) =>
+						log.warn("Background online reauthentication deferred", error),
+					)
 			}
 		}
 
@@ -238,7 +282,10 @@ export const useSessionStore = defineStore("session", () => {
 						lastServerAuth.refreshToken,
 						lastServerAuth.expiresIn || 86400,
 						serverSession?.tenantId || lastServerAuth.user?.tenantId || null,
-						serverSession?.user_id || serverSession?.id || lastServerAuth.user?.id || null,
+						serverSession?.user_id ||
+							serverSession?.id ||
+							lastServerAuth.user?.id ||
+							null,
 					)
 				}
 
@@ -248,9 +295,13 @@ export const useSessionStore = defineStore("session", () => {
 					await userRepository.upsertAuthenticatedUser(
 						{
 							email: usr,
-							full_name: serverSession?.full_name || serverSession?.fullName || usr,
+							full_name:
+								serverSession?.full_name || serverSession?.fullName || usr,
 							role: serverSession?.role || "POS User",
-							tenantId: serverSession?.tenantId || lastServerAuth?.user?.tenantId || null,
+							tenantId:
+								serverSession?.tenantId ||
+								lastServerAuth?.user?.tenantId ||
+								null,
 						},
 						pwd,
 					)
@@ -377,8 +428,12 @@ export const useSessionStore = defineStore("session", () => {
 					}
 				}
 				applyPosContext({
-					tenantId: localUser.tenantId || localUser.tenant_id || `local-${localUser.id}`,
-					tenantName: localUser.company || localUser.full_name || "مساحة العمل المحلية",
+					tenantId:
+						localUser.tenantId ||
+						localUser.tenant_id ||
+						`local-${localUser.id}`,
+					tenantName:
+						localUser.company || localUser.full_name || "مساحة العمل المحلية",
 					company: localUser.company || "",
 					branchCode: "MAIN",
 					branchName: "المركز الرئيسي",
@@ -524,7 +579,10 @@ export const useSessionStore = defineStore("session", () => {
 		}
 
 		const activeTenantId =
-			posContext.tenantId || authState.tenantId || lowSession.user?.tenantId || null
+			posContext.tenantId ||
+			authState.tenantId ||
+			lowSession.user?.tenantId ||
+			null
 		if (!activeTenantId) {
 			throw new Error("لا يمكن حفظ البيع قبل تثبيت هوية المشترك")
 		}

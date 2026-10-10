@@ -190,8 +190,12 @@ const role = sessionRole()
 const readonly = isReadOnlyRole(role)
 /** قائمة المشغّل (الحساب/الخروج) — نفس القائمة في كل شاشة عمل. */
 const operatorName = computed(() => sessionUser() || "الحساب")
-const { showOperatorMenu, openOperatorMenu, closeOperatorMenu, onOperatorAction } =
-	useOperatorMenu()
+const {
+	showOperatorMenu,
+	openOperatorMenu,
+	closeOperatorMenu,
+	onOperatorAction,
+} = useOperatorMenu()
 providePermissions(
 	Object.fromEntries(
 		WORK_SCREENS.map((entry) => [
@@ -204,15 +208,19 @@ providePermissions(
 const navItems = computed(() =>
 	flatWorkNav().filter(
 		(item) =>
-			(!item.capability || !industry || industry.hasCapability(item.capability)) &&
+			(!item.capability ||
+				!industry ||
+				industry.hasCapability(item.capability)) &&
 			(!isAdminRoute(item.to?.name) || canSeeAdmin(role)),
 	),
 )
-const tabs = WORK_SCREENS.filter((entry) => canSeeScreen(entry.id, role)).map((entry) => ({
-	id: entry.id,
-	label: entry.label,
-	icon: entry.icon,
-}))
+const tabs = WORK_SCREENS.filter((entry) => canSeeScreen(entry.id, role)).map(
+	(entry) => ({
+		id: entry.id,
+		label: entry.label,
+		icon: entry.icon,
+	}),
+)
 
 const breadcrumbs = computed(() => [
 	{ label: "شاشات العمل", to: { name: "WorkScreens" }, current: true },

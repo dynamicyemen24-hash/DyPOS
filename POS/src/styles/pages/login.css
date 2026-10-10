@@ -6,84 +6,84 @@
    ========================================================================== */
 
 .dy-login {
-  --login-max: 520px;
-  --login-gutter: clamp(14px, 3vw, 28px);
-  --login-line: color-mix(in srgb, var(--dy-border) 78%, transparent);
-  --login-soft-line: color-mix(in srgb, var(--dy-border-soft) 92%, transparent);
-  --login-focus: color-mix(in srgb, var(--dy-brand) 18%, transparent);
+	--login-max: 520px;
+	--login-gutter: clamp(14px, 3vw, 28px);
+	--login-line: color-mix(in srgb, var(--dy-border) 78%, transparent);
+	--login-soft-line: color-mix(in srgb, var(--dy-border-soft) 92%, transparent);
+	--login-focus: color-mix(in srgb, var(--dy-brand) 18%, transparent);
 
-  min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  overflow-x: hidden;
-  background: var(--dy-surface-soft);
-  color: var(--dy-text);
-  font-family: var(--dy-font-arabic);
-  isolation: isolate;
-  scrollbar-width: thin;
-  scrollbar-color: var(--dy-border) transparent;
+	min-height: 100dvh;
+	display: flex;
+	flex-direction: column;
+	margin: 0;
+	overflow-x: hidden;
+	background: var(--dy-surface-soft);
+	color: var(--dy-text);
+	font-family: var(--dy-font-arabic);
+	isolation: isolate;
+	scrollbar-width: thin;
+	scrollbar-color: var(--dy-border) transparent;
 }
 
 .dy-login::-webkit-scrollbar {
-  width: 8px;
+	width: 8px;
 }
 
 .dy-login::-webkit-scrollbar-thumb {
-  background: var(--dy-border);
-  border-radius: 999px;
+	background: var(--dy-border);
+	border-radius: 999px;
 }
 
 .dy-login[dir="ltr"] {
-  font-family: var(--dy-font-english);
+	font-family: var(--dy-font-english);
 }
 
 /* ── Masthead ───────────────────────────────────────────────────────────── */
 
 .dy-login__brand {
-  position: sticky;
-  inset-block-start: 0;
-  z-index: 30;
-  flex: 0 0 52px;
-  min-height: 52px;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-inline: var(--login-gutter);
-  border-block-end: 1px solid var(--login-line);
-  background: color-mix(in srgb, var(--dy-surface) 96%, transparent);
-  backdrop-filter: blur(16px) saturate(1.05);
-  -webkit-backdrop-filter: blur(16px) saturate(1.05);
+	position: sticky;
+	inset-block-start: 0;
+	z-index: 30;
+	flex: 0 0 52px;
+	min-height: 52px;
+	width: 100%;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding-inline: var(--login-gutter);
+	border-block-end: 1px solid var(--login-line);
+	background: color-mix(in srgb, var(--dy-surface) 96%, transparent);
+	backdrop-filter: blur(16px) saturate(1.05);
+	-webkit-backdrop-filter: blur(16px) saturate(1.05);
 }
 
 .dy-login__brand-logo {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  color: inherit;
-  text-decoration: none;
-  border-radius: 9px;
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: center;
+	color: inherit;
+	text-decoration: none;
+	border-radius: 9px;
 }
 
 .dy-login__logo-shell {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  padding: 3px;
-  overflow: hidden;
-  border: 1px solid var(--login-soft-line);
-  border-radius: 9px;
-  background: var(--dy-surface);
+	display: grid;
+	width: 32px;
+	height: 32px;
+	place-items: center;
+	padding: 3px;
+	overflow: hidden;
+	border: 1px solid var(--login-soft-line);
+	border-radius: 9px;
+	background: var(--dy-surface);
 }
 
 .dy-login__logo {
-  display: block;
-  width: 26px;
-  height: 26px;
-  object-fit: contain;
+	display: block;
+	width: 26px;
+	height: 26px;
+	object-fit: contain;
 }
 
 .dy-login__brand-logo:focus-visible,
@@ -91,210 +91,214 @@
 .dy-login__legal a:focus-visible,
 .dy-login__forgot:focus-visible,
 .dy-login__register a:focus-visible {
-  outline: 2px solid var(--dy-brand);
-  outline-offset: 2px;
-  border-radius: 6px;
+	outline: 2px solid var(--dy-brand);
+	outline-offset: 2px;
+	border-radius: 6px;
 }
 
 .dy-login__command-strip {
-  min-width: 0;
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  overflow-x: auto;
-  scrollbar-width: none;
+	min-width: 0;
+	flex: 1 1 auto;
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	overflow-x: auto;
+	scrollbar-width: none;
 }
 
 .dy-login__command-strip::-webkit-scrollbar {
-  display: none;
+	display: none;
 }
 
 .dy-login__command-strip a {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  min-height: 30px;
-  padding: 5px 9px;
-  border-radius: 7px;
-  color: var(--dy-text-secondary);
-  font-size: .73rem;
-  font-weight: 720;
-  line-height: 1;
-  text-decoration: none;
-  white-space: nowrap;
-  transition: background 140ms ease, color 140ms ease;
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: center;
+	min-height: 30px;
+	padding: 5px 9px;
+	border-radius: 7px;
+	color: var(--dy-text-secondary);
+	font-size: .73rem;
+	font-weight: 720;
+	line-height: 1;
+	text-decoration: none;
+	white-space: nowrap;
+	transition: background 140ms ease, color 140ms ease;
 }
 
 .dy-login__command-strip a:hover,
 .dy-login__command-strip a.is-current {
-  color: var(--dy-text-strong);
-  background: var(--dy-surface-soft);
+	color: var(--dy-text-strong);
+	background: var(--dy-surface-soft);
 }
 
 .dy-login__masthead-tools {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 5px;
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: 5px;
 }
 
 .dy-login__preferences,
 .dy-login__technical-toggle {
-  flex: 0 0 auto;
+	flex: 0 0 auto;
 }
 
 /* ── Runtime status: exactly one strip ──────────────────────────────────── */
 
 .dy-login__status-bar {
-  flex: 0 0 28px;
-  min-height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding-inline: 12px;
-  border-block-end: 1px solid var(--login-soft-line);
-  background: var(--dy-surface);
-  color: var(--dy-text-secondary);
+	flex: 0 0 28px;
+	min-height: 28px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding-inline: 12px;
+	border-block-end: 1px solid var(--login-soft-line);
+	background: var(--dy-surface);
+	color: var(--dy-text-secondary);
 }
 
 .dy-login__status-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 22px;
-  padding-inline: 6px;
-  font-size: .68rem;
-  font-weight: 720;
-  line-height: 1;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 22px;
+	padding-inline: 6px;
+	font-size: .68rem;
+	font-weight: 720;
+	line-height: 1;
 }
 
 .dy-login__status-item--online {
-  color: var(--dy-success, #15803d);
+	color: var(--dy-success, #15803d);
 }
 
 .dy-login__status-item--offline {
-  color: var(--dy-warning, #a16207);
+	color: var(--dy-warning, #a16207);
 }
 
 /* ── Authentication work surface ────────────────────────────────────────── */
 
 .dy-login__panel {
-  width: min(var(--login-max), calc(100% - (var(--login-gutter) * 2)));
-  margin-inline: auto;
-  padding-block: clamp(28px, 6vh, 64px) 34px;
+	width: min(var(--login-max), calc(100% - (var(--login-gutter) * 2)));
+	margin-inline: auto;
+	padding-block: clamp(28px, 6vh, 64px) 34px;
 }
 
 .dy-login__panel-inner {
-  position: relative;
-  width: 100%;
-  padding: clamp(24px, 4vw, 38px);
-  border: 1px solid var(--login-line);
-  border-radius: 18px;
-  background: var(--dy-surface);
-  box-shadow: 0 18px 48px -36px rgb(0 0 0 / .28);
+	position: relative;
+	width: 100%;
+	padding: clamp(24px, 4vw, 38px);
+	border: 1px solid var(--login-line);
+	border-radius: 18px;
+	background: var(--dy-surface);
+	box-shadow: 0 18px 48px -36px rgb(0 0 0 / 0.28);
 }
 
 .dy-login__progress {
-  position: absolute;
-  inset-inline: 0;
-  inset-block-start: 0;
-  height: 2px;
-  overflow: hidden;
-  border-radius: 18px 18px 0 0;
-  background: color-mix(in srgb, var(--dy-brand) 10%, transparent);
+	position: absolute;
+	inset-inline: 0;
+	inset-block-start: 0;
+	height: 2px;
+	overflow: hidden;
+	border-radius: 18px 18px 0 0;
+	background: color-mix(in srgb, var(--dy-brand) 10%, transparent);
 }
 
 .dy-login__progress-bar {
-  display: block;
-  width: 42%;
-  height: 100%;
-  background: var(--dy-brand);
-  animation: dy-login-progress 1.15s ease-in-out infinite;
+	display: block;
+	width: 42%;
+	height: 100%;
+	background: var(--dy-brand);
+	animation: dy-login-progress 1.15s ease-in-out infinite;
 }
 
 @keyframes dy-login-progress {
-  0% { transform: translateX(-120%); }
-  100% { transform: translateX(340%); }
+	0% {
+		transform: translateX(-120%);
+	}
+	100% {
+		transform: translateX(340%);
+	}
 }
 
 /* ── Context / identity ─────────────────────────────────────────────────── */
 
 .dy-login__context {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-block-end: 20px;
-  padding-block-end: 12px;
-  border-block-end: 1px solid var(--login-soft-line);
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-block-end: 20px;
+	padding-block-end: 12px;
+	border-block-end: 1px solid var(--login-soft-line);
 }
 
 .dy-login__context-item {
-  min-width: 0;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
-  padding: 5px 8px;
-  border: 1px solid var(--login-soft-line);
-  border-radius: 7px;
-  background: var(--dy-surface-soft);
+	min-width: 0;
+	display: inline-flex;
+	align-items: baseline;
+	gap: 5px;
+	padding: 5px 8px;
+	border: 1px solid var(--login-soft-line);
+	border-radius: 7px;
+	background: var(--dy-surface-soft);
 }
 
 .dy-login__context-label {
-  color: var(--dy-text-muted);
-  font-size: .66rem;
-  font-weight: 650;
+	color: var(--dy-text-muted);
+	font-size: .66rem;
+	font-weight: 650;
 }
 
 .dy-login__context-item > :last-child {
-  min-width: 0;
-  color: var(--dy-text-strong);
-  font-size: .72rem;
-  font-weight: 750;
-  overflow-wrap: anywhere;
+	min-width: 0;
+	color: var(--dy-text-strong);
+	font-size: .72rem;
+	font-weight: 750;
+	overflow-wrap: anywhere;
 }
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
 
 .dy-login__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-block-end: 18px;
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+	margin-block-end: 18px;
 }
 
 .dy-login__section-label {
-  display: block;
-  margin-block-end: 6px;
-  color: var(--dy-brand);
-  font-size: .72rem;
-  font-weight: 800;
+	display: block;
+	margin-block-end: 6px;
+	color: var(--dy-brand);
+	font-size: .72rem;
+	font-weight: 800;
 }
 
 .dy-login__title {
-  margin: 0;
-  color: var(--dy-text-strong);
-  font-size: clamp(1.55rem, 3vw, 2rem);
-  font-weight: 820;
-  line-height: 1.2;
-  letter-spacing: -.025em;
+	margin: 0;
+	color: var(--dy-text-strong);
+	font-size: clamp(1.55rem, 3vw, 2rem);
+	font-weight: 820;
+	line-height: 1.2;
+	letter-spacing: -.025em;
 }
 
 .dy-login__subtitle {
-  margin: 6px 0 0;
-  color: var(--dy-text-secondary);
-  font-size: .84rem;
-  line-height: 1.55;
+	margin: 6px 0 0;
+	color: var(--dy-text-secondary);
+	font-size: .84rem;
+	line-height: 1.55;
 }
 
 .dy-login__shortcuts-trigger {
-  flex: 0 0 auto;
-  min-width: 38px;
-  min-height: 38px;
-  border: 1px solid var(--login-soft-line);
-  border-radius: 9px;
+	flex: 0 0 auto;
+	min-width: 38px;
+	min-height: 38px;
+	border: 1px solid var(--login-soft-line);
+	border-radius: 9px;
 }
 
 /* ── Runtime / errors ───────────────────────────────────────────────────── */
@@ -303,255 +307,274 @@
 .dy-login__backend-unavailable,
 .dy-login__rate-limit,
 .dy-login__error {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  margin-block-end: 12px;
-  padding: 10px 11px;
-  border: 1px solid var(--login-soft-line);
-  border-radius: 10px;
-  background: var(--dy-surface-soft);
-  font-size: .76rem;
+	display: flex;
+	align-items: flex-start;
+	gap: 9px;
+	margin-block-end: 12px;
+	padding: 10px 11px;
+	border: 1px solid var(--login-soft-line);
+	border-radius: 10px;
+	background: var(--dy-surface-soft);
+	font-size: .76rem;
 }
 
 .dy-login__runtime-content,
 .dy-login__error-content,
 .dy-login__rate-limit-content,
 .dy-login__backend-unavailable-content {
-  min-width: 0;
-  flex: 1 1 auto;
-  display: grid;
-  gap: 2px;
-  line-height: 1.45;
+	min-width: 0;
+	flex: 1 1 auto;
+	display: grid;
+	gap: 2px;
+	line-height: 1.45;
 }
 
 .dy-login__runtime-content strong {
-  color: var(--dy-text-strong);
-  font-weight: 760;
+	color: var(--dy-text-strong);
+	font-weight: 760;
 }
 
 .dy-login__runtime-content span,
 .dy-login__error-content,
 .dy-login__rate-limit-content,
 .dy-login__backend-unavailable-content {
-  color: var(--dy-text-secondary);
+	color: var(--dy-text-secondary);
 }
 
 .dy-login__runtime-icon,
 .dy-login__error-icon,
 .dy-login__rate-limit-icon,
 .dy-login__backend-unavailable-icon {
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  color: var(--dy-brand);
+	flex: 0 0 auto;
+	display: grid;
+	place-items: center;
+	color: var(--dy-brand);
 }
 
-.dy-login__runtime--success { border-color: color-mix(in srgb, var(--dy-success, #15803d) 20%, var(--dy-border)); }
-.dy-login__runtime--warning { border-color: color-mix(in srgb, var(--dy-warning, #a16207) 24%, var(--dy-border)); }
-.dy-login__runtime--error { border-color: color-mix(in srgb, var(--dy-danger, #b91c1c) 22%, var(--dy-border)); }
+.dy-login__runtime--success {
+	border-color: color-mix(
+		in srgb,
+		var(--dy-success, #15803d) 20%,
+		var(--dy-border)
+	);
+}
+.dy-login__runtime--warning {
+	border-color: color-mix(
+		in srgb,
+		var(--dy-warning, #a16207) 24%,
+		var(--dy-border)
+	);
+}
+.dy-login__runtime--error {
+	border-color: color-mix(
+		in srgb,
+		var(--dy-danger, #b91c1c) 22%,
+		var(--dy-border)
+	);
+}
 
 .dy-login__runtime-action,
 .dy-login__backend-unavailable-action {
-  flex: 0 0 auto;
-  align-self: center;
+	flex: 0 0 auto;
+	align-self: center;
 }
 
 .dy-login__error-close {
-  flex: 0 0 auto;
+	flex: 0 0 auto;
 }
 
 /* ── Form ───────────────────────────────────────────────────────────────── */
 
 .dy-login__form {
-  display: grid;
-  gap: 13px;
+	display: grid;
+	gap: 13px;
 }
 
 .dy-login__field {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
+	display: grid;
+	gap: 6px;
+	min-width: 0;
 }
 
 .dy-login__label-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
 }
 
 .dy-login__label {
-  color: var(--dy-text-strong);
-  font-size: .77rem;
-  font-weight: 740;
+	color: var(--dy-text-strong);
+	font-size: .77rem;
+	font-weight: 740;
 }
 
 .dy-login__optional,
 .dy-login__strength {
-  color: var(--dy-text-muted);
-  font-size: .68rem;
-  font-weight: 650;
+	color: var(--dy-text-muted);
+	font-size: .68rem;
+	font-weight: 650;
 }
 
 .dy-login__input-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-  min-height: 52px;
-  border: 1px solid var(--login-line);
-  border-radius: 11px;
-  background: var(--dy-surface);
-  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+	position: relative;
+	display: flex;
+	align-items: center;
+	min-height: 52px;
+	border: 1px solid var(--login-line);
+	border-radius: 11px;
+	background: var(--dy-surface);
+	transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms
+		ease;
 }
 
 .dy-login__input-wrap:focus-within {
-  border-color: color-mix(in srgb, var(--dy-brand) 58%, var(--dy-border));
-  box-shadow: 0 0 0 3px var(--login-focus);
-  background: var(--dy-surface);
+	border-color: color-mix(in srgb, var(--dy-brand) 58%, var(--dy-border));
+	box-shadow: 0 0 0 3px var(--login-focus);
+	background: var(--dy-surface);
 }
 
 .dy-login__input-wrap--error {
-  border-color: var(--dy-danger, #b91c1c);
+	border-color: var(--dy-danger, #b91c1c);
 }
 
 .dy-login__input-icon,
 .dy-login__select-icon {
-  flex: 0 0 auto;
-  color: var(--dy-text-muted);
-  pointer-events: none;
+	flex: 0 0 auto;
+	color: var(--dy-text-muted);
+	pointer-events: none;
 }
 
 .dy-login__input-icon {
-  width: 20px;
-  height: 20px;
-  margin-inline: 13px 8px;
+	width: 20px;
+	height: 20px;
+	margin-inline: 13px 8px;
 }
 
 .dy-login__input {
-  min-width: 0;
-  width: 100%;
-  height: 50px;
-  padding: 0;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--dy-text-strong);
-  font: inherit;
-  font-size: 1rem;
+	min-width: 0;
+	width: 100%;
+	height: 50px;
+	padding: 0;
+	border: 0;
+	outline: 0;
+	background: transparent;
+	color: var(--dy-text-strong);
+	font: inherit;
+	font-size: 1rem;
 }
 
 .dy-login__input::placeholder {
-  color: var(--dy-text-muted);
-  opacity: .9;
+	color: var(--dy-text-muted);
+	opacity: 0.9;
 }
 
 .dy-login__password-toggle {
-  display: grid;
-  flex: 0 0 42px;
-  height: 42px;
-  place-items: center;
-  margin-inline-end: 4px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--dy-text-secondary);
-  cursor: pointer;
+	display: grid;
+	flex: 0 0 42px;
+	height: 42px;
+	place-items: center;
+	margin-inline-end: 4px;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--dy-text-secondary);
+	cursor: pointer;
 }
 
 .dy-login__password-toggle:hover {
-  background: var(--dy-surface-soft);
-  color: var(--dy-text-strong);
+	background: var(--dy-surface-soft);
+	color: var(--dy-text-strong);
 }
 
 .dy-login__field-error,
 .dy-login__caps-hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: .7rem;
-  line-height: 1.35;
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	font-size: .7rem;
+	line-height: 1.35;
 }
 
 .dy-login__field-error {
-  color: var(--dy-danger, #b91c1c);
+	color: var(--dy-danger, #b91c1c);
 }
 
 .dy-login__caps-hint {
-  color: var(--dy-warning, #a16207);
+	color: var(--dy-warning, #a16207);
 }
 
 .dy-login__field-help {
-  color: var(--dy-text-muted);
-  font-size: .68rem;
-  line-height: 1.5;
+	color: var(--dy-text-muted);
+	font-size: .68rem;
+	line-height: 1.5;
 }
 
 .dy-login__hint {
-  color: var(--dy-text-muted);
-  font-size: .7rem;
+	color: var(--dy-text-muted);
+	font-size: .7rem;
 }
 
 .dy-login__options {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 34px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	min-height: 34px;
 }
 
 .dy-login__remember {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--dy-text-secondary);
-  font-size: .74rem;
-  cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	color: var(--dy-text-secondary);
+	font-size: .74rem;
+	cursor: pointer;
 }
 
 .dy-login__remember input {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
-  opacity: 0;
-  pointer-events: none;
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	opacity: 0;
+	pointer-events: none;
 }
 
 .dy-login__checkbox {
-  inline-size: 17px;
-  block-size: 17px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--login-line);
-  border-radius: 5px;
-  background: var(--dy-surface);
+	inline-size: 17px;
+	block-size: 17px;
+	display: grid;
+	place-items: center;
+	border: 1px solid var(--login-line);
+	border-radius: 5px;
+	background: var(--dy-surface);
 }
 
 .dy-login__remember input:checked + .dy-login__checkbox {
-  border-color: var(--dy-brand);
-  background: var(--dy-brand);
-  box-shadow: inset 0 0 0 3px var(--dy-surface);
+	border-color: var(--dy-brand);
+	background: var(--dy-brand);
+	box-shadow: inset 0 0 0 3px var(--dy-surface);
 }
 
 .dy-login__forgot {
-  color: var(--dy-brand);
-  font-size: .73rem;
-  font-weight: 720;
-  text-decoration: none;
+	color: var(--dy-brand);
+	font-size: .73rem;
+	font-weight: 720;
+	text-decoration: none;
 }
 
 .dy-login__submit {
-  width: 100%;
-  min-height: 54px;
-  margin-block-start: 2px;
-  border-radius: 11px;
-  font-weight: 800;
-  box-shadow: none;
+	width: 100%;
+	min-height: 54px;
+	margin-block-start: 2px;
+	border-radius: 11px;
+	font-weight: 800;
+	box-shadow: none;
 }
 
 .dy-login__submit:not(:disabled):hover {
-  transform: none;
-  box-shadow: none;
+	transform: none;
+	box-shadow: none;
 }
 
 /* ── Progressive disclosure ────────────────────────────────────────────── */
@@ -560,223 +583,224 @@
 .dy-login__subscriber-options,
 .dy-login__secondary,
 .dy-login__install-details {
-  margin-block-start: 9px;
-  border: 1px solid var(--login-soft-line);
-  border-radius: 10px;
-  background: var(--dy-surface-soft);
-  overflow: clip;
+	margin-block-start: 9px;
+	border: 1px solid var(--login-soft-line);
+	border-radius: 10px;
+	background: var(--dy-surface-soft);
+	overflow: clip;
 }
 
 .dy-login__alternatives-summary,
 .dy-login__secondary-summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 7px 11px;
-  color: var(--dy-text-secondary);
-  font-size: .73rem;
-  font-weight: 720;
-  cursor: pointer;
-  list-style: none;
-  user-select: none;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 40px;
+	padding: 7px 11px;
+	color: var(--dy-text-secondary);
+	font-size: .73rem;
+	font-weight: 720;
+	cursor: pointer;
+	list-style: none;
+	user-select: none;
 }
 
 .dy-login__alternatives-summary::-webkit-details-marker,
 .dy-login__secondary-summary::-webkit-details-marker {
-  display: none;
+	display: none;
 }
 
 .dy-login__alternatives-summary::after,
 .dy-login__secondary-summary::after {
-  content: "⌄";
-  margin-inline-start: auto;
-  color: var(--dy-text-muted);
-  transition: transform 120ms ease;
+	content: "⌄";
+	margin-inline-start: auto;
+	color: var(--dy-text-muted);
+	transition: transform 120ms ease;
 }
 
 .dy-login__alternatives[open] > .dy-login__alternatives-summary::after,
 .dy-login__subscriber-options[open] > .dy-login__alternatives-summary::after,
 .dy-login__secondary[open] > .dy-login__secondary-summary::after,
 .dy-login__install-details[open] > .dy-login__secondary-summary::after {
-  transform: rotate(180deg);
+	transform: rotate(180deg);
 }
 
 .dy-login__alternatives-summary:hover,
 .dy-login__secondary-summary:hover {
-  color: var(--dy-text-strong);
-  background: color-mix(in srgb, var(--dy-brand) 4%, transparent);
+	color: var(--dy-text-strong);
+	background: color-mix(in srgb, var(--dy-brand) 4%, transparent);
 }
 
 .dy-login__alternatives-summary:focus-visible,
 .dy-login__secondary-summary:focus-visible {
-  outline: 2px solid var(--dy-brand);
-  outline-offset: -2px;
+	outline: 2px solid var(--dy-brand);
+	outline-offset: -2px;
 }
 
 .dy-login__methods-buttons {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 7px;
-  padding: 0 11px 11px;
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 7px;
+	padding: 0 11px 11px;
 }
 
 .dy-login__method-btn {
-  min-height: 38px;
-  border: 1px solid var(--login-soft-line);
-  border-radius: 8px;
+	min-height: 38px;
+	border: 1px solid var(--login-soft-line);
+	border-radius: 8px;
 }
 
 .dy-login__method-btn--active {
-  border-color: color-mix(in srgb, var(--dy-brand) 42%, var(--dy-border));
-  background: color-mix(in srgb, var(--dy-brand) 7%, var(--dy-surface));
+	border-color: color-mix(in srgb, var(--dy-brand) 42%, var(--dy-border));
+	background: color-mix(in srgb, var(--dy-brand) 7%, var(--dy-surface));
 }
 
 .dy-login__secondary-content {
-  padding: 0 11px 11px;
-  border-block-start: 1px solid var(--login-soft-line);
+	padding: 0 11px 11px;
+	border-block-start: 1px solid var(--login-soft-line);
 }
 
 .dy-login__secondary-content > * {
-  margin-block-start: 10px;
+	margin-block-start: 10px;
 }
 
 .dy-login__subscriber-options {
-  margin-block-start: 0;
+	margin-block-start: 0;
 }
 
 .dy-login__subscriber-options .dy-login__field {
-  padding: 0 11px 11px;
+	padding: 0 11px 11px;
 }
 
 .dy-login__subscriber-code {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 34px;
-  padding: 6px 9px;
-  border: 1px solid var(--login-soft-line);
-  border-radius: 8px;
-  background: var(--dy-surface-soft);
-  color: var(--dy-text-secondary);
-  font-size: .7rem;
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	min-height: 34px;
+	padding: 6px 9px;
+	border: 1px solid var(--login-soft-line);
+	border-radius: 8px;
+	background: var(--dy-surface-soft);
+	color: var(--dy-text-secondary);
+	font-size: .7rem;
 }
 
 .dy-login__subscriber-label {
-  color: var(--dy-text-muted);
+	color: var(--dy-text-muted);
 }
 
 .dy-login__subscriber-value {
-  color: var(--dy-text-strong);
-  font-weight: 800;
-  direction: ltr;
-  unicode-bidi: plaintext;
+	color: var(--dy-text-strong);
+	font-weight: 800;
+	direction: ltr;
+	unicode-bidi: plaintext;
 }
 
 .dy-login__register {
-  margin: 16px 0 0;
-  padding-block-start: 14px;
-  border-block-start: 1px solid var(--login-soft-line);
-  color: var(--dy-text-secondary);
-  font-size: .76rem;
-  text-align: center;
+	margin: 16px 0 0;
+	padding-block-start: 14px;
+	border-block-start: 1px solid var(--login-soft-line);
+	color: var(--dy-text-secondary);
+	font-size: .76rem;
+	text-align: center;
 }
 
 .dy-login__register a {
-  color: var(--dy-brand);
-  font-weight: 800;
-  text-decoration: none;
+	color: var(--dy-brand);
+	font-weight: 800;
+	text-decoration: none;
 }
 
 .dy-login__legal {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px 14px;
-  margin-block-start: 9px;
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 6px 14px;
+	margin-block-start: 9px;
 }
 
 .dy-login__legal a {
-  color: var(--dy-text-muted);
-  font-size: .66rem;
-  text-decoration: none;
+	color: var(--dy-text-muted);
+	font-size: .66rem;
+	text-decoration: none;
 }
 
 /* ── Branch selection ──────────────────────────────────────────────────── */
 
 .dy-login__branch-selector {
-  display: grid;
-  gap: 6px;
-  margin-block-start: 1px;
-  padding: 10px;
-  border: 1px solid color-mix(in srgb, var(--dy-brand) 20%, var(--dy-border-soft));
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--dy-brand) 3%, var(--dy-surface));
+	display: grid;
+	gap: 6px;
+	margin-block-start: 1px;
+	padding: 10px;
+	border: 1px solid
+		color-mix(in srgb, var(--dy-brand) 20%, var(--dy-border-soft));
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--dy-brand) 3%, var(--dy-surface));
 }
 
 .dy-login__select-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-  min-height: 48px;
-  border: 1px solid var(--login-line);
-  border-radius: 9px;
-  background: var(--dy-surface);
+	position: relative;
+	display: flex;
+	align-items: center;
+	min-height: 48px;
+	border: 1px solid var(--login-line);
+	border-radius: 9px;
+	background: var(--dy-surface);
 }
 
 .dy-login__select-icon {
-  margin-inline: 12px 8px;
+	margin-inline: 12px 8px;
 }
 
 .dy-login__select {
-  min-width: 0;
-  width: 100%;
-  height: 46px;
-  padding-inline: 0 10px;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--dy-text-strong);
-  font: inherit;
-  font-size: .84rem;
+	min-width: 0;
+	width: 100%;
+	height: 46px;
+	padding-inline: 0 10px;
+	border: 0;
+	outline: 0;
+	background: transparent;
+	color: var(--dy-text-strong);
+	font: inherit;
+	font-size: .84rem;
 }
 
 /* ── Security / metadata / technical surfaces ──────────────────────────── */
 
 .dy-login__security {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
+	display: flex;
+	align-items: flex-start;
+	gap: 9px;
 }
 
 .dy-login__security-icon {
-  flex: 0 0 auto;
+	flex: 0 0 auto;
 }
 
 .dy-login__security-main {
-  min-width: 0;
+	min-width: 0;
 }
 
 .dy-login__technical-panel {
-  width: min(100% - (var(--login-gutter) * 2), 1100px);
-  margin: 0 auto 12px;
+	width: min(100% - (var(--login-gutter) * 2), 1100px);
+	margin: 0 auto 12px;
 }
 
 .dy-login__install-details {
-  width: min(var(--login-max), calc(100% - (var(--login-gutter) * 2)));
-  margin: 0 auto 28px;
+	width: min(var(--login-max), calc(100% - (var(--login-gutter) * 2)));
+	margin: 0 auto 28px;
 }
 
 .dy-login__quick-actions {
-  width: min(var(--login-max), 100%);
-  margin-inline: auto;
+	width: min(var(--login-max), 100%);
+	margin-inline: auto;
 }
 
 /* ── Legacy hooks retained only where the template/component contract needs them ─ */
 
 .dy-login__offline-banner,
 .dy-login__status-details {
-  display: none;
+	display: none;
 }
 
 .dy-login__workspace,
@@ -787,123 +811,123 @@
 .dy-login__methods-label,
 .dy-login__pin-setup,
 .dy-login__pin-setup-title {
-  min-width: 0;
+	min-width: 0;
 }
 
 /* ── Responsive operating modes ────────────────────────────────────────── */
 
 @media (max-width: 760px) {
-  .dy-login__brand {
-    flex-basis: 48px;
-    min-height: 48px;
-  }
+	.dy-login__brand {
+		flex-basis: 48px;
+		min-height: 48px;
+	}
 
-  .dy-login__command-strip a {
-    padding-inline: 8px;
-    font-size: .7rem;
-  }
+	.dy-login__command-strip a {
+		padding-inline: 8px;
+		font-size: .7rem;
+	}
 
-  .dy-login__technical-toggle {
-    display: inline-flex;
-    min-width: 32px;
-    min-height: 32px;
-  }
+	.dy-login__technical-toggle {
+		display: inline-flex;
+		min-width: 32px;
+		min-height: 32px;
+	}
 
-  .dy-login__panel {
-    width: min(100%, 560px);
-    padding-block: 22px 28px;
-  }
+	.dy-login__panel {
+		width: min(100%, 560px);
+		padding-block: 22px 28px;
+	}
 }
 
 @media (max-width: 560px) {
-  .dy-login {
-    --login-gutter: 10px;
-  }
+	.dy-login {
+		--login-gutter: 10px;
+	}
 
-  .dy-login__brand {
-    flex-basis: 46px;
-    min-height: 46px;
-    padding-inline: 10px;
-    gap: 8px;
-  }
+	.dy-login__brand {
+		flex-basis: 46px;
+		min-height: 46px;
+		padding-inline: 10px;
+		gap: 8px;
+	}
 
-  .dy-login__logo-shell {
-    width: 30px;
-    height: 30px;
-  }
+	.dy-login__logo-shell {
+		width: 30px;
+		height: 30px;
+	}
 
-  .dy-login__logo {
-    width: 24px;
-    height: 24px;
-  }
+	.dy-login__logo {
+		width: 24px;
+		height: 24px;
+	}
 
-  .dy-login__preferences {
-    display: none;
-  }
+	.dy-login__preferences {
+		display: none;
+	}
 
-  .dy-login__status-bar {
-    min-height: 26px;
-    flex-basis: 26px;
-  }
+	.dy-login__status-bar {
+		min-height: 26px;
+		flex-basis: 26px;
+	}
 
-  .dy-login__panel {
-    width: 100%;
-    padding-block: 14px 24px;
-  }
+	.dy-login__panel {
+		width: 100%;
+		padding-block: 14px 24px;
+	}
 
-  .dy-login__panel-inner {
-    padding: 21px 15px 23px;
-    border-inline: 0;
-    border-radius: 13px;
-    box-shadow: none;
-  }
+	.dy-login__panel-inner {
+		padding: 21px 15px 23px;
+		border-inline: 0;
+		border-radius: 13px;
+		box-shadow: none;
+	}
 
-  .dy-login__header {
-    gap: 10px;
-    margin-block-end: 15px;
-  }
+	.dy-login__header {
+		gap: 10px;
+		margin-block-end: 15px;
+	}
 
-  .dy-login__title {
-    font-size: 1.5rem;
-  }
+	.dy-login__title {
+		font-size: 1.5rem;
+	}
 
-  .dy-login__subtitle {
-    font-size: .8rem;
-  }
+	.dy-login__subtitle {
+		font-size: .8rem;
+	}
 
-  .dy-login__methods-buttons {
-    grid-template-columns: 1fr;
-  }
+	.dy-login__methods-buttons {
+		grid-template-columns: 1fr;
+	}
 
-  .dy-login__options {
-    min-height: 36px;
-  }
+	.dy-login__options {
+		min-height: 36px;
+	}
 }
 
 @media (max-height: 700px) and (min-width: 561px) {
-  .dy-login__panel {
-    padding-block: 20px 24px;
-  }
+	.dy-login__panel {
+		padding-block: 20px 24px;
+	}
 
-  .dy-login__panel-inner {
-    padding-block: 22px;
-  }
+	.dy-login__panel-inner {
+		padding-block: 22px;
+	}
 
-  .dy-login__header {
-    margin-block-end: 13px;
-  }
+	.dy-login__header {
+		margin-block-end: 13px;
+	}
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dy-login__command-strip a,
-  .dy-login__input-wrap,
-  .dy-login__alternatives-summary::after,
-  .dy-login__secondary-summary::after {
-    transition: none;
-  }
+	.dy-login__command-strip a,
+	.dy-login__input-wrap,
+	.dy-login__alternatives-summary::after,
+	.dy-login__secondary-summary::after {
+		transition: none;
+	}
 
-  .dy-login__progress-bar {
-    animation: none;
-    width: 100%;
-  }
+	.dy-login__progress-bar {
+		animation: none;
+		width: 100%;
+	}
 }

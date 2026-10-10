@@ -89,7 +89,6 @@ describe("detectOfflineMode — pure local, zero network", () => {
 	})
 })
 
-
 describe("Login.vue template timer safety", () => {
 	it("never resolves browser setTimeout through the Vue render context", async () => {
 		const { readFile } = await import("node:fs/promises")
@@ -98,21 +97,27 @@ describe("Login.vue template timer safety", () => {
 			"utf8",
 		)
 
-		expect(source).not.toMatch(/@(?:blur|click|input|change)="[^"]*\bsetTimeout\s*\(/)
+		expect(source).not.toMatch(
+			/@(?:blur|click|input|change)="[^"]*\bsetTimeout\s*\(/,
+		)
 		expect(source).toContain('@blur="deferHideEmailSuggestions"')
 	})
 
 	it("owns the browser timer in the composable and cancels the previous hide", async () => {
-		const { useLoginEmailBlur } = await import("../src/composables/useLoginEmailBlur.js")
+		const { useLoginEmailBlur } = await import(
+			"../src/composables/useLoginEmailBlur.js"
+		)
 		vi.useFakeTimers()
 		const visible = ref(true)
 		let api
-		const wrapper = mount(defineComponent({
-			setup() {
-				api = useLoginEmailBlur({ showEmailSuggestions: visible, delay: 200 })
-				return () => null
-			},
-		}))
+		const wrapper = mount(
+			defineComponent({
+				setup() {
+					api = useLoginEmailBlur({ showEmailSuggestions: visible, delay: 200 })
+					return () => null
+				},
+			}),
+		)
 
 		api.deferHideEmailSuggestions()
 		vi.advanceTimersByTime(199)

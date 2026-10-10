@@ -24,14 +24,23 @@
 <script setup>
 import { FeatherIcon } from "dypos-ui"
 defineProps({
-  canCheckout: Boolean,
-  isOnline: Boolean,
-  syncState: { type: String, default: "ready" },
-  saleStatusLabel: { type: String, default: "" },
-  cartLabel: { type: String, default: "" },
-  totalLabel: { type: String, default: "" },
+	canCheckout: Boolean,
+	isOnline: Boolean,
+	syncState: { type: String, default: "ready" },
+	saleStatusLabel: { type: String, default: "" },
+	cartLabel: { type: String, default: "" },
+	totalLabel: { type: String, default: "" },
 })
-defineEmits(["back", "home", "operations", "stock", "payment", "scan", "shortcuts", "sync"])
+defineEmits([
+	"back",
+	"home",
+	"operations",
+	"stock",
+	"payment",
+	"scan",
+	"shortcuts",
+	"sync",
+])
 </script>
 
 <style scoped>

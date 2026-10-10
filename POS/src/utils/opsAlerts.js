@@ -20,7 +20,11 @@ export async function loadOpsAlerts({ lowStockFn, syncFn, draftFn } = {}) {
 		const lowCount = Array.isArray(low) ? low.length : Number(low?.count ?? 0)
 		const pending = Number(sync?.pendingCount ?? 0)
 		const online = sync?.isOnline !== false
-		const hasUnsent = draft === true || (draft && draft !== false && (draft.items?.length > 0 || draft.valid === true))
+		const hasUnsent =
+			draft === true ||
+			(draft &&
+				draft !== false &&
+				(draft.items?.length > 0 || draft.valid === true))
 		const alerts = []
 		if (!online) {
 			alerts.push({

@@ -40,7 +40,6 @@ export const authState = {
 	isInitialized: false,
 }
 
-
 // Refresh-token rotation is often single-use. Serialize concurrent callers
 // (reconnect, visibility and multiple sync triggers) so only one refresh
 // request can consume the refresh token at a time.

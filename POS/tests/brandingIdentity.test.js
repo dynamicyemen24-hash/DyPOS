@@ -244,7 +244,9 @@ describe("brand identity: the company's official website is reachable", () => {
 	it("keeps explicit brand identity on both auth screens", () => {
 		for (const page of ["Login.vue", "Register.vue"]) {
 			const source = read(POS, "src", "pages", `${page}`)
-			expect(source, `${page} must reference the DyPOS brand`).toMatch(/DyPOSLogo|APP_NAME|COMPANY_NAME/)
+			expect(source, `${page} must reference the DyPOS brand`).toMatch(
+				/DyPOSLogo|APP_NAME|COMPANY_NAME/,
+			)
 		}
 	})
 })

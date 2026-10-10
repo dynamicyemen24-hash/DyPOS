@@ -176,7 +176,7 @@ describe("push priority — أولويات الدفع", () => {
 				return [
 					{
 						id: 1,
-					tenantId: "tenant-test",
+						tenantId: "tenant-test",
 						entityType: "settings",
 						entityId: "theme",
 						operation: "update",
@@ -185,7 +185,7 @@ describe("push priority — أولويات الدفع", () => {
 					},
 					{
 						id: 2,
-					tenantId: "tenant-test",
+						tenantId: "tenant-test",
 						entityType: "invoice",
 						entityId: "INV-2",
 						operation: "create",
@@ -194,7 +194,7 @@ describe("push priority — أولويات الدفع", () => {
 					},
 					{
 						id: 3,
-					tenantId: "tenant-test",
+						tenantId: "tenant-test",
 						entityType: "invoice",
 						entityId: "INV-1",
 						operation: "create",

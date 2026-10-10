@@ -1,230 +1,285 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
-import router from "@/router";
+import { computed, onMounted, ref } from "vue"
+import router from "@/router"
 
 const types = [
-  { value: "products", label: "الأصناف" },
-  { value: "customers", label: "العملاء" },
-  { value: "warehouses", label: "المخازن" },
-];
+	{ value: "products", label: "الأصناف" },
+	{ value: "customers", label: "العملاء" },
+	{ value: "warehouses", label: "المخازن" },
+]
 
-const type = ref("products");
-const csv = ref("");
-const report = ref(null);
-const busy = ref(false);
-const profile = ref(null);
-const countries = ref([]);
-const establishmentTypes = ref([]);
-const templates = ref([]);
-const templateName = ref("");
-const selectedTemplateId = ref("");
-const fileInput = ref(null);
-const profileSaving = ref(false);
-const profileMessage = ref("");
-const readiness = ref({ products: 0, customers: 0, warehouses: 0, defaultWarehouse: "", currency: "" });
+const type = ref("products")
+const csv = ref("")
+const report = ref(null)
+const busy = ref(false)
+const profile = ref(null)
+const countries = ref([])
+const establishmentTypes = ref([])
+const templates = ref([])
+const templateName = ref("")
+const selectedTemplateId = ref("")
+const fileInput = ref(null)
+const profileSaving = ref(false)
+const profileMessage = ref("")
+const readiness = ref({
+	products: 0,
+	customers: 0,
+	warehouses: 0,
+	defaultWarehouse: "",
+	currency: "",
+})
 
 const setup = ref({
-  countryCode: "YE",
-  timezone: "Asia/Aden",
-  currency: "YER",
-  establishmentType: "retail",
-});
+	countryCode: "YE",
+	timezone: "Asia/Aden",
+	currency: "YER",
+	establishmentType: "retail",
+})
 
-const activeTab = ref("profile");
-const currentStep = ref(1);
-const loading = ref(true);
-const online = ref(typeof navigator === "undefined" ? true : navigator.onLine);
-const lastValidatedCsv = ref("");
-const lastValidatedType = ref("");
-const canApply = computed(() => Boolean(csv.value.trim()) && Boolean(report.value?.dryRun) && report.value?.invalid === 0 && lastValidatedCsv.value === csv.value && lastValidatedType.value === type.value);
-const progress = computed(() => activeTab.value === "profile" ? 25 : currentStep.value === 1 ? 50 : currentStep.value === 2 ? 75 : 100);
+const activeTab = ref("profile")
+const currentStep = ref(1)
+const loading = ref(true)
+const online = ref(typeof navigator === "undefined" ? true : navigator.onLine)
+const lastValidatedCsv = ref("")
+const lastValidatedType = ref("")
+const canApply = computed(
+	() =>
+		Boolean(csv.value.trim()) &&
+		Boolean(report.value?.dryRun) &&
+		report.value?.invalid === 0 &&
+		lastValidatedCsv.value === csv.value &&
+		lastValidatedType.value === type.value,
+)
+const progress = computed(() =>
+	activeTab.value === "profile"
+		? 25
+		: currentStep.value === 1
+			? 50
+			: currentStep.value === 2
+				? 75
+				: 100,
+)
 
 async function call(path, body = {}) {
-  const response = await fetch(`/api/method/${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    cache: "no-store",
-    body: JSON.stringify(body),
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(payload?.message?._error_message || payload?._error_message || payload?.message || "تعذر تنفيذ العملية");
-  }
-  return payload?.message ?? payload;
+	const response = await fetch(`/api/method/${path}`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		credentials: "same-origin",
+		cache: "no-store",
+		body: JSON.stringify(body),
+	})
+	const payload = await response.json().catch(() => ({}))
+	if (!response.ok) {
+		throw new Error(
+			payload?.message?._error_message ||
+				payload?._error_message ||
+				payload?.message ||
+				"تعذر تنفيذ العملية",
+		)
+	}
+	return payload?.message ?? payload
 }
 
 async function loadProfile() {
-  const r = await call("DyPOS.api.onboarding.profile");
-  profile.value = r.organization;
-  countries.value = r.countries || [];
-  establishmentTypes.value = r.establishmentTypes || [];
-  readiness.value = r.readiness || readiness.value;
-  setup.value = {
-    countryCode: r.organization?.country_code || "YE",
-    timezone: r.organization?.timezone || "Asia/Aden",
-    currency: "YER",
-    establishmentType: r.organization?.establishment_type || "retail",
-  };
-  const country = countries.value.find((x) => x.code === setup.value.countryCode);
-  if (country && !setup.value.currency) setup.value.currency = country.currency;
+	const r = await call("DyPOS.api.onboarding.profile")
+	profile.value = r.organization
+	countries.value = r.countries || []
+	establishmentTypes.value = r.establishmentTypes || []
+	readiness.value = r.readiness || readiness.value
+	setup.value = {
+		countryCode: r.organization?.country_code || "YE",
+		timezone: r.organization?.timezone || "Asia/Aden",
+		currency: "YER",
+		establishmentType: r.organization?.establishment_type || "retail",
+	}
+	const country = countries.value.find(
+		(x) => x.code === setup.value.countryCode,
+	)
+	if (country && !setup.value.currency) setup.value.currency = country.currency
 }
 
 async function saveProfile() {
-  profileSaving.value = true;
-  profileMessage.value = "";
-  try {
-    await call("DyPOS.api.onboarding.save_profile", setup.value);
-    profileMessage.value = "تم حفظ ملف التشغيل الفعلي للمؤسسة.";
-    await loadProfile();
-    activeTab.value = "import";
-    currentStep.value = 1;
-  } catch (e) {
-    profileMessage.value = e.message;
-  } finally {
-    profileSaving.value = false;
-  }
+	profileSaving.value = true
+	profileMessage.value = ""
+	try {
+		await call("DyPOS.api.onboarding.save_profile", setup.value)
+		profileMessage.value = "تم حفظ ملف التشغيل الفعلي للمؤسسة."
+		await loadProfile()
+		activeTab.value = "import"
+		currentStep.value = 1
+	} catch (e) {
+		profileMessage.value = e.message
+	} finally {
+		profileSaving.value = false
+	}
 }
 
 function onCountryChange() {
-  const c = countries.value.find((x) => x.code === setup.value.countryCode);
-  if (c) {
-    setup.value.timezone = c.timezone;
-    setup.value.currency = c.currency;
-  }
+	const c = countries.value.find((x) => x.code === setup.value.countryCode)
+	if (c) {
+		setup.value.timezone = c.timezone
+		setup.value.currency = c.currency
+	}
 }
 
 async function loadTemplates() {
-  const r = await call("DyPOS.api.onboarding.templates");
-  templates.value = r.templates || [];
+	const r = await call("DyPOS.api.onboarding.templates")
+	templates.value = r.templates || []
 }
 
 async function template() {
-  busy.value = true;
-  try {
-    const r = await call("DyPOS.api.onboarding.master_data_template", { type: type.value });
-    download(r.csv, r.filename);
-  } catch (e) {
-    report.value = { error: e.message };
-  } finally {
-    busy.value = false;
-  }
+	busy.value = true
+	try {
+		const r = await call("DyPOS.api.onboarding.master_data_template", {
+			type: type.value,
+		})
+		download(r.csv, r.filename)
+	} catch (e) {
+		report.value = { error: e.message }
+	} finally {
+		busy.value = false
+	}
 }
 
 function onFile(e) {
-  const file = e?.target?.files?.[0];
-  if (!file) return;
-  if (!/\.(csv|txt)$/i.test(file.name)) {
-    report.value = { error: "استخدم قالب Excel متوافقًا عبر CSV. الملف الناتج يفتح ويُحرر مباشرة في Excel." };
-    e.target.value = "";
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = () => {
-    csv.value = String(reader.result || "");
-    report.value = null;
-  };
-  reader.readAsText(file);
+	const file = e?.target?.files?.[0]
+	if (!file) return
+	if (!/\.(csv|txt)$/i.test(file.name)) {
+		report.value = {
+			error:
+				"استخدم قالب Excel متوافقًا عبر CSV. الملف الناتج يفتح ويُحرر مباشرة في Excel.",
+		}
+		e.target.value = ""
+		return
+	}
+	const reader = new FileReader()
+	reader.onload = () => {
+		csv.value = String(reader.result || "")
+		report.value = null
+	}
+	reader.readAsText(file)
 }
 
 function download(text, filename) {
-  const blob = new Blob([`\uFEFF${text}`], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+	const blob = new Blob([`\uFEFF${text}`], { type: "text/csv;charset=utf-8" })
+	const url = URL.createObjectURL(blob)
+	const a = document.createElement("a")
+	a.href = url
+	a.download = filename
+	a.click()
+	setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
 async function preview() {
-  busy.value = true;
-  currentStep.value = 2;
-  try {
-    const r = await call("DyPOS.api.onboarding.import_master_data", { type: type.value, csv: csv.value, dryRun: 1 });
-    report.value = r;
-    lastValidatedCsv.value = csv.value;
-    lastValidatedType.value = type.value;
-  } catch (e) {
-    report.value = { error: e.message };
-  } finally {
-    busy.value = false;
-  }
+	busy.value = true
+	currentStep.value = 2
+	try {
+		const r = await call("DyPOS.api.onboarding.import_master_data", {
+			type: type.value,
+			csv: csv.value,
+			dryRun: 1,
+		})
+		report.value = r
+		lastValidatedCsv.value = csv.value
+		lastValidatedType.value = type.value
+	} catch (e) {
+		report.value = { error: e.message }
+	} finally {
+		busy.value = false
+	}
 }
 
 async function apply() {
-  if (!canApply.value) return;
-  busy.value = true;
-  currentStep.value = 3;
-  try {
-    const r = await call("DyPOS.api.onboarding.import_master_data", { type: type.value, csv: csv.value });
-    report.value = r;
-    lastValidatedCsv.value = "";
-    lastValidatedType.value = "";
-    await loadTemplates();
-  } catch (e) {
-    report.value = { error: e.message };
-  } finally {
-    busy.value = false;
-  }
+	if (!canApply.value) return
+	busy.value = true
+	currentStep.value = 3
+	try {
+		const r = await call("DyPOS.api.onboarding.import_master_data", {
+			type: type.value,
+			csv: csv.value,
+		})
+		report.value = r
+		lastValidatedCsv.value = ""
+		lastValidatedType.value = ""
+		await loadTemplates()
+	} catch (e) {
+		report.value = { error: e.message }
+	} finally {
+		busy.value = false
+	}
 }
 
 async function saveTemplate() {
-  if (!templateName.value.trim() || !csv.value.trim()) return;
-  busy.value = true;
-  try {
-    await call("DyPOS.api.onboarding.save_template", {
-      name: templateName.value.trim(),
-      dataType: type.value,
-      content: csv.value,
-    });
-    templateName.value = "";
-    await loadTemplates();
-    report.value = { success: "تم حفظ القالب ويمكن إعادة استخدامه وتعديله لاحقًا." };
-  } catch (e) {
-    report.value = { error: e.message };
-  } finally {
-    busy.value = false;
-  }
+	if (!templateName.value.trim() || !csv.value.trim()) return
+	busy.value = true
+	try {
+		await call("DyPOS.api.onboarding.save_template", {
+			name: templateName.value.trim(),
+			dataType: type.value,
+			content: csv.value,
+		})
+		templateName.value = ""
+		await loadTemplates()
+		report.value = {
+			success: "تم حفظ القالب ويمكن إعادة استخدامه وتعديله لاحقًا.",
+		}
+	} catch (e) {
+		report.value = { error: e.message }
+	} finally {
+		busy.value = false
+	}
 }
 
 function useTemplate(item) {
-  type.value = item.data_type;
-  csv.value = item.content;
-  selectedTemplateId.value = item.id;
-  report.value = null;
-  lastValidatedCsv.value = "";
-  lastValidatedType.value = "";
-  currentStep.value = 1;
-  activeTab.value = "import";
+	type.value = item.data_type
+	csv.value = item.content
+	selectedTemplateId.value = item.id
+	report.value = null
+	lastValidatedCsv.value = ""
+	lastValidatedType.value = ""
+	currentStep.value = 1
+	activeTab.value = "import"
 }
 
 async function deleteTemplate(id) {
-  if (!id) return;
-  busy.value = true;
-  try {
-    await call("DyPOS.api.onboarding.delete_template", { id });
-    await loadTemplates();
-    if (selectedTemplateId.value === id) selectedTemplateId.value = "";
-  } catch (e) {
-    report.value = { error: e.message };
-  } finally {
-    busy.value = false;
-  }
+	if (!id) return
+	busy.value = true
+	try {
+		await call("DyPOS.api.onboarding.delete_template", { id })
+		await loadTemplates()
+		if (selectedTemplateId.value === id) selectedTemplateId.value = ""
+	} catch (e) {
+		report.value = { error: e.message }
+	} finally {
+		busy.value = false
+	}
 }
 
-const currentCountry = computed(() => countries.value.find((x) => x.code === setup.value.countryCode));
-const currentType = computed(() => establishmentTypes.value.find((x) => x.value === setup.value.establishmentType));
+const currentCountry = computed(() =>
+	countries.value.find((x) => x.code === setup.value.countryCode),
+)
+const currentType = computed(() =>
+	establishmentTypes.value.find(
+		(x) => x.value === setup.value.establishmentType,
+	),
+)
 
 onMounted(async () => {
-  loading.value = true;
-  const results = await Promise.allSettled([loadProfile(), loadTemplates()]);
-  const failed = results.find((x) => x.status === "rejected");
-  if (failed) report.value = { error: failed.reason?.message || "تعذر تحميل بيانات مركز الإعداد" };
-  loading.value = false;
-  window.addEventListener("online", () => { online.value = true; });
-  window.addEventListener("offline", () => { online.value = false; });
-});
+	loading.value = true
+	const results = await Promise.allSettled([loadProfile(), loadTemplates()])
+	const failed = results.find((x) => x.status === "rejected")
+	if (failed)
+		report.value = {
+			error: failed.reason?.message || "تعذر تحميل بيانات مركز الإعداد",
+		}
+	loading.value = false
+	window.addEventListener("online", () => {
+		online.value = true
+	})
+	window.addEventListener("offline", () => {
+		online.value = false
+	})
+})
 </script>
 
 <template>

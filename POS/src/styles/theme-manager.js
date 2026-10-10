@@ -11,8 +11,19 @@
  *   are unavailable.
  */
 export const THEME_MODES = Object.freeze(["light", "dark", "system"])
-export const THEME_ACCENTS = Object.freeze(["royal", "indigo", "teal", "emerald", "violet", "rose"])
-export const THEME_DENSITIES = Object.freeze(["compact", "comfortable", "spacious"])
+export const THEME_ACCENTS = Object.freeze([
+	"royal",
+	"indigo",
+	"teal",
+	"emerald",
+	"violet",
+	"rose",
+])
+export const THEME_DENSITIES = Object.freeze([
+	"compact",
+	"comfortable",
+	"spacious",
+])
 export const THEME_CONTRASTS = Object.freeze(["normal", "high"])
 
 const STORAGE_KEY = "dypos.design.preferences"
@@ -120,7 +131,10 @@ function handleSystemChange() {
 }
 
 function syncSystemListener(mode) {
-	if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+	if (
+		typeof window === "undefined" ||
+		typeof window.matchMedia !== "function"
+	) {
 		detachSystemListener()
 		return
 	}
@@ -172,16 +186,18 @@ export function applyThemePreferences(value = preferences) {
 }
 
 export const setThemeMode = (mode) => applyRuntime({ ...preferences, mode })
-export const setThemeAccent = (accent) => applyRuntime({ ...preferences, accent })
-export const setThemeDensity = (density) => applyRuntime({ ...preferences, density })
-export const setThemeContrast = (contrast) => applyRuntime({ ...preferences, contrast })
+export const setThemeAccent = (accent) =>
+	applyRuntime({ ...preferences, accent })
+export const setThemeDensity = (density) =>
+	applyRuntime({ ...preferences, density })
+export const setThemeContrast = (contrast) =>
+	applyRuntime({ ...preferences, contrast })
 export const resetThemePreferences = () => applyRuntime(DEFAULTS)
 
 export function subscribeTheme(callback) {
 	if (typeof window === "undefined") return () => {}
 
-	const handler = (event) =>
-		callback(event.detail || getThemePreferences())
+	const handler = (event) => callback(event.detail || getThemePreferences())
 	window.addEventListener(EVENT_NAME, handler)
 	return () => window.removeEventListener(EVENT_NAME, handler)
 }

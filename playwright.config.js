@@ -32,6 +32,7 @@ const { defineConfig, devices } = require("playwright/test")
 const path = require("node:path")
 
 const TEST_RESULTS = path.join(__dirname, "test-results")
+const HTML_REPORT = path.join(__dirname, "playwright-report")
 
 module.exports = defineConfig({
 	testDir: "./e2e",
@@ -41,7 +42,7 @@ module.exports = defineConfig({
 	retries: process.env.CI ? 2 : 0,
 	reporter: [
 		["list"],
-		["html", { outputFolder: path.join(TEST_RESULTS, "html"), open: "never" }],
+		["html", { outputFolder: HTML_REPORT, open: "never" }],
 	],
 	use: {
 		baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://localhost:8080",

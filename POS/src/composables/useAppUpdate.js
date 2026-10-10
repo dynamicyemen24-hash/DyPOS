@@ -30,7 +30,11 @@ let listenerInstalled = false
 let loadedVersion = null
 
 function compareVersions(a, b) {
-	const parse = (value) => String(value || "").split(/[.+-]/, 1)[0].split(".").map((part) => Number.parseInt(part, 10) || 0)
+	const parse = (value) =>
+		String(value || "")
+			.split(/[.+-]/, 1)[0]
+			.split(".")
+			.map((part) => Number.parseInt(part, 10) || 0)
 	const aa = parse(a)
 	const bb = parse(b)
 	for (let i = 0; i < Math.max(aa.length, bb.length); i += 1) {
@@ -80,7 +84,10 @@ async function loadReleaseFeed(version = currentVersion.value) {
 				}
 			}
 		} catch (error) {
-			log.debug("Release feed unavailable; using local update notice", error?.message)
+			log.debug(
+				"Release feed unavailable; using local update notice",
+				error?.message,
+			)
 		}
 	}
 
@@ -119,7 +126,8 @@ async function prefetchUpdate() {
 function handleUpdateSignal(event) {
 	updateError.value = null
 	updateAvailable.value = true
-	const hintedVersion = event?.detail?.version || event?.detail?.release?.version
+	const hintedVersion =
+		event?.detail?.version || event?.detail?.release?.version
 	void loadReleaseFeed(hintedVersion || currentVersion.value)
 	void prefetchUpdate()
 }
@@ -163,7 +171,8 @@ async function applyUpdate() {
 		if (!waiting) {
 			await prefetchUpdate()
 			const refreshed = await navigator.serviceWorker.getRegistrations()
-			waiting = refreshed.find((registration) => registration.waiting)?.waiting || null
+			waiting =
+				refreshed.find((registration) => registration.waiting)?.waiting || null
 		}
 
 		if (!waiting) {
@@ -178,7 +187,9 @@ async function applyUpdate() {
 				navigator.serviceWorker.removeEventListener("controllerchange", finish)
 				resolve()
 			}
-			navigator.serviceWorker.addEventListener("controllerchange", finish, { once: true })
+			navigator.serviceWorker.addEventListener("controllerchange", finish, {
+				once: true,
+			})
 			window.setTimeout(finish, 5000)
 		})
 

@@ -102,7 +102,10 @@ describe("sync queue", () => {
 	beforeEach(clearTables)
 
 	it("enqueues and lists pending operations", async () => {
-		const id = await store.enqueue("invoice", "INV-1", "create", { total: 10, _tenantId: "tenant-test" })
+		const id = await store.enqueue("invoice", "INV-1", "create", {
+			total: 10,
+			_tenantId: "tenant-test",
+		})
 		expect(id).toBeTruthy()
 
 		const pending = await store.pendingOperations(null, "tenant-test")
@@ -115,19 +118,31 @@ describe("sync queue", () => {
 	})
 
 	it("filters pending operations by entity type", async () => {
-		await store.enqueue("invoice", "INV-1", "create", { _tenantId: "tenant-test" })
-		await store.enqueue("customer", "C-1", "create", { _tenantId: "tenant-test" })
-		expect(await store.pendingOperations("invoice", "tenant-test")).toHaveLength(1)
-		expect(await store.pendingOperations("customer", "tenant-test")).toHaveLength(1)
+		await store.enqueue("invoice", "INV-1", "create", {
+			_tenantId: "tenant-test",
+		})
+		await store.enqueue("customer", "C-1", "create", {
+			_tenantId: "tenant-test",
+		})
+		expect(
+			await store.pendingOperations("invoice", "tenant-test"),
+		).toHaveLength(1)
+		expect(
+			await store.pendingOperations("customer", "tenant-test"),
+		).toHaveLength(1)
 		expect(await store.getQueueCount("invoice", "tenant-test")).toBe(1)
 	})
 
 	it("marks rows synced / failed out of the pending set", async () => {
-		const id = await store.enqueue("invoice", "INV-1", "create", { _tenantId: "tenant-test" })
+		const id = await store.enqueue("invoice", "INV-1", "create", {
+			_tenantId: "tenant-test",
+		})
 		await store.markSynced(id, "REM-1")
 		expect(await store.pendingOperations()).toHaveLength(0)
 
-		const id2 = await store.enqueue("invoice", "INV-2", "create", { _tenantId: "tenant-test" })
+		const id2 = await store.enqueue("invoice", "INV-2", "create", {
+			_tenantId: "tenant-test",
+		})
 		await store.markFailed(id2, "validation rejected")
 		const failed = mocks.tables.syncQueue.rows.get(id2)
 		expect(failed.status).toBe("failed")

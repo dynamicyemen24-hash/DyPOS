@@ -315,8 +315,12 @@ const contextItems = computed(() =>
 
 /** قائمة المشغّل (الحساب/الخروج) — نفس القائمة في نقطة البيع، لا نسخة ثانية. */
 const operatorName = computed(() => sessionUser() || "الحساب")
-const { showOperatorMenu, openOperatorMenu, closeOperatorMenu, onOperatorAction } =
-	useOperatorMenu()
+const {
+	showOperatorMenu,
+	openOperatorMenu,
+	closeOperatorMenu,
+	onOperatorAction,
+} = useOperatorMenu()
 
 /** مشاركة النظام: Web Share على الجهاز، ونسخ الرابط عند غيابها — محلي بالكامل. */
 const { showSuccess: toastSuccess, showError: toastError } = useToast()
@@ -329,12 +333,16 @@ async function onShare() {
 	})
 	if (result === "dismissed") return
 	if (result === "shared" || result === "copied")
-		toastSuccess(result === "shared" ? "تمت المشاركة" : "نُسخ رابط التسجيل — الصقه في أي وسيلة")
+		toastSuccess(
+			result === "shared"
+				? "تمت المشاركة"
+				: "نُسخ رابط التسجيل — الصقه في أي وسيلة",
+		)
 	else toastError(`تعذّرت المشاركة التلقائية — انسخ الرابط يدويًا: ${url}`)
 }
 
 const broadcastRefresh = () => {
-  window.dispatchEvent(new CustomEvent("dypos:dashboard-refresh"))
+	window.dispatchEvent(new CustomEvent("dypos:dashboard-refresh"))
 }
 
 /** مركز التنبيهات: حقائق محلية تحتاج تدخلًا — لا أصفار مطمئنة ولا صمت. */
@@ -342,46 +350,50 @@ const alertsLoading = ref(true)
 const alertsError = ref("")
 const alerts = ref([])
 async function loadAlerts() {
-  alertsLoading.value = true
-  const result = await loadOpsAlerts({ lowStockFn: lowStock, syncFn: getSyncStatus, draftFn: hasDraft })
-  alerts.value = result.alerts
-  alertsError.value = result.error
-  alertsLoading.value = false
+	alertsLoading.value = true
+	const result = await loadOpsAlerts({
+		lowStockFn: lowStock,
+		syncFn: getSyncStatus,
+		draftFn: hasDraft,
+	})
+	alerts.value = result.alerts
+	alertsError.value = result.error
+	alertsLoading.value = false
 }
 
 const updateFilterModel = (values = {}) => {
-  Object.assign(filterModel, values)
+	Object.assign(filterModel, values)
 }
 
 const onFiltersApply = (values = filterModel) => {
-  const from = String(values?.from ?? filterModel.from ?? "")
-  const to = String(values?.to ?? filterModel.to ?? "")
-  if (from && to && from > to) {
-    // التصحيح الصامت كان يُربك: المشغّل يرى تواريخه ولا أثر لها.
-    filterModel.from = period.from.value
-    filterModel.to = period.to.value
-    toastError("تاريخ البداية بعد النهاية — أُعيد النطاق الصالح السابق")
-    return
-  }
-  period.apply({ from, to })
-  broadcastRefresh()
+	const from = String(values?.from ?? filterModel.from ?? "")
+	const to = String(values?.to ?? filterModel.to ?? "")
+	if (from && to && from > to) {
+		// التصحيح الصامت كان يُربك: المشغّل يرى تواريخه ولا أثر لها.
+		filterModel.from = period.from.value
+		filterModel.to = period.to.value
+		toastError("تاريخ البداية بعد النهاية — أُعيد النطاق الصالح السابق")
+		return
+	}
+	period.apply({ from, to })
+	broadcastRefresh()
 }
 
 const onFiltersReset = () => {
-  period.reset()
-  filterModel.from = period.from.value
-  filterModel.to = period.to.value
-  broadcastRefresh()
+	period.reset()
+	filterModel.from = period.from.value
+	filterModel.to = period.to.value
+	broadcastRefresh()
 }
 
 onMounted(() => {
-  broadcastRefresh()
-  loadAlerts()
-  window.addEventListener("dypos:dashboard-refresh", loadAlerts)
+	broadcastRefresh()
+	loadAlerts()
+	window.addEventListener("dypos:dashboard-refresh", loadAlerts)
 })
 
 onUnmounted(() => {
-  window.removeEventListener("dypos:dashboard-refresh", loadAlerts)
+	window.removeEventListener("dypos:dashboard-refresh", loadAlerts)
 })
 </script><style scoped>
 .dy-home-shell :deep(.work-shell__content) { padding: 0; }

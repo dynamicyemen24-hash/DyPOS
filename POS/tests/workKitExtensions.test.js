@@ -450,7 +450,9 @@ describe("WorkMenuStrip — toolbar contract", () => {
 	it("a disabled action announces its denial with the reason (no silent touch)", async () => {
 		const wrapper = mountTracked(WorkMenuStrip, {
 			props: {
-				items: [{ id: "export", label: "تصدير", disabled: true, reason: "لا سجلات" }],
+				items: [
+					{ id: "export", label: "تصدير", disabled: true, reason: "لا سجلات" },
+				],
 			},
 			global: globalBase(),
 		})

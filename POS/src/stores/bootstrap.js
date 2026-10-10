@@ -55,11 +55,16 @@ export const useBootstrapStore = defineStore("bootstrap", () => {
 
 		try {
 			log.info("Loading bootstrap data...")
-			const request = call("DyPOS.api.bootstrap.get_initial_data", { terminal_id: resolveTerminalId() })
+			const request = call("DyPOS.api.bootstrap.get_initial_data", {
+				terminal_id: resolveTerminalId(),
+			})
 			const result = await Promise.race([
 				request,
 				new Promise((resolve) =>
-					setTimeout(() => resolve(null), Math.max(250, Number(timeoutMs) || 2500)),
+					setTimeout(
+						() => resolve(null),
+						Math.max(250, Number(timeoutMs) || 2500),
+					),
 				),
 			])
 

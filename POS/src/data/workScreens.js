@@ -18,7 +18,8 @@ import { sessionRole } from "@/data/session"
 import { formatCurrencyNumber } from "@/utils/currency"
 
 const money = (row) => Number(row?.grand_total ?? row?.total ?? 0)
-const amount = (field) => (row) => formatCurrencyNumber(Number(row?.[field] ?? 0))
+const amount = (field) => (row) =>
+	formatCurrencyNumber(Number(row?.[field] ?? 0))
 
 /** @type {ReadonlyArray<{id:string,label:string,emptyTitle:string,icon:string,doctype:string,permission:string,orderBy:string,columns:Array<object>,load:Function}>} */
 export const WORK_SCREENS = Object.freeze([

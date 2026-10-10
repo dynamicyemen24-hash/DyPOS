@@ -153,7 +153,9 @@ export function useSelfCheckoutSession(options = {}) {
 	 * يستطيع استدعاء الدالة من أي حالة أخرى إصدار فاتورة عارضة.
 	 */
 	const selectedPaymentMethod = computed(() => paymentMethodById(method.value))
-	const paymentMethodReady = computed(() => selectedPaymentMethod.value?.availableOffline === true)
+	const paymentMethodReady = computed(
+		() => selectedPaymentMethod.value?.availableOffline === true,
+	)
 	const canConfirm = computed(
 		() =>
 			state.value === SESSION_STATES.PAYING &&

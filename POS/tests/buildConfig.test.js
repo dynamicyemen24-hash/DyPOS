@@ -134,7 +134,7 @@ describe("build config integrity", () => {
 			join(POS, "scripts/build-pages.mjs"),
 			"utf8",
 		)
-		expect(pagesBuild).toContain("process.env.DYPOS_PAGES_BUILD = \"1\"")
+		expect(pagesBuild).toContain('process.env.DYPOS_PAGES_BUILD = "1"')
 		expect(pagesBuild).toContain('base: "/"')
 	})
 
@@ -149,7 +149,7 @@ describe("build config integrity", () => {
 	})
 
 	it("does not cache tenant-scoped API responses in the service worker", () => {
-		expect(viteConfig).toContain('urlPattern: /\\/api\\/.*/i')
+		expect(viteConfig).toContain("urlPattern: /\\/api\\/.*/i")
 		expect(viteConfig).toContain('handler: "NetworkOnly"')
 		expect(viteConfig).not.toContain('cacheName: "api-cache"')
 	})

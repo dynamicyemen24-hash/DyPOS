@@ -51,17 +51,25 @@ describe("قاموس الإجراءات", () => {
 			expect(ARABIC.test(action.label ?? ""), `${id}: تسمية عربية`).toBe(true)
 			expect(ACTION_KINDS, `${id}: kind`).toContain(action.kind)
 			expect(CONFIRM_POLICIES, `${id}: confirm`).toContain(action.confirm)
-			expect(String(action.permission ?? "").length, `${id}: permission`).toBeGreaterThan(0)
+			expect(
+				String(action.permission ?? "").length,
+				`${id}: permission`,
+			).toBeGreaterThan(0)
 			expect(typeof action.idempotent, `${id}: idempotent`).toBe("boolean")
 		}
 	})
 
 	it("كل أيقونة موجودة فعلًا — لا دائرة صامتة", () => {
 		for (const [id, action] of Object.entries(ACTIONS)) {
-			expect(iconResolves(action.icon), `${id}: أيقونة ${action.icon}`).toBe(true)
+			expect(iconResolves(action.icon), `${id}: أيقونة ${action.icon}`).toBe(
+				true,
+			)
 		}
 		for (const module of HOME_MODULES) {
-			expect(iconResolves(module.icon), `بلاطة ${module.id}: أيقونة ${module.icon}`).toBe(true)
+			expect(
+				iconResolves(module.icon),
+				`بلاطة ${module.id}: أيقونة ${module.icon}`,
+			).toBe(true)
 		}
 	})
 
@@ -84,7 +92,11 @@ describe("قاموس الإجراءات", () => {
 
 describe("محرك السياق", () => {
 	it("التحميل يجمّد الكل بسبب معلن", () => {
-		const actions = resolveStripActions({ loading: true, hasRows: true, source: "server" })
+		const actions = resolveStripActions({
+			loading: true,
+			hasRows: true,
+			source: "server",
+		})
 		expect(actions.length).toBeGreaterThan(0)
 		for (const action of actions) {
 			expect(action.disabled, action.id).toBe(true)
@@ -94,7 +106,11 @@ describe("محرك السياق", () => {
 
 	it("انعدام المصدر يبقي التحديث وحده", () => {
 		for (const source of ["", "unavailable"]) {
-			const actions = resolveStripActions({ loading: false, hasRows: true, source })
+			const actions = resolveStripActions({
+				loading: false,
+				hasRows: true,
+				source,
+			})
 			const byId = Object.fromEntries(actions.map((a) => [a.id, a]))
 			expect(byId["record.refresh"].disabled).toBe(false)
 			expect(byId["record.exportCsv"].disabled).toBe(true)
@@ -103,15 +119,25 @@ describe("محرك السياق", () => {
 	})
 
 	it("غياب الصفوف يمنع التصدير والطباعة بسبب معلن", () => {
-		const actions = resolveStripActions({ loading: false, hasRows: false, source: "server" })
+		const actions = resolveStripActions({
+			loading: false,
+			hasRows: false,
+			source: "server",
+		})
 		const byId = Object.fromEntries(actions.map((a) => [a.id, a]))
 		expect(byId["record.refresh"].disabled).toBe(false)
 		expect(byId["record.exportCsv"].disabled).toBe(true)
-		expect(String(byId["record.exportCsv"].reason ?? "").length).toBeGreaterThan(0)
+		expect(
+			String(byId["record.exportCsv"].reason ?? "").length,
+		).toBeGreaterThan(0)
 	})
 
 	it("الجاهزية تتيح الكل والترتيب رئيسي أولًا", () => {
-		const actions = resolveStripActions({ loading: false, hasRows: true, source: "local" })
+		const actions = resolveStripActions({
+			loading: false,
+			hasRows: true,
+			source: "local",
+		})
 		expect(actions.every((a) => !a.disabled)).toBe(true)
 		expect(actions[0].id).toBe("record.refresh")
 		expect(actions[0].kind).toBe("primary")
@@ -121,7 +147,11 @@ describe("محرك السياق", () => {
 		for (const raw of ["VOIDED", "voided", "ملغي", "cancelled"]) {
 			expect(normalizeRecordState(raw)).toBe("voided")
 		}
-		const actions = resolveStripActions({ loading: false, hasRows: true, source: "server" })
+		const actions = resolveStripActions({
+			loading: false,
+			hasRows: true,
+			source: "server",
+		})
 		expect(actions.some((a) => a.kind === "danger")).toBe(false)
 	})
 
